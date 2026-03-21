@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, boolean, timestamp, jsonb, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, boolean, timestamp, jsonb, text, primaryKey } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -195,6 +195,7 @@ export const templates = pgTable('templates', {
   description: text('description'),
   category: varchar('category', { length: 100 }).notNull(),
   tags: jsonb('tags').$type<string[]>().default([]),
+  type: varchar('type', { length: 20 }).default('scene'),
   aspectRatio: varchar('aspect_ratio', { length: 10 }).notNull().default('16:9'),
   durationFrames: integer('duration_frames').notNull().default(360),
   fps: integer('fps').notNull().default(30),
@@ -222,6 +223,29 @@ export const templateExports = pgTable('template_exports', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 });
+
+// Themes — creative direction collections for templates
+export const themes = pgTable('themes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  colorPalette: jsonb('color_palette').$type<Record<string, string>>(),
+  fontRecommendations: jsonb('font_recommendations').$type<Record<string, string>>(),
+  styleGuidance: text('style_guidance'),
+  previewUrl: varchar('preview_url', { length: 1024 }),
+  isPublished: boolean('is_published').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Template-Theme join table (many-to-many)
+export const templateThemes = pgTable('template_themes', {
+  themeId: uuid('theme_id').notNull().references(() => themes.id, { onDelete: 'cascade' }),
+  templateId: uuid('template_id').notNull().references(() => templates.id, { onDelete: 'cascade' }),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.themeId, table.templateId] }),
+}));
 
 // Waitlist signups
 export const waitlist = pgTable('waitlist', {
@@ -259,3 +283,5 @@ export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;
 export type TemplateExport = typeof templateExports.$inferSelect;
 export type NewTemplateExport = typeof templateExports.$inferInsert;
+export type Theme = typeof themes.$inferSelect;
+export type NewTheme = typeof themes.$inferInsert;
