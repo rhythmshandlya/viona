@@ -145,13 +145,13 @@ const MagazineCollage: React.FC<MagazineCollageProps> = (props) => {
                 width={CLIPPING_W}
                 height={CLIPPING_H}
               />
-              {/* Tape mark decoration */}
-              <TapeMark
-                corner={TAPE_CORNERS[i % TAPE_CORNERS.length]}
-                seed={i}
-              />
-              {/* Pin mark at top-center of clipping */}
-              {i % 2 === 0 && (
+              {/* Decoration: tape OR pin, mutually exclusive (deterministic) */}
+              {random(`decoration-${i}`) > 0.5 ? (
+                <TapeMark
+                  corner={TAPE_CORNERS[i % TAPE_CORNERS.length]}
+                  seed={i}
+                />
+              ) : (
                 <PinMark
                   x={CLIPPING_W / 2}
                   y={4}

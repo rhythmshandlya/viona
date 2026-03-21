@@ -112,6 +112,11 @@ export function InkMapTiles({
   const [loadedCount, setLoadedCount] = useState(0);
   const totalTiles = tiles.length;
 
+  // If no tiles computed (e.g., invalid coordinates), release the render hold immediately
+  if (totalTiles === 0) {
+    continueRender(handle);
+  }
+
   const onTileLoad = useCallback(() => {
     setLoadedCount((prev) => {
       const next = prev + 1;
