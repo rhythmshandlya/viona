@@ -8,6 +8,7 @@
  *   search_unsplash      - search Unsplash API, return results
  *   search_pexels        - search Pexels API, return results
  *   download_stock_photo - download from Unsplash/Pexels with attribution headers
+ *   auto_center_speaker  - adjust video crop to center the speaker's face
  *   get_speaker_grid     - spatial grid showing speaker location for overlay placement
  *
  * Usage:
@@ -23,6 +24,7 @@ import { URL } from "node:url";
 import { Open as unzipOpen } from "unzipper";
 import { parseWorkspace } from "./lib/parse-args.js";
 import { errorMessage } from "./lib/errors.js";
+import { computeCenterCrop } from "./utils/cover-transform.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -544,6 +546,140 @@ server.registerTool(
             text: `Error downloading stock photo: ${errorMessage(err)}`,
           },
         ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// -- auto_center_speaker ----------------------------------------------------
+server.registerTool(
+  "auto_center_speaker",
+  {
+    description:
+      "Automatically adjust the video item's crop to center the speaker's face. " +
+      "Reads head tracking data and the manifest, computes optimal objectPosition " +
+      "percentages, and writes updated crop values back to the manifest. " +
+      "Call this after placing video items in the timeline (Phase 5 Layout).",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      // 1. Read head tracking data
+      const trackingPath = path.join(WORKSPACE, "docs", "speaker-grid.json");
+      let trackingData: HeadTrackingData;
+      try {
+        trackingData = JSON.parse(await readFile(trackingPath, "utf-8"));
+      } catch {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              adjusted: false,
+              reason: "No head tracking data available at docs/speaker-grid.json",
+            }),
+          }],
+        };
+      }
+
+      const frames = trackingData.frames || [];
+      const videoW = trackingData.video?.width || 1;
+      const videoH = trackingData.video?.height || 1;
+
+      // Filter to frames with face detections
+      const withFace = frames.filter((f) => f.face?.bbox);
+      if (withFace.length === 0) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              adjusted: false,
+              reason: "No face detections found in tracking data. Keeping default crop.",
+            }),
+          }],
+        };
+      }
+
+      // 2. Compute average face center in source pixels
+      let sumX = 0, sumY = 0;
+      for (const f of withFace) {
+        const b = f.face!.bbox;
+        sumX += b.x + b.width / 2;
+        sumY += b.y + b.height / 2;
+      }
+      const faceCenterX = sumX / withFace.length;
+      const faceCenterY = sumY / withFace.length;
+
+      // 3. Read manifest to find video items and canvas dimensions
+      const manifestPath = path.join(WORKSPACE, "manifest.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
+      const canvas = manifest.canvas || { width: 1080, height: 1920 };
+
+      // Find all video items (manifest uses flat items[] array with trackId references)
+      const updated: Array<{ itemId: string; trackId: string; cropX: number; cropY: number }> = [];
+
+      for (const item of manifest.items || []) {
+        if (item.type !== "video") continue;
+
+        // Item dimensions come from item.transform (not item.width/height)
+        const t = item.transform || {};
+        const itemW = typeof t.width === 'number' ? t.width : canvas.width;
+        const itemH = typeof t.height === 'number' ? t.height : canvas.height;
+
+        const crop = computeCenterCrop(
+          faceCenterX, faceCenterY,
+          videoW, videoH,
+          itemW, itemH,
+        );
+
+        // Update item crop in manifest
+        if (!item.data) item.data = {};
+        item.data.crop = {
+          x: Math.round(crop.x * 10) / 10,
+          y: Math.round(crop.y * 10) / 10,
+          scale: item.data.crop?.scale ?? 1,
+        };
+
+        updated.push({
+          itemId: item.id,
+          trackId: item.trackId,
+          cropX: item.data.crop.x,
+          cropY: item.data.crop.y,
+        });
+      }
+
+      if (updated.length === 0) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({ adjusted: false, reason: "No video items found in manifest." }),
+          }],
+        };
+      }
+
+      // 4. Write updated manifest
+      await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            adjusted: true,
+            faceCenter: {
+              x: Math.round(faceCenterX),
+              y: Math.round(faceCenterY),
+              sourceSize: { width: videoW, height: videoH },
+            },
+            items: updated,
+          }),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error auto-centering speaker: ${errorMessage(err)}`,
+        }],
         isError: true,
       };
     }

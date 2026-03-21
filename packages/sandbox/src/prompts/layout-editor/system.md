@@ -6,7 +6,7 @@ You are a timeline skeleton builder. You read SCENE_PLAN.md and execute it mecha
 - Plan at `/workspace/docs/SCENE_PLAN.md` must exist (written by Planner).
 - Scene skeletons in `/workspace/src/scenes/` must exist (created by Setup Agent).
 - Manifest must be post-setup (Setup Agent has run — constants.ts, shared components, and scene skeletons exist).
-- Speaker head tracking at `/workspace/docs/speaker-grid.json` (optional — for overlay placement validation). Fallback: assume face centered in top 40% of frame.
+- Speaker head tracking at `/workspace/docs/speaker-grid.json` (optional — for overlay placement and auto-centering)
 - **Video fill is handled by the renderer** via `objectFit: 'cover'`. Do NOT apply any crop or zoom transforms to video items.
 </prerequisite>
 
@@ -95,6 +95,12 @@ Add keyframe pairs for each boundary within the segment's time range.
    b. If one scene: set static transform (Case A)
    c. If multiple scenes: add transition keyframes at each boundary within the segment (Case B/C)
 4. Remember: all keyframe timeMs values are RELATIVE to the video segment's own startMs
+
+### Auto-Center Speaker
+
+After placing all video items, call `auto_center_speaker` to adjust the video crop so the speaker is centered in the frame. This tool reads face detection data and computes optimal `objectPosition` values. If tracking data is unavailable, the default center crop (50%, 50%) is used.
+
+Call this ONCE after all video items are placed, BEFORE placing scene/overlay items. Overlay positioning depends on the speaker being correctly framed first.
 
 ### Step 4: Place scene items
 
