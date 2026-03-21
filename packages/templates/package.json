@@ -22,6 +22,7 @@
     "templates:publish": "pnpm templates:build && pnpm templates:upload && pnpm templates:screenshots",
     "themes:seed": "tsx scripts/seed-themes.ts",
     "dev": "tsup --watch",
+    "playground": "vite --config playground/vite.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -36,11 +37,13 @@
   },
   "devDependencies": {
     "@remotion/bundler": "4.0.422",
+    "@remotion/player": "4.0.422",
     "@remotion/renderer": "4.0.422",
     "@types/node": "^20.10.6",
     "@types/pg": "^8.18.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "esbuild": "^0.24.2",
     "minio": "^7.1.4",
     "pg": "^8.20.0",
@@ -50,6 +53,7 @@
     "tsup": "^8.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.3.3",
+    "vite": "^8.0.1",
     "zod-to-json-schema": "^3.25.1"
   }
 }
