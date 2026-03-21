@@ -128,10 +128,10 @@ add_item({
 update_item({
   itemId: "scene-1",
   keyframes: [
-    { timeMs: 0, props: { y: -960, opacity: 0 } },
-    { timeMs: 300, props: { y: 0, opacity: 1 } },
-    { timeMs: 13700, props: { y: 0, opacity: 1 } },
-    { timeMs: 14000, props: { y: -960, opacity: 0 } }
+    { timeMs: 0, props: { opacity: 0 } },
+    { timeMs: 300, props: { opacity: 1 } },
+    { timeMs: 13700, props: { opacity: 1 } },
+    { timeMs: 14000, props: { opacity: 0 } }
   ]
 })
 ```
@@ -167,10 +167,10 @@ update_item({
 update_item({
   itemId: "scene-4",
   keyframes: [
-    { timeMs: 0, props: { y: -960, opacity: 0 } },
-    { timeMs: 300, props: { y: 0, opacity: 1 } },
-    { timeMs: 12700, props: { y: 0, opacity: 1 } },
-    { timeMs: 13000, props: { y: -960, opacity: 0 } }
+    { timeMs: 0, props: { opacity: 0 } },
+    { timeMs: 300, props: { opacity: 1 } },
+    { timeMs: 12700, props: { opacity: 1 } },
+    { timeMs: 13000, props: { opacity: 0 } }
   ]
 })
 ```

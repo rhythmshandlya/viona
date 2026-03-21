@@ -137,38 +137,40 @@ Note: `displayMode` uses the manifest API value `"split-screen"` for Stacked lay
 
 ### Step 5: Add transition keyframes to scene items
 
-Each scene item gets entrance/exit keyframes matching the transition type from the plan. All transitions are 300ms.
+Each scene item gets entrance/exit keyframes. All transitions are 300ms opacity fades.
+
+**CRITICAL: Scene keyframes must ONLY animate `opacity`.** Never include `x`, `y`, `width`, `height`, or `rotation` in scene keyframes. The base `transform` handles positioning — keyframes that include position/size values will override the base transform and break the layout. All spatial animation (slides, scale effects, etc.) happens inside the scene component's own React code, not via manifest keyframes.
 
 **Entrance keyframes (at scene item's start, timeMs relative to item):**
 
 | Transition into | Scene entrance (300ms) |
 |---|---|
-| **Any → Stacked** | Slide from top: `y` animates from `-SCENE_H` to `0` |
-| **Any → Fullscreen** | Fade + scale: `opacity` 0→1, optionally scale from 90% to 100% |
+| **Any → Stacked** | Fade in: `opacity` 0→1 |
+| **Any → Fullscreen** | Fade in: `opacity` 0→1 |
 | **Any → Overlay** | Fade in: `opacity` 0→1 |
 
 ```
-// Stacked entrance example
-{ timeMs: 0, props: { y: -960, opacity: 0 } }
-{ timeMs: 300, props: { y: 0, opacity: 1 } }
+// Scene entrance example (all display modes)
+{ timeMs: 0, props: { opacity: 0 } }
+{ timeMs: 300, props: { opacity: 1 } }
 ```
 
 **Exit keyframes (at scene item's end, timeMs relative to item):**
 
 | Transition out of | Scene exit (300ms) |
 |---|---|
-| **Stacked → any** | Slide out top: `y` animates from `0` to `-SCENE_H` |
+| **Stacked → any** | Fade out: `opacity` 1→0 |
 | **Fullscreen → any** | Fade out: `opacity` 1→0 |
 | **Overlay → any** | Fade out: `opacity` 1→0 |
 
 ```
-// Stacked exit example (scene duration = 10000ms)
-{ timeMs: 9700, props: { y: 0, opacity: 1 } }
-{ timeMs: 10000, props: { y: -960, opacity: 0 } }
+// Scene exit example (scene duration = 10000ms, all display modes)
+{ timeMs: 9700, props: { opacity: 1 } }
+{ timeMs: 10000, props: { opacity: 0 } }
 ```
 
 **Same-mode transitions (Stacked → Stacked, etc.):**
-The outgoing scene exits and incoming scene enters simultaneously. Both get 300ms keyframes. The overlap is handled by the outgoing scene's exit keyframes and the incoming scene's entrance keyframes at the boundary.
+The outgoing scene exits and incoming scene enters simultaneously. Both get 300ms opacity keyframes. The overlap is handled by the outgoing scene's exit keyframes and the incoming scene's entrance keyframes at the boundary.
 
 ### Step 6: Verify with render_still
 Render stills at 2-3 scene boundary timestamps using `render_still`. Visually confirm:

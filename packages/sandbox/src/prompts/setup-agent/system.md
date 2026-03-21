@@ -293,3 +293,12 @@ export default Scene3;
 9. If errors: fix and re-run (max 2 attempts).
 10. Call `trigger_rebuild` to notify the system that shared files and skeletons are ready.
 </task>
+
+## Template Forking
+
+When the scene plan references a template:
+1. Use `fork_template` to copy its source into the workspace
+2. The forked code is yours to modify — adapt colors, content, animations to match the project
+3. Forked templates land in `src/components/templates/{slug}/` by default
+4. Import and use the forked component in your scene files
+5. Read the forked code before modifying — understand its structure first

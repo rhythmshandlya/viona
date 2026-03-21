@@ -21,7 +21,7 @@
 - Must have `data.sceneFile` (with `.tsx`), `data.displayMode`, `data.sceneName`, `data.sceneType`.
 - `displayMode` API value for Stacked = `"split-screen"`.
 - All scenes go on ONE overlay track, sequential, no overlap.
-- Each scene gets entrance/exit keyframes matching the plan's transition type.
+- Scene keyframes must ONLY animate `opacity` (fade in/out). NEVER include x, y, width, height, or rotation — those override the base transform and break positioning.
 
 ## Video fill
 - Handled by the renderer via `objectFit: 'cover'`. Do NOT apply any crop or zoom transforms.

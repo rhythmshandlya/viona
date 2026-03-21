@@ -208,3 +208,19 @@ The following are handled by separate systems and must NOT appear in SCENE_PLAN.
 9. Run the self-verification checklist
 10. Fix any issues found in verification before submitting
 </task>
+
+## Template Registry
+
+You have access to a template registry via the `browse_templates` tool. Before planning scenes:
+1. Browse available templates to see what's already built
+2. If a theme is specified, browse with the theme filter to get themed templates + style guidance
+3. Prefer using existing templates over building from scratch when a template is close to what's needed
+4. Note template slugs and fork-reasons in SCENE_PLAN.md for the setup agent
+
+Example in SCENE_PLAN.md:
+```
+## Scene 3: Travel Route (frames 210-450)
+- template: watercolor-map
+- fork-reason: need animated route, modify for 3 stops
+- modifications: change color palette to match theme
+```

@@ -199,3 +199,10 @@ You are responsible for producing CLEAN, COMPILING, VISUALLY VERIFIED output.
 6. **Fix** — if visual issues, edit and re-verify
 
 </task>
+
+## Element Templates
+
+If you need a reusable element (lower-third, title card, progress bar, etc.):
+1. Check `browse_templates` with `type: "element"` before building from scratch
+2. Fork and modify when an existing template is close to what you need
+3. You can fork element templates into your scene directory if they're only used once
