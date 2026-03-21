@@ -963,6 +963,17 @@ class ApiClient {
     return this.request(`/api/templates/${slug}/export/${exportId}`);
   }
 
+  /** Bundle in sandbox + queue render in worker. Returns jobId for progress tracking. */
+  async renderSandbox(
+    projectId: string,
+    options?: { compositionId?: string; crf?: number },
+  ): Promise<{ jobId: string }> {
+    return this.request(`/api/projects/${projectId}/sandbox/render`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  }
+
   /** Send prompt to sandbox agent — returns SSE stream.
    * Note: context/widgetResponse/lastEventId not yet supported by sandbox agent (Phase 2).
    */

@@ -25,7 +25,7 @@ if (isProduction) {
 }
 
 // Determine if running on Railway (production)
-const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
+const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
 // Internal Railway connections (*.railway.internal) use HTTP, not HTTPS
 const storageEndpoint = process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost';
 const isInternalConnection = storageEndpoint.includes('.railway.internal');

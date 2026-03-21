@@ -51,6 +51,16 @@ export function startFileServer(port = 8080): void {
     },
   }));
 
+  // Serve render output files
+  app.use('/output', express.static(join(WORKSPACE, 'output'), {
+    setHeaders: (res, path) => {
+      if (path.endsWith('.mp4')) {
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+    },
+  }));
+
   app.listen(port, '0.0.0.0', () => {
     logger.info({ port }, 'File server started');
   });

@@ -307,22 +307,18 @@ export function startAgentServer(port = 8081): void {
     const heartbeat = setInterval(() => sendSSE('heartbeat', {}), 15000);
 
     try {
-      sendSSE('progress', { phase: 'rendering', percent: 0, message: 'Starting Remotion render...' });
+      sendSSE('progress', { phase: 'bundling', percent: 0, message: 'Bundling project...' });
 
       const result = await renderVideo({
         compositionId,
         crf,
         concurrency,
-        onProgress: (line) => {
-          const renderMatch = line.match(/Rendering frames.*?(\d+)%/);
-          const stitchMatch = line.match(/Stitching.*?(\d+)%/);
-          if (renderMatch) {
-            const pct = parseInt(renderMatch[1], 10);
-            sendSSE('progress', { phase: 'rendering', percent: Math.round(pct * 0.8), message: `Rendering frames... ${pct}%` });
-          } else if (stitchMatch) {
-            const pct = parseInt(stitchMatch[1], 10);
-            sendSSE('progress', { phase: 'stitching', percent: 80 + Math.round(pct * 0.2), message: `Encoding video... ${pct}%` });
-          }
+        onProgress: (message) => {
+          // Progress messages come directly from renderMedia's onProgress callback
+          const percentMatch = message.match(/(\d+)%/);
+          const percent = percentMatch ? parseInt(percentMatch[1], 10) : 0;
+          const phase = message.includes('Bundle') ? 'bundling' : 'rendering';
+          sendSSE('progress', { phase, percent, message });
         },
       });
 
@@ -337,6 +333,73 @@ export function startAgentServer(port = 8081): void {
       if (connectionAlive) {
         try { res.end(); } catch { /* already closed */ }
       }
+    }
+  });
+
+  // Export bundle — bundles project, uploads to MinIO, returns key
+  app.post('/export-bundle', async (req, res) => {
+    try {
+      const { bundle } = await import('@remotion/bundler');
+      const { createReadStream, existsSync, copyFileSync, mkdirSync } = await import('fs');
+      const { join } = await import('path');
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const { Client: MinioClient } = await import('minio');
+      const { randomUUID } = await import('crypto');
+      const execFileAsync = promisify(execFile);
+
+      logger.info('Starting export bundle...');
+
+      // Ensure manifest is in public/
+      const publicDir = '/workspace/public';
+      mkdirSync(publicDir, { recursive: true });
+      if (existsSync('/workspace/manifest.json')) {
+        copyFileSync('/workspace/manifest.json', join(publicDir, 'manifest.json'));
+      }
+
+      // Step 1: Bundle with Remotion
+      const bundleLocation = await bundle({
+        entryPoint: join('/workspace', 'src/Root.tsx'),
+        webpackOverride: (config: any) => config,
+        publicDir,
+      });
+      logger.info({ bundleLocation }, 'Bundle created');
+
+      // Step 2: Tar the bundle (exclude large media — worker downloads separately)
+      const tarPath = '/tmp/export-bundle.tar.gz';
+      await execFileAsync('tar', [
+        '-czf', tarPath,
+        '--dereference',
+        '--exclude=*.mp4', '--exclude=*.webm',
+        '-C', bundleLocation, '.',
+      ], { timeout: 60_000 });
+
+      // Step 3: Upload to MinIO
+      const minio = new MinioClient({
+        endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+        port: parseInt(process.env.MINIO_PORT || '9000', 10),
+        useSSL: process.env.MINIO_USE_SSL === 'true',
+        accessKey: process.env.MINIO_ACCESS_KEY || '',
+        secretKey: process.env.MINIO_SECRET_KEY || '',
+      });
+      const bucket = process.env.MINIO_BUCKET || 'viona';
+      const projectId = process.env.SANDBOX_ID || 'unknown';
+      const bundleKey = `outputs/bundles/${projectId}/${randomUUID()}.tar.gz`;
+
+      await minio.fPutObject(bucket, bundleKey, tarPath, {
+        'Content-Type': 'application/gzip',
+      });
+      logger.info({ bundleKey }, 'Bundle uploaded to MinIO');
+
+      // Step 4: Read manifest for the response
+      const manifest = JSON.parse(
+        (await import('fs')).readFileSync('/workspace/manifest.json', 'utf-8')
+      );
+
+      res.json({ bundleKey, manifest });
+    } catch (err: any) {
+      logger.error({ err }, 'Export bundle failed');
+      res.status(500).json({ error: err.message });
     }
   });
 

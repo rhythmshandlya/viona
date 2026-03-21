@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
+import { useEditorStore } from '../store/editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 
 interface ExportModalProps {
@@ -33,6 +34,7 @@ export function ExportModal({
   projectStatus,
   hasOutputKey,
 }: ExportModalProps) {
+  const saveProject = useEditorStore((s) => s.saveProject);
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
   const jobIdRef = useRef<string | null>(null);
@@ -42,7 +44,7 @@ export function ExportModal({
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [wantsNewExport, setWantsNewExport] = useState(false);
 
-  // WebSocket for real-time progress
+  // WebSocket for real-time progress from worker
   const { isConnected, subscribeToJob, unsubscribeFromJob } = useJobWebSocket(
     projectId,
     {
@@ -59,7 +61,6 @@ export function ExportModal({
           setExportState('complete');
           setProgress(100);
           setStatusMessage('Export complete!');
-          // Fetch download URL
           try {
             const { url } = await api.getDownloadUrl(projectId);
             setDownloadUrl(url);
@@ -85,18 +86,18 @@ export function ExportModal({
     }
   }, [jobId, isConnected, subscribeToJob, unsubscribeFromJob]);
 
-  // Fallback polling when WebSocket isn't connected
+  // Poll job progress (always active as backup alongside WebSocket)
   useEffect(() => {
     if (!jobId || exportState !== 'rendering') return;
-    if (isConnected) return;
 
     const interval = setInterval(async () => {
       try {
         const job = await api.getJob(jobId);
-        setProgress(job.progress || 0);
-
+        if (job.progress) setProgress(job.progress);
+        if (job.progressMessage) setStatusMessage(job.progressMessage);
         if (job.status === 'complete') {
           setExportState('complete');
+          setProgress(100);
           setStatusMessage('Export complete!');
           const { url } = await api.getDownloadUrl(projectId);
           setDownloadUrl(url);
@@ -108,29 +109,23 @@ export function ExportModal({
         console.error('Failed to poll job:', err);
       }
     }, 2000);
-
     return () => clearInterval(interval);
-  }, [jobId, exportState, isConnected, projectId]);
+  }, [jobId, exportState, projectId]);
 
   // Check if there's already an output available
   useEffect(() => {
     if (open && hasOutputKey && exportState === 'idle' && !wantsNewExport) {
-      // Project already has a rendered output
       api.getDownloadUrl(projectId).then(({ url }) => {
         setDownloadUrl(url);
         setExportState('complete');
-      }).catch(() => {
-        // No output available
-      });
+      }).catch(() => {});
     }
   }, [open, hasOutputKey, exportState, projectId, wantsNewExport]);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      // Reset wantsNewExport so next open will check for existing output
       setWantsNewExport(false);
-      // Keep download URL if export completed
       if (exportState !== 'complete') {
         setExportState('idle');
         setJobId(null);
@@ -143,9 +138,25 @@ export function ExportModal({
   }, [open, exportState]);
 
   const handleStartExport = async () => {
-    // TODO: Replace with sandbox export endpoint
-    setExportState('error');
-    setError('Export is temporarily unavailable. The render pipeline is being migrated to the sandbox architecture.');
+    setExportState('rendering');
+    setProgress(0);
+    setStatusMessage('Bundling project...');
+    setError(null);
+    setDownloadUrl(null);
+
+    try {
+      await saveProject();
+      setStatusMessage('Bundling & queuing render...');
+
+      // Calls sandbox to bundle → API queues worker render job → returns jobId
+      const { jobId: newJobId } = await api.renderSandbox(projectId);
+      setJobId(newJobId);
+      jobIdRef.current = newJobId;
+      setStatusMessage('Render queued, waiting for worker...');
+    } catch (err) {
+      setExportState('error');
+      setError(err instanceof Error ? err.message : 'Failed to start export');
+    }
   };
 
   const handleDownload = () => {

@@ -23,6 +23,14 @@ export const transcribeQueue = new Queue('transcribe', {
   },
 });
 
+export const sandboxRenderQueue = new Queue('sandbox-render', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
 // Job data types
 export interface TranscribeJobData {
   projectId: string;
@@ -30,9 +38,30 @@ export interface TranscribeJobData {
   videoKey: string;
 }
 
+export interface RenderJobData {
+  projectId: string;
+  jobId: string;
+  projectType?: string;
+  videoClipData?: Array<{
+    sourceSceneId: number;
+    sourceVideoUrl: string;
+    trimStartSeconds: number;
+    trimEndSeconds: number;
+  }>;
+  manifest?: unknown;
+  workspaceBundlePath?: string;
+  bundleMinioKey?: string;
+}
+
 // Queue job creators
 export async function queueTranscribeJob(data: TranscribeJobData) {
   return transcribeQueue.add('transcribe', data, {
+    attempts: 1,
+  });
+}
+
+export async function queueSandboxRender(data: RenderJobData) {
+  return sandboxRenderQueue.add('sandbox-render', data, {
     attempts: 1,
   });
 }

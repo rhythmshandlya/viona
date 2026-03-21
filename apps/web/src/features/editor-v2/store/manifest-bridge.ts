@@ -98,10 +98,19 @@ export function manifestToStore(
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
 
-  /** Resolve an asset key (e.g. "asset:main-video") to a presigned URL */
+  /** Resolve an asset key (e.g. "asset:main-video") to a presigned/proxy URL */
   const resolvedSrc = (key: string) => {
     if (!key) return context.videoUrl ?? '';
-    return context.assets?.[key] ?? key;
+    // Check assets map first (presigned URLs)
+    if (context.assets?.[key]) return context.assets[key];
+    // If the key is already an absolute URL, use as-is
+    if (/^https?:\/\//.test(key) || key.startsWith('/api/')) return key;
+    // Resolve sandbox-relative paths (e.g. "audio.aac") via the public file proxy
+    const projectIdMatch = context.bundleUrl?.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
+    if (projectIdMatch) {
+      return `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public/${key}`;
+    }
+    return context.videoUrl ?? '';
   };
 
   for (const manifestItem of manifest.items) {

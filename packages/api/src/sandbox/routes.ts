@@ -193,6 +193,66 @@ export function createSandboxRoutes(manager: SandboxManager) {
       }
     });
 
+    // POST /projects/:id/sandbox/render — Bundle in sandbox, render in worker
+    fastify.post('/projects/:id/sandbox/render', { preHandler: [authMiddleware] }, async (request, reply) => {
+      const { id: projectId } = request.params as { id: string };
+      touchActivity(projectId);
+
+      const session = await manager.getActiveSession(projectId);
+      if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+      const agentUrl = session.agentUrl;
+      if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
+
+      try {
+        // Step 1: Tell sandbox to bundle + upload to MinIO
+        const bundleRes = await fetch(`${agentUrl}/export-bundle`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.sandboxSecret}`,
+          },
+        });
+
+        if (!bundleRes.ok) {
+          const err = await bundleRes.json().catch(() => ({}));
+          return reply.status(500).send({ error: 'Bundle failed: ' + ((err as any).error || bundleRes.status) });
+        }
+
+        const { bundleKey, manifest } = await bundleRes.json() as { bundleKey: string; manifest: any };
+        logger.info({ projectId, bundleKey }, 'Sandbox bundle uploaded');
+
+        // Step 2: Create job record
+        const { jobs } = await import('../db/index.js');
+        const [job] = await db.insert(jobs).values({
+          projectId,
+          type: 'render',
+          status: 'pending',
+        }).returning();
+
+        // Step 3: Update project status
+        await db.update(projects)
+          .set({ status: 'rendering' as any })
+          .where(eq(projects.id, projectId));
+
+        // Step 4: Queue render job to worker with bundle key
+        const { queueSandboxRender } = await import('../services/queue.js');
+        await queueSandboxRender({
+          projectId,
+          jobId: job.id,
+          projectType: 'video',
+          manifest,
+          bundleMinioKey: bundleKey,
+        });
+
+        logger.info({ projectId, jobId: job.id, bundleKey }, 'Render job queued');
+        return { jobId: job.id };
+      } catch (err: any) {
+        logger.error({ err, projectId }, 'Sandbox render failed');
+        return reply.status(500).send({ error: err.message });
+      }
+    });
+
     // === Internal Callbacks (Sandbox → API) ===
 
     async function validateInternalCallback(request: any, reply: any): Promise<string | null> {
@@ -428,7 +488,6 @@ async function buildInitData(projectId: string): Promise<InitData | null> {
         data: { src: 'audio.aac', volume: 1, playbackRate: 1 },
       });
     }
-  }
 
   // Build init payload with optional transcript, brief, head-tracking, and project meta
   const initBody: InitData = {
