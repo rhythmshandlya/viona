@@ -41,6 +41,7 @@ import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js'
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { validateWorkspaceTool } from './tools/validate-workspace.js';
+import { allTemplateTools, templateBrowseTools } from './tools/template-tools.js';
 import { buildStdioMcpServers } from './mcp-config.js';
 import { checkpoint } from './checkpoint.js';
 
@@ -127,6 +128,9 @@ const ANALYSIS_TOOL_NAMES = [
   'mcp__analysis__validate_timeline',
 ];
 
+const TEMPLATE_BROWSE_TOOL_NAMES = templateBrowseTools.map(t => `mcp__templates__${t.name}`);
+const TEMPLATE_TOOL_NAMES = allTemplateTools.map(t => `mcp__templates__${t.name}`);
+
 const ANIMATOR_TOOL_NAMES = [
   'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
   ...MANIFEST_READ_TOOL_NAMES,
@@ -136,6 +140,7 @@ const ANIMATOR_TOOL_NAMES = [
   ...VIEWPORT_TOOL_NAMES,
   ...ICON_TOOL_NAMES,
   ...FREEPIK_TOOL_NAMES,
+  ...TEMPLATE_TOOL_NAMES,
 ];
 
 // ---- Display labels for mechanical progress ----
@@ -151,6 +156,7 @@ const MCP_SERVER_LABELS: Record<string, string> = {
   analysis: 'Viona',
   'better-icons': 'Animator',
   freepik: 'Animator',
+  templates: 'Template Registry',
 };
 
 // Maps raw MCP tool names and built-in tools to user-friendly descriptions.
@@ -175,6 +181,9 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Analysis tools
   analyze_transcript: 'Analyzing transcript',
   validate_timeline: 'Validating timeline',
+  // Template tools
+  browse_templates: 'Browsing templates',
+  fork_template: 'Forking template',
   // Asset tools
   download_file: 'Downloading asset',
   search_unsplash: 'Searching photos',
@@ -258,6 +267,7 @@ export async function buildOrchestratorOptions(
       ...ASSET_TOOL_NAMES,
       ...VIEWPORT_TOOL_NAMES,
       ...ANALYSIS_TOOL_NAMES,
+      ...TEMPLATE_BROWSE_TOOL_NAMES,
     ],
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
@@ -294,6 +304,7 @@ export async function buildOrchestratorOptions(
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
+          ...TEMPLATE_BROWSE_TOOL_NAMES,
         ],
         model: 'opus',
         maxTurns: 50,
@@ -315,6 +326,7 @@ export async function buildOrchestratorOptions(
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...RENDER_TOOL_NAMES,
+          ...TEMPLATE_TOOL_NAMES,
         ],
         model: 'opus',
         maxTurns: 40,

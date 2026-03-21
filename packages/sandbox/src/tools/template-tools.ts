@@ -134,9 +134,9 @@ export const forkTemplateTool = {
       }
 
       for (const obj of objects) {
-        // Strip the prefix to get relative path
-        const relativePath = obj.name!.replace(prefix, '');
-        if (!relativePath || relativePath === '/') continue;
+        // Strip the prefix to get relative path (remove leading slash)
+        const relativePath = obj.name!.replace(prefix, '').replace(/^\//, '');
+        if (!relativePath) continue;
 
         const localPath = join(targetPath, relativePath);
         mkdirSync(dirname(localPath), { recursive: true });
@@ -176,11 +176,11 @@ export const forkTemplateTool = {
                 : 'Component file';
 
         if (relativePath.endsWith('index.tsx') || relativePath.endsWith('index.ts')) {
-          entryPoint = `${targetDir}${relativePath}`;
+          entryPoint = `${targetDir}/${relativePath}`;
         }
 
         files.push({
-          path: `${targetDir}${relativePath}`,
+          path: `${targetDir}/${relativePath}`,
           description: desc,
         });
       }
