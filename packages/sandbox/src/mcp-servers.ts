@@ -8,6 +8,7 @@ import { analyzeTranscriptTool } from './tools/transcript-analysis.js';
 import { validateTimelineTool } from './tools/timeline-validation.js';
 import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
+import { allTemplateTools } from './tools/template-tools.js';
 
 /**
  * Convert a raw JSON schema property to a Zod type.
@@ -180,11 +181,17 @@ export function createMcpServers(
     tools: [wrapTool(analyzeTranscriptTool), wrapTool(validateTimelineTool)],
   });
 
+  const templatesServer = createSdkMcpServer({
+    name: 'templates',
+    tools: allTemplateTools.map(wrapTool),
+  });
+
   return {
     manifest: manifestServer,
     scenes: scenesServer,
     render: renderServer,
     widgets: widgetServer,
     analysis: analysisServer,
+    templates: templatesServer,
   };
 }
