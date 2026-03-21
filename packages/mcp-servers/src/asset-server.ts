@@ -47,6 +47,7 @@ interface FaceBbox {
 
 /** A single frame of head tracking data. */
 interface HeadTrackingFrame {
+  frame?: number;
   timestamp_ms: number;
   face?: {
     bbox: FaceBbox;
@@ -59,6 +60,7 @@ interface HeadTrackingFrame {
     right_hand?: { x: number; y: number; visible?: boolean };
   } | null;
   confidence?: number;
+  detection_failed?: boolean;
 }
 
 /** Full head tracking data file structure. */
