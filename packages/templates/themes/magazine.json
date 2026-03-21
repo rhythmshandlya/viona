@@ -11,8 +11,8 @@
   },
   "fontRecommendations": {
     "heading": "Playfair Display",
-    "body": "Source Serif Pro",
-    "accent": "Cormorant Garamond"
+    "body": "Lora",
+    "accent": "Merriweather"
   },
   "styleGuidance": "Magazine theme uses serif headlines with editorial grid layouts. Warm earth tones dominate with gold accents. Motion should be subtle and cinematic — parallax scrolling, gentle zoom, smooth reveals. Text should feel typeset, not animated. Prefer clean negative space over busy compositions. Photography-forward with minimal overlay text."
 }
