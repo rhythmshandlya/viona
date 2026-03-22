@@ -17,12 +17,12 @@ const MagazineNewspaper: React.FC<MagazineNewspaperProps> = (props) => {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
-  // ── Phase 2-3: Zoom in → pan across headline (25-90), hold at end ────────
+  // ── Phase 2-4: Zoom in → pan → zoom out to full page (25-95) ─────────────
   const { scale, translateX: zoomTx, translateY: zoomTy, surroundFade } =
-    useHeadlineZoom(frame, 25, 48, 90);
+    useHeadlineZoom(frame, 25, 48, 78, 95);
 
-  // ── Subhead reveals during pan ────────────────────────────────────────────
-  const subheadReveal = editorialReveal(frame, 60, 15);
+  // ── Subhead reveals as camera zooms back out ──────────────────────────────
+  const subheadReveal = editorialReveal(frame, 82, 15);
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>

@@ -8,49 +8,49 @@ interface HeadlineZoomResult {
 }
 
 /**
- * Camera animation: zoom into headline start → pan across → hold.
+ * Camera animation: zoom into headline start → pan across → zoom back out to full page.
  *
  * Translate values computed for transformOrigin '50% 17%' (540, 326 on 1080×1920).
  * At 2× zoom the visible content window is ~540px wide. The camera starts
- * framing the left side of the headline (content x≈40–580) and pans to the
- * right side (content x≈500–1040), covering the full headline width.
+ * framing the left side of the headline and pans to the right side, then
+ * pulls back to show the full newspaper page.
  */
 export function useHeadlineZoom(
   frame: number,
   zoomInStart: number,
   zoomInEnd: number,
   panEnd: number,
+  zoomOutEnd: number,
 ): HeadlineZoomResult {
-  // Scale: 1 → 2 during zoom-in, hold at 2 during and after pan
+  // Scale: 1 → 2 → 2 → 1
   const scale = interpolate(
     frame,
-    [zoomInStart, zoomInEnd],
-    [1, 2],
+    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
+    [1, 2, 2, 1],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
-  // Horizontal pan: translate to headline start, sweep across, hold at end.
-  // tx=460 frames the left edge; tx=-460 frames the right edge.
+  // Horizontal: 0 → headline start → headline end → back to 0
   const translateX = interpolate(
     frame,
-    [zoomInStart, zoomInEnd, panEnd],
-    [0, 460, -460],
+    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
+    [0, 460, -460, 0],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
-  // Vertical: lift slightly so headline sits at comfortable reading height
+  // Vertical: 0 → reading height → reading height → back to 0
   const translateY = interpolate(
     frame,
-    [zoomInStart, zoomInEnd],
-    [0, 46],
+    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
+    [0, 46, 46, 0],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
-  // Surround fades out during zoom-in and stays hidden
+  // Surround fades out during zoom-in, fades back in during zoom-out
   const surroundFade = interpolate(
     frame,
-    [zoomInStart, zoomInEnd],
-    [1, 0],
+    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
+    [1, 0, 0, 1],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
