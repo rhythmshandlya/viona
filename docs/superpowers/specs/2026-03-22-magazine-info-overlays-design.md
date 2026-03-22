@@ -17,16 +17,27 @@ All 5 overlays follow these patterns:
 
 - **Canvas:** 1080x1920, transparent background
 - **Duration:** 150 frames @ 30fps (5 seconds)
-- **5-phase animation structure:**
+- **4-5 phase animation structure** (some templates omit the emphasis phase):
   1. Entrance (paper slides in via `paperSlide`)
   2. Content reveal (element-specific: stamps, count-ups, draws)
-  3. Parallax hold (sine-wave drift, depth-based amplitude)
-  4. Exit (reverse scatter or slide-out)
+  3. Content emphasis (optional — checkmarks, count-ups; some templates merge this into phase 2)
+  4. Parallax hold (sine-wave drift, depth-based amplitude)
+  5. Exit (reverse scatter or slide-out)
 - **Clamped interpolation:** Every `interpolate()` call uses `extrapolateLeft: 'clamp'` and `extrapolateRight: 'clamp'`
 - **Deterministic randomness:** `random()` with string seeds for rotation, offsets, decoration assignment
+- **Drop shadows:** All paper scraps use `filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))'` for legibility over video (matching `magazine-collage`)
 - **Decorations:** Tape or pin marks assigned per element via `random('decoration-{i}') > 0.5`
-- **Shared modules:** `animations.ts`, `constants.ts`, `effects.tsx`, `textures.tsx`, `typography.tsx`
+- **Shared modules:** `animations.ts`, `constants.ts`, `effects.tsx`, `textures.tsx`, `typography.tsx` — all 5 modules required in every template's `register.ts` `getFiles()`
 - **Easing:** `magazineEasing` (cubic-bezier 0.25, 0.1, 0.25, 1.0) for all transitions
+- **`paperSlide` rotation:** Discard the `rotation` return value from `paperSlide()` — each element already has its own deterministic random rotation, and compounding would look wrong
+- **`sceneCount`:** All templates use `sceneCount: 1` in `meta.json`
+- **`meta.json` type vs registry type:** `meta.json` uses `"type": "overlay"`, while `registry.json` uses `"type": "registry:component"` with `categories: ["overlay"]`
+
+## Prerequisite: Promote TapeMark and PinMark to shared modules
+
+`TapeMark` and `PinMark` currently live in `magazine-collage/components/` but are needed by all 5 new templates. Before implementation, move them to `packages/templates/src/magazine/decorations.tsx` and update `magazine-collage` to import from there. This avoids cross-template imports and duplication.
+
+---
 
 ## Template 1: magazine-checklist
 
@@ -39,7 +50,7 @@ z.object({
   items: z.array(z.object({
     text: z.string(),
     checked: z.boolean().default(true),
-  })).default([
+  })).min(2).max(6).default([
     { text: 'Ceasefire agreement signed', checked: true },
     { text: 'Humanitarian corridor opened', checked: true },
     { text: 'Sanctions package approved', checked: true },
@@ -62,7 +73,7 @@ z.object({
 |-------|--------|--------|
 | 1 — Title enter | 0-20 | Title scrap `paperSlide('down')` |
 | 2 — Items enter | 15-75 | Item scraps slide in alternating left/right, stagger 10 frames |
-| 3 — Checkmarks | 40-100 | Check stamp pops 15 frames after each scrap lands (scale 1.4→1.0, red fill) |
+| 3 — Checkmarks | dynamic | Check stamp pops 15 frames after each scrap lands (scale 1.4→1.0, red fill). Timing scales with item count — not a fixed frame range |
 | 4 — Parallax | 60-120 | Sine-wave drift, depth by index |
 | 5 — Exit | 120-150 | Reverse scatter, opacity fade |
 
@@ -85,7 +96,7 @@ z.object({
   events: z.array(z.object({
     year: z.string(),
     text: z.string(),
-  })).default([
+  })).min(2).max(5).default([
     { year: '2014', text: 'Crimea annexed' },
     { year: '2015', text: 'Minsk II agreement signed' },
     { year: '2022', text: 'Full-scale invasion begins' },
@@ -101,7 +112,7 @@ z.object({
 - **Red thread:** 3px vertical line at x:540 (center), running from below title to near bottom
 - **Node dots:** 10px red circles on the thread at each event's y-position
 - **Event scraps:** Alternate left/right of thread, each ~440w x 200h
-  - Year in bold red (stat style, `FONT_SIZES.hero`)
+  - Year in bold red (stat style, `FONT_SIZES.h1` — 49px, appropriate for 440w card width)
   - Description in body serif below
   - Scraps spaced ~320px apart vertically, rotation ±3°
 
@@ -135,7 +146,7 @@ z.object({
     value: z.string(),
     label: z.string(),
     unit: z.string().optional(),
-  })).default([
+  })).min(2).max(6).default([
     { value: '44.1M', label: 'Population' },
     { value: '$200B', label: 'GDP' },
     { value: '603,628', label: 'Area (km²)' },
@@ -180,8 +191,10 @@ parseValue("44.1M") → { prefix: "", number: 44.1, suffix: "M" }
 parseValue("603,628") → { prefix: "", number: 603628, suffix: "", commaFormatted: true }
 ```
 
-Display during animation: `prefix + interpolate(frame, [start, start+20], [0, number]) + suffix`
-Non-numeric values (e.g. "Kyiv") render immediately without animation.
+Display during animation: `prefix + format(interpolate(frame, [start, start+20], [0, number])) + suffix`
+- For comma-formatted numbers, re-apply `toLocaleString()` to the interpolated intermediate value
+- For decimal numbers (e.g. 44.1), use `toFixed(1)` during animation
+- Non-numeric values (e.g. "Kyiv") render immediately without animation
 
 ---
 
@@ -193,13 +206,14 @@ Non-numeric values (e.g. "Kyiv") render immediately without animation.
 
 ```ts
 z.object({
+  // No top-level `title` field — the leftLabel/rightLabel header serves as the title by design
   leftLabel: z.string().default('NATO'),
   rightLabel: z.string().default('BRICS'),
   items: z.array(z.object({
     category: z.string(),
     left: z.string(),
     right: z.string(),
-  })).default([
+  })).min(2).max(5).default([
     { category: 'Members', left: '32 nations', right: '10 nations' },
     { category: 'GDP Share', left: '~45% of world', right: '~35% of world' },
     { category: 'Military', left: '3.5M active', right: '5.2M active' },
@@ -211,7 +225,7 @@ z.object({
 
 - **Header scrap:** Full-width torn paper strip at ~y:140, ~960w x 140h
   - `leftLabel` left-aligned, `rightLabel` right-aligned, thin red vertical divider at center
-- **Center divider:** Torn vertical paper strip (~6px wide) running down the canvas center, slightly jagged via `generateTornClipPath` on a rotated axis
+- **Center divider:** 3px red vertical line (matching timeline thread style) running down canvas center. Do NOT use `generateTornClipPath` for this — the roughness offset would dominate a narrow strip. Simple CSS div with animated height
 - **Row pairs:** Each row has:
   - Left scrap at x:~40, ~460w x 180h
   - Right scrap at x:~580, ~460w x 180h
@@ -231,7 +245,7 @@ z.object({
 
 - `ComparisonHeader.tsx` — split header scrap with labels and red divider
 - `ComparisonRow.tsx` — paired torn paper scraps (left value + right value)
-- `CenterDivider.tsx` — animated torn vertical strip
+- `CenterDivider.tsx` — animated vertical red line (CSS div, height interpolated)
 - Reuses: `TornEdge`, `PaperTexture`, `TapeMark`, `SerifHeadline`, `SectionLabel`
 
 ---
@@ -249,7 +263,7 @@ z.object({
   fields: z.array(z.object({
     key: z.string(),
     value: z.string(),
-  })).default([
+  })).min(3).max(8).default([
     { key: 'Capital', value: 'Kyiv' },
     { key: 'Population', value: '44.1 million' },
     { key: 'Language', value: 'Ukrainian' },
@@ -287,7 +301,7 @@ z.object({
 
 - `DossierCard.tsx` — large torn paper container with paperclip
 - `FieldRow.tsx` — animated key-value row with hairline separator
-- `PaperClip.tsx` — CSS-only paperclip decoration (rotated rounded-rect with inner cutout, silver gradient)
+- `PaperClip.tsx` — CSS-only paperclip decoration. DOM structure: outer `div` (40w x 90h, border: 2px solid #999, border-radius: 8px, no fill) with an inner `div` (30w x 50h, same border style, positioned to overlap bottom half). Both rotated ~15°. Background: `linear-gradient(135deg, #c0c0c0, #808080)` on borders via `border-image`. Positioned absolute at top:-20, right:30 of the DossierCard
 - Reuses: `TornEdge`, `PaperTexture`, `SerifHeadline`, `SectionLabel`, `editorialReveal`
 
 ---
@@ -357,7 +371,7 @@ Each template added to `registry.json` and `src/index.ts` with:
 
 ## Out of Scope
 
-- No new shared magazine modules needed — existing set covers all requirements
+- One new shared module needed: `decorations.tsx` (promoted from collage-local `TapeMark`/`PinMark`)
 - No new fonts — all use Playfair Display, Lora, Merriweather
 - No background colors — all transparent overlays
 - The 4 deferred concepts (quote, ranking, cause-effect, pull-quotes) are not part of this batch
