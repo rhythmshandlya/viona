@@ -10,6 +10,7 @@
  *   download_stock_photo - download from Unsplash/Pexels with attribution headers
  *   auto_center_speaker  - adjust video crop to center the speaker's face
  *   get_speaker_position - canvas-space speaker coordinates for overlay placement
+ *   get_shot_boundaries  - detected camera cuts aligned with transcript
  *
  * Usage:
  *   node asset-server.js --workspace /path/to/remotion-project
@@ -70,6 +71,12 @@ interface HeadTrackingData {
     height?: number;
   };
   frames: HeadTrackingFrame[];
+  shots?: Array<{
+    frame: number;
+    timestamp_ms: number;
+    score: number;
+    signals: string[];
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1038,6 +1045,94 @@ server.registerTool(
     };
   }
 );
+
+// ---------------------------------------------------------------------------
+// Shot boundaries tool
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  "get_shot_boundaries",
+  {
+    description:
+      "Get detected camera angle changes (shot boundaries) in the source video. " +
+      "Returns cut points aligned with transcript segment boundaries, with " +
+      "surrounding transcript text for context. Use this when planning scenes " +
+      "to align scene transitions with natural camera cuts. " +
+      "If isMultiCam is true, prefer shot boundaries as scene transition points.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const shotPath = path.join(WORKSPACE, "docs", "shot-boundaries.json");
+      let shotData: any;
+      try {
+        shotData = JSON.parse(await readFile(shotPath, "utf-8"));
+      } catch {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              shots: [],
+              summary: { totalShots: 0, averageShotDurationMs: 0, alignedCount: 0, isMultiCam: false },
+              message: "No shot boundary data available. Plan scenes using transcript timing only.",
+            }),
+          }],
+        };
+      }
+
+      // Build human-readable summary
+      const summary = shotData.summary || {};
+      const lines: string[] = [];
+      if (summary.totalShots === 0) {
+        lines.push("No camera cuts detected — single continuous take.");
+      } else {
+        const label = summary.isMultiCam ? "multi-cam" : "single-cam with cuts";
+        lines.push(`Shot Boundaries (${summary.totalShots} detected, ${label}):`);
+        lines.push(`  Average shot duration: ${Math.round((summary.averageShotDurationMs || 0) / 1000)}s`);
+        lines.push(`  Transcript-aligned: ${summary.alignedCount || 0}/${summary.totalShots}`);
+        lines.push("");
+
+        for (let i = 0; i < (shotData.shots || []).length; i++) {
+          const s = shotData.shots[i];
+          const timeStr = formatMs(s.timestamp_ms);
+          const snapStr = s.aligned && s.snappedTo_ms != null
+            ? ` → snapped ${formatMs(s.snappedTo_ms)}`
+            : "";
+          lines.push(`  #${i + 1}  ${timeStr}${snapStr} (score ${s.score}) [${s.signals.join(", ")}]`);
+          if (s.segmentBefore || s.segmentAfter) {
+            const before = s.segmentBefore ? truncate(s.segmentBefore, 50) : "...";
+            const after = s.segmentAfter ? truncate(s.segmentAfter, 50) : "...";
+            lines.push(`       "${before}" → "${after}"`);
+          }
+        }
+      }
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: lines.join("\n") + "\n\n---\n\n" + JSON.stringify(shotData),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: "text" as const, text: `Error reading shot boundaries: ${errorMessage(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+function formatMs(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const frac = ms % 1000;
+  return `${min}:${String(sec).padStart(2, "0")}.${String(frac).padStart(3, "0")}`;
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.slice(0, max - 3) + "..." : str;
+}
 
 // ---------------------------------------------------------------------------
 // Start
