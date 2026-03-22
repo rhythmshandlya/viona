@@ -84,32 +84,16 @@ const MagazineCollage: React.FC<MagazineCollageProps> = (props) => {
         const direction = DIRECTIONS[i % DIRECTIONS.length];
         const slide = paperSlide(frame, enterStart, enterDuration, direction);
 
-        // Phase 3 (60-120): Parallax drift using Math.sin for smooth oscillation
-        const parallaxX = frame >= 60 && frame <= 120
+        // Phase 3 (60+): Parallax drift using Math.sin for smooth oscillation
+        const parallaxX = frame >= 60
           ? Math.sin(frame * 0.02 + i * 1.5) * depthMultiplier
           : 0;
-        const parallaxY = frame >= 60 && frame <= 120
+        const parallaxY = frame >= 60
           ? Math.sin(frame * 0.025 + i * 2.0) * depthMultiplier * 0.6
           : 0;
 
-        // Phase 4 (120-150): Reverse scatter exit
-        const exitProgress = interpolate(frame, [120, 150], [0, 1], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-          easing: magazineEasing,
-        });
-        const exitAngle = (random(`exit-angle-${i}`) - 0.5) * Math.PI * 2;
-        const exitDistance = 1500 * exitProgress;
-        const exitX = Math.cos(exitAngle) * exitDistance;
-        const exitY = Math.sin(exitAngle) * exitDistance;
-        const exitOpacity = interpolate(frame, [120, 140], [1, 0], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-        });
-
         // Combine transforms
         const isEntering = frame < enterStart + enterDuration;
-        const isExiting = frame >= 120;
 
         let translateX = pos.x + parallaxX;
         let translateY = pos.y + parallaxY;
@@ -119,11 +103,6 @@ const MagazineCollage: React.FC<MagazineCollageProps> = (props) => {
           translateX += slide.translateX;
           translateY += slide.translateY;
           opacity = slide.opacity;
-        }
-        if (isExiting) {
-          translateX += exitX;
-          translateY += exitY;
-          opacity = exitOpacity;
         }
 
         return (
@@ -177,28 +156,16 @@ const MagazineCollage: React.FC<MagazineCollageProps> = (props) => {
           easing: magazineEasing,
         });
 
-        // Phase 3 (60-120): Subtle parallax drift for topic (low depth)
-        const topicParallaxX = frame >= 60 && frame <= 120
+        // Phase 3 (60+): Subtle parallax drift for topic (low depth)
+        const topicParallaxX = frame >= 60
           ? Math.sin(frame * 0.015) * 4
           : 0;
-        const topicParallaxY = frame >= 60 && frame <= 120
+        const topicParallaxY = frame >= 60
           ? Math.sin(frame * 0.02 + 1.0) * 3
           : 0;
 
-        // Phase 4 (120-150): Exit
-        const topicExitOpacity = interpolate(frame, [125, 145], [1, 0], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-        });
-        const topicExitScale = interpolate(frame, [125, 150], [1.0, 0.8], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-          easing: magazineEasing,
-        });
-
-        const isExiting = frame >= 125;
-        const finalOpacity = isExiting ? topicExitOpacity : topicOpacity;
-        const finalScale = isExiting ? topicExitScale : topicScale;
+        const finalOpacity = topicOpacity;
+        const finalScale = topicScale;
 
         const centerX = (CANVAS_W - TOPIC_W) / 2 + topicParallaxX;
         const centerY = (CANVAS_H - TOPIC_H) / 2 + topicParallaxY;

@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, random } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, random } from 'remotion';
 import type { MagazineTimelineProps } from './schema';
-import { paperSlide, magazineEasing } from '../../magazine/animations';
+import { paperSlide } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SerifHeadline } from '../../magazine/typography';
@@ -28,10 +28,6 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) =>
   const threadEndY = eventYPositions[events.length - 1] + CARD_H + 40;
 
   const titleSlide = paperSlide(frame, 0, 15, 'down');
-  const titleExitOpacity = interpolate(frame, [120, 140], [1, 0], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const isTitleExiting = frame >= 120;
 
   const nodeLandFrames = events.map((_, i) => 20 + i * STAGGER + ENTER_DURATION);
   const nodeYPositions = eventYPositions.map((y) => y + CARD_H / 2);
@@ -42,7 +38,7 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) =>
         position: 'absolute',
         left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
         top: TITLE_Y + titleSlide.translateY,
-        opacity: isTitleExiting ? titleExitOpacity : titleSlide.opacity,
+        opacity: titleSlide.opacity,
         filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
       }}>
         <div style={{ position: 'relative' }}>
@@ -72,21 +68,10 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) =>
 
         const depth = i % 3;
         const depthMul = (depth + 1) * 6;
-        const parallaxX = frame >= 70 && frame <= 120 ? Math.sin(frame * 0.02 + i * 1.5) * depthMul : 0;
-        const parallaxY = frame >= 70 && frame <= 120 ? Math.sin(frame * 0.025 + i * 2.0) * depthMul * 0.5 : 0;
-
-        const exitProgress = interpolate(frame, [120, 150], [0, 1], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
-        });
-        const exitAngle = isLeft ? Math.PI : 0;
-        const exitX = Math.cos(exitAngle) * 1500 * exitProgress;
-        const exitY = (random(`tl-exit-y-${i}`) - 0.5) * 400 * exitProgress;
-        const exitOpacity = interpolate(frame, [120, 140], [1, 0], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-        });
+        const parallaxX = frame >= 70 ? Math.sin(frame * 0.02 + i * 1.5) * depthMul : 0;
+        const parallaxY = frame >= 70 ? Math.sin(frame * 0.025 + i * 2.0) * depthMul * 0.5 : 0;
 
         const isEntering = frame < landFrame;
-        const isExiting = frame >= 120;
         const baseX = isLeft ? 540 - CARD_W - 30 : 540 + 30;
         const baseY = eventYPositions[i];
 
@@ -94,7 +79,6 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) =>
         let y = baseY + parallaxY;
         let opacity = 1;
         if (isEntering) { x += slide.translateX; y += slide.translateY; opacity = slide.opacity; }
-        if (isExiting) { x += exitX; y += exitY; opacity = exitOpacity; }
 
         return (
           <div key={i} style={{ position: 'absolute', left: x, top: y, opacity, zIndex: depth + 1 }}>

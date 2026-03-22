@@ -14,10 +14,7 @@ export function TimelineThread({
   const drawProgress = interpolate(frame, [10, 30], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
   });
-  const retractProgress = interpolate(frame, [120, 140], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
-  });
-  const currentHeight = totalHeight * drawProgress * (1 - retractProgress);
+  const currentHeight = totalHeight * drawProgress;
 
   return (
     <>
@@ -31,9 +28,6 @@ export function TimelineThread({
         const nodeScale = interpolate(frame, [landFrame, landFrame + 8], [0, 1], {
           extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
         });
-        const nodeOpacity = interpolate(frame, [120, 140], [1, 0], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-        });
         if (frame < landFrame) return null;
         return (
           <div key={i} style={{
@@ -41,7 +35,6 @@ export function TimelineThread({
             width: 10, height: 10, borderRadius: '50%',
             backgroundColor: MAGAZINE_COLORS.accent,
             transform: `scale(${nodeScale})`,
-            opacity: frame >= 120 ? nodeOpacity : 1,
             boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
           }} />
         );

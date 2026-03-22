@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, random } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, random } from 'remotion';
 import type { MagazineStatsProps } from './schema';
-import { paperSlide, magazineEasing } from '../../magazine/animations';
+import { paperSlide } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SerifHeadline } from '../../magazine/typography';
@@ -47,10 +47,6 @@ const MagazineStats: React.FC<MagazineStatsProps> = ({ stats, title }) => {
   const frame = useCurrentFrame();
 
   const titleSlide = paperSlide(frame, 0, 15, 'up');
-  const titleExitOpacity = interpolate(frame, [120, 140], [1, 0], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const isTitleExiting = frame >= 120;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
@@ -58,7 +54,7 @@ const MagazineStats: React.FC<MagazineStatsProps> = ({ stats, title }) => {
         position: 'absolute',
         left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
         top: TITLE_Y + titleSlide.translateY,
-        opacity: isTitleExiting ? titleExitOpacity : titleSlide.opacity,
+        opacity: titleSlide.opacity,
         filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
       }}>
         <div style={{ position: 'relative' }}>
@@ -92,27 +88,15 @@ const MagazineStats: React.FC<MagazineStatsProps> = ({ stats, title }) => {
         const landFrame = enterStart + ENTER_DURATION;
         const countUpStart = landFrame + 10;
 
-        const parallaxX = frame >= 60 && frame <= 120 ? Math.sin(frame * 0.02 + i * 1.5) * depthMul : 0;
-        const parallaxY = frame >= 60 && frame <= 120 ? Math.sin(frame * 0.025 + i * 2.0) * depthMul * 0.6 : 0;
-
-        const exitProgress = interpolate(frame, [120, 150], [0, 1], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
-        });
-        const exitAngle = (random(`stat-exit-${i}`) - 0.5) * Math.PI * 2;
-        const exitX = Math.cos(exitAngle) * 1500 * exitProgress;
-        const exitY = Math.sin(exitAngle) * 1500 * exitProgress;
-        const exitOpacity = interpolate(frame, [120, 140], [1, 0], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-        });
+        const parallaxX = frame >= 60 ? Math.sin(frame * 0.02 + i * 1.5) * depthMul : 0;
+        const parallaxY = frame >= 60 ? Math.sin(frame * 0.025 + i * 2.0) * depthMul * 0.6 : 0;
 
         const isEntering = frame < landFrame;
-        const isExiting = frame >= 120;
 
         let x = pos.x + parallaxX;
         let y = pos.y + parallaxY;
         let opacity = 1;
         if (isEntering) { x += slide.translateX; y += slide.translateY; opacity = slide.opacity; }
-        if (isExiting) { x += exitX; y += exitY; opacity = exitOpacity; }
 
         return (
           <div key={i} style={{ position: 'absolute', left: x, top: y, opacity, zIndex: depth }}>

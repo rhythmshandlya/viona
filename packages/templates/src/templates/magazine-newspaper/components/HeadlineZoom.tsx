@@ -8,7 +8,7 @@ interface HeadlineZoomResult {
 }
 
 /**
- * Camera animation: zoom into headline start → pan across → zoom back out.
+ * Camera animation: zoom into headline start → pan across → hold.
  *
  * Translate values computed for transformOrigin '50% 17%' (540, 326 on 1080×1920).
  * At 2× zoom the visible content window is ~540px wide. The camera starts
@@ -20,38 +20,37 @@ export function useHeadlineZoom(
   zoomInStart: number,
   zoomInEnd: number,
   panEnd: number,
-  zoomOutEnd: number,
 ): HeadlineZoomResult {
-  // Scale: 1 → 2 during zoom-in, hold at 2 during pan, 2 → 1 during zoom-out
+  // Scale: 1 → 2 during zoom-in, hold at 2 during and after pan
   const scale = interpolate(
     frame,
-    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
-    [1, 2, 2, 1],
+    [zoomInStart, zoomInEnd],
+    [1, 2],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
-  // Horizontal pan: translate to headline start, sweep across, return to origin.
+  // Horizontal pan: translate to headline start, sweep across, hold at end.
   // tx=460 frames the left edge; tx=-460 frames the right edge.
   const translateX = interpolate(
     frame,
-    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
-    [0, 460, -460, 0],
+    [zoomInStart, zoomInEnd, panEnd],
+    [0, 460, -460],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
   // Vertical: lift slightly so headline sits at comfortable reading height
   const translateY = interpolate(
     frame,
-    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
-    [0, 46, 46, 0],
+    [zoomInStart, zoomInEnd],
+    [0, 46],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
-  // Surround fades out during zoom-in, stays hidden during pan, fades back in during zoom-out
+  // Surround fades out during zoom-in and stays hidden
   const surroundFade = interpolate(
     frame,
-    [zoomInStart, zoomInEnd, panEnd, zoomOutEnd],
-    [1, 0, 0, 1],
+    [zoomInStart, zoomInEnd],
+    [1, 0],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 

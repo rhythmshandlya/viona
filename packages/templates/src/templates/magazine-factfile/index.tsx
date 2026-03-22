@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import type { MagazineFactfileProps } from './schema';
-import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
+import { paperSlide, editorialReveal } from '../../magazine/animations';
 import { SerifHeadline, SectionLabel } from '../../magazine/typography';
 import { MAGAZINE_COLORS } from '../../magazine/constants';
 import { DossierCard } from './components/DossierCard';
@@ -17,23 +17,15 @@ const MagazineFactfile: React.FC<MagazineFactfileProps> = ({ title, subtitle, fi
 
   const cardSlide = paperSlide(frame, 0, 25, 'up');
 
-  const exitTranslateY = interpolate(frame, [120, 150], [0, 2000], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
-  });
-  const exitOpacity = interpolate(frame, [120, 145], [1, 0], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const isExiting = frame >= 120;
-
-  const parallaxX = frame >= 70 && frame <= 120 ? Math.sin(frame * 0.015) * 4 : 0;
-  const parallaxY = frame >= 70 && frame <= 120 ? Math.sin(frame * 0.02 + 1.0) * 3 : 0;
+  const parallaxX = frame >= 70 ? Math.sin(frame * 0.015) * 4 : 0;
+  const parallaxY = frame >= 70 ? Math.sin(frame * 0.02 + 1.0) * 3 : 0;
 
   const titleReveal = editorialReveal(frame, 20, 20);
   const subtitleReveal = editorialReveal(frame, 28, 15);
 
   const cardX = (CANVAS_W - CARD_W) / 2 + parallaxX + cardSlide.translateX;
-  const cardY = (CANVAS_H - CARD_H) / 2 + parallaxY + cardSlide.translateY + (isExiting ? exitTranslateY : 0);
-  const cardOpacity = isExiting ? exitOpacity : cardSlide.opacity;
+  const cardY = (CANVAS_H - CARD_H) / 2 + parallaxY + cardSlide.translateY;
+  const cardOpacity = cardSlide.opacity;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>

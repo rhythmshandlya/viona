@@ -36,24 +36,11 @@ const MagazineTypewriter: React.FC<MagazineTypewriterProps> = (props) => {
     extrapolateRight: 'clamp',
   });
 
-  // ── Phase 4: Paper scrolls up and out, opacity fades (130-150) ──────────
-  const exitTranslateY = interpolate(frame, [130, 150], [0, -2000], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const exitOpacity = interpolate(frame, [130, 150], [1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
   // Combined paper translateY
-  const paperTranslateY = slide.translateY + lineScrollOffset + exitTranslateY;
+  const paperTranslateY = slide.translateY + lineScrollOffset;
 
-  // Combined opacity: entry fade during phase 1, exit fade during phase 4
-  const combinedOpacity = frame < 130 ? slide.opacity : exitOpacity;
-
-  // Cursor visibility: show from frame 5 onwards, hide during exit
-  const cursorOpacity = interpolate(frame, [5, 10, 130, 140], [0, 1, 1, 0], {
+  // Cursor visibility: show from frame 5 onwards
+  const cursorOpacity = interpolate(frame, [5, 10], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -98,7 +85,7 @@ const MagazineTypewriter: React.FC<MagazineTypewriterProps> = (props) => {
         style={{
           width: '100%',
           height: '100%',
-          opacity: combinedOpacity,
+          opacity: slide.opacity,
         }}
       >
         <TypewriterPaper

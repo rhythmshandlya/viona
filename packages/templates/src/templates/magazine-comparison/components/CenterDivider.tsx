@@ -9,10 +9,7 @@ export function CenterDivider({ startY, endY }: { startY: number; endY: number }
   const drawProgress = interpolate(frame, [5, 20], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
   });
-  const retractProgress = interpolate(frame, [120, 145], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
-  });
-  const currentHeight = totalHeight * drawProgress * (1 - retractProgress);
+  const currentHeight = totalHeight * drawProgress;
 
   return (
     <div style={{
