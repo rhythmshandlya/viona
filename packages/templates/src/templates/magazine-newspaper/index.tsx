@@ -59,7 +59,7 @@ const MagazineNewspaper: React.FC<MagazineNewspaperProps> = (props) => {
               rotateY(${rotateY}deg)
               scale(${activeScale})
             `,
-            transformOrigin: '50% 30%',
+            transformOrigin: '50% 17%',
           }}
         >
           <NewspaperPage
