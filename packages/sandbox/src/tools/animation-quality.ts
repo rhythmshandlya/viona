@@ -129,15 +129,15 @@ function checkIdleAmplitude(source: string): AnimationQualityWarning | null {
     const context = source.slice(contextStart, contextEnd).toLowerCase();
 
     if (context.includes('scale') || context.includes('breathe')) {
-      if (amplitude < 0.02) {
+      if (amplitude < 0.025) {
         violations.push(`scale amplitude ${amplitude} < 0.025 minimum`);
       }
     } else if (context.includes('translate') || context.includes('float') || context.includes('drift')) {
-      if (amplitude < 4) {
+      if (amplitude < 5) {
         violations.push(`translate amplitude ${amplitude}px < 5px minimum`);
       }
     } else if (context.includes('rotate') || context.includes('tilt')) {
-      if (amplitude < 1.5) {
+      if (amplitude < 2) {
         violations.push(`rotation amplitude ${amplitude}° < 2° minimum`);
       }
     }
