@@ -3,8 +3,8 @@ import { AbsoluteFill, useCurrentFrame, interpolate, random } from 'remotion';
 import type { MagazineCollageProps } from './schema';
 import { paperSlide, magazineEasing } from '../../magazine/animations';
 import { PaperClipping } from './components/PaperClipping';
-import { TapeMark } from './components/TapeMark';
-import { PinMark } from './components/PinMark';
+import { TapeMark } from '../../magazine/decorations';
+import { PinMark } from '../../magazine/decorations';
 import { TopicWord } from './components/TopicWord';
 
 // ── Layout constants ─────────────────────────────────────────────────────────

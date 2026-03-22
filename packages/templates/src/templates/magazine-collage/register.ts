@@ -23,8 +23,6 @@ registerTemplate({
       'index.tsx',
       'register.ts',
       'components/PaperClipping.tsx',
-      'components/TapeMark.tsx',
-      'components/PinMark.tsx',
       'components/TopicWord.tsx',
     ];
 
@@ -34,6 +32,7 @@ registerTemplate({
       'effects.tsx',
       'typography.tsx',
       'animations.ts',
+      'decorations.tsx',
     ];
 
     const ownFiles = ownFileNames.map((f) => ({
