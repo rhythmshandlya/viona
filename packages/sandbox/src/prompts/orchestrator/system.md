@@ -94,7 +94,6 @@ Report progress: `{ phase: "planning", message: "Planning scenes..." }`
 
 Pass to Planner:
 - Content type, user's creative brief, canvas dimensions, theme, constraints
-- Shot boundary data (call `get_shot_boundaries` to check for multi-cam footage)
 
 After Planner returns:
 1. Read SCENE_PLAN.md
@@ -136,6 +135,12 @@ The Animator will READ the skeleton, then EDIT it to fill in animation code. The
 **Update plan after EACH animator returns.** As each parallel animator finishes, immediately call `report_plan` to mark that scene's subtask as `complete` (or `failed`). Do NOT wait for all animators — update incrementally so the user sees real-time progress. Example: when Scene 3 finishes, update its subtask status to `complete` while others remain `running`.
 
 Progress after each scene: `{ phase: "generating", message: "Scene N of M: <name>" }`
+
+**Quality validation after each Animator:**
+After each Animator completes and the scene file is written, call `mcp__analysis__validate_animation_quality` with the scene file path and frame count (derive from scene duration and fps). If the result contains warnings:
+1. Re-dispatch the Animator for that scene with the specific warnings as fix instructions (e.g., "Frame coverage is 35% — add Build/Develop phase animations between frames 40-200")
+2. Maximum 1 quality fix round per scene — if the second attempt still has warnings, accept it and move on
+3. Update the plan subtask status to reflect the validation pass/fail
 
 ### Phase 7: Final Assembly → dispatch **Final Editor**
 
