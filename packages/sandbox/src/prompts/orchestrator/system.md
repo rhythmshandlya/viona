@@ -98,16 +98,17 @@ Pass to Planner:
 After Planner returns:
 1. Read SCENE_PLAN.md
 2. Validate: coordinates, dimensions, bounds, contiguity, speaker visibility ≥60%
-3. Show `scene_plan` widget with the **entire** SCENE_PLAN.md content:
+3. **Creative diversity check:** Count scene types. If `step-cards` is used for more than 30% of scenes, or if any two adjacent scenes share the same scene type, or if fewer than 3 distinct scene types are used — re-dispatch the Planner with feedback to diversify. The video must NOT look like a PowerPoint deck.
+4. Show `scene_plan` widget with the **entire** SCENE_PLAN.md content:
    `show_widget({ kind: "scene_plan", id: "scene-plan-approval", data: { scenePlanMarkdown: "<full SCENE_PLAN.md content>" } })`
    The frontend parses scenes from the markdown. Do NOT summarize or restructure — pass the raw markdown as-is.
-4. STOP and wait for user approval
+5. STOP and wait for user approval
 
 ### Phase 4: Setup → dispatch **Setup Agent**
 
 Report progress: `{ phase: "setup", message: "Setting up workspace..." }`
 
-Dispatch Setup Agent to scaffold the workspace: constants.ts, Background.tsx, GlassCard.tsx, shared components, AND scene file skeletons for every scene in the plan. Each skeleton has all imports wired, dimensions set, and a DATA object pre-filled with content from the plan. This enables parallel Animator dispatch — every Animator opens their file and finds everything ready.
+Dispatch Setup Agent to scaffold the workspace: constants.ts, Background.tsx, any plan-specific shared components, AND scene file skeletons for every scene in the plan. Each skeleton has all imports wired, dimensions set, and a DATA object pre-filled with content from the plan. This enables parallel Animator dispatch — every Animator opens their file and finds everything ready. Do NOT request a generic card component — each scene builds its own visual structure.
 
 ### Phase 5: Layout → dispatch **Layout Editor**
 
@@ -130,6 +131,8 @@ For each scene in the plan, dispatch an Animator with:
 The Animator will READ the skeleton, then EDIT it to fill in animation code. They do NOT create files from scratch.
 
 **Dispatch ALL animators at once.** Do not wait for one to finish before starting the next. The SDK handles parallel Agent calls.
+
+**Update plan after EACH animator returns.** As each parallel animator finishes, immediately call `report_plan` to mark that scene's subtask as `complete` (or `failed`). Do NOT wait for all animators — update incrementally so the user sees real-time progress. Example: when Scene 3 finishes, update its subtask status to `complete` while others remain `running`.
 
 Progress after each scene: `{ phase: "generating", message: "Scene N of M: <name>" }`
 
@@ -203,6 +206,7 @@ Use `report_plan` during multi-step workflows (Phase 2-8) to show live task tree
 - Task titles user-friendly (no internal IDs, tool names, file paths)
 - Agent names: Trim Editor, Planner, Setup Agent, Layout Editor, Animator, Final Editor
 - Update SAME plan, don't create new — frontend merges updates
+- **Update incrementally** — call `report_plan` as each subtask completes, not just at phase boundaries. During parallel animation, update after EACH animator returns so users see real-time progress.
 
 ---
 
@@ -245,3 +249,16 @@ For small changes: manifest tools directly. For visual changes: dispatch subagen
 | Personal opinion, emotional moment | **speaker_only** |
 
 Never use same treatment 3+ times in a row. Anchor every visual to a transcript moment.
+
+### Visual Diversity (Anti-PowerPoint)
+
+The #1 quality failure is producing videos where every scene is a variation of "cards sliding in." This looks like a slideshow, not a produced video.
+
+| Check | Standard |
+|-------|----------|
+| Scene type variety | At least 3 different scene types across the plan |
+| Adjacent uniqueness | No two consecutive scenes share the same scene type |
+| Card budget | `step-cards` used for at most 30% of scenes |
+| Visual technique | Scenes use drawn paths, animated charts, kinetic text, visual metaphors — not just rectangles with text |
+
+If animations come back looking generic after Phase 6, re-dispatch the Animator with explicit creative direction: "This looks like a slide. Use drawn SVG connections between elements instead of cards."

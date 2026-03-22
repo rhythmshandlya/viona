@@ -152,7 +152,7 @@ No content is "too abstract" for a scene. If transcript content doesn't fit a st
 - Numbers, labels, items must match transcript verbatim
 
 ### Visual Quality
-- Every glass card uses the full glass recipe (bg, backdrop-filter, border, borderTop specular, shadow)
+- Every surface has at least two animated properties (gradient shift, depth shadow, shimmer) — no flat static rectangles
 - Text hierarchy: headings at primary color, supporting text at secondary
 - Accent elements use primary violet (#8B5CF6)
 - Minimum 48px from canvas edge for any content

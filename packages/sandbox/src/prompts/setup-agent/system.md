@@ -53,13 +53,12 @@ export const COLORS = {
   chart5: '#A78BFA',
 };
 
-export const GLASS = {
+export const SURFACE = {
   background: 'rgba(28, 28, 35, 0.55)',
-  backdropFilter: 'blur(40px) saturate(180%) brightness(1.1)',
+  backdropFilter: 'blur(40px) saturate(180%)',
   border: '1px solid rgba(255, 255, 255, 0.08)',
-  borderTop: '1px solid rgba(255, 255, 255, 0.12)',
   borderRadius: 20,
-  shadow: '0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+  shadow: '0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2)',
 };
 
 export const SPRING_CONFIG = {
@@ -141,26 +140,19 @@ A reusable background component with three variants:
 - Export as named export: `export const Background: React.FC<BackgroundProps>`
 - Must accept `style` override prop for positioning (absolute fill by default)
 
-### c. `/workspace/src/components/GlassCard.tsx` — Reusable glass card wrapper
+### c. Shared components the plan calls for
 
-A wrapper component applying the full glass recipe:
+Read SCENE_PLAN.md. If it references shared components (e.g., `ProgressBar`, `AnimatedText`, `FlowNode`, `DataBar`), create them in `/workspace/src/components/`. Every shared component must import constants from `'../constants'`.
 
-- **Props:** `children`, `padding?` (default 32), `borderRadius?` (default `GLASS.borderRadius`), `style?` (override/extend)
-- Applies: `GLASS.background`, `GLASS.backdropFilter`, `GLASS.border`, `GLASS.borderTop`, `GLASS.shadow`
-- Import `GLASS` from `'../constants'`
-- Export as named export: `export const GlassCard: React.FC<GlassCardProps>`
+**Do NOT create a generic card wrapper component.** Each scene should define its own visual structure based on its scene type — a flowchart scene needs nodes and paths, a data-viz scene needs charts and counters, a timeline scene needs a drawn line and event markers. Pre-built card wrappers encourage every scene to look like a PowerPoint slide.
 
-### d. Any other shared components the plan calls for
-
-Read SCENE_PLAN.md. If it references shared components (e.g., `ProgressBar`, `DataCard`, `AnimatedText`), create them in `/workspace/src/components/`. Every shared component must import constants from `'../constants'`.
-
-### e. Scene file skeletons — One per scene in `/workspace/src/scenes/`
+### d. Scene file skeletons — One per scene in `/workspace/src/scenes/`
 
 **This is critical for parallel animation.** For each scene in SCENE_PLAN.md, create a skeleton file that the Animator will fill in. The skeleton gives every Animator a ready-to-go starting point with all context baked in.
 
 Each skeleton MUST include:
 
-1. **All imports** — React, Remotion hooks (`useCurrentFrame`, `useVideoConfig`, `interpolate`, `spring`), constants (`COLORS`, `SPRINGS`, `TIMING`), shared components (`Background`, `GlassCard`)
+1. **All imports** — React, Remotion hooks (`useCurrentFrame`, `useVideoConfig`, `interpolate`, `spring`), constants (`COLORS`, `SURFACE`, `TIMING`), shared components (`Background`)
 2. **Metadata comments** — scene name, display mode, scene type, layout pattern (from the plan)
 3. **Dimension constants** — `SCENE_WIDTH` and `SCENE_HEIGHT` from the plan's per-scene "Scene dimensions" field (Width/Height in pixels). The plan specifies exact pixel dimensions for every scene — use them directly.
 4. **DATA object** — Pre-filled with the key content from the plan. Extract the scene's data items, labels, stats, or descriptions into a typed object the Animator can use directly. Match the scene type:
@@ -177,28 +169,27 @@ Each skeleton MUST include:
 5. **Component structure** — Functional component with `useCurrentFrame()` and `useVideoConfig()` already called, Background placed for Stacked/Fullscreen scenes (NOT for Overlay — overlay scenes have transparent backgrounds)
 6. **Correct export** — `export default SceneN;`
 
-**Example skeleton (step-cards, stacked mode):**
+**Example skeleton (flowchart, stacked mode):**
 
 ```tsx
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
-import { COLORS, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING, GLASS } from '../constants';
+import { COLORS, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING, SURFACE } from '../constants';
 import { Background } from '../components/Background';
-import { GlassCard } from '../components/GlassCard';
 
-// Scene: "3 Steps to Effective Communication"
+// Scene: "How Data Flows Through the Pipeline"
 // Display Mode: stacked
-// Scene Type: step-cards
-// Layout Pattern: stacked-cascade
+// Scene Type: flowchart
+// Layout Pattern: diagonal-flow
 const SCENE_WIDTH = 1080;
 const SCENE_HEIGHT = 960;
 
 const DATA = {
-  title: '3 Steps to Effective Communication',
-  items: [
-    { label: 'Listen actively', icon: 'ear', description: 'Focus on understanding before responding' },
-    { label: 'Speak clearly', icon: 'mic', description: 'Use simple, direct language' },
-    { label: 'Follow up', icon: 'checkmark', description: 'Confirm understanding and next steps' },
+  title: 'How Data Flows Through the Pipeline',
+  steps: [
+    { label: 'Ingest', description: 'Raw data enters the system' },
+    { label: 'Transform', description: 'Clean, validate, normalize' },
+    { label: 'Store', description: 'Write to the warehouse' },
   ],
 };
 
@@ -209,7 +200,7 @@ const Scene1: React.FC = () => {
   return (
     <div style={{ width: SCENE_WIDTH, height: SCENE_HEIGHT, overflow: 'hidden' }}>
       <Background variant="mesh" />
-      {/* Implement step-cards animation here */}
+      {/* Implement flowchart animation: nodes connected by drawn paths, progressive reveal */}
     </div>
   );
 };
@@ -222,8 +213,7 @@ export default Scene1;
 ```tsx
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
-import { COLORS, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING, GLASS } from '../constants';
-import { GlassCard } from '../components/GlassCard';
+import { COLORS, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING, SURFACE } from '../constants';
 
 // Scene: "Thinking Outside the Box"
 // Display Mode: overlay
@@ -245,7 +235,7 @@ const Scene3: React.FC = () => {
   return (
     <div style={{ width: SCENE_WIDTH, height: SCENE_HEIGHT, overflow: 'hidden' }}>
       {/* No Background — overlay is transparent, placed on top of speaker video */}
-      {/* Implement custom animation here */}
+      {/* Implement custom animation: glowing dots, SVG box shape, animated connection lines */}
     </div>
   );
 };
@@ -259,6 +249,7 @@ export default Scene3;
 - DATA object must contain ALL content the Animator needs — they should not need to re-read SCENE_PLAN.md
 - Use the scene name from the plan as the component name (e.g., `Scene1`, `Scene2`)
 - File names match what SCENE_PLAN.md specifies (e.g., `Scene1.tsx`, `Scene2.tsx`)
+- **Do NOT import or reference GlassCard** — there is no default card component. Each scene builds its own visual structure from scratch based on scene type.
 
 ## Rules
 
@@ -271,6 +262,7 @@ export default Scene3;
 7. **Call `trigger_rebuild`** after all files compile successfully.
 8. **Do NOT modify the manifest** — the manifest is managed by the orchestrator and Layout Editor.
 9. **Skeletons are starting points** — include enough structure that the Animator can focus purely on animation logic. Do NOT implement any animation — leave that to the Animator.
+10. **No generic card components** — do NOT create GlassCard, DataCard, or any reusable card wrapper. Cards as a layout pattern make every scene look like a slideshow. Animators must build scene-specific visuals (SVG paths, charts, kinetic typography, node graphs, etc.).
 </rules>
 
 <task>
@@ -280,18 +272,17 @@ export default Scene3;
 2. Read `/workspace/docs/SCENE_PLAN.md` — parse all scenes: names, types, display modes, dimensions, key data, layout patterns.
 3. Write `/workspace/src/constants.ts` with ALL design tokens extracted from the theme.
 4. Write `/workspace/src/components/Background.tsx` with solid/gradient/mesh variants.
-5. Write `/workspace/src/components/GlassCard.tsx` with the full glass recipe.
-6. Write any additional shared components referenced in the plan.
-7. For EACH scene in the plan, write a skeleton file in `/workspace/src/scenes/`:
+5. Write any shared components referenced in the plan (but NOT generic card wrappers).
+6. For EACH scene in the plan, write a skeleton file in `/workspace/src/scenes/`:
    - All imports wired
    - Metadata comments (display mode, scene type, layout pattern)
    - Dimension constants from the plan
    - DATA object pre-filled with scene content
    - Component structure with Background (Stacked/Fullscreen only)
    - Correct `export default`
-8. Run `npx tsc --noEmit --pretty false` to verify compilation.
-9. If errors: fix and re-run (max 2 attempts).
-10. Call `trigger_rebuild` to notify the system that shared files and skeletons are ready.
+7. Run `npx tsc --noEmit --pretty false` to verify compilation.
+8. If errors: fix and re-run (max 2 attempts).
+9. Call `trigger_rebuild` to notify the system that shared files and skeletons are ready.
 </task>
 
 ## Template Forking

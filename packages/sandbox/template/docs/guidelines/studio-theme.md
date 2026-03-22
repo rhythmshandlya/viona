@@ -57,60 +57,43 @@ The violet accent (`#8B5CF6`) is ONE option, not the default. Each scene should 
 
 **Implementation:** `constants.ts` defines `COLORS.primary` as a single value (written by Setup Agent). Animators use inline hex colors per scene rather than relying on `COLORS.primary` for accent color. `COLORS.primary` remains as a fallback.
 
-### Liquid Glass Effect (Remotion-Compatible)
+### Animated Surfaces (Remotion-Compatible)
 
-`backdrop-filter` is unreliable in Remotion canvas rendering. Liquid glass is achieved through animated gradients, specular sweeps, and depth shadows instead.
+`backdrop-filter` is unreliable in Remotion canvas rendering. Animated surfaces are achieved through shifting gradients, depth shadows, and subtle shimmer.
 
-**Base GLASS constant** (starting point -- animators MUST animate these properties per frame):
+**Base SURFACE constant** (starting point -- animators animate these per frame):
 ```typescript
-const GLASS = {
+const SURFACE = {
   background: 'rgba(28, 28, 35, 0.55)',
+  backdropFilter: 'blur(40px) saturate(180%)',
   border: '1px solid rgba(255, 255, 255, 0.08)',
-  borderTop: '1px solid rgba(255, 255, 255, 0.12)',
   borderRadius: 20,
-  shadow: '0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+  shadow: '0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2)',
 };
 ```
 
-**1. Animated gradient surface** -- the glass background shifts color angle over time:
+**1. Animated gradient** -- background shifts color angle over time:
 ```tsx
-const glassAngle = 135 + Math.sin(frame * 0.02) * 15;
-const glassBg = `linear-gradient(${glassAngle}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`;
+const surfaceAngle = 135 + Math.sin(frame * 0.02) * 15;
+const surfaceBg = `linear-gradient(${surfaceAngle}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`;
 ```
 
-**2. Specular highlight sweep** -- a bright gradient translates across the surface:
-```tsx
-const specularX = interpolate(frame, [entryFrame, entryFrame + 40], [-100, 200], {
-  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-});
-const specularHighlight = `linear-gradient(105deg, transparent ${specularX}%, rgba(255,255,255,0.12) ${specularX + 10}%, transparent ${specularX + 20}%)`;
-// Apply as a positioned overlay div inside the glass container
-```
-
-**3. Depth shadows that animate in** -- shadows grow from nothing over 15 frames:
+**2. Depth shadows that animate in** -- shadows grow from nothing over 15 frames:
 ```tsx
 const shadowProgress = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
 });
-const animatedShadow = `0 ${8 * shadowProgress}px ${32 * shadowProgress}px rgba(0, 0, 0, ${0.35 * shadowProgress}), 0 ${2 * shadowProgress}px ${8 * shadowProgress}px rgba(0, 0, 0, ${0.2 * shadowProgress})`;
+const animatedShadow = `0 ${8 * shadowProgress}px ${32 * shadowProgress}px rgba(0, 0, 0, ${0.35 * shadowProgress})`;
 ```
 
-**4. Grain texture** -- shift background position every 3-4 frames, 5-8% opacity:
-```tsx
-const grainShift = Math.floor(frame / 3) * 100;
-// Add a grain overlay div:
-// backgroundImage: url("data:image/svg+xml,...") or noise pattern
-// backgroundPosition: `${grainShift}px ${grainShift}px`
-// opacity: 0.06
-```
-
-**5. Glass shimmer** -- oscillating opacity adds life to the surface:
+**3. Subtle shimmer** -- oscillating opacity keeps surfaces alive:
 ```tsx
 const shimmer = 0.55 + Math.sin(frame * 0.04) * 0.05;
-// Use shimmer as the alpha in the glass background color
 ```
 
-**Key rule:** A glass surface with a static background and no animated properties is NOT liquid glass. Every glass element must have at least one continuously animated visual property (angle shift, shimmer, specular sweep).
+**Key rule:** A surface with a static background and no animated properties is a flat rectangle. Every visible surface must have at least one continuously animated visual property.
+
+**Important:** Surfaces are containers, not the main attraction. The visual interest comes from what's INSIDE — animated SVG paths, kinetic text, charts, node graphs. Don't over-polish containers at the expense of content.
 
 ### Hover/Interactive States (for animated elements)
 ```typescript
@@ -292,121 +275,131 @@ const SHADOWS = {
 
 ### Background Treatment
 - **Scene backgrounds:** Dark base (`#08080C`) with optional mesh gradient overlay
-- **Glass containers:** Semi-transparent with animated gradient surfaces (liquid glass)
+- **Surfaces:** Semi-transparent with animated gradient, shimmer, or blur. Never static flat rectangles.
 - **Never pure black (`#000000`)** — always use `#08080C` or darker grays
 - **Never pure white text** — always use `rgba(255, 255, 255, 0.95)` max
 
 ## Example Scenes
 
-### Example 1: Three-Step Process
+### Example 1: Three-Step Flowchart (connected nodes, NOT cards)
 ```tsx
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 
 const COLORS = { /* as above */ };
-const GLASS = { /* as above */ };
+const SURFACE = { /* as above */ };
 const SPRINGS = {
   SNAPPY:  { damping: 20, mass: 1, stiffness: 180 },
   SMOOTH:  { damping: 28, mass: 1, stiffness: 120 },
 };
 
-const ThreeStepProcess: React.FC = () => {
+const ThreeStepFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
 
   const steps = ['Research', 'Design', 'Build'];
+  const nodePositions = [
+    { x: width * 0.2, y: height * 0.5 },
+    { x: width * 0.5, y: height * 0.35 },
+    { x: width * 0.8, y: height * 0.5 },
+  ];
 
-  // Animated background gradient angle
+  // Animated background
   const bgAngle = 135 + Math.sin(frame * 0.02) * 15;
   const bgGradient = `linear-gradient(${bgAngle}deg, #08080C 0%, #0f0a1a 50%, #08080C 100%)`;
 
-  // Title entrance -- SNAPPY spring, opacity leads transform by 4 frames
+  // Title entrance -- SNAPPY spring
   const titleOpacity = interpolate(frame, [0, 12], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const titleSpring = spring({ frame: Math.max(0, frame - 4), fps, config: SPRINGS.SNAPPY });
   const titleY = interpolate(titleSpring, [0, 1], [25, 0]);
-  // Title idle breathe
   const titleBreathe = 1 + Math.sin(frame * 0.025) * 0.01;
 
   return (
-    <div style={{
-      width, height,
-      background: bgGradient,
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 24,
-      padding: 48,
-    }}>
+    <div style={{ width, height, background: bgGradient, position: 'relative', overflow: 'hidden' }}>
       {/* Title */}
       <h1 style={{
-        color: COLORS.textPrimary,
-        fontSize: 56,
-        fontFamily: 'Sora',
-        fontWeight: 700,
-        opacity: titleOpacity,
-        transform: `translateY(${titleY}px) scale(${titleBreathe})`,
+        position: 'absolute', top: height * 0.12, width: '100%', textAlign: 'center',
+        color: COLORS.textPrimary, fontSize: 56, fontFamily: 'Sora', fontWeight: 700,
+        opacity: titleOpacity, transform: `translateY(${titleY}px) scale(${titleBreathe})`,
       }}>
         The Process
       </h1>
 
-      {/* Step cards -- staggered entrance, SMOOTH spring, liquid glass */}
-      <div style={{ display: 'flex', gap: 20 }}>
-        {steps.map((step, i) => {
-          const delay = 18 + i * 8;
-          // Opacity leads transform by 3 frames
-          const cardOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {
+      {/* SVG connecting paths — draw between nodes */}
+      <svg style={{ position: 'absolute', top: 0, left: 0, width, height }}>
+        {nodePositions.slice(0, -1).map((from, i) => {
+          const to = nodePositions[i + 1];
+          const pathDelay = 20 + i * 15;
+          const pathProgress = interpolate(frame, [pathDelay, pathDelay + 25], [0, 1], {
             extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
           });
-          const cardSpring = spring({ frame: Math.max(0, frame - delay - 3), fps, config: SPRINGS.SMOOTH });
-          const cardY = interpolate(cardSpring, [0, 1], [30, 0]);
-          // Liquid glass animated gradient per card
-          const glassAngle = 135 + Math.sin((frame + i * 20) * 0.02) * 15;
-          const glassBg = `linear-gradient(${glassAngle}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`;
-          // Specular highlight sweep
-          const specX = interpolate(frame, [delay, delay + 40], [-100, 200], {
-            extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-          });
-          // Card idle float
-          const cardFloat = Math.sin((frame + i * 15) * 0.03) * 3;
-
+          const dx = to.x - from.x;
+          const dy = to.y - from.y;
+          const pathD = `M ${from.x} ${from.y} Q ${from.x + dx * 0.5} ${from.y + dy * 0.5 - 40} ${to.x} ${to.y}`;
+          const pathLength = 400;
           return (
-            <div key={step} style={{
-              position: 'relative',
-              overflow: 'hidden',
-              background: glassBg,
-              border: GLASS.border,
-              borderTop: GLASS.borderTop,
-              borderRadius: GLASS.borderRadius,
-              boxShadow: GLASS.shadow,
-              padding: 32,
-              width: 280,
-              textAlign: 'center',
-              opacity: cardOpacity,
-              transform: `translateY(${cardY + cardFloat}px)`,
-            }}>
-              {/* Specular highlight overlay */}
-              <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                background: `linear-gradient(105deg, transparent ${specX}%, rgba(255,255,255,0.1) ${specX + 10}%, transparent ${specX + 20}%)`,
-                pointerEvents: 'none',
-              }} />
-              <div style={{ color: COLORS.primary, fontSize: 40, fontWeight: 700 }}>
-                {i + 1}
-              </div>
-              <div style={{ color: COLORS.textPrimary, fontSize: 32, marginTop: 12 }}>
-                {step}
-              </div>
-            </div>
+            <path key={i} d={pathD} fill="none"
+              stroke={COLORS.primary} strokeWidth={2}
+              strokeDasharray={pathLength}
+              strokeDashoffset={pathLength * (1 - pathProgress)}
+              opacity={0.6 + Math.sin(frame * 0.03) * 0.1}
+            />
           );
         })}
-      </div>
+      </svg>
+
+      {/* Step nodes — spring in with stagger, idle float */}
+      {steps.map((step, i) => {
+        const delay = 15 + i * 12;
+        const nodeOpacity = interpolate(frame, [delay, delay + 12], [0, 1], {
+          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+        });
+        const nodeSpring = spring({ frame: Math.max(0, frame - delay), fps,
+          config: i === 0 ? SPRINGS.SNAPPY : SPRINGS.SMOOTH });
+        const nodeScale = interpolate(nodeSpring, [0, 1], [0.3, 1]);
+        const nodeFloat = Math.sin((frame + i * 20) * 0.03) * 3;
+        const pos = nodePositions[i];
+        // Number springs in 4 frames before label
+        const numSpring = spring({ frame: Math.max(0, frame - delay + 4), fps, config: SPRINGS.SNAPPY });
+        const numScale = interpolate(numSpring, [0, 1], [0, 1]);
+
+        return (
+          <div key={step} style={{
+            position: 'absolute',
+            left: pos.x - 60, top: pos.y - 50 + nodeFloat,
+            width: 120, textAlign: 'center',
+            opacity: nodeOpacity,
+            transform: `scale(${nodeScale})`,
+          }}>
+            {/* Circular node with animated gradient */}
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%', margin: '0 auto',
+              background: `radial-gradient(circle at 30% 30%, ${COLORS.primaryMuted}, ${COLORS.bgSurface})`,
+              border: SURFACE.border,
+              boxShadow: `0 0 ${12 + Math.sin(frame * 0.04) * 4}px ${COLORS.primaryMuted}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{
+                color: COLORS.primary, fontSize: 32, fontWeight: 700,
+                transform: `scale(${numScale})`, display: 'inline-block',
+              }}>
+                {i + 1}
+              </span>
+            </div>
+            <div style={{
+              color: COLORS.textPrimary, fontSize: 28, marginTop: 12, fontFamily: 'Sora',
+            }}>
+              {step}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
 
-export default ThreeStepProcess;
+export default ThreeStepFlow;
 ```
 
 ### Example 2: Data Comparison (Two Values)
@@ -602,10 +595,11 @@ export default FloatingLabel;
 - Drop shadows with color (colored shadows) -- shadows are always neutral black at varying opacity
 - Gradients on text
 - 3D transforms (rotateX, rotateY, perspective) -- keep everything flat/2D
-- Heavy textures or patterns -- glassmorphism is about translucency, not texture
-- Static flat-colored rectangles as containers -- every surface must use liquid glass treatment
+- Heavy textures or patterns -- keep surfaces clean and translucent
+- Static flat-colored rectangles as containers -- every surface must have animated properties
 - `backdrop-filter` -- unreliable in Remotion canvas rendering. Use animated gradients instead.
+- Generic card layouts as the default visual approach -- prefer drawn paths, charts, kinetic typography, visual metaphors
 
 ---
 
-*This is Viona's default studio theme. Every animator agent loads this before generating scene code. All COLORS, SPRINGS, FONTS, SPACING constants in the workspace constants.ts must match these values. Liquid glass is mandatory on every surface -- no static flat rectangles.*
+*This is Viona's default studio theme. Every animator agent loads this before generating scene code. All COLORS, SPRINGS, FONTS, SPACING constants in the workspace constants.ts must match these values. Animated surfaces are required -- no static flat rectangles.*

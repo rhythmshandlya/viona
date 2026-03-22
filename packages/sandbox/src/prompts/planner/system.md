@@ -30,6 +30,22 @@ The Planner covers the ENTIRE timeline. Every moment is either a scene (Stacked/
 
 No content is too abstract — use `custom` with visual metaphors for anything that doesn't fit the structured types above.
 
+### Scene Type Selection — Avoid the Card Trap
+
+`step-cards` is the LAST RESORT for structured content, not the default. Before choosing `step-cards`, try these alternatives:
+
+| If the speaker says... | Consider FIRST | step-cards only if... |
+|---|---|---|
+| "3 steps to..." | `flowchart` (connected process) | It's a literal checklist they're ticking off |
+| "5 reasons why..." | `custom` (visual metaphors per reason) | The reasons are truly a flat unordered list |
+| "Here are the benefits..." | `data-viz` (metrics) or `custom` (icons + kinetic text) | Speaker is reading a bullet list verbatim |
+| "Key takeaways..." | `custom` (kinetic typography) | There are 4+ items that genuinely need cards |
+| "Tips for..." | `hierarchy` or `flowchart` (if tips build on each other) | Tips are completely independent items |
+
+**The goal is motion design, not PowerPoint.** A video where 3+ scenes are card-based layouts looks generic regardless of how well the cards are animated. Prefer scene types that create visual RELATIONSHIPS between elements: flowcharts with drawn paths, hierarchies with branching trees, timelines with drawn lines, data-viz with animated charts, custom scenes with visual metaphors.
+
+`step-cards` is appropriate when the content is genuinely a flat list or checklist — someone listing items to verify, comparing feature sets, or enumerating independent options. But even then, the Animator will be instructed to connect them visually, not just slide in rectangles.
+
 ## Layout Patterns (use ONLY these 6)
 
 - **center-dominant** — hero element large and centered, supporting content wraps around
@@ -163,6 +179,9 @@ All boxes must be checked before submitting:
 - [ ] Every scene has **Scene dimensions** (Width × Height in pixels)
 - [ ] Every Overlay scene uses a placement preset name from the preset table
 - [ ] Stacked dimensions calculated correctly: width = canvas width, height = canvas height × top%
+- [ ] **No more than 30% of scenes use `step-cards`** — if 4+ scenes exist, at most 1 can be step-cards. Prefer flowchart, custom, data-viz, timeline, or hierarchy for structured content.
+- [ ] **At least 3 different scene types** are used across the plan (prevents visual monotony)
+- [ ] **No two adjacent scenes share the same scene type** — vary the visual approach between consecutive scenes
 </plan_structure>
 
 <overlay_rules>

@@ -4,10 +4,9 @@ Read `/workspace/docs/guidelines/studio-theme.md` FIRST — every value in const
 Read `/workspace/docs/SCENE_PLAN.md` SECOND — you need every scene's name, type, display mode, dimensions, and key data.
 
 Files you MUST write:
-- `src/constants.ts` — ALL design tokens (COLORS, GLASS, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING, SHADOWS, RADIUS, EASE_SMOOTH, MESH_GRADIENT)
+- `src/constants.ts` — ALL design tokens (COLORS, SURFACE, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING, SHADOWS, RADIUS, EASE_SMOOTH, MESH_GRADIENT)
 - `src/components/Background.tsx` — solid/gradient/mesh variants, imports COLORS from '../constants'
-- `src/components/GlassCard.tsx` — full glass recipe, imports GLASS from '../constants'
-- Any additional shared components referenced in SCENE_PLAN.md
+- Any shared components referenced in SCENE_PLAN.md (but NOT generic card wrappers like GlassCard)
 - **Scene skeletons** — one per scene in `src/scenes/`, each with:
   - All imports wired (React, Remotion, constants, shared components)
   - Metadata comments (display mode, scene type, layout pattern)

@@ -106,7 +106,7 @@ const ASSET_TOOL_NAMES = [
   'mcp__assets__search_unsplash',
   'mcp__assets__search_pexels',
   'mcp__assets__download_stock_photo',
-  'mcp__assets__get_speaker_grid',
+  'mcp__assets__get_speaker_position',
 ];
 
 const VIEWPORT_TOOL_NAMES = [
@@ -189,7 +189,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   search_unsplash: 'Searching photos',
   search_pexels: 'Searching stock footage',
   download_stock_photo: 'Downloading photo',
-  get_speaker_grid: 'Analyzing speaker position',
+  get_speaker_position: 'Analyzing speaker position',
   // Viewport tools
   get_scene_dimensions: 'Checking dimensions',
   validate_scene_code: 'Validating animation',
@@ -321,7 +321,7 @@ export async function buildOrchestratorOptions(
       // No SCENE_TOOL_NAMES — this agent writes to src/components/ and src/constants.ts
       // via the Write tool, NOT to src/scenes/ (that's the animators' job).
       setup_agent: {
-        description: 'Scaffolds shared workspace code — constants.ts (theme tokens), Background.tsx, GlassCard.tsx, shared components, AND scene file skeletons with pre-filled DATA objects. Must complete before animators start.',
+        description: 'Scaffolds shared workspace code — constants.ts (theme tokens), Background.tsx, plan-specific shared components, AND scene file skeletons with pre-filled DATA objects. Must complete before animators start.',
         prompt: setupAgentPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',

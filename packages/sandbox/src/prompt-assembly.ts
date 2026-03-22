@@ -89,7 +89,7 @@ ${displayModeContext(config)}
 1. **Read** the skeleton file at \`src/scenes/${config.sceneFile}.tsx\` — it has imports, DATA, dimensions, and component structure ready
 2. **Edit** the skeleton to add dense, choreographed animation (replace placeholder comments with real code)
 3. Keep the existing DATA object, SCENE_WIDTH, SCENE_HEIGHT, and metadata comments
-4. Add animation logic: spring entrances, liquid glass, idle motion, decorative layers
+4. Add animation logic: spring entrances, animated surfaces, idle motion, decorative layers
 5. **Verify:** \`npx tsc --noEmit\` → \`trigger_rebuild\` → \`render_still\` at a key frame
 `;
 }

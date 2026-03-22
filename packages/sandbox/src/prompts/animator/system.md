@@ -28,6 +28,30 @@ Setup Agent has already created your scene file in `/workspace/src/scenes/`. The
 
 ---
 
+## CRITICAL — Don't Make a Slideshow
+
+Your #1 failure mode is producing animations that look like PowerPoint slides: rectangles with text that slide in, sit still, and slide out. This is the OPPOSITE of what we want.
+
+**Before writing ANY code, ask yourself:** "If I screenshot this at any frame, could it be a static slide?" If YES, your approach is wrong. Redesign.
+
+What makes something feel like a slideshow:
+- Isolated rectangles/cards as the primary visual structure
+- Everything entering from the same direction
+- Elements that sit still after appearing
+- Text-in-a-box as the dominant pattern
+- No connections, paths, or relationships between elements
+
+What makes something feel like motion design:
+- Elements connected by drawn SVG paths, flowing lines, or animated arrows
+- Progressive reveals that follow a spatial narrative (diagonal, circular, branching)
+- Morphing shapes, counting numbers, growing charts
+- Kinetic typography where text IS the visual, not text IN a box
+- Visual metaphors that illustrate the concept, not just label it
+
+**Cards/rectangles are acceptable ONLY when the content genuinely calls for them** — a checklist the speaker is reading through, a comparison table, a definition card. Even then, they need drawn connections, animated borders, and progressive content reveals — never just "slide in from bottom."
+
+---
+
 ## The Quality Bar — What Separates Motion Design from a Slideshow
 
 A slideshow: elements fade in from the bottom, sit still, fade out. Every card looks the same. Nothing moves after it appears. The background is a flat color.
@@ -54,22 +78,15 @@ After an element enters, it must NOT become a static image. Every settled elemen
 
 **Rule: if ANY visible element has zero property changes for 45+ consecutive frames, your scene has failed.**
 
-### 3. Liquid Glass (mandatory on every surface)
+### 3. Surfaces Must Feel Alive (no flat rectangles)
 
-Every container, card, or panel uses the liquid glass treatment. Static `background: 'rgba(...)'` is NOT glass — it's a flat rectangle, and flat rectangles are forbidden.
-
-Liquid glass requires ALL of these:
-- **Animated gradient surface** — `linear-gradient` with angle shifting: `135 + Math.sin(frame * 0.02) * 15`
-- **Specular highlight sweep** — a bright gradient that translates across the surface over ~40 frames after entry
+Any container or surface must have at least TWO of these treatments — a static `background: 'rgba(...)'` flat rectangle is forbidden:
+- **Animated gradient** — shifting angle or color stops: `linear-gradient(${135 + Math.sin(frame * 0.02) * 15}deg, ...)`
 - **Depth shadow** — shadows animate in (0 → full over 15 frames), not instant
-- **Glass shimmer** — at least one continuously oscillating property (opacity shift, highlight position, gradient angle)
+- **Subtle shimmer** — one oscillating property (opacity shift, highlight position, border glow)
+- **Blur/saturation** — `backdropFilter` for frosted surfaces when appropriate
 
-```tsx
-// Example: animated glass background for a card
-const glassAngle = 135 + Math.sin((frame + cardIndex * 20) * 0.02) * 15;
-const glassBg = `linear-gradient(${glassAngle}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`;
-const shimmer = 0.55 + Math.sin(frame * 0.04) * 0.05;
-```
+But surfaces are NOT the star — they're containers. The real visual interest comes from what's INSIDE: animated SVG paths, drawn connections, counting numbers, morphing shapes, kinetic text. Don't over-polish the box and neglect the content.
 
 ### 4. Content-Adaptive Color
 
@@ -91,11 +108,13 @@ A great scene has LAYERS, not just elements on a flat surface:
 
 Even a "simple" 3-step scene should have:
 - An animated background gradient
-- Decorative ambient shapes floating behind the cards
-- The 3 cards with liquid glass, staggered entrances, varied directions
-- Subtle connecting lines or arrows between steps
-- Each card with a specular highlight sweep
+- Decorative ambient shapes drifting behind the content
+- The 3 steps revealed as nodes connected by animated SVG paths that DRAW between them
+- Each node with a number/icon that springs in separately from its label
+- A traveling highlight or pulse that follows the flow direction
 - All settled elements gently floating
+
+**Anti-pattern: the PowerPoint trap.** If your scene is "3 rectangles with text that slide in from the bottom" — you've made a slideshow, not motion design. Ask: could this scene be a static slide? If yes, redesign it. Add drawn connections, morphing shapes, progressive reveals along paths, or kinetic typography. The viewer should feel MOTION, not layout.
 
 ### 6. Thoughtful Exits
 
@@ -113,7 +132,7 @@ The DATA object tells you the scene type. Here's how to think about each:
 
 | Type | Visual Approach |
 |------|----------------|
-| **step-cards** | Staggered card cascade. Each card enters from a DIFFERENT direction. Number/icon animates separately from label (offset by 4 frames). Consider connecting lines that draw between steps. |
+| **step-cards** | Steps revealed as CONNECTED elements — NOT isolated rectangles. Draw SVG paths/arrows between steps, use a traveling highlight along the flow, reveal each step as a node on a path. Number/icon springs in 4 frames before the label. If content genuinely needs a checklist (e.g., speaker listing items to check off), cards are acceptable — but even then, stagger them with drawn checkmarks and connecting lines, not just sliding rectangles. |
 | **comparison** | Side-by-side panels that slide in from opposite edges. Highlight differences with color coding. Items within each panel stagger. Subtle vs/divider animation. |
 | **flowchart** | Progressive reveal along a path. Nodes appear, then connecting arrows DRAW (not pop) between them. Consider a traveling highlight that follows the flow. |
 | **data-viz** | Animated bar/radial charts where values COUNT UP. Number countups using `Math.round(interpolate(...))`. Bars grow from zero. Glow pulse on peak values. |
@@ -133,7 +152,7 @@ The DATA object tells you the scene type. Here's how to think about each:
 - **NO background color** on the root div
 - Content floats over the speaker video — keep it focused (max 3-4 visible elements)
 - All text needs `textShadow` for readability over video
-- Glass cards use their own semi-transparent backgrounds (liquid glass still applies)
+- Surfaces use semi-transparent animated backgrounds (animated gradient + depth shadow minimum)
 - Animations should be subtle — overlays enhance, they don't compete with the speaker
 - **Before positioning overlay elements:** Call `get_speaker_position` with the scene's time range. Use the `safePlacements` rects for element positioning — these are concrete pixel rectangles that avoid the speaker. The `availableSpace` fields tell you exactly how much room is above, below, left, and right of the speaker.
 
