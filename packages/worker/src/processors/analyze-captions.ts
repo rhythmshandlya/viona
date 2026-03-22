@@ -169,21 +169,31 @@ export function formatWordsForLLM(words: CaptionWord[], emphasis: EmphasisMarker
   return [header, separator, ...rows].join('\n');
 }
 
-// --- LLM OpenAI client type (minimal interface to avoid hard dependency) ---
+// --- Anthropic client type (minimal interface to avoid hard dependency) ---
 
-interface OpenAIClient {
-  chat: {
-    completions: {
-      create(params: {
-        model: string;
-        temperature: number;
-        response_format: { type: 'json_object' };
-        messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
-      }): Promise<{
-        choices: Array<{ message: { content: string | null } }>;
-      }>;
-    };
+interface AnthropicClient {
+  messages: {
+    create(params: {
+      model: string;
+      max_tokens: number;
+      system?: string;
+      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    }): Promise<{
+      content: Array<{ type: string; text?: string }>;
+    }>;
   };
+}
+
+// --- JSON extraction (handles markdown fences from Claude) ---
+
+function extractJson(text: string): string {
+  let s = text.trim();
+  const fenceMatch = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) s = fenceMatch[1].trim();
+  const objStart = s.indexOf('{');
+  const objEnd = s.lastIndexOf('}');
+  if (objStart !== -1 && objEnd !== -1) return s.slice(objStart, objEnd + 1);
+  return s;
 }
 
 // --- classifyWords ---
@@ -193,7 +203,7 @@ interface OpenAIClient {
  * animation, entry delay, and color role. Returns an array of WordDirective.
  */
 export async function classifyWords(
-  openai: OpenAIClient,
+  anthropic: AnthropicClient,
   words: CaptionWord[],
   emphasis: EmphasisMarker[],
 ): Promise<WordDirective[]> {
@@ -235,24 +245,23 @@ RULES:
 2. Speaker emphasis (⚡ in table) → hero or accent tier.
 3. Filler words (a, an, the, of, in, is, are, was, were, it, to, for) → whisper tier.
 4. Return a JSON object: { "words": [ { wordIndex, tier, fontRole, animation, entryDelayMs, colorRole } ] }
-5. Include ALL ${words.length} words. One entry per word.`;
+5. Include ALL ${words.length} words. One entry per word.
+6. Respond ONLY with valid JSON. No markdown, no explanation, no code fences.`;
 
   const userPrompt = `Classify these ${words.length} words:\n\n${wordTable}`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    temperature: 0.3,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
   });
 
-  const raw = response.choices[0]?.message?.content ?? '{}';
+  const raw = response.content[0]?.type === 'text' ? (response.content[0].text ?? '{}') : '{}';
+  const jsonStr = extractJson(raw);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error(`classifyWords: LLM returned invalid JSON: ${raw.slice(0, 200)}`);
   }
@@ -289,7 +298,7 @@ RULES:
  * Returns an array of SentenceDirective.
  */
 export async function composeSentences(
-  openai: OpenAIClient,
+  anthropic: AnthropicClient,
   words: CaptionWord[],
   wordDirectives: WordDirective[],
 ): Promise<SentenceDirective[]> {
@@ -324,24 +333,23 @@ PHRASE GROUP:
 Return JSON: { "sentences": [ { wordRange: [start, end], phraseGroups: [...], mood } ] }
 - wordRange: [inclusive start, exclusive end] covering all words in the sentence
 - phraseGroups must collectively cover all words in wordRange
-- All wordIndices in phraseGroups must fall within wordRange`;
+- All wordIndices in phraseGroups must fall within wordRange
+- Respond ONLY with valid JSON. No markdown, no explanation, no code fences.`;
 
   const userPrompt = `Compose sentence layout for these ${words.length} words:\n\n${wordTable}`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    temperature: 0.3,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
   });
 
-  const raw = response.choices[0]?.message?.content ?? '{}';
+  const raw = response.content[0]?.type === 'text' ? (response.content[0].text ?? '{}') : '{}';
+  const jsonStr2 = extractJson(raw);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(jsonStr2);
   } catch {
     throw new Error(`composeSentences: LLM returned invalid JSON: ${raw.slice(0, 200)}`);
   }
@@ -476,15 +484,20 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
 
   logger.info({ projectId, jobId }, '[analyze-captions] Starting cinematic caption analysis');
 
-  const apiKey = config.transcription.openaiApiKey;
-  if (!apiKey) {
-    logger.warn({ projectId, jobId }, '[analyze-captions] No OPENAI_API_KEY — skipping analysis');
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_MAX_PROXY_URL) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] No ANTHROPIC_API_KEY — skipping analysis');
     return;
   }
 
-  // Instantiate OpenAI client (dynamic import to match existing worker pattern)
-  const OpenAI = (await import('openai')).default;
-  const openai = new OpenAI({ apiKey });
+  // Instantiate Anthropic client (dynamic import to match existing worker pattern in generate-caption-styles.ts)
+  // @ts-expect-error — @anthropic-ai/sdk installed at runtime via Claude Code OAuth
+  const Anthropic = (await import('@anthropic-ai/sdk')).default;
+  const anthropicConfig: Record<string, string> = {};
+  if (process.env.CLAUDE_MAX_PROXY_URL) {
+    anthropicConfig.baseURL = process.env.CLAUDE_MAX_PROXY_URL;
+    anthropicConfig.apiKey = process.env.ANTHROPIC_API_KEY || 'proxy';
+  }
+  const anthropic = new Anthropic(anthropicConfig) as AnthropicClient;
 
   // Step 1: Load project to verify it exists
   const project = await db.query.projects.findFirst({
@@ -551,10 +564,10 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
         const speakerEmphasis = detectSpeakerEmphasis(words);
 
         // 4b. Classify words (LLM)
-        const wordDirectives = await classifyWords(openai, words, speakerEmphasis);
+        const wordDirectives = await classifyWords(anthropic, words, speakerEmphasis);
 
         // 4c. Compose sentences (LLM)
-        const sentenceDirectives = await composeSentences(openai, words, wordDirectives);
+        const sentenceDirectives = await composeSentences(anthropic, words, wordDirectives);
 
         // 4d. Validate & repair
         const rawAnalysis: CaptionAnalysis = {
@@ -563,7 +576,7 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
           speakerEmphasis,
           metadata: {
             analyzedAt: new Date().toISOString(),
-            model: 'gpt-4o-mini',
+            model: 'claude-haiku-4-5-20251001',
             version: 1,
           },
         };
