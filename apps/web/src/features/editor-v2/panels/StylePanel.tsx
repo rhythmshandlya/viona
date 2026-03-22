@@ -125,6 +125,13 @@ export function StylePanel() {
       animation: preset.animation,
       displayMode: preset.supportedModes[0], // Default mode for the preset
       wordsPerPhrase: preset.wordsPerPhrase ?? 5,
+      // Cinematic renderer fields
+      ...(preset.useCinematicRenderer ? {
+        useCinematicRenderer: true,
+        cinematicFonts: preset.cinematicFonts,
+        cinematicColors: preset.cinematicColors,
+        cinematicScales: preset.cinematicScales,
+      } : { useCinematicRenderer: false }),
     });
   };
 

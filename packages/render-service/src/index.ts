@@ -243,7 +243,10 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
     const width = manifest.canvas?.width || 1920;
     const height = manifest.canvas?.height || 1080;
     const durationInFrames = Math.ceil((manifest.durationMs || 5000) / 1000 * fps);
-    const inputProps = { manifest };
+    // Strip assets map — it contains presigned MinIO URLs for browser access.
+    // Render uses staticFile() from the bundled public dir instead.
+    const { assets: _a, ...manifestWithoutAssets } = manifest;
+    const inputProps = { manifest: { ...manifestWithoutAssets, assets: {} } };
 
     const composition = await selectComposition({
       serveUrl: bundlePath,

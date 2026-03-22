@@ -208,6 +208,9 @@ async function main() {
     {
       connection,
       concurrency: 2,
+      lockDuration: 10 * 60 * 1000, // 10 minutes — each item needs 2 LLM calls
+      stalledInterval: 5 * 60 * 1000, // Check for stalls every 5 minutes
+      maxStalledCount: 2,
     }
   );
 

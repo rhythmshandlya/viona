@@ -25,6 +25,7 @@ export interface PhraseLayoutProps {
   defaultAnimation: AnimationConfig;
   phraseStartMs: number;
   phraseDurationMs: number;
+  /** Absolute start time of the caption item (ms) — needed to convert frame to absolute time */
   captionStartMs: number;
 }
 
@@ -76,6 +77,7 @@ export const PhraseLayout: React.FC<PhraseLayoutProps> = ({
   const { fps } = useVideoConfig();
 
   const phraseEndMs = phraseStartMs + phraseDurationMs;
+  // Use absolute time (caption item start + frame offset)
   const currentMs = captionStartMs + (frame / fps) * 1000;
 
   // Phrase-level opacity: fade in at start, hold, fade out at end

@@ -53,7 +53,10 @@ export async function renderVideo(options?: {
   const height = manifest.canvas?.height || 1080;
   const durationInFrames = Math.ceil((manifest.durationMs || 5000) / 1000 * fps);
 
-  const inputProps = { manifest };
+  // Strip assets map for render — assets contain presigned MinIO URLs meant for
+  // browser access, but headless Chrome uses staticFile() from the bundled public dir.
+  const { assets: _a, ...manifestWithoutAssets } = manifest;
+  const inputProps = { manifest: { ...manifestWithoutAssets, assets: {} } };
 
   options?.onProgress?.('Preparing composition...');
   const composition = await selectComposition({

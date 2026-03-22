@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
 import { TransformWrapper } from './composition/TransformWrapper';
-import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem } from './items';
+import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle } from './items';
 import { sceneRegistry } from './scene-registry';
 
 interface ManifestItem {
@@ -34,6 +34,8 @@ interface Manifest {
   assets: Record<string, string>;
   captionPreset?: any;
   captionStyle?: any;
+  videoSettings?: any;
+  captionAnalysis?: Record<string, any>;
 }
 
 interface PlayerCompositionProps {
@@ -47,6 +49,7 @@ const FULL_CANVAS_TRANSFORM = {
 export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }) => {
   const { fps, canvas, items, assets } = manifest;
   const captionPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
+  const captionAnalysis = (manifest as any).captionAnalysis ?? manifest.videoSettings?.captionAnalysis ?? {};
   const sortedTracks = [...manifest.tracks].sort((a, b) => a.position - b.position);
 
   return (
@@ -67,7 +70,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               if (item.type === 'audio') {
                 return (
                   <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
-                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} />
+                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} captionAnalysis={captionAnalysis} />
                   </Sequence>
                 );
               }
@@ -87,7 +90,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               return (
                 <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} premountFor={premountFrames}>
                   <TransformWrapper transform={transform} keyframes={item.keyframes} filters={item.filters} fps={fps} style={item.style}>
-                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} />
+                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} captionAnalysis={captionAnalysis} />
                   </TransformWrapper>
                 </Sequence>
               );
@@ -106,9 +109,10 @@ interface ItemRendererProps {
   durationInFrames: number;
   canvas: { width: number; height: number };
   captionPreset?: any;
+  captionAnalysis?: Record<string, any>;
 }
 
-const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, durationInFrames, canvas, captionPreset }) => {
+const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, durationInFrames, canvas, captionPreset, captionAnalysis }) => {
   switch (item.type) {
     case 'video':
       return <VideoItem data={item.data} assets={assets} fps={fps} durationInFrames={durationInFrames} />;
@@ -142,8 +146,32 @@ const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, duration
     }
     case 'shape':
       return <ShapeItem data={item.data} />;
-    case 'caption':
+    case 'caption': {
+      const analysis = captionAnalysis?.[item.id];
+      if (captionPreset?.useCinematicRenderer && analysis) {
+        return (
+          <CinematicSubtitle
+            words={item.data.words}
+            analysis={analysis}
+            startMs={item.startMs}
+            endMs={item.endMs}
+            style={{
+              fontFamily: captionPreset.fontFamily || 'Inter',
+              fontSize: captionPreset.fontSize || 42,
+              animation: captionPreset.animation || { in: 'fade-rise', active: 'none', out: 'none', easing: 'spring' },
+              position: captionPreset.position || { anchor: 'center', offsetX: 0, offsetY: 0, textAlign: 'center' },
+              useCinematicRenderer: true,
+              cinematicFonts: captionPreset.cinematicFonts,
+              cinematicColors: captionPreset.cinematicColors,
+              cinematicScales: captionPreset.cinematicScales,
+            }}
+            canvasWidth={canvas.width}
+            canvasHeight={canvas.height}
+          />
+        );
+      }
       return <CaptionItem data={item.data} captionStyle={captionPreset || {}} fps={fps} itemStartMs={item.startMs} />;
+    }
     default:
       return null;
   }

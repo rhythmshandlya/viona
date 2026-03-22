@@ -5,3 +5,4 @@ export { ImageItem } from './ImageItem';
 export { SceneItem } from './SceneItem';
 export { ShapeItem } from './ShapeItem';
 export { CaptionItem } from './CaptionItem';
+export { CinematicSubtitle } from './CinematicSubtitle';

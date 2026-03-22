@@ -169,31 +169,21 @@ export function formatWordsForLLM(words: CaptionWord[], emphasis: EmphasisMarker
   return [header, separator, ...rows].join('\n');
 }
 
-// --- Anthropic client type (minimal interface to avoid hard dependency) ---
+// --- LLM OpenAI client type (minimal interface to avoid hard dependency) ---
 
-interface AnthropicClient {
-  messages: {
-    create(params: {
-      model: string;
-      max_tokens: number;
-      system?: string;
-      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-    }): Promise<{
-      content: Array<{ type: string; text?: string }>;
-    }>;
+interface OpenAIClient {
+  chat: {
+    completions: {
+      create(params: {
+        model: string;
+        temperature: number;
+        response_format: { type: 'json_object' };
+        messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+      }): Promise<{
+        choices: Array<{ message: { content: string | null } }>;
+      }>;
+    };
   };
-}
-
-// --- JSON extraction (handles markdown fences from Claude) ---
-
-function extractJson(text: string): string {
-  let s = text.trim();
-  const fenceMatch = s.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenceMatch) s = fenceMatch[1].trim();
-  const objStart = s.indexOf('{');
-  const objEnd = s.lastIndexOf('}');
-  if (objStart !== -1 && objEnd !== -1) return s.slice(objStart, objEnd + 1);
-  return s;
 }
 
 // --- classifyWords ---
@@ -203,65 +193,68 @@ function extractJson(text: string): string {
  * animation, entry delay, and color role. Returns an array of WordDirective.
  */
 export async function classifyWords(
-  anthropic: AnthropicClient,
+  openai: OpenAIClient,
   words: CaptionWord[],
   emphasis: EmphasisMarker[],
 ): Promise<WordDirective[]> {
   const wordTable = formatWordsForLLM(words, emphasis);
 
-  const systemPrompt = `You are a cinematic caption designer for short-form video (TikTok/Reels/Shorts).
-Your job is to classify each word in a transcript with visual styling directives that create a Hollywood-quality cinematic caption experience.
+  const systemPrompt = `Create highly engaging cinematic subtitles for a vertical 9:16 short-form video (Instagram Reels / TikTok / Shorts).
 
-TIERS:
-- hero: The 1-2 most emotionally powerful words per sentence. Large, bold, dramatic. Speaker emphasis (slow delivery, pause) → hero.
-- accent: Supporting impactful words. 2-4 per sentence.
-- normal: Regular words. Most words fall here.
-- whisper: Filler words, articles, prepositions (a, an, the, of, in, is, etc.). Small, subdued.
+STYLE: Mix of bold sans-serif + elegant cursive (luxury aesthetic). Highlight 1-2 key words per phrase in LARGE size (hero tier = 2-3x bigger). Use color contrast: white + accent color (red/orange/yellow gradient). Add glow/shadow for readability. Viral, attention-grabbing, premium, modern, slightly dramatic.
+
+TIERS (controls font size multiplier):
+- hero: 1-2 most emotionally powerful / curiosity-hook words per phrase. LARGE, bold, dramatic. Speaker emphasis (⚡) → hero.
+- accent: Supporting impactful words, 2-3 per phrase. Medium emphasis.
+- normal: Regular words. Most words are this tier.
+- whisper: Filler words (a, an, the, of, in, is, are, was, were, it, to, for, and, but, so, or). Small, subdued.
 
 FONT ROLES:
-- bold-sans: Hero/accent words with punch. Strong, uppercase feel.
-- elegant-cursive: Emotional, poetic, dramatic reveal moments.
-- default: Normal/whisper words. Clean and readable.
+- bold-sans: Hero and accent words. Strong, uppercase punch.
+- elegant-cursive: Emotional, poetic, dramatic reveal moments (use sparingly on 1-2 hero words).
+- default: Normal and whisper words. Clean and readable.
 
 ANIMATIONS (must be one of):
 elastic-pop, slide-up, blur-zoom, bounce-up, typewriter, fade-rise, slam-down, scale-bounce, fade, none
-- hero → elastic-pop or slam-down
-- accent → slide-up or bounce-up
-- normal → fade-rise or fade
-- whisper → fade or none
+- hero → elastic-pop, slam-down, or blur-zoom (dramatic emphasis, zoom/bounce)
+- accent → slide-up, bounce-up, or scale-bounce (kinetic motion)
+- normal → fade-rise (smooth, clean)
+- whisper → fade or none (minimal)
 
 COLOR ROLES:
-- accent: Hero and high-emphasis words
-- glow: Accent words with energy
-- primary: Normal and whisper words
+- accent: Hero and high-emphasis words (gets gradient or accent color)
+- glow: Accent-tier words with energy
+- primary: Normal and whisper words (white)
 
-ENTRY DELAYS (ms, 0-500):
-- Use staggered delays within a sentence for cascade effect (0, 50, 100, 150…)
-- Hero words: 0ms (immediate impact)
-- Subsequent words: +50-100ms per word
+ENTRY DELAYS (ms, 0-300):
+- Slight stagger between words for dramatic effect: 0, 30, 60, 90…
+- Hero words: 0ms (immediate impact, no delay)
+- Keep total stagger under 300ms so phrase feels cohesive
 
 RULES:
-1. Exactly 1-2 hero words per sentence. Never more.
+1. Exactly 1-2 hero words per phrase. Never more.
 2. Speaker emphasis (⚡ in table) → hero or accent tier.
-3. Filler words (a, an, the, of, in, is, are, was, were, it, to, for) → whisper tier.
-4. Return a JSON object: { "words": [ { wordIndex, tier, fontRole, animation, entryDelayMs, colorRole } ] }
-5. Include ALL ${words.length} words. One entry per word.
-6. Respond ONLY with valid JSON. No markdown, no explanation, no code fences.`;
+3. Filler words → whisper tier always.
+4. Question words (what, why, how, when) → accent tier (curiosity hooks).
+5. Return JSON: { "words": [ { wordIndex, tier, fontRole, animation, entryDelayMs, colorRole } ] }
+6. Include ALL ${words.length} words. One entry per word.`;
 
   const userPrompt = `Classify these ${words.length} words:\n\n${wordTable}`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
   });
 
-  const raw = response.content[0]?.type === 'text' ? (response.content[0].text ?? '{}') : '{}';
-  const jsonStr = extractJson(raw);
+  const raw = response.choices[0]?.message?.content ?? '{}';
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error(`classifyWords: LLM returned invalid JSON: ${raw.slice(0, 200)}`);
   }
@@ -293,110 +286,74 @@ RULES:
 
 // --- composeSentences ---
 
+const WORDS_PER_PHRASE = 5;
+const PAUSE_SPLIT_MS = 400; // Split into new sentence on pauses > 400ms
+
 /**
- * Calls GPT-4o-mini to compose sentence-level layout directives from the word classifications.
- * Returns an array of SentenceDirective.
+ * Deterministic sentence/phrase composition from word timing + directives.
+ * Groups words into ~5-word phrases, splitting on natural pauses.
+ * No LLM needed — the word classifier already did the creative work.
  */
-export async function composeSentences(
-  anthropic: AnthropicClient,
+export function composeSentences(
   words: CaptionWord[],
   wordDirectives: WordDirective[],
-): Promise<SentenceDirective[]> {
-  // Build a compact word+directive table for the LLM
-  const rows = words.map((w, i) => {
-    const d = wordDirectives.find(wd => wd.wordIndex === i);
-    const tier = d?.tier ?? 'normal';
-    return `${i} | ${w.text} | ${tier} | ${w.startMs}-${w.endMs}ms`;
-  });
-  const wordTable = ['idx | word | tier | timing', '----|------|------|-------', ...rows].join('\n');
+): SentenceDirective[] {
+  if (words.length === 0) return [];
 
-  const systemPrompt = `You are a cinematic caption layout composer for short-form video.
-Given classified words (with tiers), group them into sentences and phrase groups with layout directives.
-
-LAYOUT RULES:
-- Split transcript into natural sentences (by punctuation, pauses, or meaning — max 8 words per sentence).
-- Each sentence has 1-3 phraseGroups shown sequentially on screen.
-- Max 1-2 seconds (1000-2000ms) per phraseGroup.
-- Hero words get their own phraseGroup with "stacked" or "cascade" layout for maximum impact.
-- Normal sentences use "single-line" layout.
-- Dramatic builds use "cascade" layout (words appear one by one).
-- Vary alignment: center for impact, left for narrative, right for counterpoint.
-
-MOOD OPTIONS: dramatic, urgent, curious, calm, impactful
-
-PHRASE GROUP:
-- wordIndices: array of word indices in this group (must be contiguous within the sentence)
-- layout: single-line | stacked | split | cascade
-- alignment: center | left | right
-- durationMs: how long this group shows (100-5000ms, based on word timing)
-
-Return JSON: { "sentences": [ { wordRange: [start, end], phraseGroups: [...], mood } ] }
-- wordRange: [inclusive start, exclusive end] covering all words in the sentence
-- phraseGroups must collectively cover all words in wordRange
-- All wordIndices in phraseGroups must fall within wordRange
-- Respond ONLY with valid JSON. No markdown, no explanation, no code fences.`;
-
-  const userPrompt = `Compose sentence layout for these ${words.length} words:\n\n${wordTable}`;
-
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
-  });
-
-  const raw = response.content[0]?.type === 'text' ? (response.content[0].text ?? '{}') : '{}';
-  const jsonStr2 = extractJson(raw);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonStr2);
-  } catch {
-    throw new Error(`composeSentences: LLM returned invalid JSON: ${raw.slice(0, 200)}`);
-  }
-
-  if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    !Array.isArray((parsed as Record<string, unknown>).sentences)
-  ) {
-    throw new Error('composeSentences: LLM response missing "sentences" array');
-  }
-
-  return ((parsed as Record<string, unknown>).sentences as unknown[]).map((s) => {
-    if (typeof s !== 'object' || s === null) {
-      return {
-        wordRange: [0, words.length] as [number, number],
-        phraseGroups: [{ wordIndices: words.map((_, i) => i), layout: 'single-line' as PhraseLayout, alignment: 'center' as const, durationMs: 1000 }],
-        mood: 'calm' as Mood,
-      };
+  // Step 1: Split into sentences at natural pause boundaries
+  const sentenceBoundaries: number[] = [0]; // indices where new sentences start
+  for (let i = 1; i < words.length; i++) {
+    const gap = words[i].startMs - words[i - 1].endMs;
+    if (gap > PAUSE_SPLIT_MS) {
+      sentenceBoundaries.push(i);
     }
-    const sd = s as Record<string, unknown>;
-    const wordRange = Array.isArray(sd.wordRange) && sd.wordRange.length === 2
-      ? [sd.wordRange[0] as number, sd.wordRange[1] as number] as [number, number]
-      : [0, words.length] as [number, number];
+  }
 
-    const phraseGroups = Array.isArray(sd.phraseGroups)
-      ? (sd.phraseGroups as unknown[]).map((pg) => {
-          if (typeof pg !== 'object' || pg === null) {
-            return { wordIndices: [], layout: 'single-line' as PhraseLayout, alignment: 'center' as const, durationMs: 1000 };
-          }
-          const p = pg as Record<string, unknown>;
-          return {
-            wordIndices: Array.isArray(p.wordIndices) ? (p.wordIndices as number[]) : [],
-            layout: isValidLayout(p.layout) ? p.layout : 'single-line',
-            alignment: (p.alignment === 'center' || p.alignment === 'left' || p.alignment === 'right') ? p.alignment : 'center',
-            durationMs: typeof p.durationMs === 'number' ? Math.max(100, Math.min(5000, p.durationMs)) : 1000,
-          } satisfies PhraseGroup;
-        })
-      : [{ wordIndices: [], layout: 'single-line' as PhraseLayout, alignment: 'center' as const, durationMs: 1000 }];
+  const sentences: SentenceDirective[] = [];
 
-    return {
-      wordRange,
+  for (let s = 0; s < sentenceBoundaries.length; s++) {
+    const sentStart = sentenceBoundaries[s];
+    const sentEnd = s + 1 < sentenceBoundaries.length ? sentenceBoundaries[s + 1] : words.length;
+    const sentWordCount = sentEnd - sentStart;
+
+    // Step 2: Split sentence into phrase groups of ~WORDS_PER_PHRASE
+    const phraseGroups: PhraseGroup[] = [];
+    for (let p = sentStart; p < sentEnd; p += WORDS_PER_PHRASE) {
+      const phraseEnd = Math.min(p + WORDS_PER_PHRASE, sentEnd);
+      const indices = [];
+      for (let i = p; i < phraseEnd; i++) indices.push(i);
+
+      // Pick layout based on whether phrase has a hero word
+      const hasHero = indices.some(i => {
+        const d = wordDirectives.find(wd => wd.wordIndex === i);
+        return d?.tier === 'hero';
+      });
+      const layout: PhraseLayout = hasHero ? 'stacked' : 'single-line';
+
+      const durationMs = words[phraseEnd - 1].endMs - words[indices[0]].startMs;
+
+      phraseGroups.push({
+        wordIndices: indices,
+        layout,
+        alignment: 'center',
+        durationMs: Math.max(500, durationMs),
+      });
+    }
+
+    // Step 3: Determine mood from tiers
+    const heroCount = wordDirectives
+      .filter(d => d.wordIndex >= sentStart && d.wordIndex < sentEnd && d.tier === 'hero')
+      .length;
+    const mood: Mood = heroCount >= 2 ? 'dramatic' : heroCount === 1 ? 'impactful' : sentWordCount <= 3 ? 'urgent' : 'calm';
+
+    sentences.push({
+      wordRange: [sentStart, sentEnd],
       phraseGroups,
-      mood: isValidMood(sd.mood) ? sd.mood : 'calm',
-      ...(isValidPunctuationEffect(sd.punctuationEffect) ? { punctuationEffect: sd.punctuationEffect } : {}),
-    } satisfies SentenceDirective;
-  });
+      mood,
+    });
+  }
+
+  return sentences;
 }
 
 // --- validateAndRepairAnalysis ---
@@ -484,20 +441,15 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
 
   logger.info({ projectId, jobId }, '[analyze-captions] Starting cinematic caption analysis');
 
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_MAX_PROXY_URL) {
-    logger.warn({ projectId, jobId }, '[analyze-captions] No ANTHROPIC_API_KEY — skipping analysis');
+  const apiKey = config.transcription.openaiApiKey;
+  if (!apiKey) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] No OPENAI_API_KEY — skipping analysis');
     return;
   }
 
-  // Instantiate Anthropic client (dynamic import to match existing worker pattern in generate-caption-styles.ts)
-  // @ts-expect-error — @anthropic-ai/sdk installed at runtime via Claude Code OAuth
-  const Anthropic = (await import('@anthropic-ai/sdk')).default;
-  const anthropicConfig: Record<string, string> = {};
-  if (process.env.CLAUDE_MAX_PROXY_URL) {
-    anthropicConfig.baseURL = process.env.CLAUDE_MAX_PROXY_URL;
-    anthropicConfig.apiKey = process.env.ANTHROPIC_API_KEY || 'proxy';
-  }
-  const anthropic = new Anthropic(anthropicConfig) as AnthropicClient;
+  // Instantiate OpenAI client (dynamic import to match existing worker pattern)
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey });
 
   // Step 1: Load project to verify it exists
   const project = await db.query.projects.findFirst({
@@ -564,10 +516,10 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
         const speakerEmphasis = detectSpeakerEmphasis(words);
 
         // 4b. Classify words (LLM)
-        const wordDirectives = await classifyWords(anthropic, words, speakerEmphasis);
+        const wordDirectives = await classifyWords(openai, words, speakerEmphasis);
 
-        // 4c. Compose sentences (LLM)
-        const sentenceDirectives = await composeSentences(anthropic, words, wordDirectives);
+        // 4c. Compose sentences (deterministic — no LLM)
+        const sentenceDirectives = composeSentences(words, wordDirectives);
 
         // 4d. Validate & repair
         const rawAnalysis: CaptionAnalysis = {
@@ -576,7 +528,7 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
           speakerEmphasis,
           metadata: {
             analyzedAt: new Date().toISOString(),
-            model: 'claude-opus-4-6',
+            model: 'gpt-4o-mini',
             version: 1,
           },
         };
