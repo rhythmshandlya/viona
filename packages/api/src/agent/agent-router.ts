@@ -260,6 +260,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
           onWidget: (widget) => {
             flushText();
             contentBlocks.push({ type: 'widget', widget });
+            // Persist immediately so widgets survive SSE disconnect + page refresh
+            updateMessageContent(assistantRow.id, contentBlocks).catch(() => {});
           },
           onPlan: (plan) => {
             flushText();
@@ -270,6 +272,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
             } else {
               contentBlocks.push({ type: 'plan', plan });
             }
+            // Persist immediately so plan survives SSE disconnect
+            updateMessageContent(assistantRow.id, contentBlocks).catch(() => {});
           },
           onProgress: () => {
             // Progress is now handled via ProgressIndicator + Redis, not stored in message content

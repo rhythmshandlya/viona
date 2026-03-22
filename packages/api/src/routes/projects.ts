@@ -374,6 +374,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
         reply.header('Accept-Ranges', 'bytes');
         reply.header('Content-Length', chunkSize);
         reply.header('Content-Type', contentType);
+        // Cache video chunks for the session — avoids re-fetching on seeks
+        reply.header('Cache-Control', 'private, max-age=3600, immutable');
 
         return reply.send(stream);
       }
@@ -384,6 +386,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
       reply.header('Accept-Ranges', 'bytes');
+      // Cache video for the session
+      reply.header('Cache-Control', 'private, max-age=3600, immutable');
 
       return reply.send(stream);
     } catch (err) {

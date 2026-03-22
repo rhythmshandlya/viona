@@ -355,6 +355,14 @@ export function createSandboxRoutes(manager: SandboxManager) {
 
         if op == 'add' then
           local task = cjson.decode(task_data)
+          -- Remove existing task with same ID to prevent duplicates
+          local deduped = {}
+          for i, t in ipairs(tasks) do
+            if t.id ~= task.id then
+              table.insert(deduped, t)
+            end
+          end
+          tasks = deduped
           table.insert(tasks, task)
         elseif op == 'update' then
           local upd = cjson.decode(task_data)

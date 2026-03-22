@@ -247,8 +247,7 @@ export async function proxyPromptWithIntercept(
     let eventCount = 0;
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
-    // Track client disconnect to stop reading from sandbox.
-    // Cancel the reader first so its pending read() resolves {done:true}
+    // Cancel the reader so its pending read() resolves {done:true}
     // instead of rejecting with AbortError (which escapes as unhandled rejection).
     const safeAbort = () => {
       if (reader) {
@@ -257,16 +256,30 @@ export async function proxyPromptWithIntercept(
       }
       try { abortController.abort(); } catch { /* expected */ }
     };
+
+    // When the browser disconnects, keep draining sandbox events so that
+    // widgets, plans, and the final done event are still captured by
+    // callbacks and persisted to DB. Without this, any widget sent after
+    // the SSE disconnect is lost and the user never sees it.
+    let drainTimeout: ReturnType<typeof setTimeout> | null = null;
     passthrough.on('close', () => {
       if (!clientAlive) return;
       clientAlive = false;
-      logger.info(logCtx, 'Proxy: client disconnected (passthrough closed)');
-      safeAbort();
+      logger.info(logCtx, 'Proxy: client disconnected — draining sandbox events for persistence');
+      // Safety timeout: abort reader if sandbox doesn't finish within 10 min
+      drainTimeout = setTimeout(() => {
+        logger.warn(logCtx, 'Proxy: drain safety timeout — aborting sandbox reader');
+        safeAbort();
+      }, 10 * 60 * 1000);
     });
     passthrough.on('error', (err) => {
+      if (!clientAlive) return;
       clientAlive = false;
-      logger.warn({ ...logCtx, err: err.message }, 'Proxy: passthrough error');
-      safeAbort();
+      logger.warn({ ...logCtx, err: err.message }, 'Proxy: passthrough error — draining sandbox events');
+      drainTimeout = setTimeout(() => {
+        logger.warn(logCtx, 'Proxy: drain safety timeout — aborting sandbox reader');
+        safeAbort();
+      }, 10 * 60 * 1000);
     });
 
     reply
@@ -448,7 +461,9 @@ export async function proxyPromptWithIntercept(
           }
         }
       } finally {
-        // Cancel sandbox reader if still open (e.g. client disconnected mid-stream)
+        if (drainTimeout) clearTimeout(drainTimeout);
+
+        // Cancel sandbox reader if still open
         if (reader) {
           try { reader.cancel().catch(() => {}); } catch { /* already closed */ }
         }
