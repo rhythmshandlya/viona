@@ -287,17 +287,9 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   await writeFile(join(baseDir, 'manifest.json'), manifestStr);
   await writeFile(join(baseDir, 'manifest-original.json'), manifestStr);
 
-  // Symlink manifest into public/ so Remotion's staticFile() can read it
-  // (calculateMetadata runs in browser context where fs is unavailable)
-  // Note: uses baseDir-relative paths so the symlink is valid after promotion
-  try {
-    await symlink(
-      join(baseDir, 'manifest.json'),
-      join(baseDir, 'public', 'manifest.json'),
-    );
-  } catch (err: any) {
-    if (err.code !== 'EEXIST') throw err;
-  }
+  // Note: manifest symlink (public/manifest.json → manifest.json) is NOT created here.
+  // It's created after staging promotion in initWorkspace() to avoid EEXIST errors
+  // when cpSync copies a symlink over an existing file (e.g., from git bundle restore).
 
   // Copy template files (composition infra, .claude/, configs)
   await cp(TEMPLATE, baseDir, {
