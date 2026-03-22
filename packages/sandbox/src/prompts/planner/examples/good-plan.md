@@ -4,50 +4,18 @@
 ## Global
 - **Canvas:** 1080x1920
 - **Source video:** 1080x1920
-- **Total duration:** 62000ms
+- **Total duration:** 68000ms
 - **Total scenes:** 6
 
 ---
 
-## Scene 1: Opening Hook — Communication Matters
+## Scene 1: Opening Hook — The Failure Rate
 **File:** Scene1.tsx
-**Time:** 0 – 8500
-**Transcript:** "most people think they're good communicators but studies show that sixty-five percent of workplace conflicts come from miscommunication"
+**Time:** 0 – 10000
+**Transcript:** "seventy-three percent of people who start a fitness routine quit within the first three months and it's not because they're lazy it's because they're making three critical mistakes"
 **Display mode:** Overlay
 **Scene type:** data-viz
 **Layout pattern:** center-dominant
-
-### Speaker layout
-- Speaker: "full size"
-
-### Scene dimensions
-- Width: 800 Height: 480
-
-### Scene placement
-- Placement: lower-third-center
-
-### Transition IN
-- From: Speaker
-- Transition: Speaker → Overlay
-
-### Transition OUT
-- To: Overlay (Scene 2)
-- Transition: Overlay → Overlay
-
-### Animation brief
-- Description: Glass card appears at lower third with spring scale-in from 0.9 to 1.0. Inside the card, a large counter animates from 0 to 65, followed by a percent sign that fades in. Below the number, the text "workplace conflicts from miscommunication" types in word by word, synced to the speaker. A thin progress ring around the number fills clockwise as the counter increments. Card has a subtle violet glow border matching the studio theme.
-- Key data: ["65%", "workplace conflicts", "miscommunication"]
-- Must show: the number 65%, the phrase "workplace conflicts from miscommunication"
-
----
-
-## Scene 2: Introduction — Three Steps Preview
-**File:** Scene2.tsx
-**Time:** 8500 – 16000
-**Transcript:** "today I'm going to share three steps that completely changed how I communicate and they'll work for you too whether it's at work with friends or even with your family"
-**Display mode:** Overlay
-**Scene type:** custom
-**Layout pattern:** asymmetric
 
 ### Speaker layout
 - Speaker: "full size"
@@ -59,26 +27,41 @@
 - Placement: center-card
 
 ### Transition IN
-- From: Overlay (Scene 1)
-- Transition: Overlay → Overlay
+- From: Speaker
+- Transition: Speaker → Overlay
 
 ### Transition OUT
-- To: Stacked (Scene 3)
+- To: Stacked (Scene 2)
 - Transition: Overlay → Stacked
 
-### Animation brief
-- Description: Three numbered circles (1, 2, 3) stagger in from the right edge with spring physics, 8 frames apart. Each circle is a frosted glass disc with the number inside in bold. They arrange vertically, slightly overlapping. After all three land, a subtle connecting line draws between them top-to-bottom with a violet glow pulse that travels down the line. The circles pulse gently in a breathing loop until the scene exits.
-- Key data: ["three steps", "at work", "with friends", "with your family"]
-- Must show: three distinct numbered circles representing the three steps
+### Visual concept
+A thermometer that rises from empty to the 73% mark, then cracks and leaks — visualizing the dropout rate as something that builds up and breaks.
+
+### Key data
+- 73%
+- first three months
+- three critical mistakes
+
+### Must show
+- the number 73%, the phrase "quit within 3 months"
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–30 | Thermometer outline draws itself with strokeDashoffset from bottom to top, opacity fading in |
+| Build | 30–120 | Red fill rises inside the thermometer from 0% to 73%, counter ticks up in sync; tick marks appear at 25/50/75 |
+| Develop | 120–200 | At 73% the glass cracks — jagged SVG path animates across the bulb, red tint pulses outward as a radial gradient shift |
+| Payoff | 200–260 | "73% quit" text scales in with spring beside the thermometer; the "3 months" label fades in below |
+| Exit | 260–300 | Entire composition scales down to 0.9 and fades to opacity 0 over 300ms |
 
 ---
 
-## Scene 3: Step 1 — Active Listening
-**File:** Scene3.tsx
-**Time:** 16000 – 29000
-**Transcript:** "step one is active listening and I don't just mean nodding your head I mean actually pausing before you respond repeating back what you heard and asking clarifying questions these three things alone will transform how people perceive you"
+## Scene 2: Mistake #1 — No Progressive Overload
+**File:** Scene2.tsx
+**Time:** 10000 – 24000
+**Transcript:** "mistake number one is ignoring progressive overload your body adapts fast if you're doing the same weight the same reps week after week your muscles have zero reason to grow you need to increase weight or reps by just two to five percent every single week"
 **Display mode:** Stacked [50/50]
-**Scene type:** step-cards
+**Scene type:** cause-effect
 **Layout pattern:** diagonal-flow
 
 ### Speaker layout
@@ -91,59 +74,42 @@
 - Placement: top half
 
 ### Transition IN
-- From: Overlay (Scene 2)
+- From: Overlay (Scene 1)
 - Transition: Overlay → Stacked
 
 ### Transition OUT
-- To: Stacked (Scene 4)
-- Transition: Stacked → Stacked
-
-### Animation brief
-- Description: Title card "Active Listening" slides in from top with spring easing and settles at the top-left. Three action cards appear along a diagonal from top-left to bottom-right, staggered 10 frames apart. Card 1: "Pause before responding" with a pause icon. Card 2: "Repeat back what you heard" with a speech bubble icon. Card 3: "Ask clarifying questions" with a question mark icon. Each card is a frosted glass rectangle with an icon on the left and text on the right. After all three are visible, a checkmark stamps onto each card sequentially (6 frames apart) with a satisfying scale-bounce. A subtle number "1" badge sits in the top-right corner throughout.
-- Key data: ["Active listening", "Pause before responding", "Repeat back what you heard", "Ask clarifying questions"]
-- Must show: the title "Active Listening", all three sub-points with exact wording from the transcript, the number 1
-
----
-
-## Scene 4: Step 2 — Emotional Awareness
-**File:** Scene4.tsx
-**Time:** 29000 – 42000
-**Transcript:** "step two is emotional awareness before any important conversation check in with yourself ask am I frustrated am I anxious am I defensive because if you go in with unresolved emotions they leak into your tone your body language everything"
-**Display mode:** Stacked [50/50]
-**Scene type:** comparison
-**Layout pattern:** stacked-cascade
-
-### Speaker layout
-- Speaker: "bottom 50%"
-
-### Scene dimensions
-- Width: 1080 Height: 960
-
-### Scene placement
-- Placement: top half
-
-### Transition IN
-- From: Stacked (Scene 3)
-- Transition: Stacked → Stacked
-
-### Transition OUT
-- To: Fullscreen (Scene 5)
+- To: Fullscreen (Scene 3)
 - Transition: Stacked → Fullscreen
 
-### Animation brief
-- Description: Title "Emotional Awareness" fades in at the top with a number "2" badge. Three emotional state cards cascade front-to-back with increasing blur/opacity: front card "Frustrated" with a flame icon (fully opaque), middle card "Anxious" with a wave icon (slightly recessed), back card "Defensive" with a shield icon (most recessed). The cascade creates a depth illusion. After the three emotions appear, an arrow animates from the card stack pointing right toward a results panel showing three leak targets: "Tone", "Body language", "Everything" — each appearing with a subtle red glow to indicate negative impact. The arrow pulses with a gradient that shifts from orange to red.
-- Key data: ["Emotional awareness", "Frustrated", "Anxious", "Defensive", "Tone", "Body language", "Everything"]
-- Must show: the title "Emotional Awareness", all three emotions (frustrated, anxious, defensive), the three leak targets (tone, body language, everything), the number 2
+### Visual concept
+A staircase that should be climbing but flatlines — each step represents a week, and when weight stays the same the stairs stop rising and flatten into a plateau. Then the staircase rebuilds with each step slightly taller than the last, showing the 2-5% climb.
+
+### Key data
+- Progressive overload
+- Same weight, same reps = no growth
+- Increase 2-5% per week
+
+### Must show
+- "Progressive Overload" as a title, "2-5% per week", the contrast between plateau and growth
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–50 | "Mistake #1" badge slides in from left; staircase outline begins drawing step-by-step along diagonal axis using strokeDashoffset |
+| Build | 50–180 | First 4 steps rise normally, then steps 5-8 flatten to the same height — a red "PLATEAU" label fades in with a horizontal flatline drawn across the top |
+| Develop | 180–320 | Flatlined steps crumble downward (translateY + opacity), then new steps rebuild from the base, each 5% taller than the previous, colored in a green gradient that intensifies per step |
+| Payoff | 320–380 | "2-5% / week" text appears at the top of the rising staircase with spring scale; an upward arrow draws itself along the staircase edge |
+| Exit | 380–420 | All elements slide out diagonally toward bottom-right with staggered 4-frame delays |
 
 ---
 
-## Scene 5: Step 3 — Clear Structure
-**File:** Scene5.tsx
-**Time:** 42000 – 55000
-**Transcript:** "and step three is structure your message before you speak think about what is my main point what are my supporting reasons and what do I want the other person to do this simple framework will make you ten times more persuasive I guarantee it"
+## Scene 3: Mistake #2 — Skipping Recovery
+**File:** Scene3.tsx
+**Time:** 24000 – 38000
+**Transcript:** "mistake number two is skipping recovery most people think more gym time equals more results but your muscles don't grow in the gym they grow while you rest if you're training seven days a week you're actually breaking down faster than you can rebuild and that leads to injury burnout and zero progress"
 **Display mode:** Fullscreen
-**Scene type:** flowchart
-**Layout pattern:** full-bleed
+**Scene type:** comparison
+**Layout pattern:** asymmetric
 
 ### Speaker layout
 - Speaker: "opacity: 0"
@@ -155,24 +121,134 @@
 - Placement: full canvas
 
 ### Transition IN
-- From: Stacked (Scene 4)
+- From: Stacked (Scene 2)
 - Transition: Stacked → Fullscreen
 
 ### Transition OUT
-- To: Overlay (Scene 6)
+- To: Overlay (Scene 4)
 - Transition: Fullscreen → Overlay
 
-### Animation brief
-- Description: Dark background with a vertical flowchart that fills the canvas. Title "Structure Your Message" at the top with a number "3" badge. Three large frosted glass nodes connected by animated downward arrows. Node 1: "Main Point" with a target icon — enters from top with spring physics. Arrow draws downward (8 frames). Node 2: "Supporting Reasons" with a list icon — enters with spring. Arrow draws downward (8 frames). Node 3: "Desired Action" with a checkmark icon — enters with spring. After all three nodes are visible, a glowing "10x more persuasive" badge scales in at the bottom with a bounce animation and a starburst particle effect behind it. The connecting arrows pulse with a violet gradient that flows top-to-bottom in a loop.
-- Key data: ["Structure your message", "Main point", "Supporting reasons", "Desired action", "10x more persuasive"]
-- Must show: the title "Structure Your Message", all three framework elements (main point, supporting reasons, desired action), the "10x" claim, the number 3
+### Visual concept
+A battery that charges and drains — the left side shows a battery icon hammered by 7 gym-day bolts draining it to zero, while the right side shows the same battery with rest days inserted, maintaining its charge level. The battery metaphor makes the invisible process of recovery tangible.
+
+### Key data
+- Recovery is when muscles grow
+- Training 7 days = breakdown
+- Leads to injury, burnout, zero progress
+
+### Must show
+- "Recovery" as the title, "7 days/week" on the overtraining side, "injury", "burnout", "zero progress" as outcomes
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–45 | "Mistake #2" badge fades in top-left; a large battery outline draws itself center-screen using strokeDashoffset |
+| Build | 45–200 | Battery splits into two copies that slide apart (translateX ±200px). Left battery: 7 bolt icons strike it sequentially, each draining the fill level lower via clip-path reveal. Charge bar color shifts from green → yellow → red |
+| Develop | 200–340 | Right battery: 5 bolts strike but 2 rest-day moon icons insert between them, and the fill level stays above 60%. Left battery hits 0% — cracks appear (SVG path draw). Three consequence labels ("Injury", "Burnout", "Zero Progress") cascade downward below the left battery with staggered fade-in |
+| Payoff | 340–390 | Right battery pulses with a green glow; "Recovery = Growth" text scales in with spring between the two batteries |
+| Exit | 390–420 | Both batteries and all labels scale to 0 from their centers with easeIn timing |
 
 ---
 
-## Scene 6: Closing Recap
+## Scene 4: Mistake #3 — No Nutrition Plan
+**File:** Scene4.tsx
+**Time:** 38000 – 50000
+**Transcript:** "and mistake number three is having no nutrition plan you can train perfectly but if you're not eating enough protein your body can't repair the research is clear you need point seven to one gram of protein per pound of body weight every single day that's non-negotiable"
+**Display mode:** Overlay
+**Scene type:** data-viz
+**Layout pattern:** stacked-cascade
+
+### Speaker layout
+- Speaker: "full size"
+
+### Scene dimensions
+- Width: 800 Height: 480
+
+### Scene placement
+- Placement: lower-third-center
+
+### Transition IN
+- From: Fullscreen (Scene 3)
+- Transition: Fullscreen → Overlay
+
+### Transition OUT
+- To: Stacked (Scene 5)
+- Transition: Overlay → Stacked
+
+### Visual concept
+A fuel gauge needle swinging from "Empty" to the optimal zone — the gauge represents daily protein intake, and the needle's arc movement shows the minimum-to-target range, making an abstract nutrition number feel like a physical dial you can read.
+
+### Key data
+- Protein is required for repair
+- 0.7–1.0g per pound of body weight
+- Daily requirement
+
+### Must show
+- "0.7–1.0g / lb", the word "protein", "daily" or "every day"
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–30 | Gauge arc draws itself with strokeDashoffset; "Mistake #3" label fades in above the gauge |
+| Build | 30–130 | Needle rotates from far-left "Empty" zone through yellow "Low" zone; zone labels fade in as the needle passes each section; the arc fills with color behind the needle path |
+| Develop | 130–220 | Needle reaches the green "0.7–1.0g/lb" optimal zone and bounces with spring physics; the optimal zone pulses with a glow; "per pound, per day" text types in below the gauge word by word |
+| Payoff | 220–270 | A checkmark stamps onto the optimal zone with scale-bounce; "Non-negotiable" text fades in with slight translateY upward |
+| Exit | 270–300 | Gauge and all labels fade out with opacity transition over 300ms |
+
+---
+
+## Scene 5: The Fix — Weekly Framework
+**File:** Scene5.tsx
+**Time:** 50000 – 60000
+**Transcript:** "here's what actually works train four days recover three days hit your protein target daily and increase your weights by two to five percent each week do that consistently for twelve weeks and you'll see more results than most people get in a year"
+**Display mode:** Stacked [55/45]
+**Scene type:** timeline
+**Layout pattern:** full-bleed
+
+### Speaker layout
+- Speaker: "bottom 45%"
+
+### Scene dimensions
+- Width: 1080 Height: 1056
+
+### Scene placement
+- Placement: top half
+
+### Transition IN
+- From: Overlay (Scene 4)
+- Transition: Overlay → Stacked
+
+### Transition OUT
+- To: Overlay (Scene 6)
+- Transition: Stacked → Overlay
+
+### Visual concept
+A 12-week calendar ribbon that unrolls horizontally, with each week showing the 4-train/3-rest pattern as colored segments. As weeks progress, a subtle upward curve bends the ribbon — each week sits slightly higher than the last, embodying compounding progress over 12 weeks.
+
+### Key data
+- Train 4 days, recover 3 days
+- Hit protein daily
+- Increase 2-5% per week
+- 12 weeks for results
+
+### Must show
+- "4 days train / 3 days recover", "protein daily", "2-5%/week", "12 weeks"
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–40 | A horizontal timeline axis draws from left to right with strokeDashoffset; "Week 1" marker fades in at the left edge |
+| Build | 40–140 | Week blocks unroll along the timeline — each block shows 4 blue segments and 3 green segments staggering in; weeks 1-6 appear with 12-frame intervals between each week; the timeline curves gently upward via translateY |
+| Develop | 140–230 | Weeks 7-12 continue unrolling, each sitting higher on the curve; a protein icon repeats above each week with fade-in; a small "+2-5%" arrow appears beside each new week, slightly larger than the previous one |
+| Payoff | 230–270 | "12 Weeks" text scales in at the end of the ribbon with spring; a results badge appears at the peak of the curve with scale-bounce showing "More than most get in a year" |
+| Exit | 270–300 | Ribbon rolls back up from right to left with translateX and opacity fade |
+
+---
+
+## Scene 6: Closing — Commit Today
 **File:** Scene6.tsx
-**Time:** 55000 – 62000
-**Transcript:** "so remember active listening emotional awareness and clear structure master these three and you'll never struggle with communication again"
+**Time:** 60000 – 68000
+**Transcript:** "so stop making these three mistakes start with progressive overload prioritize recovery fix your nutrition and I promise you the results will come faster than you ever expected"
 **Display mode:** Overlay
 **Scene type:** step-cards
 **Layout pattern:** scattered
@@ -187,42 +263,64 @@
 - Placement: lower-third-center
 
 ### Transition IN
-- From: Fullscreen (Scene 5)
-- Transition: Fullscreen → Overlay
+- From: Stacked (Scene 5)
+- Transition: Stacked → Overlay
 
 ### Transition OUT
 - To: Speaker
 - Transition: Overlay → Speaker
 
-### Animation brief
-- Description: Three compact glass pills appear in a scattered arrangement at the lower third, slightly rotated for organic feel. Pill 1: "1. Active Listening" enters from bottom-left with spring. Pill 2: "2. Emotional Awareness" enters from bottom-center with spring (6 frame delay). Pill 3: "3. Clear Structure" enters from bottom-right with spring (6 frame delay). After all three are visible, a golden checkmark stamps over each pill sequentially (4 frames apart). The pills then gently float in place with a breathing animation. On exit, all three pills scale down and fade out simultaneously.
-- Key data: ["Active listening", "Emotional awareness", "Clear structure"]
-- Must show: all three steps with their numbers, exact names from transcript
+### Visual concept
+Three remedy icons arranged in an organic triangle that lock together like puzzle pieces — each icon represents one fix, and they click into place one by one, forming a unified shape that conveys "complete system" rather than isolated tips.
+
+### Key data
+- Progressive overload
+- Recovery
+- Nutrition
+
+### Must show
+- "1. Progressive Overload", "2. Recovery", "3. Nutrition"
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–30 | First icon + label ("1. Progressive Overload") springs in from bottom-left with rotation from -15° to 0° |
+| Build | 30–100 | Second icon + label ("2. Recovery") springs in from bottom-center, 20 frames after the first; it slides into position adjacent to icon 1 with a magnetic snap (spring with damping) |
+| Develop | 100–170 | Third icon + label ("3. Nutrition") springs in from bottom-right and snaps into place completing the triangle; a connecting border draws around all three using strokeDashoffset, unifying them |
+| Payoff | 170–210 | The unified triangle shape pulses once with a scale 1.0→1.05→1.0 spring; all three labels brighten simultaneously with an opacity shift from 0.8 to 1.0 |
+| Exit | 210–240 | All three icons scale down to 0 from the triangle's center point with staggered 4-frame delays |
 
 ---
 
 ## Punch-in Locations
 | Timestamp | Crop | Notes |
 |---|---|---|
-| 5200ms | { x: 50, y: 40, scale: 1.3 } | "sixty-five percent" — emphasis on the statistic during Scene 1 (Overlay) |
-| 12500ms | { x: 50, y: 42, scale: 1.25 } | "they'll work for you too" — personal connection during Scene 2 (Overlay) |
-| 58000ms | { x: 50, y: 38, scale: 1.35 } | "you'll never struggle with communication again" — closing conviction during Scene 6 (Overlay) |
+| 3500ms | { x: 50, y: 40, scale: 1.3 } | "seventy-three percent" — emphasis on the shocking statistic during Scene 1 (Overlay) |
+| 44000ms | { x: 50, y: 42, scale: 1.25 } | "that's non-negotiable" — conviction beat during Scene 4 (Overlay) |
+| 64000ms | { x: 50, y: 38, scale: 1.35 } | "faster than you ever expected" — closing promise during Scene 6 (Overlay) |
 
 ---
 
 ## Self-verification
 
-- [x] Every moment of the timeline is covered (no speaker-only gaps): 0–8500 (Scene 1 Overlay) → 8500–16000 (Scene 2 Overlay) → 16000–29000 (Scene 3 Stacked) → 29000–42000 (Scene 4 Stacked) → 42000–55000 (Scene 5 Fullscreen) → 55000–62000 (Scene 6 Overlay). Complete coverage.
-- [x] All transitions use names from the 15-transition set: Speaker → Overlay, Overlay → Overlay, Overlay → Stacked, Stacked → Stacked, Stacked → Fullscreen, Fullscreen → Overlay, Overlay → Speaker.
-- [x] No two adjacent scenes use the same layout pattern: center-dominant → asymmetric → diagonal-flow → stacked-cascade → full-bleed → scattered.
-- [x] All scene types are from the 10-type table: data-viz, custom, step-cards, comparison, flowchart, step-cards.
-- [x] All display modes are Overlay, Stacked, or Fullscreen (no "split-screen"): Overlay, Overlay, Stacked, Stacked, Fullscreen, Overlay.
+- [x] Every moment of the timeline is covered (no speaker-only gaps): 0–10000 (Scene 1 Overlay) → 10000–24000 (Scene 2 Stacked) → 24000–38000 (Scene 3 Fullscreen) → 38000–50000 (Scene 4 Overlay) → 50000–60000 (Scene 5 Stacked) → 60000–68000 (Scene 6 Overlay). Complete coverage.
+- [x] All transitions use names from the 15-transition set: Speaker → Overlay, Overlay → Stacked, Stacked → Fullscreen, Fullscreen → Overlay, Overlay → Stacked, Stacked → Overlay, Overlay → Speaker.
+- [x] No two adjacent scenes use the same layout pattern: center-dominant → diagonal-flow → asymmetric → stacked-cascade → full-bleed → scattered.
+- [x] All scene types are from the 10-type table: data-viz, cause-effect, comparison, data-viz, timeline, step-cards.
+- [x] All display modes are Overlay, Stacked, or Fullscreen (no "split-screen"): Overlay, Stacked, Fullscreen, Overlay, Stacked, Overlay.
 - [x] Transcript segments are copied verbatim — no paraphrasing.
-- [x] Punch-ins only appear during overlay segments: 5200ms (Scene 1 Overlay), 12500ms (Scene 2 Overlay), 58000ms (Scene 6 Overlay).
+- [x] Punch-ins only appear during overlay segments: 3500ms (Scene 1 Overlay), 44000ms (Scene 4 Overlay), 64000ms (Scene 6 Overlay).
 - [x] Speaker transitions only at video boundaries: Speaker → Overlay at start (Scene 1), Overlay → Speaker at end (Scene 6).
 - [x] Every field in the per-scene schema is present for every scene.
 - [x] Every scene has a **File** field (Scene{N}.tsx format): Scene1.tsx through Scene6.tsx.
-- [x] Every scene has **Scene dimensions** (Width × Height in pixels): Overlays use preset sizes, Stacked scenes 1080×960, Fullscreen 1080×1920.
-- [x] Every Overlay scene uses a placement preset name from the preset table: lower-third-center, center-card, lower-third-center.
-- [x] Stacked dimensions calculated correctly: 1080 × (1920 × 50%) = 1080 × 960.
+- [x] Every scene has **Scene dimensions** (Width × Height in pixels): Overlays use preset sizes (800×640, 800×480), Stacked scenes use canvas calculations, Fullscreen uses 1080×1920.
+- [x] Every Overlay scene uses a placement preset name from the preset table: center-card (Scene 1), lower-third-center (Scene 4), lower-third-center (Scene 6).
+- [x] Stacked dimensions calculated correctly: Scene 2: 1080 × (1920 × 50%) = 1080 × 960. Scene 5: 1080 × (1920 × 55%) = 1080 × 1056.
+- [x] **No more than 30% of scenes use `step-cards`**: 1 out of 6 scenes (16.7%) uses step-cards.
+- [x] **At least 3 different scene types** are used across the plan: data-viz, cause-effect, comparison, timeline, step-cards (5 distinct types).
+- [x] **No two adjacent scenes share the same scene type**: data-viz → cause-effect → comparison → data-viz → timeline → step-cards.
+- [x] Every scene has an **Animation timeline** table with 3-5 phases: all 6 scenes have 5-phase tables (Entrance, Build, Develop, Payoff, Exit).
+- [x] Every scene has a **Build** and **Develop** phase (not just Entrance + Exit): confirmed for all 6 scenes.
+- [x] No single phase spans more than 40% of the scene's total frame count: verified — Build and Develop each span approximately 30-35%, no phase exceeds 40%.
+- [x] Every **Visual concept** describes a creative idea, not a layout: thermometer cracking (Scene 1), staircase plateau vs growth (Scene 2), battery charge/drain (Scene 3), fuel gauge needle (Scene 4), unrolling calendar ribbon (Scene 5), puzzle pieces locking together (Scene 6).
 </example>
