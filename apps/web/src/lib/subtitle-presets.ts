@@ -64,6 +64,25 @@ export interface SubtitlePreset {
     enabled: boolean;
     roles: Record<string, Partial<WordRoleStyle>>;
   };
+  // Cinematic renderer
+  useCinematicRenderer?: boolean;
+  cinematicFonts?: {
+    boldSans: string;
+    elegantCursive: string;
+    default: string;
+  };
+  cinematicColors?: {
+    primary: string;
+    accent: string;
+    accentGradient?: string;
+    glow: string;
+  };
+  cinematicScales?: {
+    hero: number;
+    accent: number;
+    normal: number;
+    whisper: number;
+  };
 }
 
 export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
@@ -366,6 +385,47 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     },
     supportedModes: ['word-by-word', 'phrase'],
   },
+
+  'cinematic-luxe': {
+    id: 'cinematic-luxe',
+    name: 'Cinematic Luxe',
+    fontFamily: 'Inter',
+    fontSize: 42,
+    fontWeight: 500,
+    letterSpacing: 0.5,
+    lineHeight: 1.3,
+    color: '#FFFFFF',
+    activeColor: '#FFD700',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 0, offsetY: 2, blur: 8, color: '#000000', opacity: 0.6 },
+      shadowSecondary: null,
+      glow: { enabled: true, color: '#FFA500', intensity: 0.35, size: 20 },
+    },
+    animation: { in: 'fade-rise', active: 'none', out: 'fade', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: { anchor: 'center', offsetX: 0, offsetY: -5, rotation: 0, textAlign: 'center' },
+    supportedModes: ['phrase'],
+    useCinematicRenderer: true,
+    cinematicFonts: {
+      boldSans: 'Montserrat',
+      elegantCursive: 'Playfair Display',
+      default: 'Inter',
+    },
+    cinematicColors: {
+      primary: '#FFFFFF',
+      accent: '#FFD700',
+      accentGradient: 'linear-gradient(135deg, #FF6B6B, #FFA500, #FFD700)',
+      glow: '#FFA500',
+    },
+    cinematicScales: {
+      hero: 2.5,
+      accent: 1.4,
+      normal: 1.0,
+      whisper: 0.65,
+    },
+  },
 };
 
 export const PRESET_ORDER = [
@@ -378,6 +438,7 @@ export const PRESET_ORDER = [
   'cottagecore',
   'apple-clean',
   'google-material',
+  'cinematic-luxe',
 ] as const;
 
 export const DEFAULT_PRESET_ID = 'default';
