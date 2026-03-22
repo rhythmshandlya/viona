@@ -1,4 +1,4 @@
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { mkdir, rm } from 'fs/promises';
 import { createReadStream } from 'fs';
@@ -12,6 +12,7 @@ import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { DEFAULT_SUBTITLE_STYLE } from '@viona/shared';
+import { redisConnection } from '../utils/redis.js';
 
 export interface TranscribeJobData {
   projectId: string;
@@ -707,6 +708,18 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     await publishJobProgress(jobId, 100, 'Complete', pubExtras);
     await publishJobComplete(jobId, projectId);
+
+    // Queue cinematic caption analysis (non-blocking)
+    try {
+      const analyzeCaptionsQueue = new Queue('analyze-captions', { connection: redisConnection });
+      await analyzeCaptionsQueue.add('analyze', {
+        projectId,
+        jobId: `analyze-${jobId}`,
+      });
+      logger.info({ projectId }, '[transcribe] Queued analyze-captions job');
+    } catch (e) {
+      logger.error({ projectId, err: e }, '[transcribe] Failed to queue analyze-captions');
+    }
 
     logger.info({ projectId }, 'Transcription complete');
 

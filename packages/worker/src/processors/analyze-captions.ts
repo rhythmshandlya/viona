@@ -1,3 +1,13 @@
+import { eq, inArray } from 'drizzle-orm';
+import { db, projects, tracks, timelineItems } from '../db/index.js';
+import { logger } from '../logger.js';
+import { config } from '../config.js';
+
+export interface AnalyzeCaptionsJobData {
+  projectId: string;
+  jobId: string;
+}
+
 // EmphasisMarker mirrors the Zod schema in packages/shared/src/caption-analysis.ts
 // It is defined inline here because caption-analysis.ts is not exported from @viona/shared's index.
 export interface EmphasisMarker {
@@ -444,4 +454,163 @@ function isValidLayout(v: unknown): v is PhraseLayout { return VALID_LAYOUTS.inc
 function isValidMood(v: unknown): v is Mood { return VALID_MOODS.includes(v as Mood); }
 function isValidPunctuationEffect(v: unknown): v is typeof VALID_PUNCTUATION_EFFECTS[number] {
   return VALID_PUNCTUATION_EFFECTS.includes(v as typeof VALID_PUNCTUATION_EFFECTS[number]);
+}
+
+// --- processAnalyzeCaptions job handler ---
+
+/**
+ * Main job handler for the analyze-captions queue.
+ *
+ * Pipeline per caption item:
+ *   1. detectSpeakerEmphasis (heuristic, no LLM)
+ *   2. classifyWords (LLM — gpt-4o-mini)
+ *   3. composeSentences (LLM — gpt-4o-mini)
+ *   4. validateAndRepairAnalysis
+ *
+ * Results are written to `projects.videoSettings.captionAnalysis`.
+ * Partial results are acceptable — if some items fail, successful ones are still written.
+ * Retry logic: retries once on LLM failure; skips item on second failure.
+ */
+export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Promise<void> {
+  const { projectId, jobId } = data;
+
+  logger.info({ projectId, jobId }, '[analyze-captions] Starting cinematic caption analysis');
+
+  const apiKey = config.transcription.openaiApiKey;
+  if (!apiKey) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] No OPENAI_API_KEY — skipping analysis');
+    return;
+  }
+
+  // Instantiate OpenAI client (dynamic import to match existing worker pattern)
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey });
+
+  // Step 1: Load project to verify it exists
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+  });
+
+  if (!project) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] Project not found — skipping');
+    return;
+  }
+
+  // Step 2: Find all subtitle tracks for this project (timelineItems has no projectId — join via tracks)
+  const projectTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
+  const subtitleTrackIds = projectTracks
+    .filter(t => t.type === 'subtitle' || t.type === 'caption')
+    .map(t => t.id);
+
+  if (subtitleTrackIds.length === 0) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] No subtitle tracks found — skipping');
+    return;
+  }
+
+  // Step 3: Load all subtitle timeline items
+  const allItems = await db.select().from(timelineItems)
+    .where(inArray(timelineItems.trackId, subtitleTrackIds));
+
+  const captionItems = allItems
+    .filter(item => item.type === 'subtitle')
+    .sort((a, b) => a.startMs - b.startMs);
+
+  if (captionItems.length === 0) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] No subtitle items found — skipping');
+    return;
+  }
+
+  logger.info({ projectId, jobId, captionCount: captionItems.length }, '[analyze-captions] Analyzing caption items');
+
+  // Step 4: Process each caption item with retry-once logic
+  const results: Array<{ itemId: string; analysis: CaptionAnalysis }> = [];
+
+  for (const item of captionItems) {
+    const itemData = item.data as Record<string, unknown>;
+    const rawWords = itemData.words;
+
+    if (!Array.isArray(rawWords) || rawWords.length === 0) {
+      logger.debug({ projectId, itemId: item.id }, '[analyze-captions] Item has no words — skipping');
+      continue;
+    }
+
+    const words: CaptionWord[] = (rawWords as Array<Record<string, unknown>>).map(w => ({
+      text: String(w.text ?? ''),
+      startMs: typeof w.startMs === 'number' ? w.startMs : 0,
+      endMs: typeof w.endMs === 'number' ? w.endMs : 0,
+    }));
+
+    // Retry once on failure
+    let attempt = 0;
+    let succeeded = false;
+
+    while (attempt < 2 && !succeeded) {
+      attempt++;
+      try {
+        // 4a. Speaker emphasis (heuristic — no LLM)
+        const speakerEmphasis = detectSpeakerEmphasis(words);
+
+        // 4b. Classify words (LLM)
+        const wordDirectives = await classifyWords(openai, words, speakerEmphasis);
+
+        // 4c. Compose sentences (LLM)
+        const sentenceDirectives = await composeSentences(openai, words, wordDirectives);
+
+        // 4d. Validate & repair
+        const rawAnalysis: CaptionAnalysis = {
+          words: wordDirectives,
+          sentences: sentenceDirectives,
+          speakerEmphasis,
+          metadata: {
+            analyzedAt: new Date().toISOString(),
+            model: 'gpt-4o-mini',
+            version: 1,
+          },
+        };
+        const analysis = validateAndRepairAnalysis(rawAnalysis, words.length);
+
+        results.push({ itemId: item.id, analysis });
+        succeeded = true;
+
+        logger.debug(
+          { projectId, itemId: item.id, wordCount: words.length },
+          '[analyze-captions] Item analyzed successfully',
+        );
+      } catch (err) {
+        if (attempt < 2) {
+          logger.warn({ projectId, itemId: item.id, attempt, err }, '[analyze-captions] LLM failure — retrying once');
+        } else {
+          logger.error({ projectId, itemId: item.id, err }, '[analyze-captions] LLM failure on retry — skipping item');
+        }
+      }
+    }
+  }
+
+  // Step 5: Write partial or full results to projects.videoSettings.captionAnalysis
+  if (results.length === 0) {
+    logger.warn({ projectId, jobId }, '[analyze-captions] All items failed — nothing to write');
+    return;
+  }
+
+  // Build a map of itemId → analysis for storage
+  const captionAnalysis: Record<string, CaptionAnalysis> = {};
+  for (const { itemId, analysis } of results) {
+    captionAnalysis[itemId] = analysis;
+  }
+
+  const currentVideoSettings = (project.videoSettings as Record<string, unknown>) ?? {};
+  await db.update(projects)
+    .set({
+      videoSettings: {
+        ...currentVideoSettings,
+        captionAnalysis,
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(projects.id, projectId));
+
+  logger.info(
+    { projectId, jobId, analyzed: results.length, total: captionItems.length },
+    '[analyze-captions] Caption analysis complete — results written to videoSettings',
+  );
 }
