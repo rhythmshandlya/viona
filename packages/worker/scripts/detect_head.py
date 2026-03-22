@@ -318,6 +318,11 @@ def process_video(
     frame_diagonal = np.sqrt(width ** 2 + height ** 2)
     raw_shot_boundaries = []  # collected during loop, merged after
 
+    # Scale HSV threshold by frame gap — higher fps = less change per frame
+    # Base: 35 calibrated for ~100ms gap (30fps, interval=3)
+    frame_gap_ms = (interval / fps * 1000) if fps > 0 else 100
+    hsv_threshold = 35 * min(1.5, max(1.0, 100.0 / frame_gap_ms))  # scale up for shorter gaps, cap at 1.5x
+
     print(f"Processing video: {width}x{height} @ {fps:.1f}fps, {total_frames} frames")
     print(f"Sampling every {interval} frames...")
 
@@ -403,8 +408,8 @@ def process_video(
                 # Weighted: H=1.0, S=1.0, V=0.5
                 weighted = diff[:, :, 0] * 1.0 + diff[:, :, 1] * 1.0 + diff[:, :, 2] * 0.5
                 hsv_diff = float(np.mean(weighted))
-                hsv_score = min(1.0, hsv_diff / 60.0)
-                if hsv_diff > 35:
+                hsv_score = min(1.0, hsv_diff / (hsv_threshold * 1.7))
+                if hsv_diff > hsv_threshold:
                     shot_signals.append('hsv_diff')
 
             prev_hsv = hsv_frame
@@ -450,7 +455,7 @@ def process_video(
             face_combined = 0.4 * bbox_score + 0.3 * size_score + 0.3 * confidence_score
             combined_score = max(hsv_score, face_combined)
 
-            if combined_score > 0.6 and shot_signals:
+            if combined_score > 0.75 and shot_signals:
                 raw_shot_boundaries.append({
                     'frame': frame_idx,
                     'timestamp_ms': timestamp_ms,
@@ -466,10 +471,10 @@ def process_video(
 
     cap.release()
 
-    # Merge adjacent shot boundaries within 500ms
+    # Merge adjacent shot boundaries within 1000ms
     merged_shots = []
     for shot in raw_shot_boundaries:
-        if merged_shots and (shot['timestamp_ms'] - merged_shots[-1]['timestamp_ms']) < 500:
+        if merged_shots and (shot['timestamp_ms'] - merged_shots[-1]['timestamp_ms']) < 1000:
             # Keep the one with higher score
             if shot['score'] > merged_shots[-1]['score']:
                 merged_shots[-1] = shot
