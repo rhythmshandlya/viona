@@ -417,6 +417,14 @@ export class SandboxManager {
         })
         .where(eq(sandboxSessions.id, sessionId));
 
+      // 11. Mark project workspace as active
+      await db.update(projects)
+        .set({
+          workspaceStatus: 'active',
+          workspaceLastActivity: new Date(),
+        })
+        .where(eq(projects.id, projectId));
+
       // 11. Start activity tracking
       touchActivity(projectId);
 
@@ -550,6 +558,11 @@ export class SandboxManager {
             suspendReason: reason,
           })
           .where(eq(sandboxSessions.id, session.id));
+
+        // Mark project workspace as inactive
+        await db.update(projects)
+          .set({ workspaceStatus: 'inactive' })
+          .where(eq(projects.id, projectId));
 
         // Clear Redis keys
         await redis.del(
