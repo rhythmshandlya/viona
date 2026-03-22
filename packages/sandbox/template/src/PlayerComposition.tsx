@@ -72,11 +72,16 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
                 );
               }
 
-              // Visual items: premount video/image sequences so media elements
-              // load before becoming visible (avoids flash at cut boundaries).
-              // premountFor requires a container (no layout="none").
-              const needsPremount = item.type === 'video' || item.type === 'image';
-              const premountFrames = needsPremount ? fps * 2 : 0; // 2s buffer for video seek
+              // Visual items: premount sequences so components mount BEFORE
+              // their start frame — avoids jank at cut boundaries.
+              // - video/image: browser needs time for container parse + decoder init + seek
+              // - scene: React needs time to mount the component tree + initial render
+              // - text/shape/caption: lightweight, small premount is enough
+              const premountFrames = (item.type === 'video' || item.type === 'image')
+                ? fps * 2   // 2s — video decode needs seek time
+                : (item.type === 'scene')
+                  ? fps * 1 // 1s — scene component mount + initial React render
+                  : Math.round(fps * 0.5); // 0.5s — lightweight items
 
               const transform = item.transform ?? FULL_CANVAS_TRANSFORM;
               return (

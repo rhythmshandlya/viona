@@ -112,7 +112,7 @@ const SceneMockup: React.FC<{
   );
 };
 
-export const SceneItem: React.FC<SceneItemProps> = ({
+export const SceneItem: React.FC<SceneItemProps> = React.memo(({
   data,
   width,
   height,
@@ -150,4 +150,4 @@ export const SceneItem: React.FC<SceneItemProps> = ({
       fps={fps}
     />
   );
-};
+});

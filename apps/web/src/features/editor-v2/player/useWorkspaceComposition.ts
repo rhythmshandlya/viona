@@ -82,6 +82,25 @@ export function resolvePublicBase(bundleBaseUrl: string): string {
     : `${bundleBaseUrl}/public`;
 }
 
+/**
+ * Resolve a sandbox-local media filename to a direct API endpoint URL.
+ * Video/audio served from the sandbox proxy can be unreliable for large files
+ * (155MB+ videos going through Next.js rewrite → API → sandbox container).
+ * The direct MinIO endpoints bypass the sandbox entirely and are reliable.
+ * Returns null if no direct endpoint is available for the given filename.
+ */
+export function resolveDirectMediaUrl(bundleBaseUrl: string, filename: string): string | null {
+  const match = bundleBaseUrl.match(/\/projects\/([^/]+)\//);
+  if (!match) return null;
+  const projectId = match[1];
+
+  if (filename === 'source.mp4') {
+    return `/api/projects/${projectId}/video`;
+  }
+  // audio.aac is extracted inside the sandbox — no direct MinIO endpoint
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Custom require() — provides module shims for CJS evaluation
 // ---------------------------------------------------------------------------
@@ -89,11 +108,15 @@ export function resolvePublicBase(bundleBaseUrl: string): string {
 function createRequire(bundleBaseUrl: string) {
   const publicBase = resolvePublicBase(bundleBaseUrl);
 
-  // staticFile returns a deterministic same-origin proxy URL.
+  // staticFile returns a deterministic same-origin URL.
+  // For source video, uses direct MinIO endpoint (bypasses sandbox proxy).
   // Remotion's prefetch() in WorkspacePlayer downloads these into blob URLs,
   // so after initial load all playback is from memory — zero network.
   const customStaticFile = (relativePath: string) => {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+    // Use direct API endpoint for source video — sandbox proxy is unreliable for large files
+    const directUrl = resolveDirectMediaUrl(bundleBaseUrl, cleanPath);
+    if (directUrl) return directUrl;
     return `${publicBase}/${cleanPath}`;
   };
 
@@ -119,13 +142,14 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
-      // Cap premountFor to 18 frames (~600ms at 30fps).
-      // Blob-loaded video needs up to ~300ms for: container parse (~20ms) +
-      // decoder init (~50ms) + seek to non-keyframe (~200ms) + first frame
-      // decode (~30ms). 600ms covers worst case with margin.
+      // Cap premountFor to 60 frames (~2s at 30fps).
+      // Video decode needs: container parse (~20ms) + decoder init (~50ms) +
+      // seek to non-keyframe (~200ms) + first frame decode (~30ms) = ~300ms.
+      // Scene components need: React mount + initial render = ~100-200ms.
+      // 2s covers worst case with generous margin for both.
       // Chrome's power-saver only triggers after sustained (5s+) offscreen
-      // playback — 600ms is well under the threshold.
-      const PREMOUNT_CAP = 18;
+      // playback — 2s is safely under the threshold.
+      const PREMOUNT_CAP = 60;
       const CappedPremountSequence = (props: any) => {
         const { premountFor, ...rest } = props;
         return React.createElement(Remotion.Sequence, {
@@ -134,14 +158,28 @@ function createRequire(bundleBaseUrl: string) {
         });
       };
 
+      // Wrap Video to inject a default onError handler.
+      // Without onError, Remotion throws an uncatchable error from a
+      // useEffect event listener when the <video> element fails to load
+      // (e.g., media not yet available during sandbox init).
+      const SafeVideo = (props: any) => {
+        return React.createElement(Remotion.Video, {
+          ...props,
+          onError: props.onError || ((err: Error) => {
+            console.warn('[WorkspacePlayer] Video load error (will retry on next seek):', err.message);
+          }),
+        });
+      };
+
       return {
         ...Remotion,
+        Video: SafeVideo,
         Sequence: CappedPremountSequence,
         Composition: () => null,
         staticFile: customStaticFile,
         // OffthreadVideo is for rendering; in the Player context, use Video
         // which renders a native <video> element with proper frame sync
-        OffthreadVideo: Remotion.Video,
+        OffthreadVideo: SafeVideo,
         // Stub for resolveMediaSrc proxy logic — browser Player is always preview mode
         getRemotionEnvironment: () => ({ isRendering: false, isPlayer: true }),
       };

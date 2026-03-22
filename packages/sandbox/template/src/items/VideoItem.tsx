@@ -23,7 +23,7 @@ interface VideoItemProps {
   durationInFrames: number;
 }
 
-export const VideoItem: React.FC<VideoItemProps> = ({
+export const VideoItem: React.FC<VideoItemProps> = React.memo(({
   data,
   assets,
   fps,
@@ -69,4 +69,4 @@ export const VideoItem: React.FC<VideoItemProps> = ({
       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
     />
   );
-};
+});

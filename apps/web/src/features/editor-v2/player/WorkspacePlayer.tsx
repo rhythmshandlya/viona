@@ -3,8 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Player, type RenderLoading } from '@remotion/player';
 import { AbsoluteFill, prefetch } from 'remotion';
-import { preloadVideo, preloadAudio } from '@remotion/preload';
-import { useWorkspaceComposition, resolvePublicBase } from './useWorkspaceComposition';
+import { useWorkspaceComposition, resolvePublicBase, resolveDirectMediaUrl } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
   manifest: Record<string, unknown>;
@@ -34,17 +33,41 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
 
   // -----------------------------------------------------------------------
-  // Blob-based media prefetch
+  // Suppress Remotion's uncatchable video errors.
   //
-  // Fetch every video/audio src exactly once into a blob URL.
-  // Remotion intercepts matching URLs and serves from blob — zero network
-  // during playback, instant seeks, no proxy latency after initial load.
-  //
-  // The URL passed to prefetch() MUST match what customStaticFile() returns
-  // in useWorkspaceComposition, which is: `${publicBase}/${cleanPath}`
+  // Remotion's <Video> throws from a DOM event listener when the <video>
+  // element fails to load — this cannot be caught by React error boundaries
+  // or the onError prop (Remotion always throws when error details exist).
+  // During sandbox init, media files may not be available yet, causing
+  // transient errors. Suppress them so Next.js dev overlay doesn't block.
   // -----------------------------------------------------------------------
-  const prefetchHandlesRef = useRef<Map<string, { free: () => void }>>(new Map());
-  const preloadHandlesRef = useRef<Map<string, () => void>>(new Map());
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      if (e.message?.includes('error while playing the video')) {
+        e.preventDefault();
+        console.warn('[WorkspacePlayer] Suppressed transient video error');
+      }
+    };
+    window.addEventListener('error', handler);
+    return () => window.removeEventListener('error', handler);
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Media prefetching via Remotion's prefetch() — downloads full media
+  // files into blob URLs in the background.
+  //
+  // NLE-style timelines create multiple <Video> components for the same
+  // source file at different trim points. At cuts, old elements unmount
+  // and new ones mount — each needing to seek within the file. With
+  // network URLs, this seek requires HTTP range requests and codec init
+  // (~300ms+), causing visible lag. With blob URLs the entire file is in
+  // memory, so seeks are instant.
+  //
+  // Trade-off: blob download runs alongside the Player's native streaming
+  // during initial playback (minor bandwidth competition). Once complete,
+  // all subsequent cuts/seeks are lag-free.
+  // -----------------------------------------------------------------------
+  const prefetchHandlesRef = useRef<Map<string, () => void>>(new Map());
 
   useEffect(() => {
     const m = manifest as any;
@@ -52,8 +75,8 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
     const publicBase = resolvePublicBase(bundleUrl);
 
-    // Collect media URLs with their types
-    const currentMedia = new Map<string, 'video' | 'audio'>();
+    // Collect unique media URLs
+    const currentMedia = new Set<string>();
     for (const item of m.items) {
       if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
         const src = item.data.src as string;
@@ -62,61 +85,43 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
           resolved = src;
         } else {
           const cleanPath = src.startsWith('/') ? src.slice(1) : src;
-          resolved = `${publicBase}/${cleanPath}`;
+          const directUrl = resolveDirectMediaUrl(bundleUrl, cleanPath);
+          resolved = directUrl ?? `${publicBase}/${cleanPath}`;
         }
-        currentMedia.set(resolved, item.type as 'video' | 'audio');
+        currentMedia.add(resolved);
       }
     }
 
-    // Step 1: prefetch() — download as blob URL (guaranteed in-memory)
-    // Step 2: preloadVideo/Audio() — create hidden <video>/<audio> element
-    //         that pre-parses the container and warms the decoder
-    for (const [url, type] of currentMedia) {
+    // Prefetch each media URL into a blob. Once downloaded, Remotion
+    // internally maps the original URL → blob URL so all <Video>/<Audio>
+    // components using that URL get instant seeks from memory.
+    for (const url of currentMedia) {
       if (!prefetchHandlesRef.current.has(url)) {
-        console.log('[WorkspacePlayer] prefetching:', url);
-        const handle = prefetch(url, {
-          method: 'blob-url',
-          credentials: url.startsWith('/') ? 'include' : 'omit',
-        });
-        handle.waitUntilDone().then(() => {
-          console.log('[WorkspacePlayer] prefetch ready:', url);
-          // After blob is cached, preload to warm the decoder.
-          // Remotion intercepts this URL and uses the blob, so the hidden
-          // <video>/<audio> element decodes from memory — no extra fetch.
-          if (!preloadHandlesRef.current.has(url)) {
-            const freePreload = type === 'video' ? preloadVideo(url) : preloadAudio(url);
-            preloadHandlesRef.current.set(url, freePreload);
-          }
-        }).catch((err) => {
-          console.warn('[WorkspacePlayer] prefetch failed:', url, err);
-        });
-        prefetchHandlesRef.current.set(url, handle);
+        try {
+          const { free } = prefetch(url);
+          prefetchHandlesRef.current.set(url, free);
+        } catch {
+          // prefetch may fail for blob: or invalid URLs — fall back silently
+        }
       }
     }
 
-    // Free sources no longer in the manifest
-    const currentUrls = new Set(currentMedia.keys());
-    for (const [url, handle] of prefetchHandlesRef.current) {
-      if (!currentUrls.has(url)) {
-        handle.free();
+    // Free prefetches no longer in the manifest
+    for (const [url, free] of prefetchHandlesRef.current) {
+      if (!currentMedia.has(url)) {
+        free();
         prefetchHandlesRef.current.delete(url);
-        preloadHandlesRef.current.get(url)?.();
-        preloadHandlesRef.current.delete(url);
       }
     }
   }, [manifest, bundleUrl]);
 
-  // Cleanup all prefetches and preloads on unmount
+  // Cleanup prefetches on unmount
   useEffect(() => {
     return () => {
-      for (const [, handle] of prefetchHandlesRef.current) {
-        handle.free();
-      }
-      prefetchHandlesRef.current.clear();
-      for (const [, free] of preloadHandlesRef.current) {
+      for (const [, free] of prefetchHandlesRef.current) {
         free();
       }
-      preloadHandlesRef.current.clear();
+      prefetchHandlesRef.current.clear();
     };
   }, []);
 
@@ -156,7 +161,7 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
   const inputProps = useMemo(() => {
     // Strip sandbox assets map so resolveMediaSrc always falls through to
-    // staticFile(), returning the same proxy URL that prefetch() cached as blob.
+    // staticFile(), returning the direct video URL for native streaming.
     const m = manifest as any;
     if (m?.assets) {
       const { assets: _a, ...rest } = m;
