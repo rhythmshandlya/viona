@@ -310,6 +310,14 @@ def process_video(
     frames_with_face = 0
     frames_skipped = 0
 
+    # Shot detection state
+    prev_hsv = None
+    prev_face_center = None  # (cx, cy) in pixel coords
+    prev_face_area = None    # bbox area in pixels
+    prev_confidence = 0.0
+    frame_diagonal = np.sqrt(width ** 2 + height ** 2)
+    raw_shot_boundaries = []  # collected during loop, merged after
+
     print(f"Processing video: {width}x{height} @ {fps:.1f}fps, {total_frames} frames")
     print(f"Sampling every {interval} frames...")
 
@@ -321,6 +329,9 @@ def process_video(
         if frame_idx % interval == 0:
             # Convert BGR to RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # HSV conversion for shot detection (reuses already-decoded frame)
+            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
             # Create MediaPipe Image
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -379,6 +390,74 @@ def process_video(
 
             result['frames'].append(frame_data)
 
+            # --- Shot boundary detection ---
+            shot_signals = []
+            hsv_score = 0.0
+            bbox_score = 0.0
+            size_score = 0.0
+            confidence_score = 0.0
+
+            # HSV frame diff
+            if prev_hsv is not None:
+                diff = cv2.absdiff(hsv_frame, prev_hsv).astype(np.float32)
+                # Weighted: H=1.0, S=1.0, V=0.5
+                weighted = diff[:, :, 0] * 1.0 + diff[:, :, 1] * 1.0 + diff[:, :, 2] * 0.5
+                hsv_diff = float(np.mean(weighted))
+                hsv_score = min(1.0, hsv_diff / 60.0)
+                if hsv_diff > 35:
+                    shot_signals.append('hsv_diff')
+
+            prev_hsv = hsv_frame
+
+            # Face-based signals (only when both frames have valid face)
+            cur_face_center = None
+            cur_face_area = None
+            if bbox is not None:
+                cx = bbox['x'] + bbox['width'] / 2.0
+                cy = bbox['y'] + bbox['height'] / 2.0
+                cur_face_center = (cx, cy)
+                cur_face_area = bbox['width'] * bbox['height']
+
+            if cur_face_center is not None and prev_face_center is not None:
+                # Bbox displacement
+                dx = cur_face_center[0] - prev_face_center[0]
+                dy = cur_face_center[1] - prev_face_center[1]
+                displacement = np.sqrt(dx ** 2 + dy ** 2) / frame_diagonal
+                bbox_score = min(1.0, displacement / 0.5)
+                if displacement > 0.25:
+                    shot_signals.append('bbox_jump')
+
+                # Face size ratio
+                if prev_face_area and prev_face_area > 0:
+                    size_ratio_change = abs(1.0 - cur_face_area / prev_face_area)
+                    size_score = min(1.0, size_ratio_change / 0.8)
+                    if size_ratio_change > 0.4:
+                        shot_signals.append('size_change')
+
+            prev_face_center = cur_face_center
+            prev_face_area = cur_face_area
+
+            # Confidence drop
+            if prev_confidence >= 0.5 and confidence < 0.5:
+                confidence_score = 1.0
+                shot_signals.append('confidence_drop')
+            elif prev_confidence < 0.5 and confidence >= 0.5:
+                confidence_score = 1.0
+                shot_signals.append('confidence_rise')
+            prev_confidence = confidence
+
+            # Combined score
+            face_combined = 0.4 * bbox_score + 0.3 * size_score + 0.3 * confidence_score
+            combined_score = max(hsv_score, face_combined)
+
+            if combined_score > 0.6 and shot_signals:
+                raw_shot_boundaries.append({
+                    'frame': frame_idx,
+                    'timestamp_ms': timestamp_ms,
+                    'score': round(combined_score, 3),
+                    'signals': shot_signals,
+                })
+
             # Progress update
             if len(result['frames']) % 100 == 0:
                 print(f"  Processed {len(result['frames'])} samples...")
@@ -386,6 +465,18 @@ def process_video(
         frame_idx += 1
 
     cap.release()
+
+    # Merge adjacent shot boundaries within 500ms
+    merged_shots = []
+    for shot in raw_shot_boundaries:
+        if merged_shots and (shot['timestamp_ms'] - merged_shots[-1]['timestamp_ms']) < 500:
+            # Keep the one with higher score
+            if shot['score'] > merged_shots[-1]['score']:
+                merged_shots[-1] = shot
+        else:
+            merged_shots.append(shot)
+
+    result['shots'] = merged_shots
 
     # Update metadata
     samples_count = len(result['frames'])
@@ -396,8 +487,9 @@ def process_video(
     result['metadata']['detection_rate'] = round(
         frames_with_face / samples_count if samples_count > 0 else 0, 3
     )
+    result['metadata']['shots_detected'] = len(merged_shots)
 
-    print(f"Done! Processed {samples_count} samples, {frames_with_face} with face detected")
+    print(f"Done! Processed {samples_count} samples, {frames_with_face} with face detected, {len(merged_shots)} shot boundaries")
 
     return result
 
