@@ -496,6 +496,7 @@ async function buildInitData(projectId: string): Promise<InitData | null> {
         data: { src: 'audio.aac', volume: 1, playbackRate: 1 },
       });
     }
+  }
 
   // Build init payload with optional transcript, brief, head-tracking, and project meta
   const initBody: InitData = {
