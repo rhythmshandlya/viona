@@ -17,6 +17,11 @@ const metaModules = import.meta.glob(
   { eager: true },
 ) as Record<string, { default: Record<string, any> }>;
 
+const metadataModules = import.meta.glob(
+  '../../src/templates/*/metadata.json',
+  { eager: true },
+) as Record<string, { default: { compositionId?: string; durationInFrames?: number; fps?: number; width?: number; height?: number } }>;
+
 export function discoverTemplates(): TemplateEntry[] {
   const templates: TemplateEntry[] = [];
 
@@ -26,9 +31,11 @@ export function discoverTemplates(): TemplateEntry[] {
 
     const schemaMod = schemaModules[`../../src/templates/${slug}/schema.ts`];
     const metaMod = metaModules[`../../src/templates/${slug}/meta.json`];
+    const metadataMod = metadataModules[`../../src/templates/${slug}/metadata.json`];
     if (!schemaMod?.schema) continue;
 
     const meta = metaMod?.default ?? {};
+    const metadata = metadataMod?.default ?? {};
     templates.push({
       id: slug,
       name: meta.name ?? slug,
@@ -40,6 +47,10 @@ export function discoverTemplates(): TemplateEntry[] {
       schema: schemaMod.schema,
       defaultProps: schemaMod.defaultProps ?? schemaMod.schema.parse({}),
       meta,
+      durationInFrames: metadata.durationInFrames ?? 360,
+      fps: metadata.fps ?? 30,
+      width: metadata.width ?? 1080,
+      height: metadata.height ?? 1080,
     });
   }
 

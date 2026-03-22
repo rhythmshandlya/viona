@@ -20,6 +20,10 @@ export interface TemplateEntry {
   schema: z.ZodObject<any>;
   defaultProps: Record<string, any>;
   meta: Record<string, any>;
+  durationInFrames: number;
+  fps: number;
+  width: number;
+  height: number;
 }
 
 export type View =

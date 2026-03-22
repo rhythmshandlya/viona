@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { TemplateEntry, ThemeDefinition } from '../lib/types';
 import { PlayerWrapper } from './PlayerWrapper';
+import { t } from '../theme';
 
 interface TemplateGalleryProps {
   templates: TemplateEntry[];
@@ -15,27 +16,24 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
   const [themeFilter, setThemeFilter] = useState('');
 
   const categories = useMemo(
-    () => Array.from(new Set(templates.map((t) => t.category))).sort(),
+    () => Array.from(new Set(templates.map((tpl) => tpl.category))).sort(),
     [templates],
   );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return templates.filter((t) => {
-      // Search filter
+    return templates.filter((tpl) => {
       if (q) {
-        const nameMatch = t.name.toLowerCase().includes(q);
-        const tagMatch = t.tags.some((tag) => tag.toLowerCase().includes(q));
+        const nameMatch = tpl.name.toLowerCase().includes(q);
+        const tagMatch = tpl.tags.some((tag) => tag.toLowerCase().includes(q));
         if (!nameMatch && !tagMatch) return false;
       }
-      // Category filter
-      if (categoryFilter && t.category !== categoryFilter) return false;
-      // Theme filter
+      if (categoryFilter && tpl.category !== categoryFilter) return false;
       if (themeFilter) {
         if (themeFilter === '__unthemed__') {
-          if (t.themes.length !== 0) return false;
+          if (tpl.themes.length !== 0) return false;
         } else {
-          if (!t.themes.includes(themeFilter)) return false;
+          if (!tpl.themes.includes(themeFilter)) return false;
         }
       }
       return true;
@@ -43,14 +41,15 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
   }, [templates, search, categoryFilter, themeFilter]);
 
   const inputStyle: React.CSSProperties = {
-    background: '#1a1a2e',
-    border: '1px solid #2a2a3e',
+    background: t.bgInput,
+    border: `1px solid ${t.border}`,
     borderRadius: 6,
-    color: '#e0e0e0',
+    color: t.text1,
     fontSize: 13,
     padding: '8px 12px',
     outline: 'none',
     minWidth: 0,
+    transition: 'border-color 0.15s',
   };
 
   return (
@@ -61,11 +60,12 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
           display: 'flex',
           flexDirection: 'row',
           gap: 10,
-          padding: '14px 20px',
-          background: '#0c0c14',
+          padding: '12px 20px',
+          background: t.bgPanel,
           flexShrink: 0,
           alignItems: 'center',
           flexWrap: 'wrap',
+          borderBottom: `1px solid ${t.border}`,
         }}
       >
         <input
@@ -100,6 +100,9 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
             </option>
           ))}
         </select>
+        <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 4 }}>
+          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {/* Card grid */}
@@ -111,6 +114,7 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
           padding: 20,
           overflowY: 'auto',
           flex: 1,
+          alignContent: 'start',
         }}
       >
         {filtered.map((template) => (
@@ -123,7 +127,7 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
           />
         ))}
         {filtered.length === 0 && (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#666', fontSize: 14, padding: 40 }}>
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: t.text3, fontSize: 14, padding: 40 }}>
             No templates match the current filters.
           </div>
         )}
@@ -146,7 +150,7 @@ function TemplateCard({
   const [hovered, setHovered] = useState(false);
 
   const themeNames = useMemo(() => {
-    const map = new Map(themes.map((t) => [t.slug, t.name]));
+    const map = new Map(themes.map((th) => [th.slug, th.name]));
     return template.themes.map((slug) => map.get(slug) ?? slug);
   }, [template.themes, themes]);
 
@@ -156,37 +160,42 @@ function TemplateCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: '#12121f',
+        background: t.bgPanel,
         borderRadius: 10,
-        border: `1px solid ${hovered ? '#8B5CF640' : '#1e1e2e'}`,
+        border: `1px solid ${hovered ? t.accent + '50' : t.border}`,
         cursor: 'pointer',
-        transition: 'border-color 0.15s ease',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
         display: 'flex',
         flexDirection: 'column',
+        boxShadow: hovered ? `0 0 20px ${t.accent}08` : 'none',
       }}
     >
-      {/* Thumbnail */}
-      <div style={{ overflow: 'hidden', borderRadius: '10px 10px 0 0' }}>
+      {/* Thumbnail — fixed aspect ratio container with lazy-loaded player */}
+      <div style={{
+        overflow: 'hidden',
+        borderRadius: '10px 10px 0 0',
+        background: t.bgRaised,
+      }}>
         <PlayerWrapper
           template={template}
           props={template.defaultProps}
           aspect="1:1"
-          duration={12}
           maxWidth={400}
           controls={false}
-          autoPlay={false}
+          autoPlay
+          lazy
         />
       </div>
 
       {/* Info */}
       <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#e0e0e0', marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: t.text1, marginBottom: 4 }}>
           {template.name}
         </div>
         <div
           style={{
             fontSize: 12,
-            color: '#888',
+            color: t.text2,
             overflow: 'hidden',
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -201,10 +210,11 @@ function TemplateCard({
           <span
             style={{
               fontSize: 10,
-              background: '#1e1e2e',
+              background: t.bgRaised,
               borderRadius: 4,
               padding: '2px 6px',
-              color: '#666',
+              color: t.text3,
+              fontWeight: 500,
             }}
           >
             {template.category}
@@ -215,11 +225,12 @@ function TemplateCard({
               onClick={(e) => { e.stopPropagation(); onSelectTheme(template.themes[i]); }}
               style={{
                 fontSize: 10,
-                background: '#8B5CF620',
+                background: t.accentSoft,
                 borderRadius: 4,
                 padding: '2px 6px',
-                color: '#8B5CF6',
+                color: t.accent,
                 cursor: 'pointer',
+                fontWeight: 500,
               }}
             >
               {name}
