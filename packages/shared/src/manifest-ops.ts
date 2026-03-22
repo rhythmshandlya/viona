@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import type { ManifestV2 as Manifest, ManifestItemV2 as ManifestItem } from './manifest-v2.js';
+import { captionAnalysisSchema } from './caption-analysis.js';
 
 // ---- Operation schemas ----
 
@@ -61,6 +62,10 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     op: z.literal('update_transform'),
     itemId: z.string(),
     transform: z.record(z.string(), z.union([z.number(), z.string()])),
+  }),
+  z.object({
+    op: z.literal('update_caption_analysis'),
+    captionAnalysis: z.record(z.string(), captionAnalysisSchema),
   }),
 ]);
 
@@ -187,6 +192,11 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       if (item) {
         (item as any).transform = { ...((item as any).transform || {}), ...op.transform };
       }
+      break;
+    }
+
+    case 'update_caption_analysis': {
+      m.captionAnalysis = op.captionAnalysis;
       break;
     }
   }

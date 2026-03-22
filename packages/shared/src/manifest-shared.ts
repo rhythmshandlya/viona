@@ -72,6 +72,24 @@ export const manifestCaptionPresetSchema = z.object({
     })),
   }).optional(),
   presetId: z.string().nullable().optional(),
+  useCinematicRenderer: z.boolean().optional(),
+  cinematicFonts: z.object({
+    boldSans: z.string(),
+    elegantCursive: z.string(),
+    default: z.string(),
+  }).optional(),
+  cinematicColors: z.object({
+    primary: z.string(),
+    accent: z.string(),
+    accentGradient: z.string().optional(),
+    glow: z.string(),
+  }).optional(),
+  cinematicScales: z.object({
+    hero: z.number(),
+    accent: z.number(),
+    normal: z.number(),
+    whisper: z.number(),
+  }).optional(),
 }).passthrough();
 
 /** @deprecated Use `manifestCaptionPresetSchema` instead */

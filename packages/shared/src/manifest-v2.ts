@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { captionWordSchema, manifestCaptionPresetSchema } from './manifest-shared.js';
+import { captionAnalysisSchema } from './caption-analysis.js';
 
 // ---- Transform & Keyframes ----
 
@@ -167,6 +168,7 @@ export const manifestV2Schema = z.object({
     sourceWidth: 1920,
     sourceHeight: 1080,
   })),
+  captionAnalysis: z.record(z.string(), captionAnalysisSchema).optional(),
 });
 
 // ---- TypeScript types ----
