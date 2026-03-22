@@ -19,8 +19,9 @@ const FIRST_STAT_W = 500;
 const FIRST_STAT_H = 320;
 const COLS = 2;
 const ROWS = 3;
+const GRID_TOP = 340; // push grid below title (title at y:150 + title height 140 + gap)
 const CELL_W = CANVAS_W / COLS;
-const CELL_H = CANVAS_H / ROWS;
+const CELL_H = (CANVAS_H - GRID_TOP) / ROWS;
 const STAGGER = 10;
 const ENTER_DURATION = 25;
 
@@ -36,7 +37,7 @@ const CELL_SLOTS: Array<[number, number]> = [
 function getStatPosition(index: number, w: number, h: number): { x: number; y: number } {
   const slot = CELL_SLOTS[index % CELL_SLOTS.length];
   const baseX = slot[0] * CELL_W + (CELL_W - w) / 2;
-  const baseY = slot[1] * CELL_H + (CELL_H - h) / 2;
+  const baseY = GRID_TOP + slot[1] * CELL_H + (CELL_H - h) / 2;
   const offsetX = (random(`stat-ox-${index}`) - 0.5) * 60;
   const offsetY = (random(`stat-oy-${index}`) - 0.5) * 60;
   return { x: baseX + offsetX, y: baseY + offsetY };
