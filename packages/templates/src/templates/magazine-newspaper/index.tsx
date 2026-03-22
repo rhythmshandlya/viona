@@ -10,32 +10,28 @@ const MagazineNewspaper: React.FC<MagazineNewspaperProps> = (props) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
 
-  // ── Phase 1: Slide in with 3D perspective (0-30) ──────────────────────────
-  const slide = paperSlide(frame, 0, 30, 'up');
-  const rotateX = interpolate(frame, [0, 30], [8, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // ── Phase 1: Slide in with 3D perspective (0-25) ──────────────────────────
+  const slide = paperSlide(frame, 0, 25, 'up');
+  const rotateX = interpolate(frame, [0, 25], [8, 0], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
-  const rotateY = interpolate(frame, [0, 30], [-5, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  const rotateY = interpolate(frame, [0, 25], [-5, 0], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
-  // ── Phase 2: Zoom into headline (30-60) ───────────────────────────────────
-  const { scale: zoomScale, surroundFade } = useHeadlineZoom(frame, 30, 60);
+  // ── Phase 2-4: Zoom in → pan across headline → zoom out (25-92) ──────────
+  const { scale, translateX: zoomTx, translateY: zoomTy, surroundFade } =
+    useHeadlineZoom(frame, 25, 48, 78, 92);
 
-  // ── Phase 3: Hold + subhead reveal (60-90) ────────────────────────────────
-  const subheadReveal = editorialReveal(frame, 65, 15);
+  // ── Subhead reveals as camera zooms back out ──────────────────────────────
+  const subheadReveal = editorialReveal(frame, 82, 12);
 
-  // ── Phase 4: Tear exit (90-120) ───────────────────────────────────────────
-  const tear = exitTear(frame, 90, 30);
-  const tearTransition = useTearTransition(frame, 90, 30, width, height);
+  // ── Phase 5: Tear exit (92-120) ───────────────────────────────────────────
+  const tear = exitTear(frame, 92, 28);
+  const tearTransition = useTearTransition(frame, 92, 28, width, height);
 
-  // Combine opacities: slide-in fade during phase 1, tear fade during phase 4
-  const combinedOpacity = frame < 90 ? slide.opacity : tear.opacity;
-
-  // Only apply zoom scale after phase 1 completes
-  const activeScale = frame >= 30 ? zoomScale : 1;
+  // Slide-in fade during phase 1, tear fade during phase 5
+  const combinedOpacity = frame < 92 ? slide.opacity : tear.opacity;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
@@ -53,11 +49,11 @@ const MagazineNewspaper: React.FC<MagazineNewspaperProps> = (props) => {
             width: '100%',
             height: '100%',
             transform: `
-              translateX(${slide.translateX + tearTransition.translateX}px)
-              translateY(${slide.translateY}px)
+              translateX(${slide.translateX + zoomTx + tearTransition.translateX}px)
+              translateY(${slide.translateY + zoomTy}px)
               rotateX(${rotateX}deg)
               rotateY(${rotateY}deg)
-              scale(${activeScale})
+              scale(${scale})
             `,
             transformOrigin: '50% 17%',
           }}
