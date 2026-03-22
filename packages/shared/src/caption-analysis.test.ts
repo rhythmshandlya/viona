@@ -131,4 +131,39 @@ describe('validateCaptionAnalysis', () => {
     const result = validateCaptionAnalysis(analysis, 1);
     expect(result.valid).toBe(false);
   });
+
+  it('detects overlapping sentence wordRanges', () => {
+    const analysis = {
+      words: [
+        { wordIndex: 0, tier: 'normal' as const, fontRole: 'default' as const, animation: 'fade' as const, entryDelayMs: 0, colorRole: 'primary' as const },
+        { wordIndex: 1, tier: 'normal' as const, fontRole: 'default' as const, animation: 'fade' as const, entryDelayMs: 0, colorRole: 'primary' as const },
+      ],
+      sentences: [
+        { wordRange: [0, 2] as [number, number], phraseGroups: [{ wordIndices: [0], layout: 'single-line' as const, alignment: 'center' as const, durationMs: 1000 }], mood: 'calm' as const },
+        { wordRange: [1, 3] as [number, number], phraseGroups: [{ wordIndices: [1], layout: 'single-line' as const, alignment: 'center' as const, durationMs: 1000 }], mood: 'calm' as const },
+      ],
+      speakerEmphasis: [],
+      metadata: { analyzedAt: '2026-03-22T00:00:00Z', model: 'gpt-4o-mini', version: 1 },
+    };
+    const result = validateCaptionAnalysis(analysis, 3);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('covered by multiple sentences'))).toBe(true);
+  });
+
+  it('detects phraseGroup indices outside wordRange', () => {
+    const analysis = {
+      words: [
+        { wordIndex: 0, tier: 'normal' as const, fontRole: 'default' as const, animation: 'fade' as const, entryDelayMs: 0, colorRole: 'primary' as const },
+        { wordIndex: 1, tier: 'normal' as const, fontRole: 'default' as const, animation: 'fade' as const, entryDelayMs: 0, colorRole: 'primary' as const },
+      ],
+      sentences: [
+        { wordRange: [0, 1] as [number, number], phraseGroups: [{ wordIndices: [0, 1], layout: 'single-line' as const, alignment: 'center' as const, durationMs: 1000 }], mood: 'calm' as const },
+      ],
+      speakerEmphasis: [],
+      metadata: { analyzedAt: '2026-03-22T00:00:00Z', model: 'gpt-4o-mini', version: 1 },
+    };
+    const result = validateCaptionAnalysis(analysis, 2);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('outside wordRange'))).toBe(true);
+  });
 });
