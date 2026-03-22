@@ -156,45 +156,19 @@ function resolvePosition(position?: SubtitlePosition | 'top' | 'center' | 'botto
 
 // Calculate position styles for caption rendering
 function calculatePositionStyles(
-  position: SubtitlePosition,
+  position: SubtitlePosition & { mode?: string; x?: number; y?: number; width?: number },
   lineHeight: number
 ): React.CSSProperties {
   const { anchor, offsetX, offsetY, rotation, textAlign } = position;
 
-  // Base position from anchor — matches preview's Composition.tsx exactly
   const baseStyles: React.CSSProperties = {
     position: 'absolute',
-    left: `${50 + offsetX}%`,
-    width: '90%',
-    maxWidth: '90%',
     display: 'flex',
     flexWrap: 'wrap',
     gap: '8px',
     lineHeight,
     textAlign,
   };
-
-  // Build transform
-  const transforms: string[] = ['translateX(-50%)'];
-
-  switch (anchor) {
-    case 'top':
-      baseStyles.top = `${10 + offsetY}%`;
-      break;
-    case 'center':
-      baseStyles.top = `${50 + offsetY}%`;
-      transforms[0] = 'translate(-50%, -50%)';
-      break;
-    case 'bottom':
-      baseStyles.bottom = `${15 - offsetY}%`;
-      break;
-  }
-
-  if (rotation !== 0) {
-    transforms.push(`rotate(${rotation}deg)`);
-  }
-
-  baseStyles.transform = transforms.join(' ');
 
   // Justify content based on text alignment
   switch (textAlign) {
@@ -207,6 +181,45 @@ function calculatePositionStyles(
     default:
       baseStyles.justifyContent = 'center';
       break;
+  }
+
+  if (position.mode === 'free') {
+    // Free mode: x/y are percentages of canvas (center of caption box)
+    const x = position.x ?? 50;
+    const y = position.y ?? 85;
+    const w = position.width ?? 90;
+    baseStyles.left = `${x}%`;
+    baseStyles.top = `${y}%`;
+    baseStyles.width = `${w}%`;
+    const transforms = ['translate(-50%, -50%)'];
+    if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
+    baseStyles.transform = transforms.join(' ');
+  } else {
+    // Anchor mode (legacy)
+    baseStyles.left = `${50 + offsetX}%`;
+    baseStyles.width = '90%';
+    baseStyles.maxWidth = '90%';
+
+    const transforms: string[] = ['translateX(-50%)'];
+
+    switch (anchor) {
+      case 'top':
+        baseStyles.top = `${10 + offsetY}%`;
+        break;
+      case 'center':
+        baseStyles.top = `${50 + offsetY}%`;
+        transforms[0] = 'translate(-50%, -50%)';
+        break;
+      case 'bottom':
+        baseStyles.bottom = `${15 - offsetY}%`;
+        break;
+    }
+
+    if (rotation !== 0) {
+      transforms.push(`rotate(${rotation}deg)`);
+    }
+
+    baseStyles.transform = transforms.join(' ');
   }
 
   return baseStyles;

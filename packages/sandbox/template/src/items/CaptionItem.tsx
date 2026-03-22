@@ -67,33 +67,59 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     };
   };
 
-  const anchor = captionPreset.position?.anchor ?? 'bottom';
-  const offsetX = captionPreset.position?.offsetX ?? 0;
-  const offsetY = captionPreset.position?.offsetY ?? 0;
-  const textAlign = captionPreset.position?.textAlign ?? 'center';
+  const position = captionPreset.position;
+  const posMode = position?.mode;
+  const anchor = position?.anchor ?? 'bottom';
+  const offsetX = position?.offsetX ?? 0;
+  const offsetY = position?.offsetY ?? 0;
+  const textAlign = position?.textAlign ?? 'center';
+  const rotation = position?.rotation ?? 0;
 
   const positionStyles: React.CSSProperties = {
     position: 'absolute',
-    left: 0,
-    right: 0,
     display: 'flex',
-    justifyContent:
-      textAlign === 'left'
-        ? 'flex-start'
-        : textAlign === 'right'
-          ? 'flex-end'
-          : 'center',
-    paddingLeft: Math.max(0, offsetX),
-    paddingRight: Math.max(0, -offsetX),
+    flexWrap: 'wrap',
   };
 
-  if (anchor === 'top') {
-    positionStyles.top = 40 + offsetY;
-  } else if (anchor === 'center') {
-    positionStyles.top = '50%';
-    positionStyles.transform = `translateY(calc(-50% + ${offsetY}px))`;
+  // Justify content based on text alignment
+  positionStyles.justifyContent =
+    textAlign === 'left'
+      ? 'flex-start'
+      : textAlign === 'right'
+        ? 'flex-end'
+        : 'center';
+
+  if (posMode === 'free') {
+    // Free mode: x/y are percentages of canvas (center of caption box)
+    const x = position?.x ?? 50;
+    const y = position?.y ?? 85;
+    const width = position?.width ?? 90;
+    positionStyles.left = `${x}%`;
+    positionStyles.top = `${y}%`;
+    positionStyles.width = `${width}%`;
+    const transforms = ['translate(-50%, -50%)'];
+    if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
+    positionStyles.transform = transforms.join(' ');
   } else {
-    positionStyles.bottom = 40 - offsetY;
+    // Anchor mode (legacy)
+    positionStyles.left = 0;
+    positionStyles.right = 0;
+    positionStyles.paddingLeft = Math.max(0, offsetX);
+    positionStyles.paddingRight = Math.max(0, -offsetX);
+
+    if (anchor === 'top') {
+      positionStyles.top = 40 + offsetY;
+    } else if (anchor === 'center') {
+      positionStyles.top = '50%';
+      const transforms = ['translateY(-50%)'];
+      if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
+      positionStyles.transform = transforms.join(' ');
+    } else {
+      positionStyles.bottom = 40 - offsetY;
+      if (rotation !== 0) {
+        positionStyles.transform = `rotate(${rotation}deg)`;
+      }
+    }
   }
 
   return (
