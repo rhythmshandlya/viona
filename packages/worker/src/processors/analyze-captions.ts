@@ -251,7 +251,7 @@ RULES:
   const userPrompt = `Classify these ${words.length} words:\n\n${wordTable}`;
 
   const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-opus-4-6',
     max_tokens: 4096,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
@@ -339,7 +339,7 @@ Return JSON: { "sentences": [ { wordRange: [start, end], phraseGroups: [...], mo
   const userPrompt = `Compose sentence layout for these ${words.length} words:\n\n${wordTable}`;
 
   const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-opus-4-6',
     max_tokens: 4096,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
@@ -576,7 +576,7 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
           speakerEmphasis,
           metadata: {
             analyzedAt: new Date().toISOString(),
-            model: 'claude-haiku-4-5-20251001',
+            model: 'claude-opus-4-6',
             version: 1,
           },
         };
