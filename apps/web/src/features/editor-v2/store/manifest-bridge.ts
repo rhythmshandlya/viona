@@ -70,6 +70,41 @@ export type StoreManifestOp =
   | { op: 'update_transform'; itemId: string; transform: Record<string, number | string> };
 
 // ============================================
+// Keyframe normalization
+// ============================================
+
+/**
+ * Strip x/y/width/height from scene keyframes when they just set full-canvas
+ * defaults (x:0, y:0, width:'100%', height:'100%'). Agents frequently write
+ * keyframes with ALL transform properties when they only intend to animate opacity,
+ * which overrides the base transform's positioning and causes scenes to render at (0,0).
+ */
+function stripRedundantSceneKeyframePositions(keyframes: Keyframe[], transform: Transform): Keyframe[] {
+  if (!keyframes || keyframes.length === 0) return keyframes;
+
+  const hasCustomPosition = (transform.x !== 0 && transform.x !== '0') ||
+    (transform.y !== 0 && transform.y !== '0') ||
+    (transform.width !== '100%') ||
+    (transform.height !== '100%');
+
+  if (!hasCustomPosition) return keyframes;
+
+  return keyframes.map(kf => {
+    if (!kf.props) return kf;
+    const cleaned = { ...kf.props };
+    for (const prop of ['x', 'y', 'width', 'height', 'rotation'] as const) {
+      const val = cleaned[prop];
+      if (val === undefined) continue;
+      const isFullCanvasDefault = val === 0 || val === '0' || val === '100%';
+      if (isFullCanvasDefault) {
+        delete cleaned[prop];
+      }
+    }
+    return { ...kf, props: cleaned };
+  });
+}
+
+// ============================================
 // Public API
 // ============================================
 
@@ -179,7 +214,16 @@ export function storeToManifest(
 
       // Attach v2 transform — canonical source for all item types
       if (item.transform) base.transform = item.transform;
-      if (item.keyframes && item.keyframes.length > 0) base.keyframes = item.keyframes;
+      if (item.keyframes && item.keyframes.length > 0) {
+        // Strip redundant position overrides from scene keyframes — agents often
+        // write keyframes with x:0,y:0,width:'100%',height:'100%' that override
+        // the base transform's positioning
+        if ((item.type === 'scene' || item.type === 'visual') && item.transform) {
+          base.keyframes = stripRedundantSceneKeyframePositions(item.keyframes, item.transform);
+        } else {
+          base.keyframes = item.keyframes;
+        }
+      }
       if (item.filters) base.filters = item.filters;
 
       return base;
@@ -250,7 +294,12 @@ function convertManifestItemV2(
     base.transform = item.transform as Transform;
   }
   if (item.keyframes && item.keyframes.length > 0) {
-    base.keyframes = item.keyframes as Keyframe[];
+    let kfs = item.keyframes as Keyframe[];
+    // Fix agent-written keyframes that override scene positioning with full-canvas defaults
+    if (item.type === 'scene' && base.transform) {
+      kfs = stripRedundantSceneKeyframePositions(kfs, base.transform);
+    }
+    base.keyframes = kfs;
   }
   if (item.filters) {
     base.filters = item.filters as Filters;
@@ -520,14 +569,20 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
   }
 
   // Position
-  if (style.position && typeof style.position === 'object' && 'anchor' in style.position) {
-    result.position = {
+  if (style.position && typeof style.position === 'object') {
+    const pos: Record<string, unknown> = {
       anchor: style.position.anchor,
       offsetX: style.position.offsetX,
       offsetY: style.position.offsetY,
       textAlign: style.position.textAlign,
       rotation: style.position.rotation,
     };
+    // Free-mode fields (set when user drags caption in preview)
+    if (style.position.mode) pos.mode = style.position.mode;
+    if (style.position.x != null) pos.x = style.position.x;
+    if (style.position.y != null) pos.y = style.position.y;
+    if (style.position.width != null) pos.width = style.position.width;
+    result.position = pos;
   }
 
   // Effects

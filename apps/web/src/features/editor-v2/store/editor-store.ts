@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { api, Project as ApiProject } from '@/lib/api';
 import { loadFont, findFont } from '@/lib/font-registry';
-import { manifestToStore, storeToManifest, StoreManifestOp } from './manifest-bridge';
+import { manifestToStore, storeToManifest } from './manifest-bridge';
 import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
 import {
   EditorStore,
@@ -51,31 +51,6 @@ const cancelDebouncedSave = () => {
   if (saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
-  }
-};
-
-/** Dispatch a manifest operation to the workspace if active, otherwise no-op (legacy save handles it) */
-const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
-  const state = useEditorStore.getState();
-  if (state.workspaceStatus !== 'active' || !state.project) {
-    return;
-  }
-
-  try {
-    await api.applyManifestOp(state.project.id, op as any);
-    // Clear any previous sync error on success
-    if (useEditorStore.getState().manifestSyncError) {
-      useEditorStore.setState({ manifestSyncError: null });
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to sync edit';
-    // "No active workspace" is expected for older projects — demote to no-op
-    if (message.includes('No active workspace')) {
-      useEditorStore.setState({ workspaceStatus: 'inactive' as any });
-      return;
-    }
-    console.error('Failed to apply manifest op:', err);
-    useEditorStore.setState({ manifestSyncError: message });
   }
 };
 
@@ -1166,7 +1141,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      dispatchManifestOp({ op: 'update_video_settings', updates: { ...settings } });
+      syncWorkspaceManifest();
     },
 
     // ========================================
@@ -1197,7 +1172,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       syncWorkspaceManifest();
-      dispatchManifestOp({ op: 'update_caption_preset' as any, updates: { ...updates } });
+      dispatchOps([{ tool: 'updateCaptionPreset', input: { updates } }]);
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {

@@ -93,6 +93,39 @@ function normalizeKeyframes(keyframes: any[]): any[] {
 }
 
 /**
+ * Strip x/y/width/height from scene keyframes when they just set full-canvas
+ * defaults (x:0, y:0, width:'100%', height:'100%'). Agents frequently write
+ * keyframes with ALL transform properties when they only intend to animate opacity,
+ * which overrides the base transform's positioning and causes scenes to render at (0,0).
+ */
+function stripRedundantSceneKeyframePositions(keyframes: any[], transform: any): any[] {
+  if (!keyframes || keyframes.length === 0 || !transform) return keyframes;
+
+  // Only strip if the base transform has a non-default position
+  const hasCustomPosition = (transform.x !== 0 && transform.x !== '0') ||
+    (transform.y !== 0 && transform.y !== '0') ||
+    (transform.width !== '100%' && transform.width !== 1080) ||
+    (transform.height !== '100%' && transform.height !== 1920);
+
+  if (!hasCustomPosition) return keyframes;
+
+  return keyframes.map(kf => {
+    if (!kf.props) return kf;
+    const cleaned = { ...kf.props };
+    // Remove position/size props that are just full-canvas overrides
+    for (const prop of ['x', 'y', 'width', 'height', 'rotation'] as const) {
+      const val = cleaned[prop];
+      if (val === undefined) continue;
+      const isFullCanvasDefault = val === 0 || val === '0' || val === '100%';
+      if (isFullCanvasDefault) {
+        delete cleaned[prop];
+      }
+    }
+    return { ...kf, props: cleaned };
+  });
+}
+
+/**
  * Ensure sceneFile has .tsx extension. Agents write "Scene1" but the
  * scene-registry keys use "Scene1.tsx", so lookups fail without this.
  */
@@ -391,6 +424,12 @@ export const addItemTool = {
         normalizeSceneFile(input.data, input.type);
 
         const manifest = await readManifest();
+        let keyframes = normalizeKeyframes(input.keyframes ?? []);
+        // Strip redundant position overrides from scene keyframes
+        if (input.type === 'scene' && input.transform) {
+          keyframes = stripRedundantSceneKeyframePositions(keyframes, input.transform);
+        }
+
         const item: any = {
           id: input.id ?? randomUUID(),
           type: input.type,
@@ -398,7 +437,7 @@ export const addItemTool = {
           startMs: input.startMs,
           endMs: input.endMs,
           data: input.data,
-          keyframes: normalizeKeyframes(input.keyframes ?? []),
+          keyframes,
         };
         if (input.transform) item.transform = input.transform;
         if (input.filters) item.filters = input.filters;
@@ -471,7 +510,13 @@ export const updateItemTool = {
         if (input.style) item.style = { ...(item.style ?? {}), ...input.style };
 
         // Replace keyframes array (normalize flat → canonical format)
-        if (input.keyframes !== undefined) item.keyframes = normalizeKeyframes(input.keyframes);
+        if (input.keyframes !== undefined) {
+          item.keyframes = normalizeKeyframes(input.keyframes);
+          // Strip redundant position overrides from scene keyframes
+          if (item.type === 'scene' && item.transform) {
+            item.keyframes = stripRedundantSceneKeyframePositions(item.keyframes, item.transform);
+          }
+        }
 
         await writeManifest(manifest);
         // Auto-sync transcript after update (timing changes shift the timeline)
@@ -608,7 +653,7 @@ export const updateCaptionPresetTool = {
     },
     required: ['updates'],
   },
-  async execute(input: { updates: Record<string, unknown> }): Promise<string> {
+  async execute(input: { updates?: Record<string, unknown>; [key: string]: unknown }): Promise<string> {
     return withManifestLock(async () => {
       try {
         const manifest = await readManifest();
@@ -618,8 +663,10 @@ export const updateCaptionPresetTool = {
           delete manifest.captionStyle;
         }
         const existing = manifest.captionPreset ?? {};
+        // Accept { updates: {...} } or treat input itself as updates
+        const updates = input.updates ?? input;
         // Deep-merge nested objects (animation, position, effects)
-        for (const [key, value] of Object.entries(input.updates)) {
+        for (const [key, value] of Object.entries(updates)) {
           if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
             existing[key] = { ...existing[key], ...value };
           } else {
