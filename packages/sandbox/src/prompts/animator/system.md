@@ -69,10 +69,13 @@ Every element enters with PURPOSE and VARIETY:
 ### 2. Continuous Idle Motion (nothing stays frozen)
 
 After an element enters, it must NOT become a static image. Every settled element needs at least ONE:
-- **Float:** `translateY(Math.sin(frame * 0.03) * 3)` — gentle vertical bob
-- **Breathe:** `scale(1 + Math.sin(frame * 0.025) * 0.015)` — subtle pulse
-- **Rotate drift:** `rotate(Math.sin(frame * 0.02) * 1.5)` — barely perceptible tilt
-- **Glow pulse:** oscillating box-shadow opacity or border brightness
+- **Float:** `translateY(Math.sin(frame * 0.03) * 5)` — visible vertical bob (5px minimum)
+- **Breathe:** `scale(1 + Math.sin(frame * 0.025) * 0.025)` — visible pulse (2.5% minimum)
+- **Rotate drift:** `rotate(Math.sin(frame * 0.02) * 2)` — perceptible tilt (2° minimum)
+- **Glow pulse:** `opacity: 0.3 + Math.sin(frame * 0.04) * 0.15` — visible glow range (0.15-0.45)
+
+**Minimum amplitudes (below these = viewer cannot perceive it):**
+- Scale: `* 0.025` | Translate: `* 5` | Rotation: `* 2` | Glow: base `0.3`, amplitude `0.15`
 
 **The background is NEVER static.** Gradient angle shifts, mesh gradient drifts, slow color rotation — always.
 
@@ -123,6 +126,96 @@ Exits are NOT just the reverse of entrances:
 - Use `EASE_SMOOTH` (cubic bezier), NOT spring — exits should feel like a gentle release
 - Faster than entrances: ~12 frames vs ~20 frames
 - Exit 5-10 frames BEFORE the scene cut — clean handoff, no leftover elements
+
+### 7. Techniques for Visual Richness
+
+These are concrete React/SVG/CSS patterns you can apply from scratch in any scene. Use them to create texture, depth, and cinematic feel — not just spring-animated rectangles.
+
+**Texture & grain (SVG filters):**
+```tsx
+// Creates subtle noise texture overlay — add to background layer
+<svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+  <filter id="grain">
+    <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves={4} />
+    <feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.08 0" />
+  </filter>
+  <rect width="100%" height="100%" filter="url(#grain)" />
+</svg>
+```
+
+**Organic shapes (generated clip-path):**
+```tsx
+// Irregular edge — generate polygon points with controlled randomness
+// Uses Remotion's deterministic random(): import { random } from 'remotion';
+const points = Array.from({length: 20}, (_, i) => {
+  const angle = (i / 20) * Math.PI * 2;
+  const r = baseRadius + random(`edge-${i}`) * variance;
+  return `${50 + Math.cos(angle) * r}% ${50 + Math.sin(angle) * r}%`;
+});
+style={{ clipPath: `polygon(${points.join(', ')})` }}
+```
+
+**Depth via multi-layer shadows:**
+```tsx
+// Animated depth — shadow grows as element enters
+const shadowDepth = interpolate(frame, [enter, enter+15], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+boxShadow: `0 ${2*shadowDepth}px ${8*shadowDepth}px rgba(0,0,0,0.15),
+            0 ${8*shadowDepth}px ${32*shadowDepth}px rgba(0,0,0,0.25)`
+```
+
+**Cinematic zoom-to-focus:**
+```tsx
+// Camera push: scale up while fading surroundings
+const zoom = interpolate(frame, [start, end], [1, 2.5], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const surroundFade = interpolate(frame, [start, end-5], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+// Apply zoom to container, surroundFade to non-focal elements
+```
+
+**SVG path drawing:**
+```tsx
+// Animated path that draws itself
+const pathLength = 500; // measure or estimate
+const draw = interpolate(frame, [start, end], [pathLength, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+<path d="..." strokeDasharray={pathLength} strokeDashoffset={draw} />
+// Add glow duplicate underneath:
+<path d="..." strokeDasharray={pathLength} strokeDashoffset={draw}
+      stroke={color} strokeWidth={6} opacity={0.3} filter="url(#blur)" />
+```
+
+**Perspective for 3D feel:**
+```tsx
+// Container with perspective — child rotates in 3D space
+<div style={{ perspective: 1200 }}>
+  <div style={{ transform: `rotateX(${rx}deg) rotateY(${ry}deg)` }}>
+    {content}
+  </div>
+</div>
+```
+
+**Gradient animation:**
+```tsx
+// Animated gradient angle for living surfaces
+const angle = 135 + Math.sin(frame * 0.02) * 15;
+background: `linear-gradient(${angle}deg, color1, color2, color3)`
+```
+
+**Typography hierarchy:**
+```tsx
+// Hero number: tight tracking, heavy weight, multi-layer shadow
+{ fontSize: SCENE_HEIGHT * 0.15, fontWeight: 800, letterSpacing: '-0.03em',
+  textShadow: '0 2px 8px rgba(0,0,0,0.4), 0 0 40px rgba(accent, 0.3)' }
+// Supporting label: wide tracking, lighter weight
+{ fontSize: SCENE_HEIGHT * 0.04, fontWeight: 500, letterSpacing: '0.08em',
+  textTransform: 'uppercase' }
+```
 
 ---
 
