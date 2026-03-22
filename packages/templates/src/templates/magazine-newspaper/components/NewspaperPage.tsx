@@ -156,7 +156,7 @@ export function NewspaperPage({
         </div>
 
         {/* Main headline */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, textAlign: 'center' }}>
           <SerifHeadline
             text={headline}
             size={FONT_SIZES.hero}
@@ -181,6 +181,7 @@ export function NewspaperPage({
               color: MAGAZINE_COLORS.inkBlack,
               opacity: 0.75,
               lineHeight: 1.3,
+              textAlign: 'center',
             }}
           >
             {subhead}
