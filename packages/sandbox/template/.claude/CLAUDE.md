@@ -8,6 +8,7 @@ docs/
   SCENE_PLAN.md                  # Scene plan (written by Planner, read by downstream agents)
   user-brief.md                  # User's creative brief (if provided)
   speaker-grid.json              # Head-tracking data (access via get_speaker_position tool, not directly)
+  shot-boundaries.json           # Camera cut points with transcript context (use get_shot_boundaries tool)
   guidelines/
     editing-style.md             # Editing style guide
     studio-theme.md              # Theme design system tokens

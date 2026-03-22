@@ -94,6 +94,7 @@ Report progress: `{ phase: "planning", message: "Planning scenes..." }`
 
 Pass to Planner:
 - Content type, user's creative brief, canvas dimensions, theme, constraints
+- Shot boundary data (call `get_shot_boundaries` to check for multi-cam footage)
 
 After Planner returns:
 1. Read SCENE_PLAN.md

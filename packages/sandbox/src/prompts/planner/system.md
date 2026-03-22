@@ -207,7 +207,7 @@ The difference between an overlay and a Stacked/Fullscreen scene is the display 
 <excluded_from_plan>
 The following are handled by separate systems and must NOT appear in SCENE_PLAN.md:
 - **Captions/subtitles** — handled by the caption system
-- **Multi-angle cuts** — not part of the scene plan
+- **Multi-angle switching logic** — the Planner does not control which camera angle plays; it uses detected shot boundaries as scene transition hints only
 - **Kinetic typography as standalone technique** — all text must be part of a scene type (step-cards, definition, etc.)
 - **Speaker-only segments** — the entire timeline is covered; there are no speaker-only moments
 </excluded_from_plan>
@@ -219,14 +219,36 @@ The following are handled by separate systems and must NOT appear in SCENE_PLAN.
 4. Read user brief and Phase 1 answers if available in `/workspace/docs/`
 5. Read `analyze_transcript` output if available — content-type hints for each segment
 6. Read the manifest for canvas dimensions and source video dimensions
-7. Perform transcript analysis:
+7. Call `get_shot_boundaries` — check for camera angle changes. If `isMultiCam: true`, use shot boundaries as preferred scene transition points.
+8. Perform transcript analysis:
    - **Content mapping:** identify what the speaker is talking about in each segment and match to scene types
    - **Sync points:** find exact word-level timestamps for scene entry/exit
    - **Visual continuity:** ensure display modes vary, layout patterns alternate, transitions chain correctly
-8. Write `/workspace/docs/SCENE_PLAN.md` using the exact per-scene schema
-9. Run the self-verification checklist
-10. Fix any issues found in verification before submitting
+9. Write `/workspace/docs/SCENE_PLAN.md` using the exact per-scene schema
+10. Run the self-verification checklist
+11. Fix any issues found in verification before submitting
 </task>
+
+## Shot Boundaries (Camera Cuts)
+
+Before planning scenes, call `get_shot_boundaries` to check if the source video
+has camera angle changes.
+
+### If `isMultiCam: true`:
+- **Prefer** aligning scene boundaries with shot boundaries — camera cuts are
+  natural transition points for changing display mode or scene type.
+- **Never** split a single camera shot across two scenes with different display
+  modes (e.g., don't switch from Overlay to Stacked mid-shot).
+- Use `segmentBefore`/`segmentAfter` text to understand topic transitions at
+  each camera switch.
+- Short shots (<3 seconds) between longer shots are likely cutaway/b-roll —
+  consider keeping them within the surrounding scene rather than creating a
+  separate scene for them.
+
+### If `isMultiCam: false` or no shots:
+- Plan as normal using transcript content and timing.
+
+These are guidelines, not hard constraints. Creative direction takes precedence.
 
 ## Template Registry
 
