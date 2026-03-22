@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-timeline",
+  "name": "Magazine Timeline",
+  "description": "Historical events pinned to a vertical red thread with torn paper scraps and parallax depth",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "timeline", "history", "dates", "chronology"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

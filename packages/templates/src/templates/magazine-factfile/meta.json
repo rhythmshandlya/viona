@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-factfile",
+  "name": "Magazine Fact File",
+  "description": "Dossier-style torn paper card with key-value fields revealing line by line, paperclip decoration",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "factfile", "profile", "dossier", "data"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

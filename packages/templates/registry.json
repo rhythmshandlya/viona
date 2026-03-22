@@ -169,6 +169,66 @@
       }
     },
     {
+      "name": "magazine-checklist",
+      "type": "registry:component",
+      "description": "Torn paper strips with animated checkmarks reveal a bullet-point list with parallax depth",
+      "categories": ["overlay"],
+      "tags": ["magazine-theme", "overlay", "checklist", "list", "bullets", "editorial"],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-timeline",
+      "type": "registry:component",
+      "description": "Historical events pinned to a vertical red thread with torn paper scraps and parallax depth",
+      "categories": ["overlay"],
+      "tags": ["magazine-theme", "overlay", "timeline", "history", "dates", "chronology"],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-stats",
+      "type": "registry:component",
+      "description": "Bold statistics on scattered paper scraps with animated count-up numbers and parallax depth",
+      "categories": ["overlay"],
+      "tags": ["magazine-theme", "overlay", "stats", "numbers", "data", "metrics"],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-comparison",
+      "type": "registry:component",
+      "description": "Side-by-side torn paper scraps comparing two subjects with a red center divider and parallax push-pull",
+      "categories": ["overlay"],
+      "tags": ["magazine-theme", "overlay", "comparison", "versus", "side-by-side", "editorial"],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-factfile",
+      "type": "registry:component",
+      "description": "Dossier-style torn paper card with key-value fields revealing line by line, paperclip decoration",
+      "categories": ["overlay"],
+      "tags": ["magazine-theme", "overlay", "factfile", "profile", "dossier", "data"],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "watercolor-map",
       "type": "registry:component",
       "description": "Animated travel route between two locations on a watercolor-style map with markers and a connecting line",

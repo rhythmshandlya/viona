@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-comparison",
+  "name": "Magazine Comparison",
+  "description": "Side-by-side torn paper scraps comparing two subjects with a red center divider and parallax push-pull",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "comparison", "versus", "side-by-side", "editorial"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

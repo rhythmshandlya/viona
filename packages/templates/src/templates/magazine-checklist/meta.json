@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-checklist",
+  "name": "Magazine Checklist",
+  "description": "Torn paper strips with animated checkmarks reveal a bullet-point list with parallax depth",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "checklist", "list", "bullets", "editorial"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

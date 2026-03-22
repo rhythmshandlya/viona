@@ -38,3 +38,8 @@ import './templates/magazine-dossier/register';
 import './templates/magazine-collage/register';
 import './templates/magazine-inkmap/register';
 import './templates/magazine-typewriter/register';
+import './templates/magazine-checklist/register';
+import './templates/magazine-timeline/register';
+import './templates/magazine-stats/register';
+import './templates/magazine-comparison/register';
+import './templates/magazine-factfile/register';

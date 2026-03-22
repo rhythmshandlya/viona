@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-stats",
+  "name": "Magazine Stats",
+  "description": "Bold statistics on scattered paper scraps with animated count-up numbers and parallax depth",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "stats", "numbers", "data", "metrics"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}
