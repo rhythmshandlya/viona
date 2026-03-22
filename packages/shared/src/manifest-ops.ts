@@ -91,6 +91,10 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       const item = m.items.find(i => i.id === op.itemId);
       if (!item) throw new Error(`Item not found: ${op.itemId}`);
       item.data = { ...item.data, ...op.dataUpdates } as any;
+      // If caption item's words changed, invalidate its analysis
+      if (item.type === 'caption' && op.dataUpdates?.words && m.captionAnalysis?.[op.itemId]) {
+        delete m.captionAnalysis[op.itemId];
+      }
       break;
     }
 
