@@ -9,6 +9,8 @@ export type { SubtitleWord, SubtitleStyle } from './components/AnimatedSubtitle'
 export { VideoComposition } from './components/VideoComposition';
 export { AnimatedSubtitle } from './components/AnimatedSubtitle';
 export { DynamicSubtitles } from './components/DynamicSubtitles';
+export { CinematicSubtitle } from './components/CinematicSubtitle';
+export type { CinematicSubtitleProps } from './components/CinematicSubtitle';
 
 // Animation engine
 export * from './animations';

@@ -227,6 +227,9 @@ export async function generatePlayerComposition(projectId: string): Promise<void
   const manifestPath = getManifestPath(projectId);
   let captionFontFamily = 'Inter';
   let textFontFamilies: string[] = [];
+  let useCinematicRenderer = false;
+  let cinematicFonts: { boldSans: string; elegantCursive: string; default: string } | undefined;
+  let captionAnalysisJson = '{}';
   try {
     const manifestJson = await readFile(manifestPath, 'utf-8');
     const manifest = JSON.parse(manifestJson);
@@ -234,10 +237,23 @@ export async function generatePlayerComposition(projectId: string): Promise<void
     textFontFamilies = (manifest.items || [])
       .filter((i: any) => i.type === 'text' && i.data?.fontFamily)
       .map((i: any) => i.data.fontFamily as string);
+
+    // Cinematic renderer detection
+    useCinematicRenderer = !!manifest.captionPreset?.useCinematicRenderer;
+    cinematicFonts = manifest.captionPreset?.cinematicFonts;
+    if (manifest.captionAnalysis && Object.keys(manifest.captionAnalysis).length > 0) {
+      captionAnalysisJson = JSON.stringify(manifest.captionAnalysis);
+    }
   } catch {
     // Manifest may not exist yet during initial codegen — default to Inter
   }
-  const allFonts = [...new Set([captionFontFamily, ...textFontFamilies].filter(Boolean))];
+
+  // Collect all fonts including cinematic font families
+  const cinematicFontFamilies: string[] = [];
+  if (useCinematicRenderer && cinematicFonts) {
+    cinematicFontFamilies.push(cinematicFonts.boldSans, cinematicFonts.elegantCursive, cinematicFonts.default);
+  }
+  const allFonts = [...new Set([captionFontFamily, ...textFontFamilies, ...cinematicFontFamilies].filter(Boolean))];
 
   const fontImportLines = allFonts
     .filter(f => f !== 'Inter')
@@ -261,11 +277,17 @@ export async function generatePlayerComposition(projectId: string): Promise<void
     ? `import { ProjectComposition } from './${compositionId}/Composition';`
     : '';
 
+  // CinematicSubtitle import (when cinematic renderer is enabled)
+  const cinematicImport = useCinematicRenderer
+    ? `import { CinematicSubtitle } from '@viona/renderer';`
+    : '';
+
   const code = `import React from 'react';
 import { useCurrentFrame, useVideoConfig, AbsoluteFill, Sequence, Audio, Video, Img, staticFile } from 'remotion';
 import { TransformWrapper } from './TransformWrapper';
 ${sceneImports}
 ${aiCompositionImport}
+${cinematicImport}
 ${fontImport}
 // Scene registry — maps sceneFile paths to React components
 const SCENE_MAP: Record<string, React.FC<any>> = {
@@ -273,6 +295,8 @@ ${sceneMapEntries}
 };
 
 const HAS_AI_COMPOSITION = ${hasCompositionTsx};
+const USE_CINEMATIC_RENDERER = ${useCinematicRenderer};
+const CAPTION_ANALYSIS: Record<string, any> = ${captionAnalysisJson};
 
 // ---- Error boundary for AI compositions ----
 
@@ -299,15 +323,42 @@ const CaptionRenderer: React.FC<{ item: any }> = ({ item }) => {
   const words: Array<{ text: string; startMs: number; endMs: number }> = d.words || [];
 
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width: canvasWidth, height: canvasHeight } = useVideoConfig();
   const currentMs = (frame / fps) * 1000;
 
   if (words.length === 0) return null;
 
+  const cs = (item as any).__captionStyle || {};
+${useCinematicRenderer ? `
+  // Check if cinematic renderer should be used for this caption item
+  const analysis = USE_CINEMATIC_RENDERER && CAPTION_ANALYSIS[item.id];
+  if (analysis) {
+    return (
+      <CinematicSubtitle
+        words={words}
+        analysis={analysis}
+        startMs={item.startMs || 0}
+        endMs={item.endMs || 0}
+        style={{
+          fontFamily: cs.fontFamily || 'Inter',
+          fontSize: cs.fontSize || 56,
+          animation: cs.animation || { in: 'fade-rise', active: 'none', out: 'none', easing: 'spring' },
+          position: cs.position || { anchor: 'bottom', offsetX: 0, offsetY: 0, textAlign: 'center' },
+          useCinematicRenderer: true,
+          cinematicFonts: cs.cinematicFonts,
+          cinematicColors: cs.cinematicColors,
+          cinematicScales: cs.cinematicScales,
+        }}
+        canvasWidth={canvasWidth}
+        canvasHeight={canvasHeight}
+      />
+    );
+  }
+` : ''}
+  // Fallback: standard caption rendering
   const activeWords = words.filter(w => currentMs >= w.startMs && currentMs < w.endMs);
   if (activeWords.length === 0) return null;
 
-  const cs = (item as any).__captionStyle || {};
   const fontSize = cs.fontSize || 56;
   const fontFamily = cs.fontFamily || 'Inter, system-ui, sans-serif';
   const fontWeight = cs.fontWeight || 800;
