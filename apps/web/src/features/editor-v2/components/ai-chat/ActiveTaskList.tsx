@@ -71,9 +71,11 @@ export const ActiveTaskList = memo(function ActiveTaskList({ tasks, busy, isVisi
   if (!isVisible || !busy) return null;
 
   // If busy but no tasks, show fallback
-  const activeTasks = tasks.length > 0 ? tasks : [
-    { id: 'fallback', agent: 'Viona', action: 'Working...', startedAt: fallbackStartRef.current, status: 'active' as const },
-  ];
+  // Deduplicate by ID — backend can produce duplicates on session resume
+  const dedupedTasks = tasks.length > 0
+    ? [...new Map(tasks.map(t => [t.id, t])).values()]
+    : [{ id: 'fallback', agent: 'Viona', action: 'Working...', startedAt: fallbackStartRef.current, status: 'active' as const }];
+  const activeTasks = dedupedTasks;
 
   return (
     <div className="rounded-xl border border-[var(--chat-bubble-assistant-border)] bg-[var(--chat-bubble-assistant-bg)] backdrop-blur-xl overflow-hidden">

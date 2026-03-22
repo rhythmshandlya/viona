@@ -649,7 +649,7 @@ export function Editor({ projectId }: EditorProps) {
         <AnimatePresence mode="wait">
           {leftSidebarOpen && leftSidebarTab !== 'agent' && (
             <motion.div
-              key={`sidebar-${leftSidebarTab}`}
+              key="sidebar-panels"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 488, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
