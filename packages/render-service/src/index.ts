@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { Worker, Job } from 'bullmq';
 import { Client as MinioClient } from 'minio';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { mkdir, rm, writeFile, copyFile } from 'fs/promises';
-import { readFileSync, existsSync, createWriteStream } from 'fs';
+import { mkdir, rm, writeFile, copyFile, readdir, stat as fsStat } from 'fs/promises';
+import { existsSync, createWriteStream } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { execFile } from 'child_process';
@@ -32,8 +32,35 @@ const minioConfig = {
 };
 const BUCKET = process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona';
 
-const CHROMIUM_PATH = '/usr/bin/chromium';
-const browserExecutable = existsSync(CHROMIUM_PATH) ? CHROMIUM_PATH : null;
+/**
+ * Find a browser with full codec support (H.264 for <Video> playback).
+ * chrome-headless-shell does NOT support video decoding — must use full Chrome.
+ */
+function findBrowserExecutable(): string | null {
+  if (process.platform === 'win32') {
+    const candidates = [
+      join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    ];
+    for (const p of candidates) {
+      if (p && existsSync(p)) return p;
+    }
+  } else {
+    const candidates = [
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+    ];
+    for (const p of candidates) {
+      if (existsSync(p)) return p;
+    }
+  }
+  return null;
+}
+
+const browserExecutable = findBrowserExecutable();
 
 const CONCURRENCY = parseInt(process.env.RENDER_CONCURRENCY || '2', 10);
 const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '4', 10);
@@ -160,14 +187,54 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
     const manifestLink = join(bundlePublicDir, 'manifest.json');
     await rm(manifestLink, { force: true }).catch(() => {});
 
-    if (project.video_key) {
+    // Download source video
+    const mediaKey = project.video_key || project.audio_key;
+    if (mediaKey) {
       const videoPath = join(workDir, 'source.mp4');
-      await downloadFromMinio(`uploads/${project.video_key}`, videoPath);
-      await copyFile(videoPath, join(bundlePublicDir, 'source.mp4'));
+      const minioBucketKey = `uploads/${mediaKey}`;
+      logger.info({ minioBucketKey, videoPath }, 'Downloading source media from MinIO');
+      await downloadFromMinio(minioBucketKey, videoPath);
+
+      const { size } = await fsStat(videoPath);
+      logger.info({ videoPath, sizeBytes: size }, 'Source media downloaded');
+
+      const destPath = join(bundlePublicDir, 'source.mp4');
+      await copyFile(videoPath, destPath);
+      logger.info({ destPath }, 'Source media placed in bundle public/');
+
+      // Extract audio track for AudioItem components (if not already in bundle)
+      const audioPath = join(bundlePublicDir, 'audio.aac');
+      if (!existsSync(audioPath)) {
+        try {
+          await execFileAsync('ffmpeg', [
+            '-i', videoPath,
+            '-vn', '-acodec', 'aac', '-b:a', '128k',
+            '-y', audioPath,
+          ], { timeout: 120_000 });
+          logger.info({ audioPath }, 'Audio track extracted via ffmpeg');
+        } catch (err: any) {
+          logger.warn({ err: err.message }, 'ffmpeg audio extraction failed — audio items may not render');
+        }
+      } else {
+        logger.info('audio.aac already present in bundle');
+      }
+    } else {
+      logger.warn({ projectId }, 'No video_key or audio_key — skipping media download');
     }
 
     // Write manifest as a real file
     await writeFile(manifestLink, JSON.stringify(manifest));
+
+    // Log bundle public/ contents for debugging
+    try {
+      const publicFiles = await readdir(bundlePublicDir);
+      const fileSizes: Record<string, number> = {};
+      for (const f of publicFiles) {
+        const s = await fsStat(join(bundlePublicDir, f)).catch(() => null);
+        if (s) fileSizes[f] = s.size;
+      }
+      logger.info({ publicFiles: fileSizes }, 'Bundle public/ directory contents');
+    } catch { /* non-critical */ }
 
     // 3. Render with Remotion
     await publishProgress(jobId, 25, 'Rendering video...');
@@ -183,6 +250,7 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
       id: 'MainComposition',
       browserExecutable,
       inputProps,
+      timeoutInMilliseconds: 60_000,
     });
 
     // Override with manifest values (calculateMetadata may fail on staticFile)
@@ -205,6 +273,7 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
       x264Preset: 'faster',
       browserExecutable,
       inputProps,
+      timeoutInMilliseconds: 120_000,
       onProgress: ({ progress }) => {
         const pct = 25 + Math.round(progress * 65);
         publishProgress(jobId, pct, `Rendering: ${Math.round(progress * 100)}%`);
@@ -260,4 +329,4 @@ worker.on('failed', (job, err) => {
   logger.error({ jobId: job?.data.jobId, err: err.message }, 'Job failed');
 });
 
-logger.info({ concurrency: CONCURRENCY, remotionConcurrency: REMOTION_CONCURRENCY }, 'Render service started');
+logger.info({ concurrency: CONCURRENCY, remotionConcurrency: REMOTION_CONCURRENCY, browserExecutable: browserExecutable || 'remotion-managed' }, 'Render service started');
