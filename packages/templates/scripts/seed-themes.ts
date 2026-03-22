@@ -1,3 +1,9 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from the API package (has DATABASE_URL)
+config({ path: resolve(import.meta.dirname, '../../api/.env') });
+
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import pg from 'pg';
