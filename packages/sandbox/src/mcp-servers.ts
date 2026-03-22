@@ -6,6 +6,7 @@ import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { analyzeTranscriptTool } from './tools/transcript-analysis.js';
 import { validateTimelineTool } from './tools/timeline-validation.js';
+import { validateAnimationQualityTool } from './tools/animation-quality.js';
 import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
 import { allTemplateTools } from './tools/template-tools.js';
@@ -178,7 +179,7 @@ export function createMcpServers(
 
   const analysisServer = createSdkMcpServer({
     name: 'analysis',
-    tools: [wrapTool(analyzeTranscriptTool), wrapTool(validateTimelineTool)],
+    tools: [wrapTool(analyzeTranscriptTool), wrapTool(validateTimelineTool), wrapTool(validateAnimationQualityTool)],
   });
 
   const templatesServer = createSdkMcpServer({
