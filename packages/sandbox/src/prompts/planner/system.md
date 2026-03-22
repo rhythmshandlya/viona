@@ -120,11 +120,31 @@ For Overlay: choose from the overlay size presets below.
 - To: [next state — the display mode of the next scene, or "Speaker" if this is the last scene]
 - Transition: [exact name from the 15-transition table above]
 
-### Animation brief
-- Description: [detailed visual description for the Animator — what elements appear, how they animate, timing, spatial arrangement]
-- Key data: [exact items/numbers/terms extracted from the transcript]
-- Must show: [what MUST appear on screen — verbatim from the transcript]
+### Visual concept
+[1-2 sentences: the creative idea — a metaphor, visual relationship, or motion concept. NOT a layout description.]
+
+### Key data
+[exact items/numbers/terms extracted from the transcript]
+
+### Must show
+[verbatim text/numbers that must appear on screen]
+
+### Animation timeline
+| Phase | Frames | What happens |
+|-------|--------|-------------|
+| Entrance | 0–F1 | [what enters, how, from where] |
+| Build | F1–F2 | [what develops, transforms, reveals] |
+| Develop | F2–F3 | [how the visual evolves mid-scene] |
+| Payoff | F3–F4 | [emphasis, reveal, climax] |
+| Exit | F4–end | [how it departs] |
 ```
+
+### Animation Timeline Rules
+1. Every scene MUST have 3-5 phases covering the full frame range
+2. **Build** and **Develop** phases are MANDATORY — they fill the middle 60-70% that's currently dead
+3. No phase may span more than 40% of the scene duration without at least 2 distinct visual events inside it
+4. Elements must CHANGE during the scene (morph shape, shift color, rearrange position, reveal new content) — not just enter and sit
+5. At least one element must do something other than enter/idle/exit — it must transform, react, or evolve mid-scene
 
 ### Overlay Placement Presets (for 1080×1920 canvas)
 
@@ -143,6 +163,23 @@ These define the overlay scene's position and size. Use the preset name in the P
 
 For Stacked and Fullscreen: placement is always `top-half` or `full-canvas` (determined by display mode). Only use presets for Overlay scenes.
 </per_scene_schema>
+
+<creative_ambition>
+## Visual Concept Guidance
+
+**Visual concept** is NOT a layout description. It's the creative idea. Ask yourself: "If I described this scene to a motion designer, what would make them excited to build it?" A comparison doesn't have to be two columns. It could be a scale/balance that tips, a thermometer that splits into two paths, elements that transform from one state to another. Think in metaphors and motion, not in grids.
+
+### AVOID these generic concepts:
+- "Two-column layout with X on left and Y on right" — that's a layout, not a concept
+- "Three connected nodes with arrows" — that's a flowchart diagram, think of something more visual
+- "Progress ring that fills to N%" — only use if the content is literally about a single percentage
+- "Glass card with text inside" — that's a container, not a concept
+
+### Instead, think about:
+- What RELATIONSHIP between ideas does this scene show? (contrast, growth, collapse, transformation, sequence)
+- What MOTION tells that story? (something rising vs falling, expanding vs contracting, connecting vs separating)
+- What makes the viewer WATCH for the full duration? (progressive reveal, building tension, visual surprise)
+</creative_ambition>
 
 <plan_structure>
 SCENE_PLAN.md must contain these sections in order:
@@ -182,6 +219,10 @@ All boxes must be checked before submitting:
 - [ ] **No more than 30% of scenes use `step-cards`** — if 4+ scenes exist, at most 1 can be step-cards. Prefer flowchart, custom, data-viz, timeline, or hierarchy for structured content.
 - [ ] **At least 3 different scene types** are used across the plan (prevents visual monotony)
 - [ ] **No two adjacent scenes share the same scene type** — vary the visual approach between consecutive scenes
+- [ ] Every scene has an **Animation timeline** table with 3-5 phases
+- [ ] Every scene has a **Build** and **Develop** phase (not just Entrance + Exit)
+- [ ] No single phase spans more than 40% of the scene's total frame count
+- [ ] Every **Visual concept** describes a creative idea, not a layout ("two-column", "three cards")
 </plan_structure>
 
 <overlay_rules>
