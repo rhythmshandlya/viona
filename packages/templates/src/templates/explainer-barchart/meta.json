@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-barchart",
+  "name": "Explainer Bar Chart",
+  "description": "Horizontal bar chart with animated cyan fill bars and amber value labels",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "explainer", "chart", "bar", "data", "data-viz"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}
