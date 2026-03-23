@@ -376,6 +376,31 @@ export interface CaptionStyle {
 
   // Preset reference
   presetId?: string;
+
+  // Dual typography — display font for power/strong, body font for medium/filler
+  typographyPairingId?: string;
+  displayFontFamily?: string;
+  bodyFontFamily?: string;
+
+  // Cinematic renderer
+  useCinematicRenderer?: boolean;
+  cinematicFonts?: {
+    boldSans: string;
+    elegantCursive: string;
+    default: string;
+  };
+  cinematicColors?: {
+    primary: string;
+    accent: string;
+    accentGradient?: string;
+    glow: string;
+  };
+  cinematicScales?: {
+    hero: number;
+    accent: number;
+    normal: number;
+    whisper: number;
+  };
 }
 
 export interface TextItemData {

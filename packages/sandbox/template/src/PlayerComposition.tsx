@@ -1,8 +1,41 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
 import { TransformWrapper } from './composition/TransformWrapper';
 import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle } from './items';
 import { sceneRegistry } from './scene-registry';
+
+/** Load Google Fonts via <link> tags for preset fonts */
+function usePresetFonts(captionPreset: any) {
+  useEffect(() => {
+    const families = new Set<string>();
+
+    // Cinematic fonts
+    if (captionPreset?.cinematicFonts) {
+      const fonts = captionPreset.cinematicFonts;
+      [fonts.boldSans, fonts.elegantCursive, fonts.default].filter(Boolean).forEach(f => families.add(f));
+    }
+
+    // Dynamic hierarchy dual fonts
+    if (captionPreset?.displayFontFamily) families.add(captionPreset.displayFontFamily);
+    if (captionPreset?.bodyFontFamily) families.add(captionPreset.bodyFontFamily);
+
+    // Base font
+    if (captionPreset?.fontFamily) {
+      const primary = captionPreset.fontFamily.split(',')[0].trim();
+      if (primary) families.add(primary);
+    }
+
+    for (const family of families) {
+      const id = `preset-font-${family.replace(/\s+/g, '-')}`;
+      if (document.getElementById(id)) continue;
+      const link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@300;400;500;600;700;800;900&display=swap`;
+      document.head.appendChild(link);
+    }
+  }, [captionPreset?.cinematicFonts, captionPreset?.fontFamily, captionPreset?.displayFontFamily, captionPreset?.bodyFontFamily]);
+}
 
 interface ManifestItem {
   id: string;
@@ -51,6 +84,9 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
   const captionPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
   const captionAnalysis = (manifest as any).captionAnalysis ?? manifest.videoSettings?.captionAnalysis ?? {};
   const sortedTracks = [...manifest.tracks].sort((a, b) => a.position - b.position);
+
+  // Load cinematic Google Fonts when preset uses them
+  usePresetFonts(captionPreset);
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>

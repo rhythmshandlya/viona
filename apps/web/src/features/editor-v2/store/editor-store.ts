@@ -87,6 +87,13 @@ const syncWorkspaceManifest = () => {
     captionPreset,
   );
 
+  // Preserve captionAnalysis from project videoSettings so the PlayerComposition
+  // can access it for cinematic rendering (it reads manifest.captionAnalysis).
+  const vs = state.project.videoSettings as unknown as Record<string, unknown> | undefined;
+  if (vs?.captionAnalysis) {
+    (manifest as Record<string, unknown>).captionAnalysis = vs.captionAnalysis;
+  }
+
   useEditorStore.setState({ workspaceManifest: manifest });
 };
 
@@ -748,7 +755,13 @@ export const useEditorStore = create<EditorStore>()(
           fps: bridgeResult.fps,
           sourceWidth: apiProject.width,
           sourceHeight: apiProject.height,
-          videoSettings: bridgeResult.videoSettings,
+          videoSettings: {
+            ...bridgeResult.videoSettings,
+            // Preserve captionAnalysis from the API project (stored in DB, not in sandbox manifest)
+            ...((apiProject as any).videoSettings?.captionAnalysis ? {
+              captionAnalysis: (apiProject as any).videoSettings.captionAnalysis,
+            } : {}),
+          },
         };
 
         set((state) => {
@@ -770,7 +783,14 @@ export const useEditorStore = create<EditorStore>()(
           state.workspaceBundleUrl = bundleBaseUrl;
           state.workspaceBundleVersion = 1;
           state.workspaceBundleError = null;
-          state.workspaceManifest = manifest as Record<string, unknown>;
+          // Merge captionAnalysis from API project into the sandbox manifest
+          // (analysis is stored in DB videoSettings, not in the sandbox manifest.json)
+          const wsManifest = manifest as Record<string, unknown>;
+          const apiVs = (apiProject as any).videoSettings;
+          if (apiVs?.captionAnalysis) {
+            wsManifest.captionAnalysis = apiVs.captionAnalysis;
+          }
+          state.workspaceManifest = wsManifest;
           state.workspaceLockHolder = null;
           state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
           state.history = [];

@@ -5,16 +5,37 @@ export interface SandboxOp {
   input: Record<string, unknown>;
 }
 
+// Debounce timer for updateCaptionPreset ops (rapid style changes flood the API)
+let captionPresetTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingCaptionPresetOp: { projectId: string; input: Record<string, unknown> } | null = null;
+
+function flushCaptionPresetOp() {
+  if (!pendingCaptionPresetOp) return;
+  const { projectId, input } = pendingCaptionPresetOp;
+  pendingCaptionPresetOp = null;
+  api.sandboxOps(projectId, 'updateCaptionPreset', input).catch((err) => {
+    console.error('Sandbox dispatch error: updateCaptionPreset', err);
+  });
+}
+
 /**
  * Dispatch one or more granular manifest operations to the sandbox.
  * Fire-and-forget — errors are logged but not thrown.
- * For batch ops, sends sequentially (sandbox mutex handles serialization).
+ * updateCaptionPreset ops are debounced (300ms) to avoid flooding on rapid style changes.
  */
 export async function dispatchToSandbox(
   projectId: string,
   ops: SandboxOp[],
 ): Promise<void> {
   for (const op of ops) {
+    // Debounce caption preset updates
+    if (op.tool === 'updateCaptionPreset') {
+      pendingCaptionPresetOp = { projectId, input: op.input };
+      if (captionPresetTimer) clearTimeout(captionPresetTimer);
+      captionPresetTimer = setTimeout(flushCaptionPresetOp, 300);
+      continue;
+    }
+
     try {
       const result = await api.sandboxOps(projectId, op.tool, op.input);
       if (!result.ok) {

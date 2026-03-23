@@ -558,6 +558,11 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
   if (style.backgroundRadius != null) result.backgroundRadius = style.backgroundRadius;
   if (style.presetId) result.presetId = style.presetId;
 
+  // Dual typography
+  if (style.typographyPairingId) result.typographyPairingId = style.typographyPairingId;
+  if (style.displayFontFamily) result.displayFontFamily = style.displayFontFamily;
+  if (style.bodyFontFamily) result.bodyFontFamily = style.bodyFontFamily;
+
   // Animation
   if (style.animation && typeof style.animation === 'object') {
     result.animation = {
@@ -592,6 +597,14 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
       shadowSecondary: style.effects.shadowSecondary,
       glow: style.effects.glow,
     };
+  }
+
+  // Cinematic renderer
+  if (style.useCinematicRenderer) {
+    result.useCinematicRenderer = true;
+    if (style.cinematicFonts) result.cinematicFonts = style.cinematicFonts;
+    if (style.cinematicColors) result.cinematicColors = style.cinematicColors;
+    if (style.cinematicScales) result.cinematicScales = style.cinematicScales;
   }
 
   return result;
@@ -642,6 +655,17 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
         }
       : DEFAULT_CAPTION_STYLE.position,
     presetId: mcs.presetId ?? undefined,
+    // Dual typography
+    typographyPairingId: (mcs as any).typographyPairingId ?? undefined,
+    displayFontFamily: (mcs as any).displayFontFamily ?? undefined,
+    bodyFontFamily: (mcs as any).bodyFontFamily ?? undefined,
+    // Cinematic renderer
+    ...(mcs.useCinematicRenderer ? {
+      useCinematicRenderer: true as const,
+      cinematicFonts: mcs.cinematicFonts as CaptionStyle['cinematicFonts'],
+      cinematicColors: mcs.cinematicColors as CaptionStyle['cinematicColors'],
+      cinematicScales: mcs.cinematicScales as CaptionStyle['cinematicScales'],
+    } : {}),
   };
 }
 

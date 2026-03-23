@@ -209,9 +209,9 @@ TIERS (controls font size multiplier):
 - normal: Regular words. Most words are this tier.
 - whisper: Filler words (a, an, the, of, in, is, are, was, were, it, to, for, and, but, so, or). Small, subdued.
 
-FONT ROLES:
-- bold-sans: Hero and accent words. Strong, uppercase punch.
-- elegant-cursive: Emotional, poetic, dramatic reveal moments (use sparingly on 1-2 hero words).
+FONT ROLES (IMPORTANT — must use a MIX of all three for luxury aesthetic):
+- bold-sans: Most hero words and some accent words. Strong, uppercase punch.
+- elegant-cursive: At least 1 hero word per caption MUST use elegant-cursive. Also use for emotional/dramatic accent words (feelings, names, abstract concepts like "power", "love", "dream", "secret"). Target: ~15-20% of non-whisper words.
 - default: Normal and whisper words. Clean and readable.
 
 ANIMATIONS (must be one of):
@@ -542,10 +542,11 @@ export async function processAnalyzeCaptions(data: AnalyzeCaptionsJobData): Prom
           '[analyze-captions] Item analyzed successfully',
         );
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
         if (attempt < 2) {
-          logger.warn({ projectId, itemId: item.id, attempt, err }, '[analyze-captions] LLM failure — retrying once');
+          logger.warn({ projectId, itemId: item.id, attempt, errMsg }, '[analyze-captions] LLM failure — retrying once');
         } else {
-          logger.error({ projectId, itemId: item.id, err }, '[analyze-captions] LLM failure on retry — skipping item');
+          logger.error({ projectId, itemId: item.id, errMsg }, '[analyze-captions] LLM failure on retry — skipping item');
         }
       }
     }

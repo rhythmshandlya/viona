@@ -28,6 +28,12 @@ import {
   generateCaptionColors,
   type ColorPalette,
 } from '@/lib/color-utils';
+import {
+  TYPOGRAPHY_PAIRINGS,
+  TYPOGRAPHY_PAIRING_ORDER,
+  getPairing,
+  type TypographyPairingId,
+} from '@viona/shared/typography-pairings';
 
 // ============================================
 // Mode abbreviation helper
@@ -125,6 +131,8 @@ export function StylePanel() {
       animation: preset.animation,
       displayMode: preset.supportedModes[0], // Default mode for the preset
       wordsPerPhrase: preset.wordsPerPhrase ?? 5,
+      // Dual typography pairing
+      typographyPairingId: preset.typographyPairingId ?? undefined,
       // Cinematic renderer fields
       ...(preset.useCinematicRenderer ? {
         useCinematicRenderer: true,
@@ -307,6 +315,71 @@ export function StylePanel() {
         </div>
 
         <Divider />
+
+        {/* ===== 2.5 Typography Pairing (Dynamic Hierarchy) ===== */}
+        {style.typographyPairingId && (
+          <>
+            <div className="px-4 py-3 space-y-3">
+              <Section label="Typography Pairing">
+                <select
+                  value={style.typographyPairingId || 'montserrat-inter'}
+                  onChange={(e) => {
+                    const pairing = getPairing(e.target.value);
+                    const displayEntry = findFont(pairing.displayFont.family);
+                    const bodyEntry = findFont(pairing.bodyFont.family);
+                    if (displayEntry) loadFont(displayEntry);
+                    if (bodyEntry) loadFont(bodyEntry);
+                    customizeStyle({
+                      typographyPairingId: e.target.value,
+                      displayFontFamily: pairing.displayFont.family,
+                      bodyFontFamily: pairing.bodyFont.family,
+                      fontFamily: `${pairing.displayFont.family}, system-ui, sans-serif`,
+                    });
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-md
+                             bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)]
+                             border border-[var(--editor-border-subtle)]
+                             focus:outline-none focus:border-[var(--editor-accent)]
+                             cursor-pointer appearance-none"
+                >
+                  {TYPOGRAPHY_PAIRING_ORDER.map((id) => {
+                    const p = TYPOGRAPHY_PAIRINGS[id];
+                    return (
+                      <option key={id} value={id}>
+                        {p.name} — {p.vibe}
+                      </option>
+                    );
+                  })}
+                </select>
+              </Section>
+
+              {/* Display Font (Power + Strong words) */}
+              <Section label="Display Font (emphasis)">
+                <FontFamilyDropdown
+                  value={style.displayFontFamily || getPairing(style.typographyPairingId || 'montserrat-inter').displayFont.family}
+                  onChange={(family) => {
+                    const entry = findFont(family.split(',')[0].trim());
+                    if (entry) loadFont(entry);
+                    customizeStyle({ displayFontFamily: family.split(',')[0].trim() });
+                  }}
+                />
+              </Section>
+
+              {/* Body Font (Medium + Filler words) */}
+              <Section label="Body Font (normal)">
+                <FontFamilyDropdown
+                  value={style.bodyFontFamily || getPairing(style.typographyPairingId || 'montserrat-inter').bodyFont.family}
+                  onChange={(family) => {
+                    const entry = findFont(family.split(',')[0].trim());
+                    if (entry) loadFont(entry);
+                    customizeStyle({ bodyFontFamily: family.split(',')[0].trim() });
+                  }}
+                />
+              </Section>
+            </div>
+            <Divider />
+          </>
+        )}
 
         {/* ===== 3. Typography Controls ===== */}
         <div className="px-4 py-3 space-y-5">

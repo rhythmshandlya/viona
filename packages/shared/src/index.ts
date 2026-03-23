@@ -1,6 +1,7 @@
 export * from './types';
 export * from './storage';
 export * from './dynamic-hierarchy';
+export * from './typography-pairings';
 export * from './progress-types';
 export * from './manifest-shared';
 export * from './manifest';

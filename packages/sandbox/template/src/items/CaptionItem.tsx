@@ -35,15 +35,86 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     return null;
   }
 
-  const activeWords = data.words.filter(
-    (word) => currentTimeMs >= word.startMs && currentTimeMs <= word.endMs,
-  );
+  const captionPreset = captionStyle;
+  const displayMode = captionPreset.displayMode || 'word-by-word';
+  const wordsPerPhrase = captionPreset.wordsPerPhrase || 5;
 
-  if (activeWords.length === 0) {
+  // Phrase windowing: show a group of words, not just the single active word
+  let visibleWords: CaptionWord[];
+  if (displayMode === 'phrase' || displayMode === 'karaoke') {
+    // Find the last word whose startMs we've reached
+    let lastAppearedIdx = -1;
+    for (let i = data.words.length - 1; i >= 0; i--) {
+      if (currentTimeMs >= data.words[i].startMs) {
+        lastAppearedIdx = i;
+        break;
+      }
+    }
+    if (lastAppearedIdx < 0) return null;
+
+    const groupIdx = Math.floor(lastAppearedIdx / wordsPerPhrase);
+    const groupStart = groupIdx * wordsPerPhrase;
+    const groupEnd = Math.min(groupStart + wordsPerPhrase, data.words.length);
+    visibleWords = data.words.slice(groupStart, groupEnd);
+  } else {
+    // Word-by-word: only show active words
+    visibleWords = data.words.filter(
+      (word) => currentTimeMs >= word.startMs && currentTimeMs <= word.endMs,
+    );
+  }
+
+  if (visibleWords.length === 0) {
     return null;
   }
 
-  const captionPreset = captionStyle;
+  // Word tier classification for dynamic hierarchy
+  const POWER_WORDS = new Set([
+    'love','hate','fear','die','dead','death','kill','destroy','dream',
+    'obsessed','insane','crazy','incredible','amazing','unbelievable',
+    'shocking','terrifying','brilliant','genius','perfect','worst',
+    'best','greatest','legendary','epic','massive','huge','evil',
+    'now','stop','wait','listen','watch','look','never','always',
+    'forever','immediately','urgent','warning','danger','critical',
+    'important','breaking','exclusive','secret','finally','today',
+    'million','billion','thousand','money','rich','free','paid',
+    'but','however','actually','wrong','right','truth','lie','real',
+    'fake','only','everything','nothing','impossible','possible',
+    'everyone','nobody','first','last','biggest','smallest',
+    'win','won','lose','lost','fight','broke','crushed','dominated',
+    'exploded','changed','saved','failed','success','discovered',
+  ]);
+  const FILLER_WORDS = new Set([
+    'the','a','an','is','are','was','were','be','been','being',
+    'to','of','in','for','on','at','by','with','from','as',
+    'and','or','if','it','its','that','this','than','then',
+    'so','up','do','did','has','had','have','will','would',
+    'could','should','can','may','might','shall','just','very',
+    'also','about','into','not','no','yes','some','my','your',
+    'we','they','he','she','i','me','us','them','our','their',
+  ]);
+  const STRONG_WORDS = new Set([
+    'really','literally','seriously','basically','honestly',
+    'completely','extremely','definitely','absolutely','truly',
+    'believe','remember','imagine','understand','realize',
+    'create','become','happen','achieve','overcome',
+    'different','specific','better','worse','special',
+    'people','problem','reason','question','answer','story','world',
+  ]);
+
+  type WordTier = 'power' | 'strong' | 'medium' | 'filler';
+  const classifyWord = (text: string): WordTier => {
+    const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+    if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+    if (POWER_WORDS.has(clean)) return 'power';
+    if (FILLER_WORDS.has(clean)) return 'filler';
+    if (STRONG_WORDS.has(clean)) return 'strong';
+    if (clean.length >= 7) return 'strong';
+    return 'medium';
+  };
+
+  const isDynamicHierarchy = !!captionPreset.typographyPairingId;
+  const displayFontFamily = captionPreset.displayFontFamily || (captionPreset.fontFamily?.split(',')[0]?.trim()) || 'Montserrat';
+  const bodyFontFamily = captionPreset.bodyFontFamily || 'Inter';
 
   // Resolve role for a word (role field, or fallback to classification)
   const getWordRole = (word: CaptionWord): string | undefined => {
@@ -52,6 +123,26 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
 
   // Resolve style for a word based on its role
   const resolveWordStyle = (word: CaptionWord) => {
+    // Dynamic hierarchy: 2 sizes — emphasis (big, bold, italic) vs normal (smaller)
+    if (isDynamicHierarchy) {
+      const tier = classifyWord(word.text);
+      const isEmphasis = tier === 'power' || tier === 'strong';
+      const baseFontSize = captionPreset.fontSize ?? 60;
+      return {
+        fontFamily: isEmphasis ? displayFontFamily : bodyFontFamily,
+        fontSize: isEmphasis ? baseFontSize * 2.5 : baseFontSize,
+        fontWeight: isEmphasis ? 900 : 400,
+        color: captionPreset.color ?? '#ffffff',
+        letterSpacing: isEmphasis ? -1 : 0,
+        textTransform: 'none' as const,
+        lineHeight: 0.95,
+        scale: undefined,
+        emphasisBg: undefined,
+        fontStyle: isEmphasis ? 'italic' : 'normal',
+      };
+    }
+
+    // Standard role-based resolution
     const role = getWordRole(word);
     const roleStyle = role ? captionPreset.wordEmphasis?.roles?.[role] : undefined;
     return {
@@ -122,10 +213,56 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     }
   }
 
+  // Dynamic hierarchy: override position for full-width multi-line flow
+  if (isDynamicHierarchy) {
+    const dhStyles: React.CSSProperties = {
+      position: 'absolute',
+      left: '5%',
+      right: '5%',
+      bottom: '12%',
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'baseline',
+      justifyContent: 'center',
+      gap: '4px 8px',
+      textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.4)',
+    };
+
+    return (
+      <div style={dhStyles} data-caption-overlay>
+        {visibleWords.map((word, i) => {
+          const ws = resolveWordStyle(word);
+          const hasAppeared = currentTimeMs >= word.startMs;
+          return (
+            <span
+              key={i}
+              style={{
+                fontFamily: ws.fontFamily,
+                fontSize: ws.fontSize,
+                fontWeight: ws.fontWeight,
+                fontStyle: (ws as any).fontStyle || 'normal',
+                color: ws.color,
+                opacity: hasAppeared ? 1 : 0.35,
+                letterSpacing: ws.letterSpacing,
+                lineHeight: ws.lineHeight,
+                display: 'inline',
+                transition: 'opacity 0.2s ease',
+              }}
+            >
+              {word.text}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div style={positionStyles} data-caption-overlay>
-      {activeWords.map((word, i) => {
+      {visibleWords.map((word, i) => {
         const ws = resolveWordStyle(word);
+        const isActive = currentTimeMs >= word.startMs && currentTimeMs <= word.endMs;
+        const hasAppeared = currentTimeMs >= word.startMs;
         return (
           <span
             key={i}
@@ -133,20 +270,22 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
               fontFamily: ws.fontFamily,
               fontSize: ws.fontSize,
               fontWeight: ws.fontWeight,
-              color: ws.color,
+              color: isActive ? ws.color : (hasAppeared ? ws.color : (captionPreset.color ?? '#ffffff')),
+              opacity: hasAppeared ? 1 : 0.4,
               letterSpacing: ws.letterSpacing,
               textTransform: ws.textTransform as any,
               lineHeight: ws.lineHeight,
               transform: ws.scale && ws.scale !== 1 ? `scale(${ws.scale})` : undefined,
               display: 'inline-block',
-              backgroundColor: ws.emphasisBg ?? (captionPreset.activeBackgroundColor ?? 'transparent'),
+              backgroundColor: ws.emphasisBg ?? (isActive ? (captionPreset.activeBackgroundColor ?? 'transparent') : 'transparent'),
               padding: captionPreset.backgroundPadding
                 ? `${captionPreset.backgroundPadding.y}px ${captionPreset.backgroundPadding.x}px`
                 : undefined,
               borderRadius: captionPreset.backgroundRadius,
+              transition: 'opacity 0.15s ease',
             }}
           >
-            {word.text}{i < activeWords.length - 1 ? ' ' : ''}
+            {word.text}{i < visibleWords.length - 1 ? ' ' : ''}
           </span>
         );
       })}

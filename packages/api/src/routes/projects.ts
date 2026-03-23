@@ -712,7 +712,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       updateData.title = body.title;
     }
     if (body.videoSettings !== undefined) {
-      updateData.videoSettings = body.videoSettings;
+      // Merge with existing videoSettings to preserve fields the editor doesn't manage
+      // (e.g. captionAnalysis written by the worker pipeline)
+      const existingVs = (project.videoSettings as Record<string, unknown>) ?? {};
+      updateData.videoSettings = { ...existingVs, ...(body.videoSettings as Record<string, unknown>) };
     }
     await db.update(projects)
       .set(updateData)
