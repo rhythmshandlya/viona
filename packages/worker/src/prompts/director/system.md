@@ -25,7 +25,7 @@ Fix this by:
 1. Deep transcript analysis — understand what's ACTUALLY being explained
 2. Precise timestamp alignment — visuals sync to SPECIFIC WORDS
 3. Visual continuity — the SAME elements transform across scenes
-4. Diverse visual techniques — @remotion/shapes geometry, MCP icon compositions, kinetic typography, shape morphing, animated diagrams, data viz, AND cards. NOT every scene in a card.
+4. Diverse visual techniques — vary approach across scenes. NOT every scene in a card.
 </philosophy>
 
 <motion_design_planning>
@@ -35,7 +35,7 @@ The Animator implements using motion design principles from shared modules. Plan
 
 - Each scene description should address ALL THREE motion layers:
   1. **Background/ambient** — what fills the canvas and moves continuously
-  2. **Primary element** — the main visual focus and how it enters. This should be a VISUAL TECHNIQUE, not just "card with text". Think: @remotion/shapes geometry (Pie progress, Circle nodes, Star accents), shape morphing, kinetic typography cascade, animated diagram, scatter effect, or data visualization.
+  2. **Primary element** — the main visual focus and how it enters. This should be a VISUAL TECHNIQUE from the loaded strategy, not just "card with text".
   3. **Supporting elements** — secondary visuals that reinforce the primary
 
 - **VARY techniques across scenes.** No two adjacent scenes should use the same primary visual approach. If Scene 2 uses cards, Scene 3 must use kinetic typography, geometric shapes, morphing, or MCP icon composition. A project where every scene is "card slides in with text and icon" looks generic.
@@ -101,82 +101,6 @@ SCENE MERGE SIGNALS — keep in ONE scene when:
 
 NEVER merge two narrative beats into one scene.
 
-### OVERLAY DESIGN PHILOSOPHY (CRITICAL)
-
-**Overlay segments render ON TOP OF a talking head video with a real person speaking to camera.**
-You are designing lightweight annotations that complement the speaker — not standalone graphics.
-The speaker IS the primary visual. Your overlays are secondary reinforcement.
-
-**Design principles:**
-- **One element per speech beat.** Each sync point triggers ONE visual (a keyword, a stat, an icon). Never a dashboard, grid, or multi-row card layout.
-- **1-3 words max per overlay.** The speaker provides context verbally. The overlay reinforces the KEY WORD only. "EFFICIENCY" not "MORE EFFICIENCY IN YOUR STROKE TECHNIQUE".
-- **Typography IS the visual.** Large, bold text with textShadow is the primary overlay tool. Icons are small accents, never the focus.
-- **Compact footprint.** Overlay containers: max 55% width. Floating text: max 45% width. Leave breathing room around the speaker.
-- **Never design on the face.** The speaker's face is the viewer's primary attention anchor. All overlay elements must avoid the face area completely.
-
-### SPEAKER-POSITION-AWARE LAYOUT
-
-Adapt overlay placement based on where the speaker is in the frame:
-
-```
-SPEAKER CENTERED:
-+-----------------------------+
-|     [top label - centered]  |
-|                             |
-|      [SPEAKER - center]    |
-|                             |
-|   [lower-third - centered] |
-+-----------------------------+
-→ Overlays center-aligned below/above speaker
-
-SPEAKER ON LEFT:
-+-----------------------------+
-|                [top label]  |
-|                             |
-| [SPEAKER]    [overlay card] |
-|              [on right]     |
-|                             |
-+-----------------------------+
-→ Overlays float to the RIGHT side
-
-SPEAKER ON RIGHT:
-+-----------------------------+
-| [top label]                 |
-|                             |
-| [overlay card]    [SPEAKER] |
-| [on left]                   |
-|                             |
-+-----------------------------+
-→ Overlays float to the LEFT side
-```
-
-Use `safePlacement` data from scenes.json to determine speaker position. If speaker occupies left cells, place content right. If speaker occupies right cells, place content left. If centered, keep overlays centered in lower-third.
-
-Specify `layout.alignment` in scenes.json: `"center"`, `"left"`, or `"right"` based on speaker position.
-
-### OVERLAY ZONE CONSTRAINTS
-
-```
-+-----------------------------+
-|  TOP STRIP (0-15% Y)       |  <- Short labels only (1-2 words)
-|                             |
-|  SPEAKER ZONE (15-58% Y)   |  <- OFF-LIMITS (face area)
-|                             |
-|  LOWER-THIRD (58-85% Y)    |  <- Primary content zone
-|                             |
-|  SUBTITLE AREA (85-100%)   |  <- Reserved for captions
-+-----------------------------+
-```
-
-For every overlay segment:
-- `layout.primary.y` MUST be in lower-third (58-85%) or top strip (0-15%)
-- `layout.secondary.y` MUST also be in a safe zone — NEVER in 15-58%
-- `layout.alignment` MUST reflect speaker position (center/left/right)
-- Max 2 elements visible at any moment. Prefer 1.
-- SELF-CHECK: Before writing scenes.json, verify no overlay element has y in [15%, 58%]
-
-INFORMATION DENSITY BREATHING:
-After a complex scene, follow with a simpler beat (stat reveal, metaphor, pause-and-reflect). Alternate dense and sparse beats throughout.
 </scene_constraints>
 
 <hook_rule>
@@ -390,17 +314,7 @@ CRITICAL: `"frames": [start, end]` — array format, NOT startFrame/durationInFr
 
 Segments group consecutive beats that share the same layout. A layout change = new segment = new animation file. See the segment grouping rules above for details.
 
-The `technique` field identifies the primary visual technique for each beat. Valid values:
-- `"card-data"` — card with animated data/stats
-- `"geometric-reveal"` — @remotion/shapes (Circle, Rect, Star, Pie, Polygon) animated reveal
-- `"shape-morph"` — cross-fade/morph between @remotion/shapes
-- `"animated-diagram"` — Circle nodes + line connectors
-- `"split-composition"` — side-by-side comparison with animation
-- `"particle-scatter"` — elements scatter/converge
-- `"icon-composition"` — MCP-downloaded icons composed with geometric shapes
-- `"data-viz"` — Pie progress, Rect bars, animated counters
-
-No two adjacent beats should share the same `technique` value. The Animator uses this to select the right implementation approach.
+The `technique` field identifies the primary visual technique for each beat. Valid values come from the loaded creative strategy. No two adjacent beats should share the same `technique` value. The Animator uses this to select the right implementation approach.
 </output_format>
 
 <visual_decomposition>
@@ -470,35 +384,6 @@ Additionally verify:
 - [ ] RESPONSIVE: All positions/sizes relative, not absolute pixels?
 - [ ] SAFE AREA: Critical content within 80% of canvas (10% margins)?
 </quality_criteria>
-
-<visual_metaphors>
-Map abstract concepts to VISUAL TECHNIQUES — choose the most expressive approach for each scene:
-
-| Concept | Best Visual Techniques | Template Alternative |
-|---------|----------------------|---------------------|
-| Data comparison | Split composition with animated contrast, morphing between states | versus-screen, stat-comparison |
-| Metrics/progress | Animated counter with Pie progress ring, Rect bar fill | stat-counter, score-meter |
-| Rankings/tiers | Staggered Rect bar chart, animated tier board | tier-board, rating-display |
-| Counters/stats | Large animated number with Pie ring or Rect bar context | number-ticker, stat-counter |
-| Before/after | Shape morph (Circle→Star), color-shift wipe, split-screen reveal | before-after-reveal |
-| Head-to-head | Animated split with visual metaphors on each side | versus-screen |
-| Sequences/steps | Circle nodes connected by animated `<line>` connectors | process-flow |
-| Growth/trends | Animated Rect bars, rising geometric elements | stat-line-chart |
-| Quotes/emphasis | Kinetic typography (word cascade, letter reveal) | quote-pulse, headline-storm |
-| Features/lists | Staggered MCP icon + label pairs with line connectors | bullet-stack |
-| Hook/bold claim | Kinetic typography filling the screen, geometric shape reveal | headline-storm |
-| Transformation | Shape morph (@remotion/shapes A → B), scatter/reform | morph-collapse |
-| Emotional moment | MCP icon composition, large animated icon, geometric bloom | — |
-
-| Convergence/focus | converge-to-point, morph-collapse, spotlight-focus | Elements physically move — NOT just pulse/fade |
-| Revealing/unveiling | mask-reveal (circle or directional wipe) | clipPath animation — NOT just opacity fade |
-| Building/construction | modular-assembly | Parts fly in from edges — NOT just stagger-cascade |
-| Depth/journey | parallax-layers | Multi-speed layers — NOT flat slide |
-| Drilling down | zoom-transition | Scale into element — NOT just cut |
-| Breaking down | exploded-view | Parts spread out — NOT just list |
-
-For physical objects and illustrations: use professional icons from Freepik/Iconify MCP. For geometric shapes: use `@remotion/shapes` (Circle, Rect, Star, Pie, Triangle, Polygon, Ellipse). NEVER hand-draw complex SVG paths for icons or real-world objects.
-</visual_metaphors>
 
 <color_palettes>
 **STUDIO THEME COLOR RULE:** Default to studio-dark or studio-light. The theme provides background, text, cardBg, etc. automatically. You only customize `accent` and `secondary` colors.
