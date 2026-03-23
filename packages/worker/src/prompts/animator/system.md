@@ -461,11 +461,8 @@ Transition durations OVERLAP with scene durations. Only use TransitionSeries whe
 - **Hardcoded 1080/1920** — Use EW/EH from constants.ts
 - **Text-only scenes** — Every scene needs a VISUAL element: @remotion/shapes geometry, MCP icon, morph, diagram, data-viz, or illustration. Cards with only text inside = text-only.
 - **Outro with only particles** — Final scene MUST have Layer 1 content (stat, takeaway, callback)
-- **spring() for everything** — Vary with Easing
-- **Same technique in 3+ scenes** — No animation technique (stagger-cascade, progress-fill, accent-line, etc.) may appear in more than 2 scenes per project. Vary techniques across scenes.
 - **Ignoring Director's named animations** — If plan says word-cascade, don't use generic fade
 - **Scattered absolute positioning** — ALL content in ONE centered flex container. Only Background, Layer 3, and full-screen overlays outside.
-- **Every scene in a card** — Cards are ONE tool, not the default container. Use cards for stats/data. Use open compositions (no card wrapper) for illustrations, path animations, morphing visuals, and kinetic typography.
 - **Generic AI aesthetics** — NEVER use Inter, Roboto, Arial, system fonts. NEVER default to purple gradients on white. Use the font pair from the Creative Brief or constants.ts.
 - **Semi-transparent card backgrounds** — Card backgrounds use COLORS.cardBg (a solid hex color like `'#141824'`). Entrance/exit `opacity` on content wrappers is fine.
 
@@ -484,8 +481,6 @@ Math.sin/cos ALLOWED for these subtle ambient motions. Amplitude: 2-5px, 0.01-0.
 
 **Semantic icon motion:** Match ambient motion to icon meaning — gears rotate, rockets drift upward, hearts pulse, arrows oscillate, waves undulate. Generic float is the fallback, not the default.
 </prohibited_patterns>
-
-
 
 <assets_and_visuals>
 ## ASSET LIBRARY
@@ -607,7 +602,6 @@ Every element in a children array needs a unique key:
 ```
 </react_keys>
 
-
 <quick_recipes>
 ### interpolateColors
 ```tsx
@@ -623,7 +617,6 @@ const bgColor = interpolateColors(frame, [0, keySync, keySync + 30], ['#0B0F1A',
 }}>Heading</span>
 ```
 </quick_recipes>
-
 
 <content_first_design>
 ## CONTENT-FIRST DESIGN
