@@ -10,9 +10,13 @@ The current theme system has two tiers: a prompt-level tier (themes.json + desig
 
 This spec replaces the studio prompt-tier files with blackboard and magazine equivalents, updates the registry, renames studio-specific pipeline functions to generic names, and wires genre selection from the theme's `genre` field.
 
+**Template availability:** The sandbox pipeline (production) uses MCP tools (`browse_templates` + `fork_template`) for agents to discover and download template source code at runtime. These tools query the API with theme filters and download from MinIO/S3. No build-time template resolution is needed — the tools are already theme-agnostic.
+
+**Worker pipeline deprecation:** The worker's visual generation pipeline (`agents/visual_generator/`) is deprecated — the sandbox is the production creative environment. Worker-side animation code (`_resolve_studio_templates`, `_run_animator_phase`, etc.) that references studio themes will be deleted rather than renamed.
+
 ## Tech Stack
 
-- Python (theme_loader.py, animator.py, pipeline files)
+- Python (theme_loader.py, animator.py, director.py — prompt builders only)
 - TypeScript (theme-loader.ts, ThemePicker.tsx, prompt-loader.ts)
 - Markdown (design-system.md prompt files)
 - JSON (themes.json registry)
@@ -129,23 +133,29 @@ export const THEME = {
 
 ## 3. Function Renames & Studio Reference Cleanup
 
-All studio-specific names become generic:
+### 3a. Prompt-tier renames (keep, rename)
 
 | Location | Current | New |
 |----------|---------|-----|
 | `prompts/animator/animator.py` | `get_studio_section()` | `get_theme_section()` |
 | `prompts/animator/__init__.py` | `get_studio_section` export | `get_theme_section` |
 | `prompts/__init__.py` | `get_studio_section` export | `get_theme_section` |
-| `agents/visual_generator/_animator.py` | `_resolve_studio_templates()` | `_resolve_templates()` |
-| `agents/visual_generator/_animator.py` | `studio_section` local var | `theme_section` |
-| `agents/visual_generator/_scene_verification.py` | `studio_section` param | `theme_section` |
-| `agents/visual_generator/_visual_verification.py` | `studio_section` local var | `theme_section` |
-| `agents/visual_generator/_pipeline.py` | `_resolve_studio_templates()` call | `_resolve_templates()` |
-| `agents/claude_visual_generator.py` | `_resolve_studio_templates()` call | `_resolve_templates()` |
 
-Function bodies stay the same — they already delegate to `get_design_system(preset)` and `get_theme(preset)`. Only names change.
+Function body stays the same — already delegates to `get_design_system(preset)`.
 
-### 3a. `get_style_description()` in `director/director.py`
+### 3b. Worker pipeline cleanup (delete dead code)
+
+The worker's visual generation pipeline is deprecated (sandbox is production). Delete studio-specific animation code rather than renaming:
+
+- `agents/visual_generator/_animator.py`: delete `_resolve_studio_templates()` method entirely (calls missing `resolve-templates-cli.ts` — silently fails)
+- `agents/visual_generator/_animator.py`: remove `studio_section` local var and all references to resolved templates markdown
+- `agents/visual_generator/_pipeline.py`: remove `_resolve_studio_templates()` call
+- `agents/claude_visual_generator.py`: remove `_resolve_studio_templates()` call
+- `agents/visual_generator/_scene_verification.py`: remove `studio_section` param (rename remaining theme references to `theme_section`)
+- `agents/visual_generator/_visual_verification.py`: remove `studio_section` local var (rename remaining to `theme_section`)
+- `agents/visual_generator/_validators.py`: delete `_validate_dotgrid()` (studio-specific, not applicable to new themes)
+
+### 3c. `get_style_description()` in `director/director.py`
 
 This function reads `theme["variant"]` (which no longer exists) and uses old color keys `accentDefault`/`secondaryDefault`. Update to use the new schema:
 
@@ -165,7 +175,7 @@ def get_style_description(style_preset: str) -> str:
     )
 ```
 
-### 3b. `build_animator_user_message()` in `animator/animator.py`
+### 3d. `build_animator_user_message()` in `animator/animator.py`
 
 This function contains hardcoded studio references:
 - `default="studio-dark"` → `default="blackboard"`
@@ -176,12 +186,12 @@ This function contains hardcoded studio references:
 - `BACKGROUNDS.{variant}` reference → remove (each theme's design-system.md defines its own background)
 - All `accentDefault`/`secondaryDefault` color key references → `accent`/`secondary`
 
-### 3c. `build_scene_task_prompt()` in `animator/animator.py`
+### 3e. `build_scene_task_prompt()` in `animator/animator.py`
 
 - `default="studio-dark"` → `default="blackboard"`
 - `"## STUDIO TEMPLATES"` → `"## TEMPLATES"`
 
-### 3d. Director prompt file `director/system.md`
+### 3f. Director prompt file `director/system.md`
 
 Hardcoded studio references that must be updated:
 - `"theme": "studio-dark"` in JSON example → `"theme": "blackboard"`
@@ -189,13 +199,6 @@ Hardcoded studio references that must be updated:
 - `"STUDIO THEME COLOR RULE"` section → rename to `"THEME COLOR RULE"` and update example colors
 - `"Default to studio-dark or studio-light"` → `"Default to blackboard or magazine"`
 - `"suggestedTemplates (studio preset only)"` → `"suggestedTemplates"` (templates work for all themes now)
-
-### 3e. `_validate_dotgrid()` in `_validators.py`
-
-Defined in `agents/visual_generator/_validators.py` (called from `_scene_verification.py`). Validates DotGrid usage which is studio-specific. Update to be theme-aware:
-- If blackboard: validate `BoardTexture` usage (radial gradient background)
-- If magazine: validate `PaperTexture` usage (white background with grain)
-- Rename to `_validate_background()` for clarity
 
 ## 4. theme_loader.py Changes
 
@@ -293,3 +296,5 @@ Update `prompts/README.md` to replace all studio references (mermaid diagrams, t
 - New themes beyond blackboard/magazine
 - Template code changes (templates already work, only prompt-tier integration changes)
 - Workspace CLAUDE.md updates (already cleaned in prior prompt architecture work)
+- MCP template tools (`browse_templates`, `fork_template`) — already theme-agnostic, no changes needed
+- Full worker animation pipeline removal (separate deprecation effort — this spec only cleans studio references)
