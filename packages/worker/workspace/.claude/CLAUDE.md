@@ -43,8 +43,6 @@ import { Background } from './components/Background';
 - NEVER use damping < 18 (too bouncy). SNAPPY (22) is the floor for hero reveals.
 - NEVER use R3F's `useFrame()` hook - breaks video rendering
 - For 3D: use `<ThreeCanvas>` from @remotion/three, NOT R3F `<Canvas>`
-- Vary visual techniques across scenes — don't put every scene in a card. Use path drawing, animated diagrams, morphing, particles as alternatives.
-- Non-card templates available: `path-draw-reveal`, `animated-diagram`, `shape-morph-transition`
 
 ## MANDATORY: Use Skills Before Writing Code
 
