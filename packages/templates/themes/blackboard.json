@@ -1,0 +1,18 @@
+{
+  "slug": "blackboard",
+  "name": "Blackboard Glow",
+  "description": "Dark explainer theme with warm amber glow accents, cool cyan highlights, and neon bloom animations",
+  "colorPalette": {
+    "primary": "#f59e0b",
+    "secondary": "#06b6d4",
+    "accent": "#f59e0b",
+    "background": "#0a0a14",
+    "text": "#f1f5f9"
+  },
+  "fontRecommendations": {
+    "heading": "Space Grotesk",
+    "body": "Inter",
+    "accent": "Fira Code"
+  },
+  "styleGuidance": "Dark educational — near-black board, warm amber glow accents, cool cyan data highlights. Motion should feel like neon signs turning on: glow appears first, then content fills in. Typography is clean and geometric. Generous dark space, minimal texture. Data-forward with glowing number reveals."
+}
