@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-process",
+  "name": "Explainer Step Flow",
+  "description": "Step-by-step process flow with glowing connecting lines and numbered nodes",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "explainer", "process", "steps", "tutorial", "how-to"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}
