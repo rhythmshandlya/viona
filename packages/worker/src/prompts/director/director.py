@@ -6,7 +6,7 @@ scene-by-scene animation plans that sync precisely with narration.
 """
 
 
-from prompts._loader import load_prompt, load_shared_modules
+from prompts._loader import load_prompt, load_shared_modules, build_agent_prompt
 
 _SEGMENT_GROUPING = load_prompt('director/segment-grouping')
 DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/system') + "\n\n" + _SEGMENT_GROUPING
@@ -14,21 +14,29 @@ DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/
 
 import math
 
-from prompts.theme_loader import get_director_style, get_theme
+from prompts.theme_loader import get_theme
+
+
+def get_director_prompt(genre: str) -> str:
+    """Build the Director system prompt for a given genre."""
+    base = build_agent_prompt("director", genre)
+    return f"{base}\n\n{_SEGMENT_GROUPING}"
 
 
 def get_style_description(style_preset: str) -> str:
-    """Get the style description for the given preset from theme manifest."""
-    if not get_theme(style_preset):
-        return get_director_style("studio-dark")
-    return get_director_style(style_preset)
-
-
-# Backward compat — some code may still reference this dict
-STYLE_PRESET_DESCRIPTIONS = {
-    "studio-dark": get_style_description("studio-dark"),
-    "studio-light": get_style_description("studio-light"),
-}
+    """Get style description — returns minimal color/font summary from theme."""
+    theme = get_theme(style_preset)
+    if not theme:
+        return ""
+    colors = theme.get("colors", {})
+    variant = theme.get("variant", "dark")
+    return (
+        f"Theme: {variant} mode. "
+        f"Background: {colors.get('background', '#0B0F1A')}, "
+        f"text: {colors.get('text', '#FFFFFF')}, "
+        f"accent: {colors.get('accentDefault', '#6366F1')}, "
+        f"secondary: {colors.get('secondaryDefault', '#EC4899')}."
+    )
 
 
 def get_aspect_ratio_name(width: int, height: int) -> str:

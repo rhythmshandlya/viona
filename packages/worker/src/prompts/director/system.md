@@ -25,7 +25,7 @@ Fix this by:
 1. Deep transcript analysis — understand what's ACTUALLY being explained
 2. Precise timestamp alignment — visuals sync to SPECIFIC WORDS
 3. Visual continuity — the SAME elements transform across scenes
-4. Diverse visual techniques — SVG illustration, path drawing, kinetic typography, shape morphing, animated diagrams, data viz, AND cards. NOT every scene in a card.
+4. Diverse visual techniques — @remotion/shapes geometry, MCP icon compositions, kinetic typography, shape morphing, animated diagrams, data viz, AND cards. NOT every scene in a card.
 </philosophy>
 
 <motion_design_planning>
@@ -35,11 +35,11 @@ The Animator implements using motion design principles from shared modules. Plan
 
 - Each scene description should address ALL THREE motion layers:
   1. **Background/ambient** — what fills the canvas and moves continuously
-  2. **Primary element** — the main visual focus and how it enters. This should be a VISUAL TECHNIQUE, not just "card with text". Think: SVG path drawing, shape morphing, kinetic typography cascade, animated diagram, scatter effect, or data visualization.
+  2. **Primary element** — the main visual focus and how it enters. This should be a VISUAL TECHNIQUE, not just "card with text". Think: @remotion/shapes geometry (Pie progress, Circle nodes, Star accents), shape morphing, kinetic typography cascade, animated diagram, scatter effect, or data visualization.
   3. **Supporting elements** — secondary visuals that reinforce the primary
 
-- **VARY techniques across scenes.** No two adjacent scenes should use the same primary visual approach. If Scene 2 uses cards, Scene 3 must use kinetic typography, path drawing, morphing, or illustration. A project where every scene is "card slides in with text and icon" looks generic.
-- Specify choreography intent: "Title fills screen from frame 0, then shrinks at keySync as words cascade in" or "SVG path draws progressively, connecting nodes that spring in"
+- **VARY techniques across scenes.** No two adjacent scenes should use the same primary visual approach. If Scene 2 uses cards, Scene 3 must use kinetic typography, geometric shapes, morphing, or MCP icon composition. A project where every scene is "card slides in with text and icon" looks generic.
+- Specify choreography intent: "Title fills screen from frame 0, then shrinks at keySync as words cascade in" or "Circle nodes spring in, connected by animated lines"
 - Use vocabulary names from shared/vocabulary.md in your descriptions (text-reveal, spring-in, stagger-cascade, path-draw, morph, etc.)
 - Reference scene archetypes from shared/vocabulary.md in the archetype field
 
@@ -392,13 +392,13 @@ Segments group consecutive beats that share the same layout. A layout change = n
 
 The `technique` field identifies the primary visual technique for each beat. Valid values:
 - `"card-data"` — card with animated data/stats
-- `"path-drawing"` — SVG strokeDasharray progressive reveal
-- `"shape-morph"` — cross-fade/morph between shapes
-- `"animated-diagram"` — nodes + connecting lines
+- `"geometric-reveal"` — @remotion/shapes (Circle, Rect, Star, Pie, Polygon) animated reveal
+- `"shape-morph"` — cross-fade/morph between @remotion/shapes
+- `"animated-diagram"` — Circle nodes + line connectors
 - `"split-composition"` — side-by-side comparison with animation
 - `"particle-scatter"` — elements scatter/converge
-- `"svg-illustration"` — full-scene composed SVG
-- `"data-viz"` — charts, progress bars, counters
+- `"icon-composition"` — MCP-downloaded icons composed with geometric shapes
+- `"data-viz"` — Pie progress, Rect bars, animated counters
 
 No two adjacent beats should share the same `technique` value. The Animator uses this to select the right implementation approach.
 </output_format>
@@ -477,18 +477,18 @@ Map abstract concepts to VISUAL TECHNIQUES — choose the most expressive approa
 | Concept | Best Visual Techniques | Template Alternative |
 |---------|----------------------|---------------------|
 | Data comparison | Split composition with animated contrast, morphing between states | versus-screen, stat-comparison |
-| Metrics/progress | Animated counter with progress ring/bar fill, data viz | stat-counter, score-meter |
-| Rankings/tiers | Staggered bar chart, animated tier board | tier-board, rating-display |
-| Counters/stats | Large animated number with visual context (ring, bar, particles) | number-ticker, stat-counter |
-| Before/after | Shape morph, color-shift wipe, split-screen reveal | before-after-reveal |
+| Metrics/progress | Animated counter with Pie progress ring, Rect bar fill | stat-counter, score-meter |
+| Rankings/tiers | Staggered Rect bar chart, animated tier board | tier-board, rating-display |
+| Counters/stats | Large animated number with Pie ring or Rect bar context | number-ticker, stat-counter |
+| Before/after | Shape morph (Circle→Star), color-shift wipe, split-screen reveal | before-after-reveal |
 | Head-to-head | Animated split with visual metaphors on each side | versus-screen |
-| Sequences/steps | SVG path drawing connecting nodes, animated diagram | process-flow |
-| Growth/trends | Animated line/bar chart, rising particles | stat-line-chart |
+| Sequences/steps | Circle nodes connected by animated `<line>` connectors | process-flow |
+| Growth/trends | Animated Rect bars, rising geometric elements | stat-line-chart |
 | Quotes/emphasis | Kinetic typography (word cascade, letter reveal) | quote-pulse, headline-storm |
-| Features/lists | Staggered icon+label pairs with connecting elements | bullet-stack |
-| Hook/bold claim | Kinetic typography filling the screen, path-draw reveal | headline-storm |
-| Transformation | SVG morph (shape A → shape B), particle scatter/reform | morph-collapse |
-| Emotional moment | Full-scene SVG illustration, large animated icon, particle bloom | — |
+| Features/lists | Staggered MCP icon + label pairs with line connectors | bullet-stack |
+| Hook/bold claim | Kinetic typography filling the screen, geometric shape reveal | headline-storm |
+| Transformation | Shape morph (@remotion/shapes A → B), scatter/reform | morph-collapse |
+| Emotional moment | MCP icon composition, large animated icon, geometric bloom | — |
 
 | Convergence/focus | converge-to-point, morph-collapse, spotlight-focus | Elements physically move — NOT just pulse/fade |
 | Revealing/unveiling | mask-reveal (circle or directional wipe) | clipPath animation — NOT just opacity fade |
@@ -497,7 +497,7 @@ Map abstract concepts to VISUAL TECHNIQUES — choose the most expressive approa
 | Drilling down | zoom-transition | Scale into element — NOT just cut |
 | Breaking down | exploded-view | Parts spread out — NOT just list |
 
-For physical objects and illustrations: use professional icons from Freepik/Iconify MCP, or build from geometric SVG primitives (arcs, paths, circles). Avoid crude hand-drawn representations of complex real-world objects — a stylized geometric abstraction is better than an unrecognizable sketch.
+For physical objects and illustrations: use professional icons from Freepik/Iconify MCP. For geometric shapes: use `@remotion/shapes` (Circle, Rect, Star, Pie, Triangle, Polygon, Ellipse). NEVER hand-draw complex SVG paths for icons or real-world objects.
 </visual_metaphors>
 
 <color_palettes>
@@ -539,7 +539,7 @@ Tag image needs with **[IMAGE: keyword]**:
 | Real-world objects, people, places | `type: "photo"` |
 | Abstract concepts, processes | `type: "illustration"` |
 | UI elements, symbols, small accents | Icons |
-| Data visualizations, charts | Hand-coded SVG |
+| Data visualizations, charts | @remotion/shapes (Pie, Rect bars) + `<line>` axes |
 
 Budget: Max 2 images per scene, max 10 total.
 
