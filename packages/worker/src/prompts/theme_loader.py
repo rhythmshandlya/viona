@@ -64,11 +64,3 @@ def get_design_system(preset: str) -> str:
     if not theme:
         raise ValueError(f"Unknown theme preset: {preset}")
     return _load_theme_prompt(f"{theme['family']}/design-system.md", theme)
-
-
-def get_director_style(preset: str) -> str:
-    """Load {family}/director-style.md with placeholders filled."""
-    theme = get_theme(preset)
-    if not theme:
-        raise ValueError(f"Unknown theme preset: {preset}")
-    return _load_theme_prompt(f"{theme['family']}/director-style.md", theme)

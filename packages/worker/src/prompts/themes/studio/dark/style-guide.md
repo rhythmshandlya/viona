@@ -38,20 +38,4 @@ Available: modernTech (Montserrat + Inter), friendlyTech (Poppins + Inter), eleg
 **CARD LAYOUT:**
 Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background. Card style: background #141824, border #252A3A, boxShadow for depth.
 
-**ANIMATION:**
-- Use spring({ damping: 22, stiffness: 100 }) for card entrances
-- Stagger elements by 8-12 frames
-- Standard timeline: fade-in (0-15 frames), content animate (20-260), hold (280-330), fade-out (330-360)
-- Progress bars, counters, charts use smooth interpolate over 100+ frames
-
-**MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls**
-
-**ANIMATION QUALITY (MANDATORY):**
-- All text enters via fade + gentle scale (1.05-1.15x max) or slide-up — NEVER slam, crash, or zoom
-- Always pair opacity with translateY or scale — never animate opacity alone
-- Exits are 75% the duration of entries
-- Stagger delays should vary (4, 6, 8 frames) not be uniform
-- Spring damping >= 18 always, no exceptions
-- No frozen frames — add micro-motion (0.5% scale oscillation) to persistent elements
-
 Use `BACKGROUNDS.dark` when adapting template code.
