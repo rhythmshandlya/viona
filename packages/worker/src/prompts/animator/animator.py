@@ -496,6 +496,12 @@ multiple templates, delete what you don't need, add new elements.
 ANIMATOR_BASE_PROMPT = ANIMATOR_SYSTEM_PROMPT  # base.md deleted — was 95% duplicate
 
 
+def get_animator_prompt(genre: str) -> str:
+    """Build the Animator system prompt for a given genre."""
+    from prompts._loader import build_agent_prompt
+    return build_agent_prompt("animator", genre)
+
+
 ANIMATOR_SETUP_PROMPT = load_prompt('animator/setup')
 
 
@@ -617,14 +623,31 @@ VISUAL_FIX_PROMPT_TEMPLATE = load_prompt('animator/fix-template')
 # ---------------------------------------------------------------------------
 
 
+def _extract_section(tag: str) -> str:
+    """Extract content between <tag> and </tag> from composition.md.
+    Uses load_prompt() which has its own cache — no extra caching needed."""
+    import re
+    content = load_prompt("composition")
+    pattern = rf"<{tag}>(.*?)</{tag}>"
+    match = re.search(pattern, content, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
 def get_display_mode_rules(display_mode: str, ew: int = 1080, eh: int = 960) -> str:
-    """Get display-mode-specific rules to inject into scene prompt."""
+    """Get display-mode-specific rules with runtime dimension injection."""
     if display_mode == "overlay":
-        return OVERLAY_RULES.replace("{ew}", str(ew)).replace("{eh}", str(eh))
+        rules = _extract_section("overlay_rules")
     elif display_mode == "fullscreen":
-        return FULLSCREEN_RULES.replace("{ew}", str(ew)).replace("{eh}", str(eh))
+        rules = _extract_section("fullscreen_rules")
     else:
-        return _build_default_rules(ew, eh)
+        # Select compact vs portrait based on aspect ratio
+        is_compact = eh < ew * 1.2
+        tag = "stacked_compact_rules" if is_compact else "stacked_portrait_rules"
+        rules = _extract_section(tag)
+
+    return rules.replace("{ew}", str(ew)).replace("{eh}", str(eh))
 
 
 def build_setup_user_message(project_id: str) -> str:

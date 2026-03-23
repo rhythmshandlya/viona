@@ -18,6 +18,7 @@ from .animator import (  # noqa: F401
     build_scene_task_prompt,
     build_scene_user_message,
     build_setup_user_message,
+    get_animator_prompt,
     get_display_mode_rules,
     get_studio_section,
     get_video_overlay_section,

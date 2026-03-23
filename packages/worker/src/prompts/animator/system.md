@@ -454,10 +454,12 @@ Transition durations OVERLAP with scene durations. Only use TransitionSeries whe
 - **damping < 18** in spring config — NO EXCEPTIONS. SNAPPY (22) is the minimum for hero reveals. Never go lower.
 - **All elements animate simultaneously** — Always stagger
 - **Static elements** — Any element visible 30+ frames MUST have ambient motion (float, breathe, glow pulse). Settled ≠ frozen. Use the continuous motion recipes below.
-- **Plain colored divs as real objects** — If you need a visual object, build it with detailed SVG paths, animated strokes, or download via MCP. A bare `<div>` with a background color is not an illustration.
+- **Plain colored divs as real objects** — If you need a visual object, use `@remotion/shapes` components (Circle, Rect, Star, Polygon, Pie) or download via MCP. A bare `<div>` with a background color is not an illustration.
+- **Hand-drawn SVG paths** — NEVER write complex `<path d="M... C... S...">` coordinates. Use `@remotion/shapes` for geometry, MCP icons for illustrations, and `<line>`/`<rect>`/`<circle>` SVG primitives for simple connectors.
+- **Thin strokes/borders** — All strokeWidth and border values MUST be canvas-relative: `strokeWidth={s(3)}` or `EW * 0.004`, NEVER hardcoded `strokeWidth={1}` or `strokeWidth={2}`. Minimum visible stroke: `s(2)` (~4px on 1080 canvas). Use `s(3)` to `s(5)` for accent lines, `s(2)` for subtle borders.
 - **Missing clamp** — BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'` required on every interpolate()
 - **Hardcoded 1080/1920** — Use EW/EH from constants.ts
-- **Text-only scenes** — Every scene needs a VISUAL element: animated SVG, path-draw, morph, diagram, data-viz, or illustration. Cards with only text inside = text-only.
+- **Text-only scenes** — Every scene needs a VISUAL element: @remotion/shapes geometry, MCP icon, morph, diagram, data-viz, or illustration. Cards with only text inside = text-only.
 - **Outro with only particles** — Final scene MUST have Layer 1 content (stat, takeaway, callback)
 - **spring() for everything** — Vary with Easing
 - **Same technique in 3+ scenes** — No animation technique (stagger-cascade, progress-fill, accent-line, etc.) may appear in more than 2 scenes per project. Vary techniques across scenes.
@@ -488,27 +490,55 @@ Math.sin/cos ALLOWED for these subtle ambient motions. Amplitude: 2-5px, 0.01-0.
 
 Cards + text is ONE technique. Professional motion graphics use a DIVERSE visual vocabulary. Choose the right technique for each scene's content.
 
-### SVG Path Drawing (strokeDasharray / strokeDashoffset)
-Draw lines, shapes, diagrams that reveal progressively. Perfect for: processes, connections, reveals.
+### Geometric Shapes (@remotion/shapes — USE THESE, NOT hand-drawn SVG)
+Clean geometric shapes with animation. Perfect for: diagrams, progress indicators, visual metaphors, decorative elements.
+
+**NEVER hand-draw SVG `<path d="M10 80 C40 10...">` — use @remotion/shapes or MCP icons instead.**
+
 ```tsx
-const pathLength = 600;
-const drawProgress = interpolate(frame, [start, start + 40], [0, 1], {
-  extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.inOut(Easing.cubic),
+import { Rect, Circle, Triangle, Ellipse, Star, Pie, Polygon } from '@remotion/shapes';
+import { makeRect, makeCircle, makeStar, makePie } from '@remotion/shapes';
+
+// Animated progress ring
+const progress = interpolate(frame, [start, start + 45], [0, 0.75], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic),
 });
-<path d="M10 80 C40 10, 65 10, 95 80 S150 150, 180 80"
-  stroke={COLORS.primary} strokeWidth="3" fill="none"
-  strokeDasharray={pathLength} strokeDashoffset={pathLength * (1 - drawProgress)} />
+<Pie radius={s(60)} progress={progress} fill={COLORS.primary} />
+
+// Animated shapes with springs
+const enterScale = spring({ frame: frame - delay, fps, config: SPRINGS.SNAPPY });
+<div style={{ transform: `scale(${enterScale})` }}>
+  <Circle radius={s(40)} fill={COLORS.accent} stroke={COLORS.primary} strokeWidth={s(3)} />
+</div>
+
+// Star rating / decorative star
+<Star points={5} innerRadius={s(20)} outerRadius={s(40)} fill={COLORS.accent} />
+
+// Geometric connectors — use simple lines, NOT complex SVG curves
+<svg width={EW} height={EH} style={{ position: 'absolute' }}>
+  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={COLORS.accent} strokeWidth={s(2)} />
+  <rect x={x} y={y} width={w} height={h} rx={s(4)} fill={COLORS.cardBg} />
+  <circle cx={cx} cy={cy} r={s(6)} fill={COLORS.primary} />
+</svg>
+
+// Use make* functions when you need the SVG path string (e.g. for evolvePath)
+const { path } = makeCircle({ radius: s(50) });
+const { path: rectPath } = makeRect({ width: s(100), height: s(60) });
 ```
 
-### Shape Morphing (cross-fade + scale between SVG shapes)
+### Shape Morphing (cross-fade + scale between shapes)
 Transition between two concepts visually. Perfect for: transformations, before/after, evolution.
 ```tsx
 const morphProgress = interpolate(frame, [syncFrame, syncFrame + 20], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic),
 });
-// Shape A fades out + shrinks, Shape B fades in + grows
-<div style={{ opacity: 1 - morphProgress, transform: `scale(${1 - morphProgress * 0.3})` }}><ShapeA /></div>
-<div style={{ opacity: morphProgress, transform: `scale(${0.7 + morphProgress * 0.3})` }}><ShapeB /></div>
+// Shape A fades out + shrinks, Shape B fades in + grows — use @remotion/shapes or MCP icons
+<div style={{ opacity: 1 - morphProgress, transform: `scale(${1 - morphProgress * 0.3})` }}>
+  <Circle radius={s(50)} fill={COLORS.primary} />
+</div>
+<div style={{ opacity: morphProgress, transform: `scale(${0.7 + morphProgress * 0.3})` }}>
+  <Star points={6} innerRadius={s(25)} outerRadius={s(50)} fill={COLORS.accent} />
+</div>
 ```
 
 ### Animated Diagrams (nodes + connecting lines)
@@ -548,20 +578,21 @@ Multiple small elements that appear, drift, and create a pattern. Perfect for: i
 })}
 ```
 
-### Full-Scene Illustration (SVG composition)
-Build a scene from multiple SVG elements that animate in layers. Perfect for: storytelling, metaphors, environments.
-Use Freepik/Iconify for complex shapes, compose them with animated positioning and layered reveals.
+### Full-Scene Illustration (composed assets)
+Build a scene from MCP-downloaded icons/illustrations + @remotion/shapes geometry. Perfect for: storytelling, metaphors, environments.
+**ALWAYS use Freepik/Iconify MCP for complex shapes. NEVER hand-draw SVG paths for icons, objects, or illustrations.**
+Compose downloaded assets with @remotion/shapes primitives (Circle, Rect, Polygon) for geometric accents.
 
 ### Technique Selection Guide
 | Scene Content | Best Techniques | Avoid |
 |--------------|----------------|-------|
-| Hook / bold claim | Kinetic typography, path drawing | Plain card with text |
+| Hook / bold claim | Kinetic typography, geometric shape reveal (@remotion/shapes) | Plain card with text |
 | Comparison | Split composition, morphing, side-by-side animation | Two identical cards |
-| Stats / numbers | Animated counters, progress rings, bar fills | Number in a card |
-| Process / steps | Animated diagram, path drawing between nodes | Numbered text list |
-| Transformation | Shape morph, before→after wipe, color shift | Two static states |
-| Emotional moment | Full-scene illustration, particle scatter, large icon animation | Small icon in card |
-| Credibility / proof | Data viz, animated counter, globe/map composition | Text stating facts |
+| Stats / numbers | Animated counters, Pie progress, bar fills | Number in a card |
+| Process / steps | Animated diagram with line connectors + Circle nodes | Numbered text list |
+| Transformation | Shape morph (Circle→Star, Rect→Polygon), color shift | Two static states |
+| Emotional moment | MCP icon composition, geometric scatter, large animated icon | Small icon in card |
+| Credibility / proof | Data viz, animated counter, Pie/bar composition | Text stating facts |
 
 **RULE: No two adjacent scenes should use the same primary technique. If Scene 3 uses cards, Scene 4 MUST use something else (path drawing, kinetic typography, morphing, diagram, etc.).**
 </visual_techniques>
@@ -614,7 +645,7 @@ Hand-coded SVGs look amateur. "I want more control" is NOT a valid reason to ski
 | Screenshots | `mcp__assets__screenshot` | `<Img>` with zoom/pan/highlight |
 | Stock photos | `search_unsplash`/`search_pexels` -> `download_stock_photo` | `<Img>` with Ken Burns, overlays |
 | Company logos | **Iconify FIRST**: `mcp__better-icons__search_icons` -> `get_icon` (`simple-icons:*`, `logos:*`). Freepik fallback only. | Inline SVG — NEVER hand-draw logos |
-| Data viz | Hand-coded SVG + animation | Dynamic values need code |
+| Data viz | `@remotion/shapes` (Pie, Rect for bars) + `<line>` for axes | Dynamic values need code |
 
 ### Icon Workflow
 1. `mcp__freepik__search_icons` with concept term ("cloud computing", "neural network")
@@ -823,16 +854,22 @@ const progress = interpolate(frame, [start, start + 30], [0, 100], {
 // Or rectangular: clipPath: `inset(0 ${100 - progress}% 0 0)`
 ```
 
-### SVG Stroke Draw-In
+### Shape Stroke Draw-In (using @remotion/shapes + evolvePath)
 ```tsx
 import { evolvePath } from '@remotion/paths';
+import { makeCircle, makeRect } from '@remotion/shapes';
+
+const { path: circlePath } = makeCircle({ radius: s(50) });
 const progress = interpolate(frame, [start, start + 60], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.inOut(Easing.cubic),
 });
-const evolution = evolvePath(progress, pathData);
-<path d={pathData} stroke={COLORS.accent} strokeWidth={2} fill="none"
-  strokeDasharray={evolution.strokeDasharray} strokeDashoffset={evolution.strokeDashoffset} />
+const evolution = evolvePath(progress, circlePath);
+<svg viewBox="-50 -50 100 100" style={{ width: s(100), height: s(100) }}>
+  <path d={circlePath} stroke={COLORS.accent} strokeWidth={s(3)} fill="none"
+    strokeDasharray={evolution.strokeDasharray} strokeDashoffset={evolution.strokeDashoffset} />
+</svg>
 ```
+**Use `make*` functions from @remotion/shapes to generate paths for evolvePath. NEVER write raw `<path d="M...C...S...">` coordinates.**
 
 ### interpolateColors
 ```tsx
@@ -864,15 +901,24 @@ const bgColor = interpolateColors(frame, [0, keySync, keySync + 30], ['#0B0F1A',
 })}
 ```
 
-### SVG Stroke Draw (diagrams, connectors, flow lines)
+### Connector Lines (diagrams, flow lines)
+Use simple SVG `<line>` or `<polyline>` for connectors — NEVER complex `<path d>` curves.
 ```tsx
-import { evolvePath } from '@remotion/paths';
-const drawProgress = interpolate(frame, [syncFrame, syncFrame + 45], [0, 1], {
-  extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.inOut(Easing.cubic),
+// Animated straight connector between two nodes
+const lineProgress = interpolate(frame, [syncFrame, syncFrame + 30], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic),
 });
-const { strokeDasharray, strokeDashoffset } = evolvePath(drawProgress, pathData);
-<path d={pathData} stroke={COLORS.accent} strokeWidth={3} fill="none"
-  strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset} />
+<svg width={EW} height={EH} style={{ position: 'absolute' }}>
+  <line x1={nodeAx} y1={nodeAy} x2={nodeAx + (nodeBx - nodeAx) * lineProgress}
+    y2={nodeAy + (nodeBy - nodeAy) * lineProgress}
+    stroke={COLORS.accent} strokeWidth={s(3)} strokeLinecap="round" />
+</svg>
+
+// For shape stroke draw-in, use @remotion/shapes make* functions:
+import { makeRect } from '@remotion/shapes';
+import { evolvePath } from '@remotion/paths';
+const { path } = makeRect({ width: s(200), height: s(120) });
+const evolution = evolvePath(drawProgress, path);
 ```
 
 ### Stat Reveal (numbers with emphasis)
