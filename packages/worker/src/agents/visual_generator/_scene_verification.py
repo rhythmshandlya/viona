@@ -99,7 +99,7 @@ After your analysis, call the `mcp__viewport__submit_verdict` tool with your ver
         scene_data: dict,
         scene_plan_content: str,
         constants_content: str,
-        studio_section: str,
+        theme_section: str,
         skills_directive: str,
     ) -> tuple[bool, list[str]]:
         """Verify a single scene's code against the plan and fix if needed.
@@ -114,9 +114,6 @@ After your analysis, call the `mcp__viewport__submit_verdict` tool with your ver
         scene_code = scene_file.read_text(encoding="utf-8")
         overlay_issues = self._validate_overlay_placement(scene_num, scene_data, scene_code)
 
-        # Run DotGrid validation
-        dotgrid_issues = self._validate_dotgrid(scene_num, scene_code)
-        overlay_issues.extend(dotgrid_issues)
 
         passed, issues = await self._run_scene_verify(
             scene_num=scene_num,
@@ -173,7 +170,7 @@ When done, respond: "FIX COMPLETE"
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
-                        "append": f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}",
+                        "append": f"{get_animator_prompt(self.genre)}{theme_section}\n\n{skills_directive}",
                     },
                     cwd=str(self.workspace),
                     max_turns=15,

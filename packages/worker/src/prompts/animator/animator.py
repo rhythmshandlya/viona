@@ -11,7 +11,7 @@ from prompts._loader import load_prompt, load_shared_modules
 from prompts.theme_loader import get_design_system, get_theme
 
 
-def get_studio_section(style_preset: str) -> str:
+def get_theme_section(style_preset: str) -> str:
     """Return the design system prompt for the given theme, or empty string."""
     if not get_theme(style_preset):
         return ""
@@ -49,7 +49,7 @@ def get_youtube_clip_section(has_youtube_clip_scenes: bool) -> str:
 ANIMATOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('animator/system')
 
 
-def build_animator_user_message(project_id: str, style_preset: str = "studio-dark") -> str:
+def build_animator_user_message(project_id: str, style_preset: str = "blackboard") -> str:
     """Build the user message for the Animator agent."""
     # Composition ID must use dashes (Remotion requirement), folder uses underscores
     composition_id = project_id.replace("_", "-")
@@ -153,18 +153,15 @@ src/{project_id}/
 
 ### constants.ts
 ```tsx
-// STUDIO THEME: COLORS must ONLY use these keys. NO domain-specific names.
+// THEME: COLORS must ONLY use these keys. NO domain-specific names.
 // DO NOT add: water, poolLane, danger, warning, success, lava, circuit, etc.
 // Express all visual meaning through accent/secondary + opacity variations.
 export const COLORS = {{
-  background: '#...',   // from studio theme
-  text: '#...',         // from studio theme
-  textMuted: '...',     // from studio theme
-  accent: '#...',       // primary accent (default #6366F1 or from plan)
-  secondary: '#...',    // secondary accent (default #EC4899 or from plan)
-  cardBg: '...',        // from studio theme
-  cardBorder: '...',    // from studio theme
-  gridColor: '...',     // from studio theme
+  background: '#...',   // from theme
+  text: '#...',         // from theme
+  textMuted: '...',     // from theme
+  accent: '#...',       // primary accent (from theme)
+  secondary: '#...',    // secondary accent (from theme)
 }};
 
 // Standard spring config (matches SPRINGS.SMOOTH for backwards compatibility)
@@ -445,42 +442,31 @@ ONLY when ALL files are written AND TypeScript passes, respond:
 
 ---
 
-## STUDIO TEMPLATE WORKFLOW
+## TEMPLATE WORKFLOW
 
-You are working with the **Studio** style preset. A library of 60 pre-built templates
-is available in `src/.templates/`. These are **source code you own** (shadcn model) —
-copy, modify, and combine freely.
+You are working with a themed style preset. Templates are available as **source code you own** (shadcn model) —
+use `browse_templates` to discover them, then `fork_template` to copy source into your workspace and customize freely.
 
 ### MANDATORY: Theme Immersion Before Implementation
 
 **Before writing ANY scene code, you MUST:**
 
-1. **Read at least 3 templates** from `src/.templates/` — include at least ONE non-card template (e.g., `path-draw-reveal`, `animated-diagram`, `shape-morph-transition`) alongside card templates (e.g., `stat-counter`, `versus-screen`)
-2. **Study how they use:** DotGrid backgrounds, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency, SVG path animation, animated diagrams, shape morphing
-3. **Write `constants.ts` using STUDIO THEME COLORS** — NOT the Director's `colorPalette`
+1. **Browse templates** for your theme — use `browse_templates` with the active theme
+2. **Fork and read at least 2 templates** — study their patterns, backgrounds, containers, fonts, springs
+3. **Write `constants.ts` using THEME COLORS** — NOT the Director's `colorPalette`
 
-The Director's `colorPalette` in scenes.json is a topic hint only. Your constants.ts MUST use the studio theme values from the design system section above. If you skip this step, your scenes will look generic and off-brand.
+The Director's `colorPalette` in scenes.json is a topic hint only. Your constants.ts MUST use the theme values from the design system section above. If you skip this step, your scenes will look generic and off-brand.
 
 ### How to use templates:
-1. **Read 3+ templates** to absorb studio design language (MANDATORY)
+1. **Browse and fork 2+ templates** to absorb the theme's design language (MANDATORY)
 2. **Check `suggestedTemplates`** in `scenes.json` — the Director picked matching templates
-3. **Read the template source** from `src/.templates/{slug}/` — especially `index.tsx`
-   and any files in `components/`
-4. **Implement scene** — use template patterns (DotGrid, cards, springs, fonts) whether copying or going custom
-5. **Customize** — swap data, adjust timing to your frame range, use studio theme colors
-
-### When to use vs. when to go custom:
-- **Use a template** when the `suggestedTemplates` entry is a 60%+ visual match —
-  adapting existing code is faster and more consistent
-- **Go custom** when nothing in `suggestedTemplates` fits — but even then, you already
-  read 3+ templates in step 1, so apply those patterns (DotGrid, cards, springs, fonts)
+3. **Read the forked template source** — especially `index.tsx` and components
+4. **Implement scene** — use template patterns (backgrounds, containers, springs, fonts) whether copying or going custom
+5. **Customize** — swap data, adjust timing to your frame range, use theme colors
 
 Templates are a starting point, not a constraint. Rename variables, merge pieces from
 multiple templates, delete what you don't need, add new elements.
 """
-        theme = get_theme(style_preset)
-        variant = theme.get("variant", "dark") if theme else "dark"
-        base_message += f"\nWhen adapting template code, use `BACKGROUNDS.{variant}` for theme colors.\n"
 
     return base_message
 
@@ -653,7 +639,7 @@ def build_scene_task_prompt(
     scene_number: int,
     display_mode: str,
     scene_data: dict,
-    style_preset: str = "studio-dark",
+    style_preset: str = "blackboard",
 ) -> str:
     """Build a Task prompt with scene data embedded inline.
 
@@ -689,17 +675,17 @@ def build_scene_task_prompt(
             slugs = ", ".join(suggested)
             template_hint = f"""
 
-## STUDIO TEMPLATES
+## TEMPLATES
 **Suggested templates for this scene:** {slugs}
-Read `src/.templates/{{slug}}/index.tsx` before implementing — copy and customize the template code.
-If no template fits, create custom visuals but follow the Studio design system (DotGrid, cards, color palette).
+Use `fork_template` to copy template source, then customize.
+If no template fits, create custom visuals following the theme's design system.
 """
         else:
             template_hint = """
 
-## STUDIO TEMPLATES
-No specific template was suggested for this scene, but browse `src/.templates/` for inspiration.
-Read 2-3 templates to absorb the Studio aesthetic, then build custom visuals following the design system.
+## TEMPLATES
+No specific template was suggested for this scene, but use `browse_templates` for inspiration.
+Fork 2-3 templates to absorb the theme aesthetic, then build custom visuals following the design system.
 """
 
     return f"""{scene_prompt}
@@ -723,6 +709,6 @@ Write your implementation to `src/{project_id}/scenes/Scene{scene_number}.tsx`.
 - [ ] No emoji content, no placeholder SVG shapes
 - [ ] Glow/shadow intensifies at sync points (not constant)
 - [ ] Every sync point has a corresponding visual change
-- [ ] Uses `useScale()` for all pixel values, `FONT_PAIRS` for fonts (studio preset)
-- [ ] Studio background (THEME.background + DotGrid) present (non-overlay scenes)
+- [ ] Uses `useScale()` for all pixel values, `FONT_PAIRS` for fonts
+- [ ] Theme background present (non-overlay scenes)
 """

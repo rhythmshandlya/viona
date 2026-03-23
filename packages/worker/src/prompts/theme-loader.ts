@@ -11,17 +11,14 @@ export interface ThemeColors {
   background: string;
   text: string;
   textMuted: string;
-  gridColor: string;
-  cardBg: string;
-  cardBorder: string;
-  accentDefault: string;
-  secondaryDefault: string;
+  accent: string;
+  secondary: string;
 }
 
 export interface ThemeConfig {
   family: string;
-  variant: string;
   label: string;
+  genre: string;
   templateTags: string[];
   colors: ThemeColors;
 }
@@ -53,40 +50,22 @@ export function getTemplateTags(preset: string): string[] {
   return theme.templateTags;
 }
 
-/**
- * Load a markdown prompt file and substitute color placeholders.
- * Replaces {background}, {text}, {variant_label}, etc.
- */
+export function getGenre(preset: string): string | undefined {
+  return getTheme(preset)?.genre;
+}
+
 function loadThemePrompt(filePath: string, theme: ThemeConfig): string {
   const raw = readFileSync(join(THEMES_DIR, filePath), 'utf-8');
-  const variantLabel = theme.variant.charAt(0).toUpperCase() + theme.variant.slice(1) + ' mode';
   const replacements: Record<string, string> = {
     ...theme.colors,
-    variant_label: variantLabel,
-    variant: theme.variant,
     family: theme.family,
     label: theme.label,
   };
   return raw.replace(/\{(\w+)\}/g, (match, key) => replacements[key] ?? match);
 }
 
-/** Load {family}/{variant}/style-guide.md with color placeholders filled. */
-export function getStyleGuide(preset: string): string {
-  const theme = getTheme(preset);
-  if (!theme) throw new Error(`Unknown theme preset: ${preset}`);
-  return loadThemePrompt(`${theme.family}/${theme.variant}/style-guide.md`, theme);
-}
-
-/** Load {family}/design-system.md with color placeholders filled. */
 export function getDesignSystem(preset: string): string {
   const theme = getTheme(preset);
   if (!theme) throw new Error(`Unknown theme preset: ${preset}`);
   return loadThemePrompt(`${theme.family}/design-system.md`, theme);
-}
-
-/** Load {family}/director-style.md with color placeholders filled. */
-export function getDirectorStyle(preset: string): string {
-  const theme = getTheme(preset);
-  if (!theme) throw new Error(`Unknown theme preset: ${preset}`);
-  return loadThemePrompt(`${theme.family}/director-style.md`, theme);
 }

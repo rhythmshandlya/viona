@@ -1,8 +1,8 @@
 import React from 'react';
 
 const themes = [
-  { id: 'studio-dark', label: 'Studio Dark', description: 'Polished cards, dot-grid, dark navy', colors: ['#0B0F1A', '#6366F1', '#EC4899'] },
-  { id: 'studio-light', label: 'Studio Light', description: 'Same card system on light background', colors: ['#F8F9FB', '#6366F1', '#EC4899'] },
+  { id: 'blackboard', label: 'Blackboard Glow', description: 'Dark explainer with amber glow accents', colors: ['#0a0a14', '#f59e0b', '#06b6d4'] },
+  { id: 'magazine', label: 'Magazine', description: 'Clean editorial with serif typography', colors: ['#ffffff', '#e11d48', '#0f172a'] },
 ];
 
 interface ThemePickerProps {

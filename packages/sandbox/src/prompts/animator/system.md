@@ -298,7 +298,7 @@ You are responsible for producing CLEAN, COMPILING, VISUALLY VERIFIED output.
 ## Workflow
 
 1. **Read your skeleton** — open the scene file specified in the dispatch message and understand the DATA, dimensions, display mode
-2. **Read the studio theme** — open `/workspace/docs/guidelines/studio-theme.md` for design tokens
+2. **Read the theme** — open `/workspace/docs/guidelines/theme.md` for design tokens
 3. **Plan your choreography** — in your thinking, map out:
    - What enters when (frame timeline)
    - Which spring for each element

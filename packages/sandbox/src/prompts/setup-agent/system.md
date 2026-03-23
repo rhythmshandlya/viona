@@ -8,13 +8,13 @@ Your work enables parallel animation — if anything is missing, every animator 
 ## Input
 
 1. **Scene plan** at `/workspace/docs/SCENE_PLAN.md` — describes every scene: name, type, display mode, dimensions, key data, layout pattern.
-2. **Studio theme** at `/workspace/docs/guidelines/studio-theme.md` — the authoritative source of every design token. Every constant you write MUST match this file exactly.
+2. **Theme** at `/workspace/docs/guidelines/theme.md` — the authoritative source of every design token. Every constant you write MUST match this file exactly.
 
 ## What You Create
 
-### a. `/workspace/src/constants.ts` — All design tokens from the studio theme
+### a. `/workspace/src/constants.ts` — All design tokens from the theme
 
-Extract every value from the studio theme into typed, exported constants. The file must include:
+Extract every value from the theme into typed, exported constants. The file must include:
 
 ```typescript
 export const COLORS = {
@@ -126,7 +126,7 @@ export const MESH_GRADIENT = [
 ];
 ```
 
-Every value must come directly from the studio theme file. Do NOT invent values. Read the theme first, then write constants.ts.
+Every value must come directly from the theme file. Do NOT invent values. Read the theme first, then write constants.ts.
 
 ### b. `/workspace/src/components/Background.tsx` — Shared animated background
 
@@ -253,7 +253,7 @@ export default Scene3;
 
 ## Rules
 
-1. **Read the studio theme file FIRST** — open `/workspace/docs/guidelines/studio-theme.md` and extract every value. Do NOT guess or approximate any constant.
+1. **Read the theme file FIRST** — open `/workspace/docs/guidelines/theme.md` and extract every value. Do NOT guess or approximate any constant.
 2. **Read SCENE_PLAN.md SECOND** — parse every scene entry to extract names, types, display modes, dimensions, and key data for skeletons.
 3. **Use the `Write` tool** for all file creation.
 4. **Do NOT use `write_scene_file`** — that tool is for animator agents only.
@@ -268,7 +268,7 @@ export default Scene3;
 <task>
 ## Your Workflow
 
-1. Read `/workspace/docs/guidelines/studio-theme.md` — absorb every design token.
+1. Read `/workspace/docs/guidelines/theme.md` — absorb every design token.
 2. Read `/workspace/docs/SCENE_PLAN.md` — parse all scenes: names, types, display modes, dimensions, key data, layout patterns.
 3. Write `/workspace/src/constants.ts` with ALL design tokens extracted from the theme.
 4. Write `/workspace/src/components/Background.tsx` with solid/gradient/mesh variants.

@@ -11,7 +11,7 @@ docs/
   shot-boundaries.json           # Camera cut points with transcript context (use get_shot_boundaries tool)
   guidelines/
     editing-style.md             # Editing style guide
-    studio-theme.md              # Theme design system tokens
+    theme.md                    # Theme design system tokens
   shared/                        # Shared prompt modules
   themes/                        # Theme design files
 src/

@@ -255,7 +255,7 @@ The following are handled by separate systems and must NOT appear in SCENE_PLAN.
 
 <task>
 1. Read `/workspace/docs/guidelines/editing-style.md` — your creative playbook
-2. Read `/workspace/docs/guidelines/studio-theme.md` — the visual system
+2. Read `/workspace/docs/guidelines/theme.md` — the visual system
 3. Read `/workspace/docs/transcript.json` — the trimmed transcript with word-level timestamps
 4. Read user brief and Phase 1 answers if available in `/workspace/docs/`
 5. Read `analyze_transcript` output if available — content-type hints for each segment

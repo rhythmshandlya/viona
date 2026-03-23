@@ -114,7 +114,7 @@ export function injectContext(prompt: string, ctx: PromptContext): string {
     .replaceAll('{{STACKED_VISUAL_HEIGHT}}', String(stackedVisualHeight))
     .replaceAll('{{FPS}}', String(ctx.fps))
     .replaceAll('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
-    .replaceAll('{{THEME}}', ctx.theme ?? 'studio-dark')
+    .replaceAll('{{THEME}}', ctx.theme ?? 'blackboard')
     .replaceAll('{{PROJECT_TYPE}}', ctx.projectType ?? 'video')
     .replaceAll('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
     .replaceAll('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))

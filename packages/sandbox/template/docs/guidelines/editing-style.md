@@ -1,7 +1,7 @@
 # Editing Style: Motion Graphics Focused
 
 > All visuals are purpose-built Remotion animations. No stock footage, no templates. The result looks like a professionally produced explainer video.
-> The studio theme (`studio-theme.md`) controls visual design (colors, fonts, springs, glass effects). This file controls WHEN and HOW animations are used.
+> The theme (`theme.md`) controls visual design (colors, fonts, animations). This file controls WHEN and HOW animations are used.
 
 ## 1. Core Approach
 

@@ -1,35 +1,29 @@
 {
   "themes": {
-    "studio-dark": {
-      "family": "studio",
-      "variant": "dark",
-      "label": "Studio Dark",
-      "templateTags": ["studio-theme"],
+    "blackboard": {
+      "family": "blackboard",
+      "label": "Blackboard Glow",
+      "genre": "explainer-videos",
+      "templateTags": ["blackboard-theme"],
       "colors": {
-        "background": "#0B0F1A",
-        "text": "#FFFFFF",
-        "textMuted": "rgba(255,255,255,0.45)",
-        "gridColor": "rgba(255,255,255,0.04)",
-        "cardBg": "#141824",
-        "cardBorder": "#252A3A",
-        "accentDefault": "#6366F1",
-        "secondaryDefault": "#EC4899"
+        "background": "#0a0a14",
+        "text": "#f1f5f9",
+        "textMuted": "rgba(241,245,249,0.45)",
+        "accent": "#f59e0b",
+        "secondary": "#06b6d4"
       }
     },
-    "studio-light": {
-      "family": "studio",
-      "variant": "light",
-      "label": "Studio Light",
-      "templateTags": ["studio-theme"],
+    "magazine": {
+      "family": "magazine",
+      "label": "Magazine",
+      "genre": "informative-media",
+      "templateTags": ["magazine-theme"],
       "colors": {
-        "background": "#F8F9FB",
-        "text": "#111827",
-        "textMuted": "rgba(0,0,0,0.45)",
-        "gridColor": "rgba(0,0,0,0.04)",
-        "cardBg": "#EDEEF2",
-        "cardBorder": "#D1D5DB",
-        "accentDefault": "#6366F1",
-        "secondaryDefault": "#EC4899"
+        "background": "#ffffff",
+        "text": "#0f172a",
+        "textMuted": "rgba(15,23,42,0.45)",
+        "accent": "#e11d48",
+        "secondary": "#64748b"
       }
     }
   }

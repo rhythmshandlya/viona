@@ -1,6 +1,6 @@
 import { buildReferenceExamplesSection } from './visual-references.js';
 import { loadPrompt } from './loader.js';
-import { getStyleGuide, getTheme } from './theme-loader.js';
+import { getDesignSystem, getTheme } from './theme-loader.js';
 
 /**
  * Style guidelines loaded from theme manifest.
@@ -8,7 +8,7 @@ import { getStyleGuide, getTheme } from './theme-loader.js';
  */
 export function getStyleGuidelines(stylePreset: string): string {
   if (!getTheme(stylePreset)) return '';
-  return getStyleGuide(stylePreset);
+  return getDesignSystem(stylePreset);
 }
 
 /**

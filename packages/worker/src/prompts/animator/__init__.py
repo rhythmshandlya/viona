@@ -18,7 +18,7 @@ from .animator import (  # noqa: F401
     build_setup_user_message,
     get_animator_prompt,
     get_display_mode_rules,
-    get_studio_section,
+    get_theme_section,
     get_video_overlay_section,
     get_youtube_clip_section,
 )

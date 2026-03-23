@@ -1,4 +1,4 @@
-import { mkdir, writeFile, cp, access, symlink, readlink, copyFile, rm, readdir } from 'fs/promises';
+import { mkdir, writeFile, readFile, cp, access, symlink, readlink, copyFile, rm, readdir } from 'fs/promises';
 import { createWriteStream, cpSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -62,6 +62,7 @@ export interface InitPayload {
     fps: number;
     durationMs: number;
   };
+  theme?: string;  // Active theme preset slug (e.g. 'blackboard', 'magazine')
 }
 
 function getMinioClient(): MinioClient {
@@ -250,7 +251,6 @@ function alignShotsWithTranscript(
   }
 
   const segments = transcript.segments;
-  // Collect all segment boundaries (startMs and endMs)
   const boundaries: Array<{ ms: number; type: 'start' | 'end'; segIdx: number }> = [];
   for (let i = 0; i < segments.length; i++) {
     boundaries.push({ ms: segments[i].startMs, type: 'start', segIdx: i });
@@ -262,7 +262,6 @@ function alignShotsWithTranscript(
   let alignedCount = 0;
 
   const alignedShots: ShotBoundary[] = shots.map((shot) => {
-    // Find nearest segment boundary within snap window
     let nearest: typeof boundaries[0] | null = null;
     let nearestDist = Infinity;
     for (const b of boundaries) {
@@ -271,12 +270,10 @@ function alignShotsWithTranscript(
         nearestDist = dist;
         nearest = b;
       } else if (dist === nearestDist && nearest && b.type === 'end') {
-        // Tie-break: prefer endMs (natural sentence completion)
         nearest = b;
       }
     }
 
-    // Find segmentBefore and segmentAfter
     let segmentBefore: string | undefined;
     let segmentAfter: string | undefined;
     const ts = nearest ? nearest.ms : shot.timestamp_ms;
@@ -429,6 +426,30 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     logger.warn('Theme files not found — skipping');
   }
 
+  // Write the active theme's design-system.md to the standard guidelines path
+  const activeTheme = payload.theme || 'blackboard';
+  try {
+    const manifest = JSON.parse(await readFile(join(themesDst, 'themes.json'), 'utf-8'));
+    const themeConfig = manifest.themes?.[activeTheme];
+    if (themeConfig) {
+      const designSystemPath = join(themesDst, themeConfig.family, 'design-system.md');
+      let designSystem = await readFile(designSystemPath, 'utf-8');
+      const replacements: Record<string, string> = {
+        ...themeConfig.colors,
+        family: themeConfig.family,
+        label: themeConfig.label,
+      };
+      for (const [key, value] of Object.entries(replacements)) {
+        designSystem = designSystem.replaceAll(`{${key}}`, value);
+      }
+      const guidelinesDir = join(baseDir, 'docs', 'guidelines');
+      await mkdir(guidelinesDir, { recursive: true });
+      await writeFile(join(guidelinesDir, 'theme.md'), designSystem);
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Failed to write active theme design system — skipping');
+  }
+
   // Write transcript if provided
   if (payload.transcript) {
     const transcriptStr = JSON.stringify(payload.transcript, null, 2);
@@ -460,7 +481,7 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   }
 
   // Write shot boundaries (aligned with transcript) if shots data exists
-  if (payload.headTracking?.shots && payload.transcript) {
+  if (payload.headTracking?.shots && payload.headTracking.shots.length > 0 && payload.transcript) {
     const videoDurationMs = payload.headTracking.video?.duration_ms
       || payload.projectMeta?.durationMs
       || 0;

@@ -22,7 +22,7 @@ class PipelineMixin:
         fps: int = 30,
         timeout_seconds: int = 2400,
         max_retries: int = 2,
-        style_preset: str = "studio-dark",
+        style_preset: str = "blackboard",
         layout_mode: str = "pip",
         style_guide: str | None = None,
         source_width: int | None = None,
@@ -192,7 +192,7 @@ class PipelineMixin:
                     if image_count > 0:
                         emit_progress(37, f"Downloaded {image_count} images", {"phase": "workspace", "phaseName": "Setting up workspace"})
 
-                    self._resolve_studio_templates(style_preset)
+                    # Template resolution happens via MCP tools at runtime
 
                     emit_progress(38, f"Animator implementing {scene_count} scenes...", {"phase": "animate", "phaseName": "Animating scenes", "totalScenes": scene_count})
 

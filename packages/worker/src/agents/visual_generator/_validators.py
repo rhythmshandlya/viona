@@ -598,21 +598,3 @@ class ValidatorsMixin:
 
         return issues
 
-    def _validate_dotgrid(self, scene_num: int, scene_code: str) -> list[str]:
-        """Check for invisible DotGrid parameters."""
-        issues = []
-        for m in re.finditer(r'r[=:]\s*[\{(]?\s*[s(]*(\d+)\s*[)}\s]', scene_code):
-            val = int(m.group(1))
-            if val < 2:
-                start = max(0, m.start() - 200)
-                context = scene_code[start:m.end()].lower()
-                if 'pattern' in context or 'dot' in context or 'grid' in context:
-                    issues.append(f"Scene {scene_num}: DotGrid radius r={val} is too small (invisible). Use r=3 minimum.")
-        for m in re.finditer(r'spacing[=:]\s*[\{(]?\s*(\d+)', scene_code):
-            val = int(m.group(1))
-            if val < 60:
-                start = max(0, m.start() - 100)
-                context = scene_code[start:m.end()].lower()
-                if 'dot' in context or 'grid' in context or 'pattern' in context:
-                    issues.append(f"Scene {scene_num}: DotGrid spacing={val} is too tight (dots merge). Use spacing=80 minimum.")
-        return issues

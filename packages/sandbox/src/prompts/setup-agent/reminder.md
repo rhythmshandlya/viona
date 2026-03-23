@@ -1,5 +1,5 @@
 <critical_reminder>
-Read `/workspace/docs/guidelines/studio-theme.md` FIRST — every value in constants.ts must match the theme exactly. Do not guess or approximate.
+Read `/workspace/docs/guidelines/theme.md` FIRST — every value in constants.ts must match the theme exactly. Do not guess or approximate.
 
 Read `/workspace/docs/SCENE_PLAN.md` SECOND — you need every scene's name, type, display mode, dimensions, and key data.
 

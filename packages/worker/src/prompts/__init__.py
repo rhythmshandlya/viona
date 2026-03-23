@@ -7,7 +7,7 @@ Contains system prompts and message builders for:
 """
 
 from .director.director import DIRECTOR_SYSTEM_PROMPT, build_director_user_message, get_director_prompt
-from .animator.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_studio_section, get_animator_prompt
+from .animator.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_theme_section, get_animator_prompt
 from .loader import build_agent_prompt, load_strategy, list_strategies
 
 __all__ = [
@@ -16,7 +16,7 @@ __all__ = [
     "get_director_prompt",
     "ANIMATOR_SYSTEM_PROMPT",
     "build_animator_user_message",
-    "get_studio_section",
+    "get_theme_section",
     "get_animator_prompt",
     "build_agent_prompt",
     "load_strategy",

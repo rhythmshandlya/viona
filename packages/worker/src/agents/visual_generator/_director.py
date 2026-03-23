@@ -20,7 +20,7 @@ class DirectorMixin:
         height: int,
         duration_frames: int,
         fps: int,
-        style_preset: str = "studio-dark",
+        style_preset: str = "blackboard",
         layout_mode: str = "pip",
         style_guide: str | None = None,
         source_width: int | None = None,

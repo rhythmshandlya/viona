@@ -33,14 +33,19 @@ def get_template_tags(preset: str) -> list[str]:
     return theme["templateTags"]
 
 
+def get_genre(preset: str) -> str | None:
+    """Return the genre for the given preset, or None if unknown."""
+    theme = get_theme(preset)
+    if not theme:
+        return None
+    return theme.get("genre")
+
+
 def _load_theme_prompt(file_path: str, theme: dict) -> str:
     """Load a markdown prompt and substitute color placeholders."""
     raw = (_THEMES_DIR / file_path).read_text(encoding="utf-8")
-    variant_label = theme["variant"].capitalize() + " mode"
     replacements = {
         **theme["colors"],
-        "variant_label": variant_label,
-        "variant": theme["variant"],
         "family": theme["family"],
         "label": theme["label"],
     }
@@ -48,14 +53,6 @@ def _load_theme_prompt(file_path: str, theme: dict) -> str:
     for key, value in replacements.items():
         result = result.replace(f"{{{key}}}", value)
     return result
-
-
-def get_style_guide(preset: str) -> str:
-    """Load {family}/{variant}/style-guide.md with placeholders filled."""
-    theme = get_theme(preset)
-    if not theme:
-        raise ValueError(f"Unknown theme preset: {preset}")
-    return _load_theme_prompt(f"{theme['family']}/{theme['variant']}/style-guide.md", theme)
 
 
 def get_design_system(preset: str) -> str:

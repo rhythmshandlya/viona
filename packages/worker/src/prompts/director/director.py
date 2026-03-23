@@ -29,13 +29,13 @@ def get_style_description(style_preset: str) -> str:
     if not theme:
         return ""
     colors = theme.get("colors", {})
-    variant = theme.get("variant", "dark")
+    label = theme.get("label", style_preset)
     return (
-        f"Theme: {variant} mode. "
-        f"Background: {colors.get('background', '#0B0F1A')}, "
-        f"text: {colors.get('text', '#FFFFFF')}, "
-        f"accent: {colors.get('accentDefault', '#6366F1')}, "
-        f"secondary: {colors.get('secondaryDefault', '#EC4899')}."
+        f"Theme: {label}. "
+        f"Background: {colors.get('background')}, "
+        f"text: {colors.get('text')}, "
+        f"accent: {colors.get('accent')}, "
+        f"secondary: {colors.get('secondary')}."
     )
 
 
@@ -171,7 +171,7 @@ def build_director_user_message(
     height: int,
     duration_frames: int,
     fps: int,
-    style_preset: str = "studio-dark",
+    style_preset: str = "blackboard",
     layout_mode: str = "pip",
     style_guide: str | None = None,
     output_dir: str | None = None,
@@ -463,9 +463,9 @@ Machine-readable v2 format with segments and beats:
 
 **CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
 
-**`suggestedTemplates` (studio preset only):**
-- An array of 1-2 template slug strings from the template library in src/.templates/
-- Only include this field when style_preset is "studio" AND a template matches the beat's purpose
+**`suggestedTemplates`:**
+- An array of 1-2 template slug strings from the template library
+- Include this field when a template matches the beat's purpose
 - The Animator will read the template source and use it as a starting point for the beat
 - If no template fits, omit this field entirely — the Animator will create custom visuals
 
@@ -500,7 +500,7 @@ No two adjacent beats should share the same `technique` value.
 - **TOTAL FRAMES MUST EQUAL {duration_frames}**
 - **NO GAPS between beats** — beats must be back-to-back, covering every frame
 - Consecutive beats with the same layout MUST be in the same segment
-- For studio preset: suggest matching template slugs in "suggestedTemplates" per beat
+- Suggest matching template slugs in "suggestedTemplates" per beat when templates exist for the theme
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":

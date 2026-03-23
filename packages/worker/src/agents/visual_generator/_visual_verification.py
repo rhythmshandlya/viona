@@ -173,12 +173,12 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         scene_data: dict,
         plan_content: str,
         composition_id: str,
-        style_preset: str = "studio-dark",
+        style_preset: str = "blackboard",
     ) -> None:
         """Per-scene verify → fix → re-verify loop."""
-        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, get_animator_prompt, get_studio_section
+        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, get_animator_prompt, get_theme_section
 
-        studio_section = get_studio_section(style_preset)
+        theme_section = get_theme_section(style_preset)
         display_mode = scene_data.get("displayMode", "default")
         description = scene_data.get("visual", scene_data.get("description", "No description"))
         verify_dir = self.workspace / "visual-verify"
@@ -257,7 +257,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
                         system_prompt={
                             "type": "preset",
                             "preset": "claude_code",
-                            "append": f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}",
+                            "append": f"{get_animator_prompt(self.genre)}{theme_section}\n\n{skills_directive}",
                         },
                         cwd=str(self.workspace),
                         max_turns=15,
@@ -288,7 +288,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         composition_id: str,
         scenes_data: dict,
         plan_content: str,
-        style_preset: str = "studio-dark",
+        style_preset: str = "blackboard",
         width: int = 1080,
         height: int = 1920,
         fps: int = 60,

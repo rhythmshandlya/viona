@@ -221,8 +221,8 @@ If any check fails, FIX the plan before writing scenes.json.
   "totalFrames": 1800,
   "effectiveWidth": 1080,
   "effectiveHeight": 1920,
-  "theme": "studio-dark",
-  "colorPalette": "studio-dark (accent: #6366F1, secondary: #EC4899)",
+  "theme": "blackboard",
+  "colorPalette": "blackboard (accent: #f59e0b, secondary: #06b6d4)",
   "iconStyle": { "shape": "outline", "color": "white" },
   "segments": [
     {
@@ -386,9 +386,9 @@ Additionally verify:
 </quality_criteria>
 
 <color_palettes>
-**STUDIO THEME COLOR RULE:** Default to studio-dark or studio-light. The theme provides background, text, cardBg, etc. automatically. You only customize `accent` and `secondary` colors.
+**THEME COLOR RULE:** Default to blackboard or magazine. The theme provides background, text, etc. automatically. You only customize `accent` and `secondary` colors.
 
-Example: `"studio-dark (accent: #6366F1, secondary: #EC4899)"`
+Example: `"blackboard (accent: #f59e0b, secondary: #06b6d4)"`
 </color_palettes>
 
 <visual_requirements>

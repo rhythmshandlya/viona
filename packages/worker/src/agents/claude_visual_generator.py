@@ -166,7 +166,7 @@ async def main():
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--style-guide", help="Path to user style guide text file")
-    parser.add_argument("--style-preset", default="studio-dark", help="Visual style preset (studio-dark, studio-light)")
+    parser.add_argument("--style-preset", default="blackboard", help="Visual style preset (blackboard, magazine)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, stacked)")
     parser.add_argument("--width", type=int, default=1080, help="Video width")
     parser.add_argument("--height", type=int, default=1920, help="Video height")
@@ -349,8 +349,7 @@ async def _main_inner(args, heartbeat: HeartbeatEmitter):
             sys.stdout.flush()
             sys.exit(1)
 
-        # Resolve selected studio templates from registry
-        generator._resolve_studio_templates(args.style_preset)
+        # Template resolution happens via MCP tools at runtime
 
         heartbeat.update('animate', 'Animator implementing scenes')
         emit_progress(38, "Animator implementing scenes...", {"phase": "animate", "phaseName": "Animating scenes"})

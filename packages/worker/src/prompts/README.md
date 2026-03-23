@@ -61,12 +61,12 @@ graph TB
 
     subgraph "Phase 2: Animator"
         ANIM_SYS["animator/system.md"]
-        STUDIO["get_theme(style_preset)<br/>design system from themes.json"]
+        THEME["get_theme(style_preset)<br/>design system from themes.json"]
         YT_CLIP["animator/youtube-clip-section.md"]
         ANIM_USER["build_animator_user_message()"]
         PLAN --> ANIM_USER
         ANIM_SYS --> ANIM_PROMPT["Assembled System Prompt"]
-        STUDIO -.->|"if studio-*"| ANIM_PROMPT
+        THEME -.->|"if themed"| ANIM_PROMPT
         YT_CLIP -.->|"if youtube-clip scenes"| ANIM_PROMPT
         ANIM_PROMPT --> ANIM_CALL["Opus LLM Call"]
         ANIM_USER --> ANIM_CALL
@@ -112,7 +112,7 @@ graph LR
         STYLE["get_style_description()"]
         TRANSCRIPT["Formatted transcript<br/>(word-level timestamps)"]
         GUIDE["User style guide<br/>(if provided)"]
-        TEMPLATES["Studio templates catalog<br/>(if studio preset)"]
+        TEMPLATES["Templates catalog<br/>(if theme preset)"]
     end
 
     DM["director/display-mode-table.md"] --> LAYOUT
@@ -148,7 +148,7 @@ Used for smaller projects. One agent implements all scenes.
 graph TB
     subgraph "System Prompt Assembly"
         BASE["animator/system.md<br/>(core Remotion rules)"]
-        STUDIO_SEC["get_theme(style_preset)<br/>(theme colors, DotGrid)"]
+        THEME_SEC["get_theme(style_preset)<br/>(theme colors, design system)"]
         YT_SEC["animator/youtube-clip-section.md<br/>(clip-specific rules)"]
         LIBS["Remotion libraries guide<br/>(in-code)"]
         SKILLS["Condensed animation skills<br/>(in-code)"]
@@ -156,7 +156,7 @@ graph TB
     end
 
     BASE --> COMBINED["Combined System Prompt"]
-    STUDIO_SEC -.->|"if studio-*"| COMBINED
+    THEME_SEC -.->|"if themed"| COMBINED
     YT_SEC -.->|"if youtube-clip scenes"| COMBINED
     LIBS --> COMBINED
     SKILLS --> COMBINED
@@ -164,11 +164,11 @@ graph TB
 
     subgraph "User Message"
         ANIM_USER["build_animator_user_message()"]
-        TMPL_CAT["Studio templates catalog"]
+        TMPL_CAT["Templates catalog"]
     end
 
     ANIM_USER --> USER_MSG["Final User Message"]
-    TMPL_CAT -.->|"if studio preset"| USER_MSG
+    TMPL_CAT -.->|"if theme preset"| USER_MSG
 
     COMBINED --> LLM["Opus LLM Call"]
     USER_MSG --> LLM
@@ -290,8 +290,8 @@ graph TB
 ```
 
 **`STYLE_GUIDELINES`** map (loaded via theme loader):
-- `studio-dark` → `getTheme('studio-dark')` — dark mode color tokens, DotGrid background, card layouts
-- `studio-light` → `getTheme('studio-light')` — light mode equivalent
+- `blackboard` → `getTheme('blackboard')` — dark mode color tokens, DotGrid background, card layouts
+- `magazine` → `getTheme('magazine')` — light mode equivalent
 
 **`buildReferenceExamplesSection(projectId)`** composes few-shot examples:
 1. `references/common-patterns.md` — shared responsive sizing, spring configs, physics helpers
@@ -320,14 +320,14 @@ Each reference file uses `{{projectId}}` template variable, substituted via `loa
 
 | Section | Condition | Injected Into |
 |---------|-----------|---------------|
-| Studio design system | `get_theme(style_preset)` | Animator system prompt |
+| Theme design system | `get_theme(style_preset)` | Animator system prompt |
 | YouTube clip rules | Any scene has `type=="youtube-clip"` | Animator system prompt |
 | Display mode table | Always | Director user message |
-| Studio style template | `get_theme(style_preset)` | Director user message |
+| Theme style template | `get_theme(style_preset)` | Director user message |
 | Overlay rules | `displayMode=="overlay"` | Per-scene subagent prompt |
 | Fullscreen rules | `displayMode=="fullscreen"` | Per-scene subagent prompt |
 | User assets | `user_assets.json` exists | Animator system prompt |
-| Template catalog | Studio preset + catalog file exists | Director & Animator user messages |
+| Template catalog | Theme preset + catalog file exists | Director & Animator user messages |
 | Ad motion utilities | Apple/Google style preset | TS visual prompt |
 
 ---
@@ -339,7 +339,7 @@ These files contain runtime logic (not just static text) and remain as `.ts`/`.p
 | File | Reason |
 |------|--------|
 | `generate-visuals.ts` | `buildGenerateVisualsPrompt()` has conditional logic, transcript formatting |
-| Builder functions in `animator.py` | `get_studio_section()`, `build_animator_user_message()`, etc. |
+| Builder functions in `animator.py` | `get_theme_section()`, `build_animator_user_message()`, etc. |
 | Builder functions in `director.py` | `build_director_user_message()`, `get_layout_context()`, etc. |
 | `__init__.py` | Re-exports for backward compatibility |
 | `_loader.py` | Re-exports from `loader.py` for consistent import path |

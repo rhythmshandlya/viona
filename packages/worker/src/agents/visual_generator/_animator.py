@@ -4,12 +4,10 @@ import asyncio
 import json
 import math
 import os
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from sdk_config import (
-    IS_WINDOWS,
     CLAUDE_CLI_PATH,
     safe_print,
     emit_progress,
@@ -25,46 +23,6 @@ from prompts.theme_loader import get_theme
 
 class AnimatorMixin:
     """Mixin providing animator methods for ClaudeVisualGenerator."""
-
-    def _resolve_studio_templates(self, style_preset: str) -> None:
-        """Resolve selected studio templates from registry after Director phase.
-
-        Reads scenes.json to find which templates were selected, then calls
-        the Node resolver script to copy only those templates into the workspace
-        and generate a markdown summary of their source code.
-
-        Sets self._resolved_templates_md with the markdown content.
-        """
-        self._resolved_templates_md = ""
-        if not get_theme(style_preset):
-            return
-
-        scenes_path = self.src_dir / "scenes.json"
-        if not scenes_path.exists():
-            return
-
-        try:
-            # Walk up to find worker root (works in both source and Docker layouts)
-            worker_root = Path(__file__).resolve().parent
-            while worker_root != worker_root.parent:
-                if (worker_root / "package.json").exists() and worker_root.name == "worker":
-                    break
-                worker_root = worker_root.parent
-            resolve_script = worker_root / "src" / "processors" / "generate-visuals" / "resolve-templates-cli.ts"
-            result = subprocess.run(
-                ["npx", "tsx", str(resolve_script), str(scenes_path), str(self.workspace / "src")],
-                capture_output=True, text=True, timeout=30,
-                cwd=str(worker_root),
-                shell=IS_WINDOWS,
-            )
-            if result.returncode == 0:
-                resolve_data = json.loads(result.stdout)
-                self._resolved_templates_md = resolve_data.get("markdown", "")
-                safe_print(f"[ClaudeGenerator] Resolved {resolve_data.get('copiedCount', 0)} templates from registry")
-            else:
-                safe_print(f"[ClaudeGenerator] Template resolution failed: {result.stderr[:200]}")
-        except Exception as e:
-            safe_print(f"[ClaudeGenerator] Template resolution error: {e}")
 
     async def _run_scene_agent(
         self,
@@ -144,7 +102,7 @@ class AnimatorMixin:
         height: int,
         duration_frames: int,
         fps: int,
-        style_preset: str = "studio-dark",
+        style_preset: str = "blackboard",
         skip_scenes: set[int] | None = None,
     ) -> dict[str, Any]:
         """Phase 2 (Parallel): Implement scenes via SDK subagents.
@@ -160,13 +118,13 @@ class AnimatorMixin:
             build_setup_user_message,
             build_scene_user_message,
             build_scene_task_prompt,
-            get_studio_section,
+            get_theme_section,
         )
         from claude_agent_sdk import AgentDefinition
 
         print("[ClaudeGenerator] Phase 2 (Parallel): Implementing scenes via subagents...")
 
-        studio_section = get_studio_section(style_preset)
+        theme_section = get_theme_section(style_preset)
 
         # Read scenes.json and SCENE_PLAN.md
         scenes_json_path = self.src_dir / "scenes.json"
@@ -238,12 +196,8 @@ class AnimatorMixin:
             )
         else:
             emit_progress(38, "Setting up project foundation...", {"phase": "workspace", "phaseName": "Setting up workspace"})
-            setup_system = f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
+            setup_system = f"{get_animator_prompt(self.genre)}{theme_section}\n\n{skills_directive}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
             setup_message = build_setup_user_message(self.project_id)
-
-            if get_theme(style_preset) and self._resolved_templates_md:
-                setup_message += f"\n\n{self._resolved_templates_md}"
-                safe_print(f"[ClaudeGenerator] Injected {len(self._resolved_templates_md)} chars of resolved template source into Setup prompt")
 
             setup_client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
@@ -325,7 +279,7 @@ class AnimatorMixin:
             print(f"\n[ClaudeGenerator] Phase 2b: Dispatching {scenes_to_dispatch} scene-generator subagents ({total_scenes - scenes_to_dispatch} from checkpoint)...")
 
             scene_gen_system = (
-                f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}"
+                f"{get_animator_prompt(self.genre)}{theme_section}\n\n{skills_directive}"
             )
 
             scene_gen_tools = [
@@ -466,7 +420,7 @@ Report which scenes were created.
                     display_mode_rules=mode_rules,
                     project_id=self.project_id,
                 )
-                scene_system = f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}\n\n{scene_prompt_filled}{user_assets_section}"
+                scene_system = f"{get_animator_prompt(self.genre)}{theme_section}\n\n{skills_directive}\n\n{scene_prompt_filled}{user_assets_section}"
                 scene_user_msg = build_scene_user_message(
                     project_id=self.project_id,
                     scene_index=i,
@@ -477,8 +431,6 @@ Report which scenes were created.
                     scene_plan_content=scene_plan_content,
                     display_mode=display_mode,
                 )
-                if get_theme(style_preset) and self._resolved_templates_md:
-                    scene_user_msg += f"\n\n{self._resolved_templates_md}"
                 print(f"[ClaudeGenerator] Retrying Scene {scene_num} individually...")
                 await self._run_scene_agent(
                     scene_num=scene_num,
@@ -510,7 +462,7 @@ Report which scenes were created.
                 scene_data=scene,
                 scene_plan_content=scene_plan_content,
                 constants_content=constants_content,
-                studio_section=studio_section,
+                theme_section=theme_section,
                 skills_directive=skills_directive,
             )
             for i, scene in enumerate(scenes)
