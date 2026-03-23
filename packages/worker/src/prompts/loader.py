@@ -66,20 +66,12 @@ def clear_cache() -> None:
 
 # --- Shared module composition ---
 
-_SHARED_MODULES = [
-    "shared/technical-rules",
-    "shared/motion-design-principles",
-    "shared/vocabulary",
-    "shared/quality-checklist",
-]
+_SHARED_MODULES: list[str] = []  # Cleared — content moved to strategies/ and skills
 
 
 def load_shared_modules() -> str:
-    """Load and concatenate all shared prompt modules.
-
-    Returns a single string with all shared modules separated by newlines.
-    Used by agent builders to prepend shared context to role-specific prompts.
-    """
+    """Deprecated: shared modules moved to strategies/ and skills.
+    Returns empty string for backward compatibility."""
     parts: list[str] = []
     for name in _SHARED_MODULES:
         parts.append(load_prompt(name))

@@ -25,13 +25,10 @@ export function loadTemplate(name: string, variables?: Record<string, string | n
   return raw.replace(/\{\{(\w+)\}\}/g, (_, key) => String(variables[key] ?? `{{${key}}}`));
 }
 
-const SHARED_MODULES = [
-  'shared/technical-rules',
-  'shared/motion-design-principles',
-  'shared/vocabulary',
-  'shared/quality-checklist',
-] as const;
+/** @deprecated Shared modules moved to strategies/ and skills. Returns empty string. */
+const SHARED_MODULES: readonly string[] = [];
 
+/** @deprecated Returns empty string — shared modules moved to strategies/ and skills. */
 export function loadSharedModules(): string {
   return SHARED_MODULES.map(loadPrompt).join('\n\n');
 }
