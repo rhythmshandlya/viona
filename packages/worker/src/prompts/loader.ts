@@ -1,3 +1,9 @@
+/**
+ * @deprecated This TypeScript loader is part of the legacy single-agent pipeline.
+ * The production pipeline uses the Python loader (loader.py) with the
+ * build_agent_prompt() function. This file is kept for backward compatibility
+ * with generate-visuals.ts but should not be used for new code.
+ */
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
