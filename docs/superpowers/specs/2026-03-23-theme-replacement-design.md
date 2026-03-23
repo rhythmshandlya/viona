@@ -278,15 +278,61 @@ const themes = [
 ];
 ```
 
-## 9. Dockerfile
+## 9. Sandbox Prompt Updates (studio → theme-generic)
+
+The sandbox agents (Planner, Setup Agent, Animator) have hardcoded `studio-theme.md` references throughout their prompts. These must become theme-aware.
+
+### 9a. Static theme file in workspace template
+
+Currently `packages/sandbox/template/docs/guidelines/studio-theme.md` is a static file baked into every workspace. Replace with dynamic theme selection:
+
+- **Delete:** `packages/sandbox/template/docs/guidelines/studio-theme.md`
+- **workspace-init.ts** (line ~419): Currently copies all of `prompts/themes/` into `docs/themes/`. Update to also write the active theme's design-system.md to `docs/guidelines/theme.md` (the path all prompts reference). Use `get_design_system(theme)` from the Python theme_loader, or replicate the logic: read `themes/{family}/design-system.md`, substitute color placeholders, write to workspace.
+  ```ts
+  // After copying themes/ directory, write the active theme design system
+  const activeTheme = payload.theme || 'blackboard';
+  // Read themes.json, find family, load design-system.md, substitute colors
+  // Write result to docs/guidelines/theme.md
+  ```
+
+### 9b. Prompt file references
+
+All sandbox prompt files that reference `studio-theme.md` must be updated:
+
+| File | Current Reference | New Reference |
+|------|-------------------|---------------|
+| `prompts/shared/identity.xml:19` | `studio-theme.md — studio visual theme` | `theme.md — visual theme (colors, fonts, animations)` |
+| `prompts/planner/system.md:258` | `Read studio-theme.md — the visual system` | `Read theme.md — the visual system` |
+| `prompts/animator/system.md:301` | `Read the studio theme — open studio-theme.md` | `Read the theme — open theme.md` |
+| `prompts/setup-agent/system.md:11,15,17,129,256,271` | Multiple `studio theme` references | Replace all with generic `theme` |
+| `prompts/setup-agent/reminder.md:2` | `Read studio-theme.md FIRST` | `Read theme.md FIRST` |
+| `sandbox/template/.claude/CLAUDE.md` | `studio-theme.md — Theme design system tokens` | `theme.md — Theme design system tokens` |
+
+### 9c. prompt-loader.ts default
+
+Line 117: `ctx.theme ?? 'studio-dark'` → `ctx.theme ?? 'blackboard'`
+
+### 9d. Template browsing instructions in prompts
+
+The Planner prompt (line 298) already instructs: "If a theme is specified, browse with the theme filter to get themed templates + style guidance." This works as-is — `browse_templates` with `theme: "blackboard"` or `theme: "magazine"` will return the correct templates since:
+1. `seed-themes.ts` seeds the DB `themes` table from `packages/templates/themes/blackboard.json` and `magazine.json`
+2. `upload-templates.ts` creates `template_themes` join rows from each template's `meta.json` `themes` field
+3. `browse_templates` filters via the DB join
+4. `fork_template` downloads source from S3 (theme-agnostic)
+
+No changes needed to the MCP tools or API routes — the infrastructure is already theme-generic.
+
+## 10. Dockerfile
 
 No changes needed — existing `COPY packages/worker/src/prompts/themes/ /app/prompts/themes/` copies the entire directory. Replacing studio files with blackboard/magazine files is picked up automatically.
 
-## 10. DB Migration
+## 11. DB Migration
 
 Not required. The `style_preset` column is a free-form varchar(50). Existing rows with `studio-dark` or `studio-light` will simply not match any theme and fall through to the default (`blackboard`). No data migration needed.
 
-## 11. README Update
+The `themes` DB table (used by `browse_templates`) is populated by `seed-themes.ts` from `packages/templates/themes/*.json` — blackboard and magazine entries already exist there.
+
+## 12. README Update
 
 Update `prompts/README.md` to replace all studio references (mermaid diagrams, theme preset examples, `get_studio_section` references) with generic/blackboard/magazine equivalents.
 
@@ -295,6 +341,5 @@ Update `prompts/README.md` to replace all studio references (mermaid diagrams, t
 - Many-to-many theme/genre decoupling (future work)
 - New themes beyond blackboard/magazine
 - Template code changes (templates already work, only prompt-tier integration changes)
-- Workspace CLAUDE.md updates (already cleaned in prior prompt architecture work)
 - MCP template tools (`browse_templates`, `fork_template`) — already theme-agnostic, no changes needed
 - Full worker animation pipeline removal (separate deprecation effort — this spec only cleans studio references)
