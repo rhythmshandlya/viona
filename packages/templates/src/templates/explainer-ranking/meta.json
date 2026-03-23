@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-ranking",
+  "name": "Explainer Top List",
+  "description": "Numbered ranked list with large amber rank numbers and staggered glow reveals",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "explainer", "ranking", "list", "top-list", "listicle"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}
