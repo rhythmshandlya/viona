@@ -127,7 +127,7 @@ export const THEME = {
 
 **Rendering rules:** Same as blackboard — pure inline styles, SVG graphics, `useScale()`, interpolate clamping, stagger minimum 6 frames.
 
-## 3. Function Renames
+## 3. Function Renames & Studio Reference Cleanup
 
 All studio-specific names become generic:
 
@@ -145,9 +145,63 @@ All studio-specific names become generic:
 
 Function bodies stay the same — they already delegate to `get_design_system(preset)` and `get_theme(preset)`. Only names change.
 
+### 3a. `get_style_description()` in `director/director.py`
+
+This function reads `theme["variant"]` (which no longer exists) and uses old color keys `accentDefault`/`secondaryDefault`. Update to use the new schema:
+
+```python
+def get_style_description(style_preset: str) -> str:
+    theme = get_theme(style_preset)
+    if not theme:
+        return ""
+    colors = theme.get("colors", {})
+    label = theme.get("label", style_preset)
+    return (
+        f"Theme: {label}. "
+        f"Background: {colors.get('background')}, "
+        f"text: {colors.get('text')}, "
+        f"accent: {colors.get('accent')}, "
+        f"secondary: {colors.get('secondary')}."
+    )
+```
+
+### 3b. `build_animator_user_message()` in `animator/animator.py`
+
+This function contains hardcoded studio references:
+- `default="studio-dark"` → `default="blackboard"`
+- `"STUDIO THEME: COLORS must ONLY use these keys"` → `"THEME: COLORS must ONLY use these keys"`
+- `"## STUDIO TEMPLATE WORKFLOW"` → `"## TEMPLATE WORKFLOW"`
+- `"Write constants.ts using STUDIO THEME COLORS"` → `"Write constants.ts using THEME COLORS"`
+- `theme["variant"]` access → use `theme["label"]` instead
+- All `accentDefault`/`secondaryDefault` color key references → `accent`/`secondary`
+
+### 3c. `build_scene_task_prompt()` in `animator/animator.py`
+
+- `default="studio-dark"` → `default="blackboard"`
+- `"## STUDIO TEMPLATES"` → `"## TEMPLATES"`
+
+### 3d. Director prompt file `director/system.md`
+
+Hardcoded studio references that must be updated:
+- `"theme": "studio-dark"` in JSON example → `"theme": "blackboard"`
+- `"colorPalette": "studio-dark (accent: #6366F1, secondary: #EC4899)"` → generic example with blackboard colors
+- `"STUDIO THEME COLOR RULE"` section → rename to `"THEME COLOR RULE"` and update example colors
+- `"Default to studio-dark or studio-light"` → `"Default to blackboard or magazine"`
+- `"suggestedTemplates (studio preset only)"` → `"suggestedTemplates"` (templates work for all themes now)
+
+### 3e. `_validate_dotgrid()` in `_scene_verification.py`
+
+This validates DotGrid usage which is studio-specific. Update to be theme-aware:
+- If blackboard: validate `BoardTexture` usage (radial gradient background)
+- If magazine: validate `PaperTexture` usage (white background with grain)
+- Rename to `_validate_background()` for clarity
+
 ## 4. theme_loader.py Changes
 
-- Remove `variant`-related logic in `_load_theme_prompt()` — no more `variant_label` substitution
+- Remove `variant`-related logic in `_load_theme_prompt()`:
+  - Remove `variant_label` construction (`theme["variant"].capitalize() + " mode"`)
+  - Remove `variant` and `variant_label` from replacements dict
+  - Keep: `colors`, `family`, `label`, `genre` in replacements
 - `get_design_system()` path stays `{family}/design-system.md` (already works without variant)
 - Remove `get_style_guide()` entirely — no variant-based style guides
 - Keep: `get_theme()`, `list_theme_presets()`, `get_template_tags()`, `_load_theme_prompt()`, `get_design_system()`
@@ -155,9 +209,31 @@ Function bodies stay the same — they already delegate to `get_design_system(pr
 
 ## 5. theme-loader.ts Changes (TypeScript mirror)
 
-- Same changes as Python: remove `getStyleGuide()`, remove variant handling
-- Remove `getDirectorStyle()` (already references deleted file)
-- Add `getGenre(preset)`
+- Update `ThemeColors` interface — remove `gridColor`, `cardBg`, `cardBorder`, rename `accentDefault` → `accent`, `secondaryDefault` → `secondary`:
+  ```ts
+  export interface ThemeColors {
+    background: string;
+    text: string;
+    textMuted: string;
+    accent: string;
+    secondary: string;
+  }
+  ```
+- Update `ThemeConfig` interface — remove `variant`, add `genre`:
+  ```ts
+  export interface ThemeConfig {
+    family: string;
+    label: string;
+    genre: string;
+    templateTags: string[];
+    colors: ThemeColors;
+  }
+  ```
+- Remove `variant_label` and `variant` from `loadThemePrompt()` replacements
+- Remove `getStyleGuide()` entirely
+- Remove `getDirectorStyle()` (references deleted file)
+- Update `generate-visuals.ts`: change `getStyleGuidelines()` to use `getDesignSystem()` instead of deleted `getStyleGuide()`
+- Add `getGenre(preset: string): string`
 - Keep: `getTheme()`, `listThemePresets()`, `getTemplateTags()`, `getDesignSystem()`
 
 ## 6. Default Preset Changes
@@ -203,6 +279,10 @@ No changes needed — existing `COPY packages/worker/src/prompts/themes/ /app/pr
 ## 10. DB Migration
 
 Not required. The `style_preset` column is a free-form varchar(50). Existing rows with `studio-dark` or `studio-light` will simply not match any theme and fall through to the default (`blackboard`). No data migration needed.
+
+## 11. README Update
+
+Update `prompts/README.md` to replace all studio references (mermaid diagrams, theme preset examples, `get_studio_section` references) with generic/blackboard/magazine equivalents.
 
 ## Out of Scope
 
