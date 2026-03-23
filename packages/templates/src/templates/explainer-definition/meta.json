@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-definition",
+  "name": "Explainer Word Definition",
+  "description": "Term definition card with large word, pronunciation, and glow underline reveal",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "explainer", "definition", "vocabulary", "educational"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}
