@@ -140,7 +140,7 @@ After your analysis, call the `mcp__viewport__submit_verdict` tool with your ver
 
         print(f"[ClaudeGenerator] Scene {scene_num} failed verification: {issues}")
 
-        from prompts.animator import ANIMATOR_BASE_PROMPT
+        from prompts.animator import get_animator_prompt
 
         feedback_msg = "\n".join(f"- {iss}" for iss in issues)
 
@@ -173,7 +173,7 @@ When done, respond: "FIX COMPLETE"
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
-                        "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}",
+                        "append": f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}",
                     },
                     cwd=str(self.workspace),
                     max_turns=15,

@@ -176,7 +176,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         style_preset: str = "studio-dark",
     ) -> None:
         """Per-scene verify → fix → re-verify loop."""
-        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, ANIMATOR_BASE_PROMPT, get_studio_section
+        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, get_animator_prompt, get_studio_section
 
         studio_section = get_studio_section(style_preset)
         display_mode = scene_data.get("displayMode", "default")
@@ -257,7 +257,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
                         system_prompt={
                             "type": "preset",
                             "preset": "claude_code",
-                            "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}",
+                            "append": f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}",
                         },
                         cwd=str(self.workspace),
                         max_turns=15,

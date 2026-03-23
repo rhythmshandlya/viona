@@ -153,9 +153,9 @@ class AnimatorMixin:
             dict with success status
         """
         from prompts.animator import (
-            ANIMATOR_BASE_PROMPT,
             ANIMATOR_SETUP_PROMPT,
             ANIMATOR_SCENE_PROMPT_TEMPLATE,
+            get_animator_prompt,
             get_display_mode_rules,
             build_setup_user_message,
             build_scene_user_message,
@@ -238,7 +238,7 @@ class AnimatorMixin:
             )
         else:
             emit_progress(38, "Setting up project foundation...", {"phase": "workspace", "phaseName": "Setting up workspace"})
-            setup_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
+            setup_system = f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
             setup_message = build_setup_user_message(self.project_id)
 
             if get_theme(style_preset) and self._resolved_templates_md:
@@ -325,7 +325,7 @@ class AnimatorMixin:
             print(f"\n[ClaudeGenerator] Phase 2b: Dispatching {scenes_to_dispatch} scene-generator subagents ({total_scenes - scenes_to_dispatch} from checkpoint)...")
 
             scene_gen_system = (
-                f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}"
+                f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}"
             )
 
             scene_gen_tools = [
@@ -466,7 +466,7 @@ Report which scenes were created.
                     display_mode_rules=mode_rules,
                     project_id=self.project_id,
                 )
-                scene_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}\n\n{scene_prompt_filled}{user_assets_section}"
+                scene_system = f"{get_animator_prompt(self.genre)}{studio_section}\n\n{skills_directive}\n\n{scene_prompt_filled}{user_assets_section}"
                 scene_user_msg = build_scene_user_message(
                     project_id=self.project_id,
                     scene_index=i,

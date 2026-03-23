@@ -127,6 +127,7 @@ class ClaudeVisualGenerator(
         model: str = "claude-opus-4-5-20251101",
         max_thinking_tokens: int = 10000,
         max_turns: int = 100,
+        genre: str = "auto",
     ):
         self.workspace = workspace
         self.project_id = project_id
@@ -135,6 +136,7 @@ class ClaudeVisualGenerator(
         self.model = model
         self.max_thinking_tokens = max_thinking_tokens
         self.max_turns = max_turns
+        self.genre = genre
 
     def _write_security_settings(self) -> Path:
         """Write security settings to a temporary file."""
@@ -249,6 +251,12 @@ async def _main_inner(args, heartbeat: HeartbeatEmitter):
         else:
             formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
+        # Auto-classify genre from transcript
+        if generator.genre == "auto":
+            from agents.visual_generator.genre_classifier import classify_transcript
+            generator.genre = classify_transcript(formatted_transcript)
+            print(f"[ClaudeGenerator] Genre classified as: {generator.genre}")
+
         heartbeat.update('plan', 'Director analyzing transcript')
         emit_progress(18, "Director planning scenes...", {"phase": "plan", "phaseName": "Planning scenes"})
 
@@ -315,6 +323,11 @@ async def _main_inner(args, heartbeat: HeartbeatEmitter):
     elif args.phase == "animator":
         # Phase 2 only: Run Animator (expects plan files already in workspace)
         print("[ClaudeGenerator] Running Animator phase only")
+
+        # For animator-only runs, resolve "auto" genre to default (no transcript available)
+        if generator.genre == "auto":
+            generator.genre = "explainer-videos"
+            print(f"[ClaudeGenerator] Genre defaulted to: {generator.genre}")
 
         # Ensure OAuth token is valid
         try:

@@ -151,6 +151,12 @@ class PipelineMixin:
                     else:
                         formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
+                    # Auto-classify genre from transcript
+                    if self.genre == "auto":
+                        from agents.visual_generator.genre_classifier import classify_transcript
+                        self.genre = classify_transcript(formatted_transcript)
+                        print(f"[ClaudeGenerator] Genre classified as: {self.genre}")
+
                     emit_progress(19, "Director planning scenes...", {"phase": "plan", "phaseName": "Planning scenes"})
 
                     # Phase 1: Director

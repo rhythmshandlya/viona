@@ -38,7 +38,7 @@ class DirectorMixin:
         Returns:
             dict with success status and plan file paths
         """
-        from prompts.director import DIRECTOR_SYSTEM_PROMPT, build_director_user_message
+        from prompts.director import get_director_prompt, build_director_user_message
 
         print(f"[ClaudeGenerator] Phase 1: Director analyzing transcript...")
 
@@ -97,7 +97,7 @@ class DirectorMixin:
                 system_prompt={
                     "type": "preset",
                     "preset": "claude_code",
-                    "append": DIRECTOR_SYSTEM_PROMPT
+                    "append": get_director_prompt(self.genre)
                 },
                 cwd=str(self.src_dir),
                 max_turns=50,
