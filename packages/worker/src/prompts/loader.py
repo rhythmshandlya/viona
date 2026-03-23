@@ -84,3 +84,52 @@ def load_shared_modules() -> str:
     for name in _SHARED_MODULES:
         parts.append(load_prompt(name))
     return "\n\n".join(parts)
+
+
+# --- Strategy-based prompt composition ---
+
+
+def load_strategy(genre: str) -> str:
+    """Load both strategy files for a genre.
+
+    Args:
+        genre: Strategy directory name (e.g. 'explainer-videos', 'informative-media')
+
+    Returns:
+        Concatenated creative-direction + technique-preferences content.
+
+    Raises:
+        FileNotFoundError: If the strategy directory or files don't exist.
+    """
+    creative = load_prompt(f"strategies/{genre}/creative-direction")
+    techniques = load_prompt(f"strategies/{genre}/technique-preferences")
+    return f"{creative}\n\n{techniques}"
+
+
+def list_strategies() -> list[str]:
+    """Return available genre strategy names."""
+    strategies_dir = _PROMPTS_DIR / "strategies"
+    if not strategies_dir.exists():
+        return []
+    return sorted([d.name for d in strategies_dir.iterdir() if d.is_dir()])
+
+
+def build_agent_prompt(agent: str, genre: str) -> str:
+    """Assemble the full system prompt for an agent.
+
+    Components (in order):
+    1. composition.md — display mode rules (always loaded)
+    2. strategy — genre-specific creative direction + technique preferences
+    3. agent/system.md — role-specific workflow
+
+    Args:
+        agent: Agent name ('director' or 'animator')
+        genre: Strategy genre name (e.g. 'explainer-videos')
+
+    Returns:
+        Assembled system prompt string.
+    """
+    composition = load_prompt("composition")
+    strategy = load_strategy(genre)
+    role = load_prompt(f"{agent}/system")
+    return f"{composition}\n\n{strategy}\n\n{role}"
