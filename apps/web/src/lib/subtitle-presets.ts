@@ -413,39 +413,6 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     typographyPairingId: 'montserrat-inter',
   },
 
-  // ============================================
-  // DYNAMIC HIERARCHY - Dual typography with word-tier sizing
-  // ============================================
-
-  'dynamic-hierarchy': {
-    id: 'dynamic-hierarchy',
-    name: 'Dynamic',
-    fontFamily: 'Playfair Display, Georgia, serif',
-    fontSize: 60,
-    fontWeight: 800,
-    textTransform: 'none',
-    color: '#ffffff',
-    activeColor: '#ffffff',
-    backgroundColor: 'transparent',
-    activeBackgroundColor: 'transparent',
-    effects: {
-      shadow: { offsetX: 0, offsetY: 2, blur: 12, color: '#000000', opacity: 0.9 },
-      shadowSecondary: null,
-      glow: null,
-    },
-    animation: { in: 'fade-rise', active: 'none', out: 'none', easing: 'ease-out' },
-    displayMode: 'phrase',
-    wordsPerPhrase: 7,
-    position: {
-      anchor: 'bottom',
-      offsetX: 0,
-      offsetY: 5,
-      rotation: 0,
-      textAlign: 'center',
-    },
-    supportedModes: ['phrase'],
-    typographyPairingId: 'playfair-lato',
-  },
 };
 
 export const PRESET_ORDER = [
@@ -453,7 +420,6 @@ export const PRESET_ORDER = [
   'hormozi',
   'ali-abdaal',
   'nas-daily',
-  'dynamic-hierarchy',
   'netflix',
   'retro-vhs',
   'cottagecore',
