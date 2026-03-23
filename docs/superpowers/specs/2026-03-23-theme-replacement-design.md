@@ -173,6 +173,7 @@ This function contains hardcoded studio references:
 - `"## STUDIO TEMPLATE WORKFLOW"` → `"## TEMPLATE WORKFLOW"`
 - `"Write constants.ts using STUDIO THEME COLORS"` → `"Write constants.ts using THEME COLORS"`
 - `theme["variant"]` access → use `theme["label"]` instead
+- `BACKGROUNDS.{variant}` reference → remove (each theme's design-system.md defines its own background)
 - All `accentDefault`/`secondaryDefault` color key references → `accent`/`secondary`
 
 ### 3c. `build_scene_task_prompt()` in `animator/animator.py`
@@ -189,9 +190,9 @@ Hardcoded studio references that must be updated:
 - `"Default to studio-dark or studio-light"` → `"Default to blackboard or magazine"`
 - `"suggestedTemplates (studio preset only)"` → `"suggestedTemplates"` (templates work for all themes now)
 
-### 3e. `_validate_dotgrid()` in `_scene_verification.py`
+### 3e. `_validate_dotgrid()` in `_validators.py`
 
-This validates DotGrid usage which is studio-specific. Update to be theme-aware:
+Defined in `agents/visual_generator/_validators.py` (called from `_scene_verification.py`). Validates DotGrid usage which is studio-specific. Update to be theme-aware:
 - If blackboard: validate `BoardTexture` usage (radial gradient background)
 - If magazine: validate `PaperTexture` usage (white background with grain)
 - Rename to `_validate_background()` for clarity
@@ -248,6 +249,8 @@ All `default="studio-dark"` become `default="blackboard"`:
 | `agents/visual_generator/_director.py` | `_run_director_phase()` default |
 | `agents/visual_generator/_visual_verification.py` | `_run_visual_verification()` default |
 | `packages/sandbox/src/prompts/prompt-loader.ts` | `{{THEME}}` fallback |
+| `packages/api/src/agent/agent-router.ts` | `theme` fallback on line 105 |
+| `packages/api/src/agent/agent-system-prompt.ts` | `theme` fallback on line 23 |
 
 ## 7. Genre from Theme
 
