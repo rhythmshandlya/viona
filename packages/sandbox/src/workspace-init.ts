@@ -16,7 +16,9 @@ const logger = pino({ name: 'workspace-init' });
 const WORKSPACE = '/workspace';
 const STAGING = join(WORKSPACE, '.staging');
 const TEMPLATE = '/app/template';
-const NODE_MODULES_SRC = '/app/node_modules';
+// Workspace node_modules points to template deps (react 19, zod 3.22.3 for Remotion),
+// NOT /app/node_modules (sandbox deps: react 18, zod 4.x for claude-agent-sdk).
+const NODE_MODULES_SRC = '/app/template/node_modules';
 
 export interface InitPayload {
   videoUrl: string;      // MinIO key for source video
@@ -406,10 +408,10 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   });
 
   // Copy shared prompt modules into workspace for orchestrator access
-  const sharedSrc = join('/app', 'prompts', 'shared');
+  const sharedSrc = join('/app', 'dist', 'prompts', 'shared');
   const sharedDst = join(baseDir, 'docs', 'shared');
   await mkdir(sharedDst, { recursive: true });
-  for (const file of ['technical-rules.md', 'motion-design-principles.md', 'vocabulary.md', 'quality-checklist.md']) {
+  for (const file of ['identity.xml', 'tool-usage.xml', 'manifest-tools.xml', 'quality-rules.xml', 'motion-design.xml']) {
     try {
       await copyFile(join(sharedSrc, file), join(sharedDst, file));
     } catch {
@@ -505,22 +507,6 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
       }, null, 2),
     );
   }
-
-  // Initialize generation progress file
-  await writeFile(
-    join(baseDir, 'generation-progress.json'),
-    JSON.stringify({
-      phase: 'initialized',
-      planApproved: false,
-      totalScenes: 0,
-      completedScenes: [],
-      failedScenes: [],
-      currentScene: null,
-      tsVerified: false,
-      lastError: null,
-      updatedAt: new Date().toISOString(),
-    }, null, 2),
-  );
 }
 
 /**
@@ -578,7 +564,7 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
 
 /**
  * Reset workspace to post-init state. Keeps video, audio, transcript, docs.
- * Clears all generated content (scenes, plan, progress) and restores original manifest.
+ * Clears all generated content (scenes, plan) and restores original manifest.
  */
 export async function resetWorkspace(): Promise<void> {
   logger.info('Resetting workspace to initial state');
@@ -606,22 +592,9 @@ export async function resetWorkspace(): Promise<void> {
     logger.warn('No manifest-original.json found — manifest unchanged');
   }
 
-  // Clear plan and progress files
+  // Clear plan files from both possible locations (root and docs/)
   await rm(join(WORKSPACE, 'SCENE_PLAN.md'), { force: true });
-  await writeFile(
-    join(WORKSPACE, 'generation-progress.json'),
-    JSON.stringify({
-      phase: 'initialized',
-      planApproved: false,
-      totalScenes: 0,
-      completedScenes: [],
-      failedScenes: [],
-      currentScene: null,
-      tsVerified: false,
-      lastError: null,
-      updatedAt: new Date().toISOString(),
-    }, null, 2),
-  );
+  await rm(join(WORKSPACE, 'docs', 'SCENE_PLAN.md'), { force: true });
 
   // Clear .build output
   rmSync(join(WORKSPACE, '.build'), { recursive: true, force: true });
