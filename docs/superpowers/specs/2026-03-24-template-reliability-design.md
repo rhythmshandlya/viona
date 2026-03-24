@@ -31,7 +31,7 @@ Additionally, all 27 magazine templates hardcode pixel values (1080x1920), font 
 
 ---
 
-## Section 1: Explicit Dependency Manifest (`template.json`)
+## Section 1: Merge Dependency Manifest into `meta.json`
 
 ### Problem
 
@@ -39,24 +39,29 @@ Shared library detection uses regex scanning of source files. Each build script 
 
 ### Design
 
-Each template gets a `template.json` manifest that explicitly declares all dependencies:
+Instead of creating a separate `template.json` file, merge build-time dependency fields directly into `meta.json`. This avoids maintaining two metadata files per template with redundant slug fields and a three-way consistency check.
+
+**Rationale:** `meta.json` is the single metadata file per template. Adding build-internal fields to it is cleaner than a separate manifest — there's no reason to keep them apart since both are read by build scripts and neither is user-facing.
+
+New fields added to `meta.json`:
 
 ```json
 {
   "slug": "magazine-comparison",
+  "name": "Magazine Comparison",
+  "description": "...",
   "sharedLibs": ["magazine", "fonts", "use-scale"],
   "npmDependencies": {},
   "siblingTemplates": []
 }
 ```
 
-**Fields:**
+**New dependency fields:**
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `slug` | `string` | Canonical identifier, must match directory name |
 | `sharedLibs` | `Array<"magazine" \| "blackboard" \| "fonts" \| "use-scale">` | Shared libraries this template imports |
-| `npmDependencies` | `Record<string, string>` | npm packages beyond base workspace deps |
+| `npmDependencies` | `Record<string, string>` | npm packages beyond base workspace deps (validated at build time against workspace `package.json` — see Section 6b) |
 | `siblingTemplates` | `string[]` | Other templates this template imports from |
 
 **What this replaces:**
@@ -65,14 +70,14 @@ Each template gets a `template.json` manifest that explicitly declares all depen
 - Sibling template scanning in `build-templates.ts`
 - Fork tool guessing about npm dependencies
 
-**Validation:** Build scripts Zod-validate `template.json` at load time. Missing or invalid manifest is a hard error, not a silent skip.
+**Validation:** Build scripts Zod-validate `meta.json` at load time. Missing or invalid fields are hard errors, not silent skips.
 
 ### Files Changed
 
-- New: `packages/templates/src/templates/*/template.json` (50+ files, one per template)
-- Modified: `packages/templates/scripts/build-registry.ts` — read manifest instead of `detectSharedDeps()`
-- Modified: `packages/templates/scripts/build-templates.ts` — read manifest instead of scanning for sibling imports
-- Modified: `packages/templates/scripts/upload-templates.ts` — read manifest instead of regex detection
+- Modified: `packages/templates/src/templates/*/meta.json` (50+ files — add `sharedLibs`, `npmDependencies`, `siblingTemplates`)
+- Modified: `packages/templates/scripts/build-registry.ts` — read `sharedLibs` from meta instead of `detectSharedDeps()`
+- Modified: `packages/templates/scripts/build-templates.ts` — read `siblingTemplates` from meta instead of scanning
+- Modified: `packages/templates/scripts/upload-templates.ts` — read `sharedLibs` from meta instead of regex detection
 
 ---
 
@@ -99,7 +104,7 @@ Add three fields. Remove three fields.
 - `estimatedDuration` — determined by scene plan and transcript, not the template
 - `stylePreset` — vestigial from old shadcn-style registry format
 
-**Example (magazine-comparison):**
+**Example (magazine-comparison) — complete `meta.json` with all fields from Sections 1 and 2:**
 
 ```json
 {
@@ -111,7 +116,10 @@ Add three fields. Remove three fields.
   "notFor": ["simple winner/loser matchups (use magazine-versus)", "pros and cons lists (use magazine-proscons)", "ranked lists (use magazine-ranking)"],
   "category": "overlay",
   "tags": ["magazine-theme", "comparison"],
-  "themes": ["magazine"]
+  "themes": ["magazine"],
+  "sharedLibs": ["magazine", "fonts", "use-scale"],
+  "npmDependencies": {},
+  "siblingTemplates": []
 }
 ```
 
@@ -128,7 +136,8 @@ Add three fields. Remove three fields.
 - Modified: `packages/templates/src/types.ts` — update `TemplateMeta` type
 - Modified: `packages/templates/registry.json` — rebuilt without removed fields
 - Modified: `packages/api/src/routes/templates.ts` — remove removed fields from API response if present
-- Modified: `packages/templates/scripts/upload-templates.ts` — stop writing removed fields to DB
+- Modified: `packages/templates/scripts/upload-templates.ts` — stop writing removed fields to DB; upload `use-scale.ts` and `fonts.ts` alongside magazine/blackboard shared libraries when declared in `sharedLibs` (currently only magazine/ and blackboard/ are uploaded, but `use-scale.ts` is missing from S3 — templates that import it after the responsiveness refactor would fail at fork time)
+- Modified: DB migration — drop `aspect_ratio` column default or make it nullable (currently defaults to `'16:9'`)
 
 ---
 
@@ -140,7 +149,9 @@ Import rewriting happens in 4 separate places with different regex patterns and 
 
 ### Design
 
-A single shared utility `packages/templates/src/lib/rewrite-imports.ts`:
+A single shared utility in `packages/shared/src/rewrite-imports.ts` (the `@viona/shared` package):
+
+**Why `@viona/shared`:** The utility is consumed by both `packages/templates/scripts/` (build-time) and `packages/sandbox/src/tools/template-tools.ts` (runtime in Docker). The sandbox package does not depend on the templates package, so the utility must live in a shared package that both can import. `@viona/shared` already exists and is a type-only dependency of sandbox — this adds one runtime export.
 
 ```ts
 export function rewriteImports(
@@ -153,10 +164,10 @@ export function rewriteImports(
 **Parameters:**
 - `source` — file content
 - `fileDepth` — 0 for root files (`index.tsx`), 1 for `components/X.tsx`, etc.
-- `sharedLibs` — from `template.json`, determines which `../../` paths are valid
+- `sharedLibs` — from `meta.json`, determines which `../../` paths are valid
 
 **Logic:**
-1. Match all `from '../../anything'` and `import '../../anything'` patterns
+1. Match all `from '../../anything'`, `import '../../anything'`, and `import('../../anything')` patterns (static imports, side-effect imports, and dynamic imports)
 2. For each match, check if the imported path starts with a known shared lib
 3. Rewrite to the correct depth-relative path (`./` for root, `../` for depth-1)
 4. **Throw on unrecognized `../../` imports** — catches accidental escapes instead of silently mangling them
@@ -165,14 +176,16 @@ export function rewriteImports(
 - `build-registry.ts` — calls it when inlining source into `r/{slug}.json`
 - `build-templates.ts` — calls it when copying to `_resolved_source/`
 - `template-tools.ts` (fork tool) — calls it after downloading from S3
-- `upload-templates.ts` — no longer needs dependency detection (reads `template.json`)
+- `upload-templates.ts` — no longer needs dependency detection (reads `meta.json`)
 
 ### Files Changed
 
-- New: `packages/templates/src/lib/rewrite-imports.ts`
+- New: `packages/shared/src/rewrite-imports.ts`
+- Modified: `packages/shared/package.json` — add export for `rewrite-imports`
 - Modified: `packages/templates/scripts/build-registry.ts` — replace inline regex with `rewriteImports()`
 - Modified: `packages/templates/scripts/build-templates.ts` — replace inline regex with `rewriteImports()`
 - Modified: `packages/sandbox/src/tools/template-tools.ts` — replace inline regex with `rewriteImports()`
+- Modified: `packages/sandbox/package.json` — `@viona/shared` becomes a runtime dep (not just type-only)
 
 ---
 
@@ -190,19 +203,24 @@ New file `packages/templates/src/lib/template-schemas.ts`:
 
 ```ts
 const MetaSchema = z.object({
+  // Identity
   slug: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
   description: z.string().min(10),
+  // Discoverability (Section 2)
   useCase: z.string().min(10),
   bestFor: z.array(z.string()).min(1),
   notFor: z.array(z.string()).optional(),
-  category: z.enum(['overlay', 'scene', 'element']),
+  category: z.enum([
+    'data-visualization', 'text-typography', 'comparison',
+    'social-engagement', 'geographic', 'intro-outro',
+    'timeline-process', 'media', 'marketing', 'education',
+    'social', 'corporate', 'entertainment', 'overlay',
+  ]),
   tags: z.array(z.string()),
   themes: z.array(z.string()).min(1),
-});
-
-const TemplateManifestSchema = z.object({
-  slug: z.string(),
+  type: z.enum(['scene', 'overlay']).optional(),
+  // Dependencies (Section 1)
   sharedLibs: z.array(z.enum(['magazine', 'blackboard', 'fonts', 'use-scale'])),
   npmDependencies: z.record(z.string()).default({}),
   siblingTemplates: z.array(z.string()).default([]),
@@ -221,11 +239,11 @@ const CompositionMetaSchema = z.object({
 
 New script `packages/templates/scripts/validate-templates.ts`:
 
-1. **Structural check** — every template directory must have: `meta.json`, `template.json`, `metadata.json`, `schema.ts`, `index.tsx`. Missing file = hard error.
+1. **Structural check** — every template directory must have: `meta.json`, `metadata.json`, `schema.ts`, `index.tsx`. Missing file = hard error.
 2. **Schema validation** — parse all JSON files through Zod schemas. Invalid = hard error with field-level details.
-3. **Slug consistency** — `meta.json` slug, `template.json` slug, and directory name must match.
-4. **Shared lib verification** — for each lib in `template.json.sharedLibs`, verify source directory exists.
-5. **Sibling template verification** — for each slug in `siblingTemplates`, verify that template directory exists with valid `template.json`.
+3. **Slug consistency** — `meta.json` slug and directory name must match.
+4. **Shared lib verification** — for each lib in `meta.json.sharedLibs`, verify source directory exists.
+5. **Sibling template verification** — for each slug in `meta.json.siblingTemplates`, verify that template directory exists with valid `meta.json`.
 6. **Import escape check** — scan all `.ts`/`.tsx` files for `../../` imports. Every match must resolve to a declared `sharedLib` or `siblingTemplate`. Undeclared escapes = hard error.
 7. **`useScale()` enforcement** — every template `index.tsx` must import `useScale`. Catches the magazine hardcoding problem at build time.
 8. **Removed fields check** — error if `meta.json` contains `aspectRatio`, `estimatedDuration`, or `stylePreset`.
@@ -256,19 +274,19 @@ All 27 magazine templates hardcode pixel values for 1080x1920 canvas, raw font s
 
 Changes to magazine shared utilities that affect all templates:
 
-**`magazine/animations.ts`** — `paperSlide()` offsets become canvas-relative:
+**`magazine/animations.ts`** — `paperSlide()` gains an optional `canvasSize` parameter for canvas-relative offsets. The existing signature stays backward-compatible so templates can be migrated incrementally (not all 27 atomically):
+
 ```ts
-// Before: hardcoded [-1200, 0] (assumes 1080px width)
-// After: function of canvas dimensions
-export function getSlideOffsets(width: number, height: number) {
-  return {
-    left: [-width * 1.1, 0],
-    right: [width * 1.1, 0],
-    up: [0, -height * 1.05],
-    down: [0, height * 1.05],
-  };
-}
+// New overload — canvas-relative offsets
+export function paperSlide(
+  frame: number, start: number, duration: number, direction: string,
+  canvasSize?: { width: number; height: number },
+)
+// When canvasSize is provided, uses width*1.1 / height*1.05 for offsets
+// When omitted, falls back to hardcoded 1080/1920 values (backward compat)
 ```
+
+The backward-compatible fallback is removed once all 27 templates are migrated (Section 5b). A follow-up commit deletes the fallback and makes `canvasSize` required.
 
 **`magazine/typography.tsx`** — `SerifHeadline`, `SectionLabel` accept pre-scaled `size` prop. Caller applies `s()`:
 ```tsx
@@ -299,22 +317,31 @@ const CARD_H = s(1400);
 <div style={{ fontSize: s(49), padding: `${s(60)}px ${s(50)}px` }}>
 ```
 
-**5c. Duration-relative animations**
+**5c. Duration-aware animations**
 
-Templates currently hardcode frame numbers in `interpolate()`:
+Templates currently hardcode absolute frame numbers. The fix uses a **hybrid approach**: proportional timing for enter/exit phases, absolute frame offsets for internal choreography stagger.
+
+**Rationale:** Fully proportional timing (`t = frame / durationInFrames`) breaks stagger choreography — a 90-frame scene would have 3x faster stagger than a 270-frame scene, making the visual feel rushed or sluggish. Internal stagger timing (e.g., 12-frame gaps between list items) should stay absolute because it represents physical motion, not scene proportion.
 
 ```tsx
-// BEFORE — breaks at different durations
-const opacity = interpolate(frame, [30, 38], [0, 1], {
+// ENTER phase — proportional (first 20% of scene)
+const enterEnd = Math.round(durationInFrames * 0.2);
+const headerOpacity = interpolate(frame, [0, enterEnd * 0.3], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp'
 });
 
-// AFTER — proportional to scene duration
-const t = frame / durationInFrames;
-const opacity = interpolate(t, [0.15, 0.2], [0, 1], {
+// INTERNAL stagger — absolute offsets (frame-precise choreography)
+const ROW_STAGGER = 12; // always 12 frames between rows, regardless of duration
+const rowStart = enterEnd + i * ROW_STAGGER;
+
+// EXIT phase — proportional (last 10% of scene)
+const exitStart = Math.round(durationInFrames * 0.9);
+const exitOpacity = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp'
 });
 ```
+
+This preserves the snappy feel of frame-precise stagger while allowing scenes to run at different durations without enter/exit phases being cut off or stretched.
 
 **5d. What stays the same**
 - Spring-based animations (`spring()`) — already duration-independent
@@ -346,15 +373,17 @@ The fork tool downloads files from S3, rewrites imports with regex, runs `npm in
 
 **6a. Manifest-driven dependency resolution**
 
-After downloading template files from S3, the fork tool reads `template.json` from the downloaded files:
+After downloading template files from S3, the fork tool reads `meta.json` from the downloaded files for dependency info:
 
-1. For each `sharedLib` in manifest: check if already in workspace, download if not
-2. For each `siblingTemplate` in manifest: check `forkedSlugs` set, recursively fork if needed
+1. For each `sharedLib` in `meta.json`: check if already in workspace, download if not
+2. For each `siblingTemplate` in `meta.json`: check `forkedSlugs` set, recursively fork if needed
 3. No more grepping downloaded source files for import patterns
 
 **6b. No runtime npm install**
 
-Any npm package a template needs must be pre-installed in the Docker image's `/app/template/node_modules/`. The `template.json` `npmDependencies` field is validated at build time against the workspace `package.json`. If a template declares a dep not in the base workspace, the build fails — forcing the fix at image build time.
+Any npm package a template needs must be pre-installed in the Docker image's `/app/template/node_modules/`. The `meta.json` `npmDependencies` field is validated at build time against the workspace `package.json`. If a template declares a dep not in the base workspace, the build fails — forcing the fix at image build time.
+
+**Tradeoff acknowledged:** This creates a tight coupling between template authoring and Docker image deploys. Adding a new npm dependency to a template requires: (1) add to workspace `package.json`, (2) rebuild Docker image, (3) redeploy. This is acceptable because it eliminates runtime npm failures and version drift. The workflow for adding a new dependency is documented in the workspace `package.json` comments.
 
 **6c. Post-fork import verification**
 
@@ -366,7 +395,7 @@ After writing all files, verify integrity before returning success:
 
 **6d. Shared lib deduplication**
 
-When forking 5-10 magazine templates, each gets its own copy of `magazine/`. Add a fast path: if the directory already exists from a previous fork, checksum both copies. If identical, skip. If different, warn and keep existing.
+When forking 5-10 magazine templates, each gets its own copy of `magazine/`. Add a fast path: if the shared lib directory already exists in the target from a previous fork, skip the copy. No checksumming needed — all copies originate from the same S3 upload of the same source tree, so version skew is a build/upload problem, not a fork-time problem.
 
 **6e. Structured return value**
 
@@ -394,16 +423,35 @@ The sandbox pipeline has structural gaps between phases: the orchestrator doesn'
 
 ### Design
 
-**7a. Orchestrator pre-parses template slugs**
+**7a. Orchestrator pre-parses template slugs via structured sidecar**
+
+The Planner already writes `SCENE_PLAN.md` (human-readable). Add a requirement for the Planner to also write `scene-templates.json` (machine-parseable sidecar):
+
+```json
+{
+  "scenes": [
+    { "sceneNumber": 1, "template": "magazine-comparison" },
+    { "sceneNumber": 2, "template": "magazine-stats" },
+    { "sceneNumber": 3, "template": "magazine-quote" }
+  ]
+}
+```
+
+**Why a sidecar instead of parsing markdown:** The Planner is an AI agent that writes freeform markdown. Regex-parsing `template: <slug>` from markdown is fragile — whitespace variations, bold formatting (`**Template:** slug`), backtick wrapping, etc. A structured JSON file eliminates all parsing ambiguity.
 
 After Phase 3 (Planner completes), the orchestrator:
 
-1. Reads `SCENE_PLAN.md` from disk
-2. Extracts all `template: <slug>` fields with a code parser (not the AI agent)
-3. Calls `browse_templates` to verify every slug exists
-4. Passes the validated slug list directly in the Setup Agent dispatch message
+1. Reads `scene-templates.json` from disk (hard error if missing)
+2. Calls `browse_templates` to verify every slug exists
+3. Passes the validated slug list directly in the Setup Agent dispatch message
 
 If a slug doesn't exist, the orchestrator fails before Setup Agent starts.
+
+**Planner prompt update:** Add instruction to write `scene-templates.json` alongside `SCENE_PLAN.md`. The Planner already writes structured output (scenes.json), so this is a natural addition.
+
+### Additional files changed
+
+- Modified: `packages/sandbox/src/prompts/planner/system.md` — instruction to write `scene-templates.json`
 
 **7b. Setup Agent writes `workspace-templates.json`**
 
@@ -422,7 +470,7 @@ After all forks complete, Setup Agent writes a manifest:
 }
 ```
 
-This becomes the single source of truth for downstream agents.
+This becomes the single source of truth for downstream agents. It also serves checkpoint/restore — on session resume, the orchestrator reads this file to verify all templates are present before dispatching animators (see 7e).
 
 **7c. Animators get explicit template info in dispatch**
 
@@ -439,7 +487,7 @@ Scene 3 uses template magazine-comparison
 
 Forked template files are committed to git during Setup Agent's phase. The checkpoint system already bundles everything in git, so templates survive session resume.
 
-**7e. Phase 4 to 6 gate**
+**7e. Setup-to-Animator gate**
 
 After Setup Agent returns, orchestrator:
 
@@ -460,10 +508,10 @@ After Setup Agent returns, orchestrator:
 ## Migration Strategy
 
 ### Phase 1: Infrastructure (Sections 1, 3, 4)
-- Create `rewrite-imports.ts` shared utility
+- Create `rewrite-imports.ts` in `@viona/shared`
 - Create `template-schemas.ts` Zod schemas
 - Create `validate-templates.ts` script
-- Generate `template.json` for all 50+ templates from current state (scan source to detect current deps)
+- **Bootstrap step:** Run a one-time migration script that scans each template's source files using the *existing* regex detection logic to generate `sharedLibs`, `npmDependencies`, and `siblingTemplates` fields, then writes them into each template's `meta.json`. This is the last time the old regex logic runs — after this, the manifests become the source of truth.
 - Update build scripts to use shared utilities
 
 ### Phase 2: Metadata (Section 2)
