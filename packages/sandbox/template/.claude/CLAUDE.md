@@ -37,6 +37,15 @@ Read and modify the manifest via MCP tools (`read_manifest`, `add_item`, `update
 - `data.sceneFile` should include `.tsx` extension (e.g., `Scene1.tsx` not `Scene1`).
 - transcript.json syncs automatically after manifest changes. Use post-sync timestamps (not source timestamps) for scene planning.
 
+## Rendering
+- ALWAYS use the `render_still` MCP tool to render frames
+- NEVER call `remotion still` via Bash — it produces black frames because it skips the --props manifest bypass
+
+## Dependency Rules — CRITICAL
+- NEVER run `npm install` in the workspace. All dependencies are pre-installed.
+- NEVER run `npm install zod` or any command that could upgrade zod. Remotion requires zod 3.22.3 — zod 4.x breaks rendering.
+- If a package is missing, check if it's already available in node_modules before attempting to install it.
+
 ## Import Pattern
 ```tsx
 import { COLORS, SPRINGS } from '../constants';
@@ -61,8 +70,8 @@ Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 - Opacity and transform offsets: stagger by 3-5 frames (never start on same frame).
 
 ## Anti-Slideshow Rules
-- Do NOT default to card/rectangle layouts. Prefer drawn SVG paths, animated charts, kinetic typography, visual metaphors.
-- Cards are acceptable ONLY when content genuinely calls for them (checklists, comparison tables) — and even then, connect them with drawn lines/arrows.
+- Do NOT default to card/rectangle layouts. Prefer solid filled shapes, animated charts, kinetic typography, clip-path reveals, gradient fills, visual metaphors.
+- Cards are acceptable ONLY when content genuinely calls for them (checklists, comparison tables) — and even then, connect them with solid filled connector bars or animated width/height reveals.
 - If your scene could be a static PowerPoint slide, redesign it. The viewer should feel motion and visual relationships, not layout.
 - No generic card wrapper components (GlassCard, DataCard). Build scene-specific visuals.
 
