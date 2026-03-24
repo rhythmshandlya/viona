@@ -532,5 +532,9 @@ async function buildInitData(projectId: string): Promise<InitData | null> {
     durationMs: project.durationMs || 0,
   };
 
+  // Add theme from video settings (orchestrator can override via user brief analysis)
+  const videoSettings = (project.videoSettings as Record<string, unknown>) || {};
+  initBody.theme = (videoSettings.theme as string) || undefined;
+
   return initBody;
 }

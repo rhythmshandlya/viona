@@ -58,6 +58,7 @@ export interface InitData {
     fps: number;
     durationMs: number;
   };
+  theme?: string;
   [key: string]: unknown;
 }
 
