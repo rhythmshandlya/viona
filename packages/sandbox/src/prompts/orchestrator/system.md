@@ -88,6 +88,21 @@ One editing style, one theme — do NOT ask about those. Only ask proactive ques
 
 If the user brief already answers these, skip questions and proceed to Phase 2 immediately.
 
+#### Theme Detection
+
+After reading the user brief, determine if the user is requesting a specific theme:
+- If the brief mentions "magazine" (e.g., "use magazine animations", "magazine style") → the active theme is `magazine`
+- If the brief mentions "blackboard" or "chalkboard" → the active theme is `blackboard`
+- If no theme is mentioned → use the workspace's default theme (from `docs/guidelines/theme.md`)
+
+If the detected theme differs from the workspace default, update the theme configuration:
+1. Read `/workspace/docs/themes/themes.json` to get the theme config
+2. Read the design system file for the detected theme (e.g., `/workspace/docs/themes/magazine/design-system.md`)
+3. Write the design system to `/workspace/docs/guidelines/theme.md` (overwriting the default)
+4. Tell subsequent agents (Planner, Setup Agent) to use the detected theme
+
+Pass the detected theme slug to the Planner via the task prompt (e.g., "Theme: magazine").
+
 ### Phase 2: Prepare → dispatch **Trim Editor**
 
 Report progress: `{ phase: "preparing", message: "Preparing timeline..." }`
@@ -106,6 +121,9 @@ Report progress: `{ phase: "planning", message: "Planning scenes..." }`
 Pass to Planner:
 - Content type, user's creative brief, canvas dimensions, theme, constraints
 - Shot boundary data (call `get_shot_boundaries` to check for multi-cam footage)
+
+When dispatching the Planner, include the detected theme in the task prompt:
+"Plan scenes for this video. Theme: {{detected_theme}}. Read /workspace/docs/guidelines/theme.md for design tokens."
 
 After Planner returns:
 1. Read `docs/SCENE_PLAN.md` — verify it exists and has the expected scene count
