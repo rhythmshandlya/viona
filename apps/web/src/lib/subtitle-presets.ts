@@ -410,7 +410,7 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     wordsPerPhrase: 7,
     position: { anchor: 'bottom', offsetX: 0, offsetY: 5, rotation: 0, textAlign: 'center' },
     supportedModes: ['phrase'],
-    typographyPairingId: 'montserrat-inter',
+    typographyPairingId: 'montserrat-dancingscript',
   },
 
 };

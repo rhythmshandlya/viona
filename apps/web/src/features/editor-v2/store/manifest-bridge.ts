@@ -652,6 +652,11 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
           offsetY: mcs.position.offsetY ?? 0,
           rotation: mcs.position.rotation ?? 0,
           textAlign: mcs.position.textAlign || 'center',
+          // Preserve free-mode fields so position survives manifest round-trip
+          ...((mcs.position as any).mode ? { mode: (mcs.position as any).mode } : {}),
+          ...((mcs.position as any).x != null ? { x: (mcs.position as any).x } : {}),
+          ...((mcs.position as any).y != null ? { y: (mcs.position as any).y } : {}),
+          ...((mcs.position as any).width != null ? { width: (mcs.position as any).width } : {}),
         }
       : DEFAULT_CAPTION_STYLE.position,
     presetId: mcs.presetId ?? undefined,

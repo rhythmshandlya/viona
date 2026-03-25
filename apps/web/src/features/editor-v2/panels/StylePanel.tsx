@@ -109,6 +109,15 @@ export function StylePanel() {
     const fontEntry = findFont(preset.fontFamily.split(',')[0].trim());
     if (fontEntry) loadFont(fontEntry);
 
+    // Resolve typography pairing fonts
+    const pairing = preset.typographyPairingId ? getPairing(preset.typographyPairingId) : undefined;
+    if (pairing) {
+      const displayEntry = findFont(pairing.displayFont.family);
+      const bodyEntry = findFont(pairing.bodyFont.family);
+      if (displayEntry) loadFont(displayEntry);
+      if (bodyEntry) loadFont(bodyEntry);
+    }
+
     updateCaptionPreset({
       presetId: preset.id,
       fontFamily: preset.fontFamily,
@@ -129,10 +138,31 @@ export function StylePanel() {
       backgroundPadding: preset.backgroundPadding,
       backgroundRadius: preset.backgroundRadius,
       animation: preset.animation,
+      position: typeof preset.position === 'object' ? {
+        anchor: preset.position.anchor ?? 'bottom',
+        offsetX: preset.position.offsetX ?? 0,
+        offsetY: preset.position.offsetY ?? 0,
+        rotation: preset.position.rotation ?? 0,
+        textAlign: preset.position.textAlign ?? 'center',
+        // Reset free-mode fields so presets always use anchor positioning
+        mode: undefined,
+        x: undefined,
+        y: undefined,
+        width: undefined,
+      } : {
+        anchor: (preset.position as 'top' | 'center' | 'bottom') ?? 'bottom',
+        offsetX: 0,
+        offsetY: 0,
+        rotation: 0,
+        textAlign: 'center' as const,
+      },
       displayMode: preset.supportedModes[0], // Default mode for the preset
       wordsPerPhrase: preset.wordsPerPhrase ?? 5,
-      // Dual typography pairing
-      typographyPairingId: preset.typographyPairingId ?? undefined,
+      // Dual typography pairing — use empty string to explicitly clear in sandbox dispatch
+      // (undefined gets stripped by JSON.stringify, empty string survives and is falsy)
+      typographyPairingId: preset.typographyPairingId || '',
+      displayFontFamily: pairing?.displayFont.family || '',
+      bodyFontFamily: pairing?.bodyFont.family || '',
       // Cinematic renderer fields
       ...(preset.useCinematicRenderer ? {
         useCinematicRenderer: true,
