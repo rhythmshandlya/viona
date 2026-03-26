@@ -83,6 +83,9 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
         let resolved: string;
         if (/^https?:\/\/|^blob:/.test(src)) {
           resolved = src;
+        } else if (src.startsWith('/api/') || src.startsWith('/media-proxy/')) {
+          // Already an absolute same-origin path (e.g. from store → storeToManifest round-trip)
+          resolved = src;
         } else {
           const cleanPath = src.startsWith('/') ? src.slice(1) : src;
           const directUrl = resolveDirectMediaUrl(bundleUrl, cleanPath);
@@ -98,7 +101,10 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     for (const url of currentMedia) {
       if (!prefetchHandlesRef.current.has(url)) {
         try {
-          const { free } = prefetch(url);
+          const { free, waitUntilDone } = prefetch(url);
+          // Catch the async rejection so it doesn't surface as an unhandled
+          // promise rejection (Remotion rejects waitUntilDone on HTTP errors).
+          waitUntilDone().catch(() => {});
           prefetchHandlesRef.current.set(url, free);
         } catch {
           // prefetch may fail for blob: or invalid URLs — fall back silently
@@ -163,11 +169,36 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     // Strip sandbox assets map so resolveMediaSrc always falls through to
     // staticFile(), returning the direct video URL for native streaming.
     const m = manifest as any;
-    if (m?.assets) {
-      const { assets: _a, ...rest } = m;
-      return { manifest: { ...rest, assets: {} } };
+    const cleaned = m?.assets ? { ...m, assets: {} } : { ...m };
+
+    // Phrase/karaoke/DH modes need multi-word caption items.
+    // Merge single-word items into phrase groups right before passing to Player.
+    const cp = cleaned.captionPreset ?? cleaned.captionStyle;
+    const needsMergePlayer = cp?.typographyPairingId ||
+      cp?.displayMode === 'phrase' ||
+      cp?.displayMode === 'karaoke';
+    if (needsMergePlayer && Array.isArray(cleaned.items)) {
+      const wpp = cp.wordsPerPhrase || 6;
+      const captions = cleaned.items.filter((i: any) => i.type === 'caption');
+      const nonCaptions = cleaned.items.filter((i: any) => i.type !== 'caption');
+      if (captions.length > 1 && captions[0]?.data?.words?.length <= 1) {
+        const merged: any[] = [];
+        for (let i = 0; i < captions.length; i += wpp) {
+          const group = captions.slice(i, i + wpp);
+          const allWords = group.flatMap((it: any) => it.data?.words ?? []);
+          if (allWords.length === 0) continue;
+          merged.push({
+            ...group[0],
+            id: group[0].id + '-merged',
+            endMs: group[group.length - 1].endMs,
+            data: { words: allWords },
+          });
+        }
+        cleaned.items = [...nonCaptions, ...merged];
+      }
     }
-    return { manifest };
+
+    return { manifest: cleaned };
   }, [manifest]);
 
   if (loading || (!Component && !error)) {

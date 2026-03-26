@@ -232,7 +232,7 @@ export interface SubtitleStyle {
   textTransform?: 'none' | 'uppercase' | 'lowercase';
   stroke?: StrokeStyle | null;
   // Display mode
-  displayMode?: 'word-by-word' | 'phrase' | 'karaoke';
+  displayMode?: 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
   wordsPerPhrase?: number;
   // Word emphasis overrides per role (from captionPreset.wordEmphasis)
   wordEmphasis?: {
@@ -332,7 +332,7 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
 
   const displayMode = style.displayMode || 'phrase';
-  const wordsPerPhrase = style.wordsPerPhrase || 5;
+  const wordsPerPhrase = style.wordsPerPhrase || 7;
 
   // Find active word index
   const activeWordIndex = words.findIndex(
@@ -418,6 +418,132 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
         >
           {activeWord.text}
         </span>
+      </div>
+    );
+  }
+
+  // ── Poster Staircase mode ──
+  // Layout: find the single strongest/most-central word as the pivot; words before
+  // it form line 1 (small white uppercase), pivot word is line 2 (large gold italic),
+  // words after form line 3 (small white uppercase). All lines appear together.
+  if (displayMode === 'poster-staircase') {
+    if (lastAppearedIdx < 0) return null;
+
+    const POWER_SET = new Set([
+      'love','hate','fear','die','dead','death','kill','destroy','dream',
+      'obsessed','insane','crazy','incredible','amazing','unbelievable',
+      'shocking','terrifying','brilliant','genius','perfect','worst',
+      'best','greatest','legendary','epic','massive','huge','evil',
+      'now','stop','wait','listen','watch','look','never','always',
+      'forever','immediately','urgent','warning','danger','critical',
+      'important','breaking','exclusive','secret','finally','today',
+      'million','billion','thousand','money','rich','free','paid',
+      'but','however','actually','wrong','right','truth','lie','real',
+      'fake','only','everything','nothing','impossible','possible',
+      'everyone','nobody','first','last','biggest','smallest',
+      'win','won','lose','lost','fight','broke','crushed','dominated',
+      'exploded','changed','saved','failed','success','discovered',
+    ]);
+    const FILLER_SET = new Set([
+      'the','a','an','is','are','was','were','be','been','being',
+      'to','of','in','for','on','at','by','with','from','as',
+      'and','or','if','it','its','that','this','than','then',
+      'so','up','do','did','has','had','have','will','would',
+      'could','should','can','may','might','shall','just','very',
+      'also','about','into','not','no','yes','some','my','your',
+      'we','they','he','she','i','me','us','them','our','their',
+    ]);
+    const wordScore = (text: string): number => {
+      const c = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+      if (/^\$?\d/.test(c) || /\d{4,}/.test(c) || c.endsWith('%')) return 4;
+      if (POWER_SET.has(c)) return 4;
+      if (FILLER_SET.has(c)) return 1;
+      if (c.length >= 7) return 3;
+      return 2;
+    };
+
+    // Find single pivot: highest-scoring word closest to phrase center
+    const scores = visibleWords.map((w) => wordScore(w.text));
+    const maxScore = Math.max(...scores);
+    const phraseCenter = (visibleWords.length - 1) / 2;
+    let pivotIdx = -1;
+    if (maxScore >= 3) {
+      let bestDist = Infinity;
+      for (let i = 0; i < scores.length; i++) {
+        if (scores[i] === maxScore) {
+          const dist = Math.abs(i - phraseCenter);
+          if (dist < bestDist) { bestDist = dist; pivotIdx = i; }
+        }
+      }
+    }
+
+    const emphasisFont = (style as any).displayFontFamily || 'Dancing Script';
+    const bodyFont = (style as any).bodyFontFamily || 'Montserrat';
+    const baseFontSize = (style.fontSize || 55) * fontScale;
+    const alignment = (style as any).staircaseAlignment || 'center';
+
+    const pos = resolvePosition(style.position);
+    const outerStyle: React.CSSProperties = {
+      position: 'absolute',
+      bottom: `${pos.offsetY}%`,
+      left: '50%',
+      transform: `translateX(calc(-50% + ${pos.offsetX}%))`,
+      width: '88%',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: alignment === 'left' ? 'flex-start' : 'center',
+      gap: '4px',
+    };
+    if (pos.anchor === 'top') { outerStyle.bottom = undefined; outerStyle.top = `${10 + pos.offsetY}%`; }
+    else if (pos.anchor === 'center') { outerStyle.bottom = undefined; outerStyle.top = '50%'; outerStyle.transform = 'translate(-50%, -50%)'; }
+
+    const bodyStyle = (indent: string): React.CSSProperties => ({
+      fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+      fontSize: baseFontSize * 0.72,
+      fontWeight: 500,
+      color: '#FFFFFF',
+      lineHeight: 1.2,
+      textAlign: alignment === 'left' ? 'left' : 'center',
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase',
+      textShadow: '0 1px 8px rgba(0,0,0,0.9)',
+      opacity: 0.9,
+      marginLeft: indent,
+      WebkitFontSmoothing: 'antialiased',
+    });
+
+    const emphasisStyle: React.CSSProperties = {
+      fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+      fontSize: baseFontSize * 1.9,
+      fontWeight: 700,
+      fontStyle: 'italic',
+      color: '#FFD700',
+      lineHeight: 1.05,
+      textAlign: alignment === 'left' ? 'left' : 'center',
+      letterSpacing: '-0.5px',
+      textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+      marginLeft: alignment === 'stagger' ? '8%' : '0%',
+      WebkitFontSmoothing: 'antialiased',
+    };
+
+    if (pivotIdx === -1) {
+      // No strong/power word — single body line
+      return (
+        <div style={outerStyle}>
+          <div style={bodyStyle('0%')}>{visibleWords.map((w) => w.text).join(' ')}</div>
+        </div>
+      );
+    }
+
+    const beforeText = visibleWords.slice(0, pivotIdx).map((w) => w.text).join(' ');
+    const pivotText = visibleWords[pivotIdx].text;
+    const afterText = visibleWords.slice(pivotIdx + 1).map((w) => w.text).join(' ');
+
+    return (
+      <div style={outerStyle}>
+        {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
+        <div style={emphasisStyle}>{pivotText}</div>
+        {afterText ? <div style={bodyStyle(alignment === 'stagger' ? '16%' : '0%')}>{afterText}</div> : null}
       </div>
     );
   }

@@ -21,6 +21,59 @@ interface CaptionItemProps {
   itemStartMs: number;
 }
 
+// ─── Word classification ──────────────────────────────────────────────────────
+
+const POWER_WORDS = new Set([
+  'love','hate','fear','die','dead','death','kill','destroy','dream',
+  'obsessed','insane','crazy','incredible','amazing','unbelievable',
+  'shocking','terrifying','brilliant','genius','perfect','worst',
+  'best','greatest','legendary','epic','massive','huge','evil',
+  'now','stop','wait','listen','watch','look','never','always',
+  'forever','immediately','urgent','warning','danger','critical',
+  'important','breaking','exclusive','secret','finally','today',
+  'million','billion','thousand','money','rich','free','paid',
+  'but','however','actually','wrong','right','truth','lie','real',
+  'fake','only','everything','nothing','impossible','possible',
+  'everyone','nobody','first','last','biggest','smallest',
+  'win','won','lose','lost','fight','broke','crushed','dominated',
+  'exploded','changed','saved','failed','success','discovered',
+]);
+const FILLER_WORDS = new Set([
+  'the','a','an','is','are','was','were','be','been','being',
+  'to','of','in','for','on','at','by','with','from','as',
+  'and','or','if','it','its','that','this','than','then',
+  'so','up','do','did','has','had','have','will','would',
+  'could','should','can','may','might','shall','just','very',
+  'also','about','into','not','no','yes','some','my','your',
+  'we','they','he','she','i','me','us','them','our','their',
+]);
+const STRONG_WORDS = new Set([
+  'really','literally','seriously','basically','honestly',
+  'completely','extremely','definitely','absolutely','truly',
+  'believe','remember','imagine','understand','realize',
+  'create','become','happen','achieve','overcome',
+  'different','specific','better','worse','special',
+  'people','problem','reason','question','answer','story','world',
+]);
+
+type WordTier = 'power' | 'strong' | 'medium' | 'filler';
+function classifyWord(text: string): WordTier {
+  const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+  if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+  if (POWER_WORDS.has(clean)) return 'power';
+  if (FILLER_WORDS.has(clean)) return 'filler';
+  if (STRONG_WORDS.has(clean)) return 'strong';
+  if (clean.length >= 7) return 'strong';
+  return 'medium';
+}
+
+function isEmphasisWord(text: string): boolean {
+  const tier = classifyWord(text);
+  return tier === 'power' || tier === 'strong';
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export const CaptionItem: React.FC<CaptionItemProps> = ({
   data,
   captionStyle,
@@ -36,13 +89,19 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
   }
 
   const captionPreset = captionStyle;
-  const displayMode = captionPreset.displayMode || 'word-by-word';
-  const wordsPerPhrase = captionPreset.wordsPerPhrase || 5;
+  const displayMode = captionPreset.displayMode || 'phrase';
+  const wordsPerPhrase = captionPreset.wordsPerPhrase || 7;
 
-  // Phrase windowing: show a group of words, not just the single active word
+  // ── Phrase windowing ──────────────────────────────────────────────────────
+  // poster-staircase always uses phrase windowing
+  const usesPhraseWindowing =
+    displayMode === 'phrase' ||
+    displayMode === 'karaoke' ||
+    displayMode === 'poster-staircase';
+
   let visibleWords: CaptionWord[];
-  if (displayMode === 'phrase' || displayMode === 'karaoke') {
-    // Find the last word whose startMs we've reached
+
+  if (usesPhraseWindowing) {
     let lastAppearedIdx = -1;
     for (let i = data.words.length - 1; i >= 0; i--) {
       if (currentTimeMs >= data.words[i].startMs) {
@@ -67,63 +126,119 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     return null;
   }
 
-  // Word tier classification for dynamic hierarchy
-  const POWER_WORDS = new Set([
-    'love','hate','fear','die','dead','death','kill','destroy','dream',
-    'obsessed','insane','crazy','incredible','amazing','unbelievable',
-    'shocking','terrifying','brilliant','genius','perfect','worst',
-    'best','greatest','legendary','epic','massive','huge','evil',
-    'now','stop','wait','listen','watch','look','never','always',
-    'forever','immediately','urgent','warning','danger','critical',
-    'important','breaking','exclusive','secret','finally','today',
-    'million','billion','thousand','money','rich','free','paid',
-    'but','however','actually','wrong','right','truth','lie','real',
-    'fake','only','everything','nothing','impossible','possible',
-    'everyone','nobody','first','last','biggest','smallest',
-    'win','won','lose','lost','fight','broke','crushed','dominated',
-    'exploded','changed','saved','failed','success','discovered',
-  ]);
-  const FILLER_WORDS = new Set([
-    'the','a','an','is','are','was','were','be','been','being',
-    'to','of','in','for','on','at','by','with','from','as',
-    'and','or','if','it','its','that','this','than','then',
-    'so','up','do','did','has','had','have','will','would',
-    'could','should','can','may','might','shall','just','very',
-    'also','about','into','not','no','yes','some','my','your',
-    'we','they','he','she','i','me','us','them','our','their',
-  ]);
-  const STRONG_WORDS = new Set([
-    'really','literally','seriously','basically','honestly',
-    'completely','extremely','definitely','absolutely','truly',
-    'believe','remember','imagine','understand','realize',
-    'create','become','happen','achieve','overcome',
-    'different','specific','better','worse','special',
-    'people','problem','reason','question','answer','story','world',
-  ]);
+  // ── Poster Staircase Layout ───────────────────────────────────────────────
+  // Layout: one emphasis word (the strongest, most central word in the phrase)
+  // sits on its own line; words before it form line 1, words after form line 3.
+  // All lines appear simultaneously when the phrase starts.
+  if (displayMode === 'poster-staircase') {
+    const emphasisFont = captionPreset.displayFontFamily || 'Dancing Script';
+    const bodyFont = captionPreset.bodyFontFamily || 'Montserrat';
+    const baseFontSize = captionPreset.fontSize ?? 55;
+    const alignment: 'center' | 'left' | 'stagger' = captionPreset.staircaseAlignment || 'center';
 
-  type WordTier = 'power' | 'strong' | 'medium' | 'filler';
-  const classifyWord = (text: string): WordTier => {
-    const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
-    if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
-    if (POWER_WORDS.has(clean)) return 'power';
-    if (FILLER_WORDS.has(clean)) return 'filler';
-    if (STRONG_WORDS.has(clean)) return 'strong';
-    if (clean.length >= 7) return 'strong';
-    return 'medium';
-  };
+    // Find the single pivot word: highest tier, closest to phrase center.
+    // Only power (score 4) or strong (score 3, length ≥ 7) words qualify as emphasis.
+    const wordScore = (text: string): number => {
+      const c = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+      if (/^\$?\d/.test(c) || /\d{4,}/.test(c) || c.endsWith('%')) return 4;
+      if (POWER_WORDS.has(c)) return 4;
+      if (FILLER_WORDS.has(c)) return 1;
+      if (c.length >= 7) return 3;
+      return 2;
+    };
 
+    const scores = visibleWords.map((w) => wordScore(w.text));
+    const maxScore = Math.max(...scores);
+    const phraseCenter = (visibleWords.length - 1) / 2;
+
+    let pivotIdx = -1;
+    if (maxScore >= 3) {
+      let bestDist = Infinity;
+      for (let i = 0; i < scores.length; i++) {
+        if (scores[i] === maxScore) {
+          const dist = Math.abs(i - phraseCenter);
+          if (dist < bestDist) {
+            bestDist = dist;
+            pivotIdx = i;
+          }
+        }
+      }
+    }
+
+    const position = captionPreset.position;
+    const offsetX = position?.offsetX ?? 0;
+    const offsetY = position?.offsetY ?? 5;
+
+    const containerStyle: React.CSSProperties = {
+      position: 'absolute',
+      bottom: `${offsetY}%`,
+      left: '50%',
+      transform: `translateX(calc(-50% + ${offsetX}px))`,
+      width: '88%',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: alignment === 'left' ? 'flex-start' : 'center',
+      gap: '4px',
+    };
+
+    const bodyLineStyle = (indent: string): React.CSSProperties => ({
+      fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+      fontSize: baseFontSize * 0.72,
+      fontWeight: 500,
+      color: 'rgba(255,255,255,0.88)',
+      lineHeight: 1.2,
+      textAlign: alignment === 'left' ? 'left' : 'center',
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase',
+      textShadow: '0 1px 8px rgba(0,0,0,0.9)',
+      marginLeft: indent,
+      width: '100%',
+    });
+
+    const emphasisLineStyle: React.CSSProperties = {
+      fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+      fontSize: baseFontSize * 1.9,
+      fontWeight: 700,
+      fontStyle: 'italic',
+      color: '#FFD700',
+      lineHeight: 1.05,
+      textAlign: alignment === 'left' ? 'left' : 'center',
+      letterSpacing: '-0.5px',
+      textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+      marginLeft: alignment === 'stagger' ? '8%' : '0%',
+      width: '100%',
+    };
+
+    if (pivotIdx === -1) {
+      // No strong/power word — render the whole phrase as a single body line
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          <div style={bodyLineStyle('0%')}>
+            {visibleWords.map((w) => w.text).join(' ')}
+          </div>
+        </div>
+      );
+    }
+
+    const beforeText = visibleWords.slice(0, pivotIdx).map((w) => w.text).join(' ');
+    const pivotText = visibleWords[pivotIdx].text;
+    const afterText = visibleWords.slice(pivotIdx + 1).map((w) => w.text).join(' ');
+
+    return (
+      <div style={containerStyle} data-caption-overlay>
+        {beforeText ? <div style={bodyLineStyle('0%')}>{beforeText}</div> : null}
+        <div style={emphasisLineStyle}>{pivotText}</div>
+        {afterText ? <div style={bodyLineStyle(alignment === 'stagger' ? '16%' : '0%')}>{afterText}</div> : null}
+      </div>
+    );
+  }
+
+  // ── Dynamic Hierarchy (other dual-typography presets) ─────────────────────
   const isDynamicHierarchy = !!captionPreset.typographyPairingId;
   const displayFontFamily = captionPreset.displayFontFamily || (captionPreset.fontFamily?.split(',')[0]?.trim()) || 'Montserrat';
   const bodyFontFamily = captionPreset.bodyFontFamily || 'Inter';
 
-  // Resolve role for a word (role field, or fallback to classification)
-  const getWordRole = (word: CaptionWord): string | undefined => {
-    return word.role || word.classification || undefined;
-  };
-
-  // Resolve style for a word based on its role
   const resolveWordStyle = (word: CaptionWord) => {
-    // Dynamic hierarchy: 2 sizes — emphasis (big, bold, italic) vs normal (smaller)
     if (isDynamicHierarchy) {
       const tier = classifyWord(word.text);
       const isEmphasis = tier === 'power' || tier === 'strong';
@@ -142,8 +257,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
       };
     }
 
-    // Standard role-based resolution
-    const role = getWordRole(word);
+    const role = word.role || word.classification || undefined;
     const roleStyle = role ? captionPreset.wordEmphasis?.roles?.[role] : undefined;
     return {
       fontFamily: roleStyle?.fontFamily ?? captionPreset.fontFamily ?? 'Inter',
@@ -172,7 +286,6 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     flexWrap: 'wrap',
   };
 
-  // Justify content based on text alignment
   positionStyles.justifyContent =
     textAlign === 'left'
       ? 'flex-start'
@@ -181,7 +294,6 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
         : 'center';
 
   if (posMode === 'free') {
-    // Free mode: x/y are percentages of canvas (center of caption box)
     const x = position?.x ?? 50;
     const y = position?.y ?? 85;
     const width = position?.width ?? 90;
@@ -192,7 +304,6 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
     positionStyles.transform = transforms.join(' ');
   } else {
-    // Anchor mode (legacy)
     positionStyles.left = 0;
     positionStyles.right = 0;
     positionStyles.paddingLeft = Math.max(0, offsetX);
@@ -213,7 +324,6 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     }
   }
 
-  // Dynamic hierarchy: override position for full-width multi-line flow
   if (isDynamicHierarchy) {
     const dhStyles: React.CSSProperties = {
       position: 'absolute',
@@ -257,6 +367,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     );
   }
 
+  // ── Standard phrase / word-by-word / karaoke ──────────────────────────────
   return (
     <div style={positionStyles} data-caption-overlay>
       {visibleWords.map((word, i) => {

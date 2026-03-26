@@ -562,6 +562,7 @@ export function useCaptionActions() {
   return useEditorStore(
     useShallow((state) => ({
       updateCaptionPreset: state.updateCaptionPreset,
+      generateCaptions: state.generateCaptions,
       updateWordStyleOverrides: state.updateWordStyleOverrides,
       setApplyStyleToAll: state.setApplyStyleToAll,
       selectAllCaptionsOnTrack: state.selectAllCaptionsOnTrack,

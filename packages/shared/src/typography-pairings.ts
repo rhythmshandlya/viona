@@ -10,7 +10,8 @@ export type TypographyPairingId =
   | 'anton-nunito'
   | 'poppins-dmsans'
   | 'robotocond-sourcesans'
-  | 'spacegrotesk-inter';
+  | 'spacegrotesk-inter'
+  | 'dancing-script-montserrat';
 
 export const DEFAULT_TYPOGRAPHY_PAIRING_ID: TypographyPairingId = 'montserrat-inter';
 
@@ -85,6 +86,13 @@ export const TYPOGRAPHY_PAIRINGS: Record<TypographyPairingId, TypographyPairing>
     displayFont: { family: 'Space Grotesk', weight: 700 },
     bodyFont: { family: 'Inter', weight: 500 },
   },
+  'dancing-script-montserrat': {
+    id: 'dancing-script-montserrat',
+    name: 'Dancing Script + Montserrat',
+    vibe: 'Cinematic / Elegant Script',
+    displayFont: { family: 'Dancing Script', weight: 700 },
+    bodyFont: { family: 'Montserrat', weight: 500 },
+  },
 };
 
 export const TYPOGRAPHY_PAIRING_ORDER: TypographyPairingId[] = [
@@ -96,6 +104,7 @@ export const TYPOGRAPHY_PAIRING_ORDER: TypographyPairingId[] = [
   'poppins-dmsans',
   'robotocond-sourcesans',
   'spacegrotesk-inter',
+  'dancing-script-montserrat',
 ];
 
 /** Get a typography pairing by ID, falling back to the default */

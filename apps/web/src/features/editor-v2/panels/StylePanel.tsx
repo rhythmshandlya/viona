@@ -43,6 +43,7 @@ const MODE_ABBREV: Record<CaptionDisplayMode, string> = {
   'word-by-word': 'W',
   'phrase': 'P',
   'karaoke': 'K',
+  'poster-staircase': 'S',
 };
 
 // ============================================
@@ -323,7 +324,10 @@ export function StylePanel() {
               options={
                 availableModes.map((m) => ({
                   value: m,
-                  label: m === 'word-by-word' ? 'Word' : m === 'phrase' ? 'Phrase' : 'Karaoke',
+                  label: m === 'word-by-word' ? 'Word'
+                    : m === 'phrase' ? 'Phrase'
+                    : m === 'karaoke' ? 'Karaoke'
+                    : 'Staircase',
                 }))
               }
               value={style.displayMode}
@@ -342,6 +346,68 @@ export function StylePanel() {
               </div>
             )}
           </Section>
+
+          {/* Staircase alignment picker — only shown for poster-staircase mode */}
+          {style.displayMode === 'poster-staircase' && (
+            <Section label="Staircase Layout">
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: 'center', label: 'Centered', icon: '⊟' },
+                  { value: 'left',   label: 'Left',     icon: '⊞' },
+                  { value: 'stagger',label: 'Cascade',  icon: '⊠' },
+                ] as const).map(({ value, label, icon }) => {
+                  const active = (style.staircaseAlignment ?? 'center') === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => customizeStyle({ staircaseAlignment: value })}
+                      className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs transition-all ${
+                        active
+                          ? 'border-[var(--editor-accent)] bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]'
+                          : 'border-[var(--editor-border-subtle)] bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:border-[var(--editor-border)] hover:text-[var(--editor-text-primary)]'
+                      }`}
+                    >
+                      {/* Mini staircase preview */}
+                      <div className="flex flex-col gap-0.5 w-full px-2">
+                        {value === 'center' && (
+                          <>
+                            <div className="h-1.5 rounded-sm bg-current opacity-90 mx-auto w-3/4" />
+                            <div className="h-0.5 rounded-sm bg-current opacity-50 mx-auto w-1/2" />
+                            <div className="h-1.5 rounded-sm bg-current opacity-90 mx-auto w-3/4" />
+                          </>
+                        )}
+                        {value === 'left' && (
+                          <>
+                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
+                            <div className="h-0.5 rounded-sm bg-current opacity-50 w-1/2" />
+                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
+                          </>
+                        )}
+                        {value === 'stagger' && (
+                          <>
+                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
+                            <div className="h-0.5 rounded-sm bg-current opacity-50 w-1/2 self-end" />
+                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
+                          </>
+                        )}
+                      </div>
+                      <span className="text-[10px] leading-none">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3">
+                <span className="text-[10px] text-[var(--editor-text-secondary)] mb-1 block">Words per phrase</span>
+                <SliderRow
+                  value={style.wordsPerPhrase ?? 7}
+                  min={3}
+                  max={10}
+                  step={1}
+                  onChange={(v) => customizeStyle({ wordsPerPhrase: v })}
+                />
+              </div>
+            </Section>
+          )}
         </div>
 
         <Divider />

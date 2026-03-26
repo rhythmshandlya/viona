@@ -79,11 +79,32 @@ const FULL_CANVAS_TRANSFORM = {
   x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1,
 };
 
+/** Merge single-word caption items into multi-word phrase groups for cinematic layout */
+function mergeCaptionPhrases(captionItems: ManifestItem[], wordsPerPhrase: number): ManifestItem[] {
+  if (captionItems.length === 0) return captionItems;
+  // If items already have multiple words, no merge needed
+  if (captionItems[0]?.data?.words?.length > 1) return captionItems;
+
+  const merged: ManifestItem[] = [];
+  for (let i = 0; i < captionItems.length; i += wordsPerPhrase) {
+    const group = captionItems.slice(i, i + wordsPerPhrase);
+    const allWords = group.flatMap(item => item.data?.words ?? []);
+    if (allWords.length === 0) continue;
+    merged.push({
+      ...group[0],
+      endMs: group[group.length - 1].endMs,
+      data: { words: allWords },
+    });
+  }
+  return merged;
+}
+
 export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }) => {
   const { fps, canvas, items, assets } = manifest;
   const captionPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
   const captionAnalysis = (manifest as any).captionAnalysis ?? manifest.videoSettings?.captionAnalysis ?? {};
   const sortedTracks = [...manifest.tracks].sort((a, b) => a.position - b.position);
+  const isDynamicHierarchy = !!captionPreset.typographyPairingId;
 
   // Load cinematic Google Fonts when preset uses them
   usePresetFonts(captionPreset);
@@ -91,10 +112,18 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {sortedTracks.map(track => {
-        const trackItems = items
+        let trackItems = items
           .filter(item => item.trackId === track.id)
           .sort((a, b) => a.startMs - b.startMs);
         if (trackItems.length === 0) return null;
+
+        // Merge single-word captions into phrase groups for phrase/karaoke/DH display
+        const needsMergeComp = isDynamicHierarchy ||
+          captionPreset.displayMode === 'phrase' ||
+          captionPreset.displayMode === 'karaoke';
+        if (needsMergeComp && trackItems[0]?.type === 'caption') {
+          trackItems = mergeCaptionPhrases(trackItems, captionPreset.wordsPerPhrase || 6);
+        }
 
         return (
           <AbsoluteFill key={track.id}>

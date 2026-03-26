@@ -211,7 +211,7 @@ export interface CaptionWord {
   styleOverrides?: WordStyleOverrides;
 }
 
-export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
+export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
 
 // Legacy position type (for backward compatibility)
 export type CaptionPositionLegacy = 'top' | 'center' | 'bottom';
@@ -401,6 +401,9 @@ export interface CaptionStyle {
     normal: number;
     whisper: number;
   };
+
+  // Poster staircase alignment variant
+  staircaseAlignment?: 'center' | 'left' | 'stagger';
 }
 
 export interface TextItemData {

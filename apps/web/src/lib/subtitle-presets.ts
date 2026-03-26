@@ -1,7 +1,7 @@
 import type { AnimationConfig, CaptionPosition, CaptionEffects } from '@viona/shared';
 
 // Define locally to avoid circular deps with store types
-export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
+export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
 
 export interface StrokeStyle {
   width: number;
@@ -406,11 +406,11 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
       glow: { enabled: true, color: '#FFA500', intensity: 0.35, size: 20 },
     },
     animation: { in: 'fade-rise', active: 'none', out: 'fade', easing: 'ease-out' },
-    displayMode: 'phrase',
+    displayMode: 'poster-staircase',
     wordsPerPhrase: 7,
     position: { anchor: 'bottom', offsetX: 0, offsetY: 5, rotation: 0, textAlign: 'center' },
-    supportedModes: ['phrase'],
-    typographyPairingId: 'montserrat-dancingscript',
+    supportedModes: ['poster-staircase'],
+    typographyPairingId: 'dancing-script-montserrat',
   },
 
 };

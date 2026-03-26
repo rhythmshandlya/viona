@@ -607,6 +607,9 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
     if (style.cinematicScales) result.cinematicScales = style.cinematicScales;
   }
 
+  // Poster staircase alignment
+  if (style.staircaseAlignment) result.staircaseAlignment = style.staircaseAlignment;
+
   return result;
 }
 
@@ -671,6 +674,8 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
       cinematicColors: mcs.cinematicColors as CaptionStyle['cinematicColors'],
       cinematicScales: mcs.cinematicScales as CaptionStyle['cinematicScales'],
     } : {}),
+    // Poster staircase alignment
+    staircaseAlignment: (mcs as any).staircaseAlignment ?? undefined,
   };
 }
 

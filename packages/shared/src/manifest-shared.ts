@@ -14,7 +14,7 @@ export const captionWordSchema = z.object({
 });
 
 export const manifestCaptionPresetSchema = z.object({
-  displayMode: z.enum(['word-by-word', 'phrase', 'karaoke']).default('phrase'),
+  displayMode: z.enum(['word-by-word', 'phrase', 'karaoke', 'poster-staircase']).default('phrase'),
   wordsPerPhrase: z.number().min(1).max(10).default(5),
   fontFamily: z.string().default('Inter'),
   fontSize: z.number().min(8).max(200).default(56),
@@ -90,6 +90,8 @@ export const manifestCaptionPresetSchema = z.object({
     normal: z.number(),
     whisper: z.number(),
   }).optional(),
+  // Poster staircase alignment variant
+  staircaseAlignment: z.enum(['center', 'left', 'stagger']).optional(),
 }).passthrough();
 
 /** @deprecated Use `manifestCaptionPresetSchema` instead */

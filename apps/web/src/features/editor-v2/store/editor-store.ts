@@ -62,6 +62,39 @@ const dispatchOps = (ops: SandboxOp[]) => {
 };
 
 /**
+ * Merge single-word caption items into multi-word phrase groups.
+ * Needed for dynamic hierarchy (poster staircase) layout which requires
+ * multiple words per caption item to build the visual phrase.
+ */
+function mergeSingleWordCaptions(manifestItems: any[], wordsPerPhrase: number): any[] {
+  // Find caption items
+  const captionIndices: number[] = [];
+  for (let i = 0; i < manifestItems.length; i++) {
+    if (manifestItems[i].type === 'caption') captionIndices.push(i);
+  }
+  // Check if they're single-word items
+  if (captionIndices.length < 2) return manifestItems;
+  const firstCaption = manifestItems[captionIndices[0]];
+  if (firstCaption.data?.words?.length > 1) return manifestItems;
+
+  // Group caption items into phrases
+  const nonCaptions = manifestItems.filter(i => i.type !== 'caption');
+  const captions = captionIndices.map(i => manifestItems[i]);
+  const merged: any[] = [];
+  for (let i = 0; i < captions.length; i += wordsPerPhrase) {
+    const group = captions.slice(i, i + wordsPerPhrase);
+    const allWords = group.flatMap((item: any) => item.data?.words ?? []);
+    if (allWords.length === 0) continue;
+    merged.push({
+      ...group[0],
+      endMs: group[group.length - 1].endMs,
+      data: { words: allWords },
+    });
+  }
+  return [...nonCaptions, ...merged];
+}
+
+/**
  * Rebuild workspaceManifest from current store state so the Remotion player
  * reflects local edits (shape props, transforms, filters, added/removed items).
  */
@@ -86,6 +119,18 @@ const syncWorkspaceManifest = () => {
     },
     captionPreset,
   );
+
+  // Phrase/karaoke modes and dynamic hierarchy need multi-word caption items.
+  // If items are single-word (from word-by-word generation), merge them into phrases.
+  const needsMerge = captionPreset.typographyPairingId ||
+    captionPreset.displayMode === 'phrase' ||
+    captionPreset.displayMode === 'karaoke';
+  if (needsMerge && Array.isArray((manifest as any).items)) {
+    (manifest as any).items = mergeSingleWordCaptions(
+      (manifest as any).items,
+      captionPreset.wordsPerPhrase ?? 6,
+    );
+  }
 
   // Preserve captionAnalysis from project videoSettings so the PlayerComposition
   // can access it for cinematic rendering (it reads manifest.captionAnalysis).
@@ -790,6 +835,16 @@ export const useEditorStore = create<EditorStore>()(
           if (apiVs?.captionAnalysis) {
             wsManifest.captionAnalysis = apiVs.captionAnalysis;
           }
+          // Merge single-word captions for phrase/karaoke/DH display
+          const needsMergeOnLoad = state.captionPreset.typographyPairingId ||
+            state.captionPreset.displayMode === 'phrase' ||
+            state.captionPreset.displayMode === 'karaoke';
+          if (needsMergeOnLoad && Array.isArray(wsManifest.items)) {
+            wsManifest.items = mergeSingleWordCaptions(
+              wsManifest.items as any[],
+              state.captionPreset.wordsPerPhrase ?? 6,
+            );
+          }
           state.workspaceManifest = wsManifest;
           state.workspaceLockHolder = null;
           state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
@@ -1105,6 +1160,8 @@ export const useEditorStore = create<EditorStore>()(
         const audioItemIds = audioItems.map((item) => item.id);
         const videoSettingsPayload = {
           ...project.videoSettings,
+          // Persist caption preset so it survives sandbox restart (DB stores it as captionStyle)
+          captionStyle: get().captionPreset,
         };
 
         // Send tracks so the backend can create any that only exist on the frontend
@@ -1193,6 +1250,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       syncWorkspaceManifest();
       dispatchOps([{ tool: 'updateCaptionPreset', input: { updates } }]);
+      debouncedSave(() => get().saveProject());
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -2651,8 +2709,19 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
 
-      // Also store the raw manifest
-      set((state) => { state.workspaceManifest = manifest as Record<string, unknown>; });
+      // Store the manifest — merge single-word captions for phrase/karaoke/DH display
+      const cp = get().captionPreset;
+      const rawManifest = manifest as Record<string, unknown>;
+      const needsMergeRemote = cp.typographyPairingId ||
+        cp.displayMode === 'phrase' ||
+        cp.displayMode === 'karaoke';
+      if (needsMergeRemote && Array.isArray(rawManifest.items)) {
+        rawManifest.items = mergeSingleWordCaptions(
+          rawManifest.items as any[],
+          cp.wordsPerPhrase ?? 6,
+        );
+      }
+      set((state) => { state.workspaceManifest = rawManifest; });
     },
 
     // ========================================
