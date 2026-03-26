@@ -69,9 +69,12 @@ declare module '@viona/renderer' {
     letterSpacing?: number;
     textTransform?: 'none' | 'uppercase' | 'lowercase';
     stroke?: StrokeStyle | null;
-    displayMode?: 'word-by-word' | 'phrase' | 'karaoke';
+    displayMode?: 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
     wordsPerPhrase?: number;
     presetId?: string;
+    typographyPairingId?: string;
+    displayFontFamily?: string;
+    bodyFontFamily?: string;
     backgroundPadding?: { x: number; y: number };
     backgroundRadius?: number;
   }

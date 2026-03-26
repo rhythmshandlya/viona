@@ -120,7 +120,8 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
         // Merge single-word captions into phrase groups for phrase/karaoke/DH display
         const needsMergeComp = isDynamicHierarchy ||
           captionPreset.displayMode === 'phrase' ||
-          captionPreset.displayMode === 'karaoke';
+          captionPreset.displayMode === 'karaoke' ||
+          captionPreset.displayMode === 'poster-staircase';
         if (needsMergeComp && trackItems[0]?.type === 'caption') {
           trackItems = mergeCaptionPhrases(trackItems, captionPreset.wordsPerPhrase || 6);
         }

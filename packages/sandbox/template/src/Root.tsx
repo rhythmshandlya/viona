@@ -12,6 +12,10 @@
 import React from 'react';
 import { registerRoot, Composition, staticFile } from 'remotion';
 import { PlayerComposition } from './PlayerComposition';
+// Load all Google Fonts via @remotion/google-fonts at bundle time.
+// This ensures fonts (including Dancing Script, Montserrat) are available
+// during headless Chromium rendering — dynamic <link> tags are async and unreliable.
+import './fonts';
 
 export const RemotionRoot: React.FC = () => {
   return (
