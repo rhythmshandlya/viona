@@ -155,7 +155,6 @@ export class RailwaySandboxProvider implements SandboxProvider {
           environmentId: config.sandbox.railway.environmentId,
           serviceId,
           mountPath: '/workspace',
-          name: `workspace-${projectId.slice(0, 8)}`,
         },
       }, 'volumeCreate');
       volumeId = volumeResult.volumeCreate.id;
@@ -179,14 +178,15 @@ export class RailwaySandboxProvider implements SandboxProvider {
         const volData = await railwayGql(`
           query($volumeId: String!) {
             volume(id: $volumeId) {
-              volumeInstances { id }
+              id
+              state
             }
           }
         `, { volumeId }, 'volumeInstancePoll');
 
-        const instances = volData.volume?.volumeInstances || [];
-        if (instances.length > 0) {
-          volumeInstanceId = instances[0].id;
+        const vol = volData.volume;
+        if (vol && vol.id) {
+          volumeInstanceId = vol.id;
           break;
         }
       }
