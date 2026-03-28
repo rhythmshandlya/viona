@@ -170,6 +170,106 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     const offsetX = position?.offsetX ?? 0;
     const offsetY = position?.offsetY ?? 5;
 
+    // ── Word-by-word reveal helper ──────────────────────────────────────────
+    // Returns CSS for opacity + transform based on word timing and transition style.
+    const transitionStyle = captionPreset.staircaseTransition ?? 'slide-up';
+
+    const wordRevealStyle = (word: CaptionWord): React.CSSProperties => {
+      const appeared = currentTimeMs >= word.startMs;
+      const timeSinceAppear = appeared ? currentTimeMs - word.startMs : 0;
+
+      // 'none' — all words visible immediately, no per-word reveal
+      if (transitionStyle === 'none') {
+        return { opacity: 1, display: 'inline-block' };
+      }
+
+      // 'typewriter' — instant cut-in, no interpolation
+      if (transitionStyle === 'typewriter') {
+        return { opacity: appeared ? 1 : 0, display: 'inline-block' };
+      }
+
+      // 'pop' — scale 0.7→1.0 + fade, 200ms
+      if (transitionStyle === 'pop') {
+        const p = Math.min(timeSinceAppear / 200, 1);
+        const scale = appeared ? 0.7 + 0.3 * p : 0.7;
+        return {
+          opacity: appeared ? (0.3 + 0.7 * p) : 0,
+          transform: `scale(${scale})`,
+          transition: 'none',
+          display: 'inline-block',
+        };
+      }
+
+      // 'fade' — opacity 0→1, 300ms, no transform
+      if (transitionStyle === 'fade') {
+        const p = Math.min(timeSinceAppear / 300, 1);
+        return {
+          opacity: appeared ? p : 0,
+          display: 'inline-block',
+        };
+      }
+
+      // 'slide-up' — translateY(30px)→0 + fade, 250ms (default)
+      if (transitionStyle === 'slide-up') {
+        const p = Math.min(timeSinceAppear / 250, 1);
+        // ease-out curve: 1 - (1-p)^2
+        const eased = appeared ? 1 - Math.pow(1 - p, 2) : 0;
+        const translateY = appeared ? 30 * (1 - eased) : 30;
+        return {
+          opacity: appeared ? eased : 0,
+          transform: `translateY(${translateY}px)`,
+          display: 'inline-block',
+        };
+      }
+
+      // 'elastic' — scale 0.5→1.15→1.0 + fade, 350ms (easeOutBack)
+      if (transitionStyle === 'elastic') {
+        const p = Math.min(timeSinceAppear / 350, 1);
+        // easeOutBack approximation: overshoot then settle
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        const eased = appeared
+          ? 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2)
+          : 0;
+        const scale = appeared ? Math.max(0.01, 0.5 + 0.5 * eased) : 0.5;
+        return {
+          opacity: appeared ? Math.min(1, p * 2) : 0,
+          transform: `scale(${scale})`,
+          display: 'inline-block',
+        };
+      }
+
+      // fallback: slide-up
+      const p = Math.min(timeSinceAppear / 250, 1);
+      const eased = appeared ? 1 - Math.pow(1 - p, 2) : 0;
+      return {
+        opacity: appeared ? eased : 0,
+        transform: `translateY(${appeared ? 30 * (1 - eased) : 30}px)`,
+        display: 'inline-block',
+      };
+    };
+
+    // For line-level reveal: show line only if ANY word in it has appeared
+    const lineRevealStyle = (words: CaptionWord[]): React.CSSProperties => {
+      const anyAppeared = words.some(w => currentTimeMs >= w.startMs);
+      if (!anyAppeared) return { opacity: 0, transform: 'scale(0.8)' };
+      const latestAppear = Math.max(...words.filter(w => currentTimeMs >= w.startMs).map(w => w.startMs));
+      const timeSince = currentTimeMs - latestAppear;
+      const progress = Math.min(timeSince / 150, 1);
+      return { opacity: 0.3 + 0.7 * progress, transform: `scale(${0.85 + 0.15 * progress})` };
+    };
+
+    // Render text with per-word reveal animation
+    const renderWordsWithReveal = (words: CaptionWord[], baseStyle: React.CSSProperties) => (
+      <div style={baseStyle}>
+        {words.map((w, i) => (
+          <span key={i} style={{ ...wordRevealStyle(w), display: 'inline' }}>
+            {w.text}{i < words.length - 1 ? ' ' : ''}
+          </span>
+        ))}
+      </div>
+    );
+
     // ── bold-stack: every word large, gold, uppercase, flex-wrapped ──────────
     if (alignment === 'bold-stack') {
       const containerStyle: React.CSSProperties = {
@@ -198,7 +298,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
       return (
         <div style={containerStyle} data-caption-overlay>
           {visibleWords.map((w, i) => (
-            <span key={i} style={wordStyle}>{w.text}</span>
+            <span key={i} style={{ ...wordStyle, ...wordRevealStyle(w) }}>{w.text}</span>
           ))}
         </div>
       );
@@ -246,17 +346,17 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
       if (pivotIdx === -1) {
         return (
           <div style={containerStyle} data-caption-overlay>
-            <div style={bodyStyle('0%')}>{visibleWords.map(w => w.text).join(' ')}</div>
+            {renderWordsWithReveal(visibleWords, bodyStyle('0%'))}
           </div>
         );
       }
-      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
-      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      const beforeWords = visibleWords.slice(0, pivotIdx);
+      const afterWords = visibleWords.slice(pivotIdx + 1);
       return (
         <div style={containerStyle} data-caption-overlay>
-          {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
-          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
-          {afterText ? <div style={bodyStyle('0%')}>{afterText}</div> : null}
+          {beforeWords.length > 0 ? renderWordsWithReveal(beforeWords, bodyStyle('0%')) : null}
+          <div style={{ ...pivotStyle, ...wordRevealStyle(visibleWords[pivotIdx]) }}>{visibleWords[pivotIdx].text}</div>
+          {afterWords.length > 0 ? renderWordsWithReveal(afterWords, bodyStyle('0%')) : null}
         </div>
       );
     }
@@ -302,17 +402,17 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
       if (pivotIdx === -1) {
         return (
           <div style={containerStyle} data-caption-overlay>
-            <div style={pivotStyle}>{visibleWords.map(w => w.text).join(' ')}</div>
+            {renderWordsWithReveal(visibleWords, pivotStyle)}
           </div>
         );
       }
-      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
-      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      const beforeWords = visibleWords.slice(0, pivotIdx);
+      const afterWords = visibleWords.slice(pivotIdx + 1);
       return (
         <div style={containerStyle} data-caption-overlay>
-          {beforeText ? <div style={bodyStyle}>{beforeText}</div> : null}
-          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
-          {afterText ? <div style={bodyStyle}>{afterText}</div> : null}
+          {beforeWords.length > 0 ? renderWordsWithReveal(beforeWords, bodyStyle) : null}
+          <div style={{ ...pivotStyle, ...wordRevealStyle(visibleWords[pivotIdx]) }}>{visibleWords[pivotIdx].text}</div>
+          {afterWords.length > 0 ? renderWordsWithReveal(afterWords, bodyStyle) : null}
         </div>
       );
     }
@@ -364,6 +464,8 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
             const rawSize = baseFontSize * tierSizeMultiplier[tier];
             const fontSize = Math.min(rawSize, maxFontSize);
             const isEmphasis = tier === 'power' || tier === 'strong';
+            const reveal = wordRevealStyle(word);
+            const baseOpacity = isEmphasis ? 1 : 0.8;
             return (
               <div
                 key={idx}
@@ -371,7 +473,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
                   position: 'absolute',
                   left: `${xPct}%`,
                   top: `${yPct}%`,
-                  transform: `translate(-50%, -50%) rotate(${rot}deg)`,
+                  transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${reveal.transform?.toString().match(/scale\(([^)]+)\)/)?.[1] ?? 1})`,
                   fontFamily: "'Montserrat', system-ui, sans-serif",
                   fontSize,
                   fontWeight: isEmphasis ? 900 : 400,
@@ -381,13 +483,165 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
                   lineHeight: 1.0,
                   textShadow: isEmphasis ? '0 2px 10px rgba(0,0,0,0.9), 0 0 20px rgba(255,180,0,0.4)' : '0 2px 10px rgba(0,0,0,0.9)',
                   whiteSpace: 'nowrap',
-                  opacity: isEmphasis ? 1 : 0.8,
+                  opacity: typeof reveal.opacity === 'number' ? reveal.opacity * baseOpacity : 0,
                 }}
               >
                 {word.text}
               </div>
             );
           })}
+        </div>
+      );
+    }
+
+    // ── left-flush: center-aligned impact staircase with large emphasis ───────
+    if (alignment === 'left-flush') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute', bottom: `${offsetY}%`, left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '88%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: '2px',
+      };
+      const bodyStyle: React.CSSProperties = {
+        fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+        fontSize: baseFontSize * 0.6, fontWeight: 500,
+        color: 'rgba(255,255,255,0.88)', lineHeight: 1.2,
+        textAlign: 'center', letterSpacing: '1.5px', textTransform: 'uppercase',
+        textShadow: '0 1px 8px rgba(0,0,0,0.9)', width: '100%',
+      };
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 2.5, fontWeight: 900, fontStyle: 'italic',
+        color: '#FFD700', lineHeight: 1.0, textAlign: 'center',
+        textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+        width: '100%',
+      };
+      if (pivotIdx === -1) {
+        return (<div style={containerStyle} data-caption-overlay>{renderWordsWithReveal(visibleWords, bodyStyle)}</div>);
+      }
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {pivotIdx > 0 ? renderWordsWithReveal(visibleWords.slice(0, pivotIdx), bodyStyle) : null}
+          <div style={{ ...pivotStyle, ...wordRevealStyle(visibleWords[pivotIdx]) }}>{visibleWords[pivotIdx].text}</div>
+          {pivotIdx < visibleWords.length - 1 ? renderWordsWithReveal(visibleWords.slice(pivotIdx + 1), bodyStyle) : null}
+        </div>
+      );
+    }
+
+    // ── diagonal: center-aligned diagonal flow staircase ─────────────────────
+    if (alignment === 'diagonal') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute', bottom: `${offsetY}%`, left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '88%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: '2px',
+      };
+      const bodyStyle: React.CSSProperties = {
+        fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+        fontSize: baseFontSize * 0.65, fontWeight: 500,
+        color: 'rgba(255,255,255,0.88)', lineHeight: 1.2,
+        textAlign: 'center', letterSpacing: '1.5px', textTransform: 'uppercase',
+        textShadow: '0 1px 8px rgba(0,0,0,0.9)', width: '100%',
+      };
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 1.9, fontWeight: 700, fontStyle: 'italic',
+        color: '#FFD700', lineHeight: 1.05, textAlign: 'center',
+        textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+        width: '100%',
+      };
+      if (pivotIdx === -1) {
+        return (<div style={containerStyle} data-caption-overlay>{renderWordsWithReveal(visibleWords, bodyStyle)}</div>);
+      }
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {pivotIdx > 0 ? renderWordsWithReveal(visibleWords.slice(0, pivotIdx), bodyStyle) : null}
+          <div style={{ ...pivotStyle, ...wordRevealStyle(visibleWords[pivotIdx]) }}>{visibleWords[pivotIdx].text}</div>
+          {pivotIdx < visibleWords.length - 1 ? renderWordsWithReveal(visibleWords.slice(pivotIdx + 1), bodyStyle) : null}
+        </div>
+      );
+    }
+
+    // ── multi-block: each word sized by tier, stacked vertically centered ────
+    if (alignment === 'multi-block') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute', bottom: `${offsetY}%`, left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '88%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: '0px',
+      };
+      const tierStyles: Record<WordTier, React.CSSProperties> = {
+        power: { fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`, fontSize: baseFontSize * 2.2, fontWeight: 900, fontStyle: 'italic', color: '#FFD700', lineHeight: 1.05, textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)' },
+        strong: { fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`, fontSize: baseFontSize * 1.6, fontWeight: 700, fontStyle: 'italic', color: '#FFD700', lineHeight: 1.1, textShadow: '0 0 15px rgba(255,180,0,0.5), 0 2px 10px rgba(0,0,0,0.9)' },
+        medium: { fontFamily: `'${bodyFont}', Montserrat, sans-serif`, fontSize: baseFontSize * 0.9, fontWeight: 600, color: 'rgba(255,255,255,0.9)', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: '1px', textShadow: '0 1px 8px rgba(0,0,0,0.9)' },
+        filler: { fontFamily: `'${bodyFont}', Montserrat, sans-serif`, fontSize: baseFontSize * 0.55, fontWeight: 400, color: 'rgba(255,255,255,0.6)', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 1px 6px rgba(0,0,0,0.9)' },
+      };
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {visibleWords.map((w, i) => {
+            const tier = classifyWord(w.text);
+            return <div key={i} style={{ ...tierStyles[tier], width: '100%', textAlign: 'center', ...wordRevealStyle(w) }}>{w.text}</div>;
+          })}
+        </div>
+      );
+    }
+
+    // ── bold-left: bold stack center-aligned ──────────────────────────────────
+    if (alignment === 'bold-left') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute', bottom: `${offsetY}%`, left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '88%', display: 'flex', flexWrap: 'wrap',
+        justifyContent: 'center', alignItems: 'center',
+        gap: '4px 8px',
+      };
+      const wordStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 1.5, fontWeight: 800,
+        color: '#FFD700', lineHeight: 1.1,
+        textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+        textTransform: 'uppercase',
+      };
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {visibleWords.map((w, i) => <span key={i} style={{ ...wordStyle, ...wordRevealStyle(w) }}>{w.text}</span>)}
+        </div>
+      );
+    }
+
+    // ── hero-center: extreme center-dominant emphasis ─────────────────────────
+    if (alignment === 'hero-center') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute', bottom: `${offsetY}%`, left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '88%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: '2px',
+      };
+      const bodyStyle: React.CSSProperties = {
+        fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+        fontSize: baseFontSize * 0.3, fontWeight: 400,
+        color: 'rgba(255,255,255,0.7)', lineHeight: 1.2,
+        textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase',
+        textShadow: '0 1px 6px rgba(0,0,0,0.9)', width: '100%',
+      };
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 3.5, fontWeight: 900, fontStyle: 'italic',
+        color: '#FFD700', lineHeight: 0.95, textAlign: 'center',
+        textShadow: '0 0 30px rgba(255,180,0,0.8), 0 4px 16px rgba(0,0,0,0.9)',
+        width: '100%',
+      };
+      const afterStyle: React.CSSProperties = {
+        ...bodyStyle, fontSize: baseFontSize * 0.65,
+      };
+      if (pivotIdx === -1) {
+        return (<div style={containerStyle} data-caption-overlay>{renderWordsWithReveal(visibleWords, pivotStyle)}</div>);
+      }
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {pivotIdx > 0 ? renderWordsWithReveal(visibleWords.slice(0, pivotIdx), bodyStyle) : null}
+          <div style={{ ...pivotStyle, ...wordRevealStyle(visibleWords[pivotIdx]) }}>{visibleWords[pivotIdx].text}</div>
+          {pivotIdx < visibleWords.length - 1 ? renderWordsWithReveal(visibleWords.slice(pivotIdx + 1), afterStyle) : null}
         </div>
       );
     }
@@ -434,25 +688,23 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     };
 
     if (pivotIdx === -1) {
-      // No strong/power word — render the whole phrase as a single body line
+      // No strong/power word — render the whole phrase with word reveal
       return (
         <div style={containerStyle} data-caption-overlay>
-          <div style={bodyLineStyle('0%')}>
-            {visibleWords.map((w) => w.text).join(' ')}
-          </div>
+          {renderWordsWithReveal(visibleWords, bodyLineStyle('0%'))}
         </div>
       );
     }
 
-    const beforeText = visibleWords.slice(0, pivotIdx).map((w) => w.text).join(' ');
-    const pivotText = visibleWords[pivotIdx].text;
-    const afterText = visibleWords.slice(pivotIdx + 1).map((w) => w.text).join(' ');
+    const beforeWords = visibleWords.slice(0, pivotIdx);
+    const pivotWord = visibleWords[pivotIdx];
+    const afterWords = visibleWords.slice(pivotIdx + 1);
 
     return (
       <div style={containerStyle} data-caption-overlay>
-        {beforeText ? <div style={bodyLineStyle('0%')}>{beforeText}</div> : null}
-        <div style={emphasisLineStyle}>{pivotText}</div>
-        {afterText ? <div style={bodyLineStyle(alignment === 'stagger' ? '16%' : '0%')}>{afterText}</div> : null}
+        {beforeWords.length > 0 ? renderWordsWithReveal(beforeWords, bodyLineStyle('0%')) : null}
+        <div style={{ ...emphasisLineStyle, ...wordRevealStyle(pivotWord) }}>{pivotWord.text}</div>
+        {afterWords.length > 0 ? renderWordsWithReveal(afterWords, bodyLineStyle(alignment === 'stagger' ? '16%' : '0%')) : null}
       </div>
     );
   }

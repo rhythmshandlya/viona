@@ -166,6 +166,8 @@ export function StylePanel() {
       bodyFontFamily: pairing?.bodyFont.family || '',
       // Staircase visual variant — empty string clears previous variant
       staircaseVariant: preset.staircaseVariant || '',
+      // Staircase transition style
+      staircaseTransition: preset.staircaseTransition || 'slide-up',
       // Cinematic renderer fields
       ...(preset.useCinematicRenderer ? {
         useCinematicRenderer: true,
@@ -361,6 +363,11 @@ export function StylePanel() {
                   { value: 'impact',     label: 'Impact',   icon: '◉' },
                   { value: 'single',     label: 'Single',   icon: '◯' },
                   { value: 'scattered',  label: 'Scatter',  icon: '✦' },
+                  { value: 'left-flush', label: 'L-Flush',  icon: '⊏' },
+                  { value: 'diagonal',   label: 'Diagonal', icon: '⋱' },
+                  { value: 'multi-block',label: 'Blocks',   icon: '⊞' },
+                  { value: 'bold-left',  label: 'Bold-L',   icon: '☰' },
+                  { value: 'hero-center',label: 'Hero',     icon: '◎' },
                 ] as const).map(({ value, label, icon }) => {
                   const active = (style.staircaseAlignment ?? 'center') === value;
                   return (
@@ -388,6 +395,38 @@ export function StylePanel() {
                   step={1}
                   onChange={(v) => customizeStyle({ wordsPerPhrase: v })}
                 />
+              </div>
+            </Section>
+          )}
+
+          {/* Transition style picker — only shown for poster-staircase mode */}
+          {style.displayMode === 'poster-staircase' && (
+            <Section label="Transition Style">
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: 'slide-up',   label: 'Slide',   icon: '⬆' },
+                  { value: 'pop',        label: 'Pop',     icon: '💥' },
+                  { value: 'fade',       label: 'Fade',    icon: '🌫' },
+                  { value: 'typewriter', label: 'Type',    icon: '⌨' },
+                  { value: 'elastic',    label: 'Bounce',  icon: '🔄' },
+                  { value: 'none',       label: 'None',    icon: '⊘' },
+                ] as const).map(({ value, label, icon }) => {
+                  const active = (style.staircaseTransition ?? 'slide-up') === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => customizeStyle({ staircaseTransition: value })}
+                      className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs transition-all ${
+                        active
+                          ? 'border-[var(--editor-accent)] bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]'
+                          : 'border-[var(--editor-border-subtle)] bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:border-[var(--editor-border)] hover:text-[var(--editor-text-primary)]'
+                      }`}
+                    >
+                      <span className="text-lg leading-none">{icon}</span>
+                      <span className="text-[10px] leading-none">{label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </Section>
           )}

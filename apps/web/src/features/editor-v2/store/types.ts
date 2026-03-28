@@ -403,7 +403,10 @@ export interface CaptionStyle {
   };
 
   // Poster staircase alignment variant
-  staircaseAlignment?: 'center' | 'left' | 'stagger' | 'bold-stack' | 'impact' | 'single' | 'scattered';
+  staircaseAlignment?: 'center' | 'left' | 'stagger' | 'bold-stack' | 'impact' | 'single' | 'scattered' | 'left-flush' | 'diagonal' | 'multi-block' | 'bold-left' | 'hero-center';
+
+  // Poster staircase word reveal transition style
+  staircaseTransition?: 'pop' | 'fade' | 'slide-up' | 'typewriter' | 'elastic' | 'none';
 
   // Poster staircase visual variant (bold-stack, impact-pop, elegant-script, mega-bold, script-accent, scattered-poster)
   staircaseVariant?: string;

@@ -609,6 +609,7 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
 
   // Poster staircase alignment
   if (style.staircaseAlignment) result.staircaseAlignment = style.staircaseAlignment;
+  if (style.staircaseTransition) result.staircaseTransition = style.staircaseTransition;
 
   return result;
 }
@@ -674,6 +675,8 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
       cinematicColors: mcs.cinematicColors as CaptionStyle['cinematicColors'],
       cinematicScales: mcs.cinematicScales as CaptionStyle['cinematicScales'],
     } : {}),
+    // Poster staircase transition style
+    staircaseTransition: (mcs as any).staircaseTransition ?? undefined,
     // Poster staircase alignment — prefer new staircaseAlignment; fall back to mapping old staircaseVariant
     staircaseAlignment: (() => {
       const sa = (mcs as any).staircaseAlignment;

@@ -697,6 +697,148 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
       );
     }
 
+    // ── left-flush: left-aligned impact staircase ────────────────────────────
+    if (alignment === 'left-flush') {
+      const outerStyle = buildOuterStyle('88%', 'flex-start');
+      const bodyStyle = (ml: string): React.CSSProperties => ({
+        fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+        fontSize: baseFontSize * 0.6, fontWeight: 500,
+        color: 'rgba(255,255,255,0.88)', lineHeight: 1.2,
+        textAlign: 'left', letterSpacing: '1.5px', textTransform: 'uppercase',
+        textShadow: '0 1px 8px rgba(0,0,0,0.9)', marginLeft: ml, width: '100%',
+        WebkitFontSmoothing: 'antialiased',
+      });
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 2.5, fontWeight: 900, fontStyle: 'italic',
+        color: '#FFD700', lineHeight: 1.0, textAlign: 'left',
+        textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+        width: '100%', WebkitFontSmoothing: 'antialiased',
+      };
+      if (pivotIdx === -1) {
+        return (<div style={outerStyle}><div style={bodyStyle('0%')}>{visibleWords.map(w => w.text).join(' ')}</div></div>);
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={outerStyle}>
+          {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={bodyStyle('20%')}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
+    // ── diagonal: diagonal flow staircase ────────────────────────────────────
+    if (alignment === 'diagonal') {
+      const outerStyle = buildOuterStyle('88%', 'flex-start');
+      const bodyStyle = (ml: string): React.CSSProperties => ({
+        fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+        fontSize: baseFontSize * 0.65, fontWeight: 500,
+        color: 'rgba(255,255,255,0.88)', lineHeight: 1.2,
+        textAlign: 'left', letterSpacing: '1.5px', textTransform: 'uppercase',
+        textShadow: '0 1px 8px rgba(0,0,0,0.9)', marginLeft: ml, width: '100%',
+        WebkitFontSmoothing: 'antialiased',
+      });
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 1.9, fontWeight: 700, fontStyle: 'italic',
+        color: '#FFD700', lineHeight: 1.05, textAlign: 'left',
+        textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+        marginLeft: '15%', width: '100%', WebkitFontSmoothing: 'antialiased',
+      };
+      if (pivotIdx === -1) {
+        return (<div style={outerStyle}><div style={bodyStyle('0%')}>{visibleWords.map(w => w.text).join(' ')}</div></div>);
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={outerStyle}>
+          {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={bodyStyle('35%')}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
+    // ── multi-block: each word sized by tier, stacked vertically ─────────────
+    if (alignment === 'multi-block') {
+      const outerStyle: React.CSSProperties = {
+        ...buildOuterStyle('88%', 'flex-start'),
+        gap: '0px',
+      };
+      const tierStyles: Record<string, React.CSSProperties> = {
+        power: { fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`, fontSize: baseFontSize * 2.2, fontWeight: 900, fontStyle: 'italic', color: '#FFD700', lineHeight: 1.05, textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)', WebkitFontSmoothing: 'antialiased' },
+        medium: { fontFamily: `'${bodyFont}', Montserrat, sans-serif`, fontSize: baseFontSize * 0.9, fontWeight: 600, color: 'rgba(255,255,255,0.9)', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: '1px', textShadow: '0 1px 8px rgba(0,0,0,0.9)', WebkitFontSmoothing: 'antialiased' },
+        filler: { fontFamily: `'${bodyFont}', Montserrat, sans-serif`, fontSize: baseFontSize * 0.55, fontWeight: 400, color: 'rgba(255,255,255,0.6)', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 1px 6px rgba(0,0,0,0.9)', WebkitFontSmoothing: 'antialiased' },
+      };
+      const getStyle = (t: string) => tierStyles[t] ?? tierStyles.medium;
+      return (
+        <div style={outerStyle}>
+          {visibleWords.map((w, i) => {
+            const tier = classifyWordTier(w.text);
+            return <div key={i} style={{ ...getStyle(tier), width: '100%', textAlign: 'left' }}>{w.text}</div>;
+          })}
+        </div>
+      );
+    }
+
+    // ── bold-left: bold stack but left-aligned ────────────────────────────────
+    if (alignment === 'bold-left') {
+      const outerStyle: React.CSSProperties = {
+        ...buildOuterStyle('88%', 'flex-start'),
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        gap: '4px 8px',
+      };
+      const wordStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 1.5, fontWeight: 800,
+        color: '#FFD700', lineHeight: 1.1,
+        textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+        textTransform: 'uppercase', WebkitFontSmoothing: 'antialiased',
+      };
+      return (
+        <div style={outerStyle}>
+          {visibleWords.map((w, i) => <span key={i} style={wordStyle}>{w.text}</span>)}
+        </div>
+      );
+    }
+
+    // ── hero-center: extreme center-dominant emphasis ─────────────────────────
+    if (alignment === 'hero-center') {
+      const outerStyle = buildOuterStyle('88%', 'center');
+      const bodyStyle: React.CSSProperties = {
+        fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+        fontSize: baseFontSize * 0.3, fontWeight: 400,
+        color: 'rgba(255,255,255,0.7)', lineHeight: 1.2,
+        textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase',
+        textShadow: '0 1px 6px rgba(0,0,0,0.9)', width: '100%',
+        WebkitFontSmoothing: 'antialiased',
+      };
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+        fontSize: baseFontSize * 3.5, fontWeight: 900, fontStyle: 'italic',
+        color: '#FFD700', lineHeight: 0.95, textAlign: 'center',
+        textShadow: '0 0 30px rgba(255,180,0,0.8), 0 4px 16px rgba(0,0,0,0.9)',
+        width: '100%', WebkitFontSmoothing: 'antialiased',
+      };
+      const afterStyle: React.CSSProperties = { ...bodyStyle, fontSize: baseFontSize * 0.65 };
+      if (pivotIdx === -1) {
+        return (<div style={outerStyle}><div style={pivotStyle}>{visibleWords.map(w => w.text).join(' ')}</div></div>);
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={outerStyle}>
+          {beforeText ? <div style={bodyStyle}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={afterStyle}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
     // ── Default Cinematic Luxe staircase (no variant) ─────────────────────────
     const outerStyle: React.CSSProperties = buildOuterStyle('88%', alignment === 'left' ? 'flex-start' : 'center');
 

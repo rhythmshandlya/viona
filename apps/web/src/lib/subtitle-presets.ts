@@ -68,6 +68,8 @@ export interface SubtitlePreset {
   typographyPairingId?: string;
   // Poster staircase visual variant
   staircaseVariant?: string;
+  // Poster staircase word reveal transition style
+  staircaseTransition?: 'pop' | 'fade' | 'slide-up' | 'typewriter' | 'elastic' | 'none';
   // Cinematic renderer
   useCinematicRenderer?: boolean;
   cinematicFonts?: {
@@ -413,6 +415,7 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     position: { anchor: 'bottom', offsetX: 0, offsetY: 5, rotation: 0, textAlign: 'center' },
     supportedModes: ['poster-staircase'],
     typographyPairingId: 'dancing-script-montserrat',
+    staircaseTransition: 'slide-up',
   },
 
 };
