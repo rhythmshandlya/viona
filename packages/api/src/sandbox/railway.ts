@@ -168,11 +168,40 @@ export class RailwaySandboxProvider implements SandboxProvider {
         environmentId: config.sandbox.railway.environmentId,
       }, 'serviceInstanceDeployV2');
 
-      // 5. Wait for deployment and volume to be ready
-      //    Use volumeId directly from creation — Railway will have the instance ready shortly
-      //    Give it 30 seconds to initialize after deployment trigger
-      const volumeInstanceId = volumeId;
-      await new Promise(r => setTimeout(r, 30_000));
+      // 5. Wait for deployment to complete — poll service deployment status
+      let volumeInstanceId = volumeId; // We already have the volume ID
+      for (let i = 0; i < 150; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+
+        try {
+          const deployData = await railwayGql(`
+            query($serviceId: String!, $environmentId: String!) {
+              deployments(
+                first: 1
+                input: { serviceId: $serviceId, environmentId: $environmentId }
+              ) {
+                edges {
+                  node {
+                    id
+                    status
+                  }
+                }
+              }
+            }
+          `, { serviceId, environmentId: config.sandbox.railway.environmentId }, 'deploymentPoll');
+
+          const deployment = deployData.deployments?.edges?.[0]?.node;
+          if (deployment?.status === 'SUCCESS') {
+            break;
+          }
+          if (deployment?.status === 'FAILED' || deployment?.status === 'CRASHED') {
+            throw new Error(`Sandbox deployment ${deployment.status}`);
+          }
+        } catch (pollError: any) {
+          // If the query fails, just keep waiting
+          if (pollError.message?.includes('Sandbox deployment')) throw pollError;
+        }
+      }
 
       // 6. Restore backup if provided
       if (backupId) {
