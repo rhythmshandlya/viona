@@ -152,7 +152,6 @@ export class RailwaySandboxProvider implements SandboxProvider {
       `, {
         input: {
           projectId: config.sandbox.railway.projectId,
-          environmentId: config.sandbox.railway.environmentId,
           serviceId,
           mountPath: '/workspace',
         },
@@ -169,31 +168,11 @@ export class RailwaySandboxProvider implements SandboxProvider {
         environmentId: config.sandbox.railway.environmentId,
       }, 'serviceInstanceDeployV2');
 
-      // 5. Wait for deployment and get volume instance ID
-      //    Repo-based builds take longer than image pulls — poll for up to 5 min
-      let volumeInstanceId = '';
-      for (let i = 0; i < 150; i++) {
-        await new Promise(r => setTimeout(r, 2000));
-
-        const volData = await railwayGql(`
-          query($volumeId: String!) {
-            volume(id: $volumeId) {
-              id
-              state
-            }
-          }
-        `, { volumeId }, 'volumeInstancePoll');
-
-        const vol = volData.volume;
-        if (vol && vol.id) {
-          volumeInstanceId = vol.id;
-          break;
-        }
-      }
-
-      if (!volumeInstanceId) {
-        throw new Error('Volume instance not created after 300s');
-      }
+      // 5. Wait for deployment and volume to be ready
+      //    Use volumeId directly from creation — Railway will have the instance ready shortly
+      //    Give it 30 seconds to initialize after deployment trigger
+      const volumeInstanceId = volumeId;
+      await new Promise(r => setTimeout(r, 30_000));
 
       // 6. Restore backup if provided
       if (backupId) {
