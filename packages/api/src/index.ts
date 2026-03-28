@@ -23,7 +23,9 @@ import { jobRoutes } from './routes/jobs.js';
 import { setupWebSocket } from './ws/handler.js';
 import { authMiddleware } from './middleware/auth.js';
 import { workspaceRoutes } from './workspace/workspace-routes.js';
-import { sandboxRoutes, rehydrateActiveSandboxes } from './sandbox/routes.js';
+import { createSandboxRoutes } from './sandbox/routes.js';
+import { sandboxManager } from './sandbox/manager.js';
+import { templateRoutes } from './routes/templates.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -313,7 +315,8 @@ async function main() {
   await fastify.register(youtubeClipRoutes, { prefix: '/api' });
   await fastify.register(jobRoutes, { prefix: '/api' });
   await fastify.register(workspaceRoutes, { prefix: '/api' });
-  await fastify.register(sandboxRoutes, { prefix: '/api' });
+  await fastify.register(createSandboxRoutes(sandboxManager), { prefix: '/api' });
+  await fastify.register(templateRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
@@ -349,24 +352,23 @@ async function main() {
       });
     });
 
-    // Rehydrate active sandboxes after restart
-    rehydrateActiveSandboxes().catch((err) => {
-      console.error('[sandbox] Failed to rehydrate active sandboxes:', err);
-    });
+    // Start sandbox monitoring (health sweep, GC, idle suspension, rehydration)
+    sandboxManager.startMonitoring();
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
   }
-  // Graceful shutdown — close server, finish in-flight requests
+  // Graceful shutdown — backup sandboxes, close server, finish in-flight requests
   const shutdown = async (signal: string) => {
     fastify.log.info({ signal }, 'Received shutdown signal, closing server...');
 
     const timeout = setTimeout(() => {
-      fastify.log.error('Shutdown timeout exceeded (15s), forcing exit');
+      fastify.log.error('Shutdown timeout exceeded (30s), forcing exit');
       process.exit(1);
-    }, 15_000);
+    }, 30_000);
 
     try {
+      await sandboxManager.stopMonitoring();
       await fastify.close();
       fastify.log.info('Server closed gracefully');
     } catch (err) {
@@ -378,6 +380,18 @@ async function main() {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Safety net: log unhandled rejections instead of crashing the process.
+  // The primary fix is in proxy.ts (catching AbortError from reader.read()),
+  // but this prevents any stray rejection from killing the server.
+  process.on('unhandledRejection', (reason, promise) => {
+    // AbortErrors from fetch/stream cancellation are expected during client disconnect
+    if (reason instanceof DOMException && reason.name === 'AbortError') {
+      fastify.log.debug({ err: reason.message }, 'Suppressed AbortError (client disconnect)');
+      return;
+    }
+    fastify.log.error({ err: reason }, 'Unhandled promise rejection');
+  });
 }
 
 main();

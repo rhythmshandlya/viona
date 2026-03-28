@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import type { Manifest, ManifestItem } from './manifest.js';
+import type { ManifestV2 as Manifest, ManifestItemV2 as ManifestItem } from './manifest-v2.js';
+import { captionAnalysisSchema } from './caption-analysis.js';
 
 // ---- Operation schemas ----
 
@@ -24,10 +25,6 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     itemId: z.string(),
   }),
   z.object({
-    op: z.literal('set_layout'),
-    layout: z.record(z.string(), z.unknown()),
-  }),
-  z.object({
     op: z.literal('set_transition'),
     itemId: z.string(),
     enter: z.object({ type: z.string(), durationMs: z.number() }).optional(),
@@ -39,6 +36,11 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     startMs: z.number().min(0),
     endMs: z.number().min(0),
   }),
+  z.object({
+    op: z.literal('update_caption_preset'),
+    updates: z.record(z.string(), z.unknown()),
+  }),
+  /** @deprecated Use `update_caption_preset` instead */
   z.object({
     op: z.literal('update_caption_style'),
     updates: z.record(z.string(), z.unknown()),
@@ -60,6 +62,10 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     op: z.literal('update_transform'),
     itemId: z.string(),
     transform: z.record(z.string(), z.union([z.number(), z.string()])),
+  }),
+  z.object({
+    op: z.literal('update_caption_analysis'),
+    captionAnalysis: z.record(z.string(), captionAnalysisSchema),
   }),
 ]);
 
@@ -85,6 +91,10 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       const item = m.items.find(i => i.id === op.itemId);
       if (!item) throw new Error(`Item not found: ${op.itemId}`);
       item.data = { ...item.data, ...op.dataUpdates } as any;
+      // If caption item's words changed, invalidate its analysis
+      if (item.type === 'caption' && op.dataUpdates?.words && m.captionAnalysis?.[op.itemId]) {
+        delete m.captionAnalysis[op.itemId];
+      }
       break;
     }
 
@@ -95,15 +105,10 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       break;
     }
 
-    case 'set_layout': {
-      m.layout = { ...m.layout, ...op.layout } as any;
-      break;
-    }
-
     case 'set_transition': {
       const item = m.items.find(i => i.id === op.itemId);
       if (!item) throw new Error(`Item not found: ${op.itemId}`);
-      if (item.type !== 'visual') throw new Error(`Item ${op.itemId} is not a visual`);
+      if (item.type !== 'scene') throw new Error(`Item ${op.itemId} is not a scene`);
       const data = item.data as any;
       if (!data.transition) data.transition = {};
       if (op.enter) data.transition.enter = op.enter;
@@ -119,8 +124,28 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       break;
     }
 
-    case 'update_caption_style': {
-      m.captionStyle = { ...m.captionStyle, ...op.updates } as any;
+    case 'update_caption_preset':
+    case 'update_caption_style': { // deprecated alias — falls through to same logic
+      const existing: Record<string, any> = m.captionPreset ?? {};
+      const updates: Record<string, any> = op.updates;
+      // Deep merge nested objects, shallow replace scalars.
+      // When a nested key exists in updates but not in existing, the ...updates spread
+      // provides the full replacement (the conditional spread evaluates to {}).
+      m.captionPreset = {
+        ...existing,
+        ...updates,
+        ...(updates.position && existing.position ? { position: { ...existing.position, ...updates.position } } : {}),
+        ...(updates.animation && existing.animation && typeof existing.animation === 'object' ? { animation: { ...existing.animation, ...updates.animation } } : {}),
+        ...(updates.effects && existing.effects ? { effects: { ...existing.effects, ...updates.effects } } : {}),
+        ...(updates.wordEmphasis && existing.wordEmphasis ? {
+          wordEmphasis: {
+            ...existing.wordEmphasis,
+            ...updates.wordEmphasis,
+            roles: { ...existing.wordEmphasis?.roles, ...updates.wordEmphasis?.roles },
+          },
+        } : {}),
+        ...(updates.backgroundPadding && existing.backgroundPadding ? { backgroundPadding: { ...existing.backgroundPadding, ...updates.backgroundPadding } } : {}),
+      } as any;
       break;
     }
 
@@ -138,8 +163,8 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       secondHalf.id = newId;
       secondHalf.startMs = op.atMs;
 
-      // If visual, set frameOffset on second half
-      if (item.type === 'visual') {
+      // If scene, set frameOffset on second half
+      if (item.type === 'scene') {
         const fps = manifest.fps || 30;
         const offsetFrames = Math.round(((op.atMs - item.startMs) / 1000) * fps);
         (secondHalf.data as any).frameOffset = ((item.data as any).frameOffset || 0) + offsetFrames;
@@ -171,6 +196,11 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       if (item) {
         (item as any).transform = { ...((item as any).transform || {}), ...op.transform };
       }
+      break;
+    }
+
+    case 'update_caption_analysis': {
+      m.captionAnalysis = op.captionAnalysis;
       break;
     }
   }

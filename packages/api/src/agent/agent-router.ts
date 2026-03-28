@@ -1,13 +1,16 @@
 import { PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
 import { eq, or, and } from 'drizzle-orm';
-import { db, projects, transcripts, jobs } from '../db/index.js';
+import { db, projects, transcripts, jobs, tracks, visuals, sandboxSessions } from '../db/index.js';
+import { inArray, notInArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { redis, publishJobError } from '../services/redis.js';
 import { releaseLock } from '../workspace/workspace-lock.js';
 import { emitLockReleased } from '../workspace/workspace-ws.js';
 import { proxyPromptWithIntercept, proxyCancelAgent } from '../sandbox/proxy.js';
-import { getActiveSession } from '../sandbox/routes.js';
+import { sandboxManager } from '../sandbox/manager.js';
+import { minioClient } from '../services/minio.js';
+import { config } from '../config.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
@@ -18,105 +21,8 @@ import {
   updateConversationSessionId,
 } from './conversation-store.js';
 
-// Per-project event buffer for Last-Event-ID resumption
-const EVENT_BUFFER_SIZE = 100;
-interface EventBuffer {
-  events: Array<{ id: number; event: string; data: string }>;
-  lastUpdated: number;
-}
-const projectEventBuffers = new Map<string, EventBuffer>();
-
-// Periodic sweep of stale event buffers
-const MAX_EVENT_BUFFERS = 200; // Safety cap — at 50 users, max ~50 active
-setInterval(() => {
-  const now = Date.now();
-  // Remove stale buffers (older than 5 minutes)
-  for (const [key, buffer] of projectEventBuffers) {
-    if (now - buffer.lastUpdated > 5 * 60 * 1000) {
-      projectEventBuffers.delete(key);
-    }
-  }
-  // If still over cap, evict oldest
-  if (projectEventBuffers.size > MAX_EVENT_BUFFERS) {
-    const sorted = [...projectEventBuffers.entries()]
-      .sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
-    const toRemove = sorted.slice(0, sorted.length - MAX_EVENT_BUFFERS);
-    for (const [key] of toRemove) {
-      projectEventBuffers.delete(key);
-    }
-  }
-}, 60 * 1000); // Run every minute instead of every 5 minutes
-
-// SSE helper — returns a closure that writes server-sent events with
-// auto-incrementing IDs, basic backpressure awareness, and event buffering
-// for Last-Event-ID resumption.
-function createSSEWriter(stream: NodeJS.WritableStream, projectId: string) {
-  let eventId = 0;
-  let draining = true;
-  stream.on('drain', () => { draining = true; });
-
-  // Always create a fresh buffer — replaces any stale buffer from a prior stream
-  const bufferObj: EventBuffer = { events: [], lastUpdated: Date.now() };
-  projectEventBuffers.set(projectId, bufferObj);
-
-  function sendSSE(event: string, data: unknown, skipBuffer = false) {
-    if ((stream as any).destroyed) return;
-    eventId++;
-    const serialized = JSON.stringify(data);
-
-    // Buffer for potential replay (skip for replayed events to prevent duplicates)
-    if (!skipBuffer) {
-      bufferObj.events.push({ id: eventId, event, data: serialized });
-      bufferObj.lastUpdated = Date.now();
-      if (bufferObj.events.length > EVENT_BUFFER_SIZE) bufferObj.events.shift();
-    }
-
-    try {
-      const ok = (stream as any).write(`id: ${eventId}\nevent: ${event}\ndata: ${serialized}\n\n`);
-      if (!ok) draining = false;
-    } catch {
-      // Stream closed — ignore
-    }
-  }
-
-  return { sendSSE, bufferObj };
-}
-
 // Per-project concurrent SSE stream counter
 const activeStreams = new Map<string, number>();
-
-// Format stored messages into text for system prompt context
-function formatConversationHistory(
-  storedMessages: Array<{ role: string; content: unknown }>,
-): string {
-  if (storedMessages.length === 0) return '';
-
-  const lines = storedMessages.map((m) => {
-    const contentBlocks = m.content as Array<{ type: string; text?: string; widget?: { kind?: string; planJobId?: string }; response?: unknown }>;
-    const parts: string[] = [];
-
-    for (const b of contentBlocks) {
-      if (b.type === 'text' && typeof b.text === 'string') {
-        parts.push(b.text);
-      } else if (b.type === 'widget' && b.widget) {
-        // Include key widget info so the agent can reference planJobId etc.
-        if (b.widget.kind === 'scene_plan' && b.widget.planJobId) {
-          parts.push(`[Shown scene plan widget — planJobId: ${b.widget.planJobId}]`);
-        } else if (b.widget.kind) {
-          parts.push(`[Shown ${b.widget.kind} widget]`);
-        }
-        // Include widget responses so the agent knows what the user picked (for retry context)
-        if (b.response !== undefined) {
-          parts.push(`[User responded: ${JSON.stringify(b.response)}]`);
-        }
-      }
-    }
-
-    return `[${m.role}]: ${parts.join('\n')}`;
-  });
-
-  return '\n\nCONVERSATION HISTORY:\n' + lines.join('\n\n');
-}
 
 export async function agentRoutes(fastify: FastifyInstance) {
   // ─── POST /projects/:id/agent/chat — SSE streaming chat ──────────────────
@@ -257,22 +163,21 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     // 6. Get sandbox connection for this project
-    const session = await getActiveSession(projectId);
-    const agentUrl = (session?.metadata as any)?.agentUrl as string | undefined;
+    const session = await sandboxManager.getActiveSession(projectId);
+    const agentUrl = session?.agentUrl as string | undefined;
 
     if (!session || !agentUrl) {
       // No sandbox available — send error via SSE so frontend handles it gracefully
-      const sseStream = new PassThrough();
+      const errorStream = new PassThrough();
       reply
         .header('Content-Type', 'text/event-stream')
         .header('Cache-Control', 'no-cache')
         .header('Connection', 'keep-alive')
         .header('X-Accel-Buffering', 'no')
-        .send(sseStream);
+        .send(errorStream);
 
-      const { sendSSE } = createSSEWriter(sseStream, projectId);
-      sendSSE('error', { message: 'Sandbox not available. Please start the sandbox first.' });
-      sseStream.end();
+      errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Sandbox not available. Please start the sandbox first.', recoverable: true })}\n\n`);
+      errorStream.end();
 
       // Decrement counter
       const c = activeStreams.get(projectId) || 1;
@@ -289,7 +194,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
     let pendingText = '';
-    let progressBlockIdx = -1; // Index of the current progress block in contentBlocks
 
     // Flush accumulated text into a content block
     function flushText() {
@@ -300,18 +204,28 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     // Build the body to forward to sandbox
+    // If conversation has too many messages, start fresh to prevent context overflow
+    const MAX_RESUME_MESSAGES = 40; // ~20 user + 20 assistant turns
+    const shouldResume = conversation.sdkSessionId && storedMessages.length < MAX_RESUME_MESSAGES;
+
+    if (conversation.sdkSessionId && !shouldResume) {
+      fastify.log.info({ projectId, messageCount: storedMessages.length }, 'Skipping session resume — conversation too long');
+    }
+
     const proxyBody = {
       prompt: userText,
-      conversationHistory: storedMessages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content :
-          (m.content as Array<{ type: string; text?: string }>)
-            .filter(b => b.type === 'text' && b.text)
-            .map(b => b.text!)
-            .join('\n'),
-      })),
+      conversationHistory: storedMessages
+        .slice(-20)  // Last 20 messages to prevent context overflow on non-resume
+        .map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content :
+            (m.content as Array<{ type: string; text?: string }>)
+              .filter(b => b.type === 'text' && b.text)
+              .map(b => b.text!)
+              .join('\n'),
+        })),
       projectContext,
-      sessionId: conversation.sdkSessionId,
+      sessionId: shouldResume ? conversation.sdkSessionId : null,
       widgetResponse: body.widgetResponse,
       editingContext: body.context ? {
         type: body.context.selectedVisualItem ? 'visual' : 'general',
@@ -335,6 +249,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
             if (data.sessionId) {
               await updateConversationSessionId(conversation.id, data.sessionId);
             }
+            if (data.numTurns) {
+              fastify.log.info({ projectId, numTurns: data.numTurns, cost: data.cost }, 'Agent turn completed');
+            }
             // Final flush
             flushText();
             await updateMessageContent(assistantRow.id,
@@ -343,17 +260,23 @@ export async function agentRoutes(fastify: FastifyInstance) {
           onWidget: (widget) => {
             flushText();
             contentBlocks.push({ type: 'widget', widget });
+            // Persist immediately so widgets survive SSE disconnect + page refresh
+            updateMessageContent(assistantRow.id, contentBlocks).catch(() => {});
           },
-          onProgress: (progress) => {
+          onPlan: (plan) => {
             flushText();
-            if (progressBlockIdx >= 0) {
-              // Replace existing progress block with updated state
-              contentBlocks[progressBlockIdx] = { type: 'progress', ...progress };
+            // Upsert: replace existing plan block or append new one
+            const existingIdx = contentBlocks.findIndex((b: any) => b.type === 'plan');
+            if (existingIdx >= 0) {
+              contentBlocks[existingIdx] = { type: 'plan', plan };
             } else {
-              // First progress event — append new block
-              progressBlockIdx = contentBlocks.length;
-              contentBlocks.push({ type: 'progress', ...progress });
+              contentBlocks.push({ type: 'plan', plan });
             }
+            // Persist immediately so plan survives SSE disconnect
+            updateMessageContent(assistantRow.id, contentBlocks).catch(() => {});
+          },
+          onProgress: () => {
+            // Progress is now handled via ProgressIndicator + Redis, not stored in message content
           },
           onError: (error) => {
             fastify.log.error({ error }, 'Sandbox orchestrator error');
@@ -431,22 +354,47 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       : null;
 
-    // Fallback: check Redis for sandbox pipeline progress (not BullMQ job-based)
-    let sandboxProgress: Record<string, unknown> | null = null;
-    if (!activeJob) {
-      try {
-        const cached = await redis.get(`sandbox:progress:${projectId}`);
-        if (cached) {
-          sandboxProgress = JSON.parse(cached);
-        }
-      } catch { /* ignore */ }
-    }
+    // Read active task state from Redis (populated by sandbox HTTP callbacks)
+    const [tasksRaw, busyRaw, planRaw] = await Promise.all([
+      redis.get(`sandbox:tasks:${projectId}`).catch(() => null),
+      redis.get(`sandbox:busy:${projectId}`).catch(() => null),
+      redis.get(`sandbox:plan:${projectId}`).catch(() => null),
+    ]);
+
+    let activeTasks: unknown[] = [];
+    let busy = false;
+    if (tasksRaw) try { activeTasks = JSON.parse(tasksRaw); } catch { /* ignore */ }
+    if (busyRaw) try { busy = JSON.parse(busyRaw).busy; } catch { /* ignore */ }
+
+    let sandboxPlan: Record<string, unknown> | null = null;
+    if (planRaw) try { sandboxPlan = JSON.parse(planRaw); } catch { /* ignore */ }
+
+    // Backward compat: keep sandboxProgress/sandboxActivity as null
+    const sandboxProgress = null;
+    const sandboxActivity = null;
 
     if (!data) {
-      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
+      return reply.send({
+        conversationId: null,
+        messages: [],
+        activeJob: jobPayload,
+        activeTasks,
+        busy,
+        sandboxPlan: sandboxPlan ?? undefined,
+        sandboxProgress: sandboxProgress ?? undefined,
+        sandboxActivity: sandboxActivity ?? undefined,
+      });
     }
 
-    return reply.send({ ...data, activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
+    return reply.send({
+      ...data,
+      activeJob: jobPayload,
+      activeTasks,
+      busy,
+      sandboxPlan: sandboxPlan ?? undefined,
+      sandboxProgress: sandboxProgress ?? undefined,
+      sandboxActivity: sandboxActivity ?? undefined,
+    });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────
@@ -468,6 +416,101 @@ export async function agentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ─── POST /projects/:id/agent/reset — full project reset ────────────────
+  // Cancels agent, resets sandbox workspace, clears DB conversation + Redis state,
+  // and returns the original creative brief so the frontend can re-send it.
+
+  fastify.post<{ Params: { id: string } }>(
+    '/projects/:id/agent/reset',
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const projectId = request.params.id;
+
+      // Check project ownership
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+      });
+      if (!project) return reply.code(404).send({ error: 'Project not found' });
+      if (project.userId && project.userId !== request.user?.id) {
+        return reply.code(403).send({ error: 'Forbidden' });
+      }
+
+      // 1. Extract the creative brief (first non-hidden user message) before clearing
+      let brief: string | null = null;
+      const data = await getConversationWithMessages(projectId);
+      if (data?.messages) {
+        for (const msg of data.messages) {
+          if (msg.role !== 'user') continue;
+          const blocks = msg.content as Array<{ type: string; text?: string; hidden?: boolean }>;
+          if (!Array.isArray(blocks)) continue;
+          const textBlock = blocks.find(b => b.type === 'text' && b.text && !b.hidden);
+          if (textBlock?.text) {
+            brief = textBlock.text;
+            break;
+          }
+        }
+      }
+
+      // 2. Cancel active BullMQ jobs
+      const activeJobRows = await db.select().from(jobs).where(
+        and(
+          eq(jobs.projectId, projectId),
+          or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
+        ),
+      );
+      for (const job of activeJobRows) {
+        await redis.publish('job:cancel', JSON.stringify({ jobId: job.id }));
+        await db.update(jobs)
+          .set({ status: 'cancelled', error: 'Reset by user' })
+          .where(eq(jobs.id, job.id));
+      }
+
+      // 3. Destroy the sandbox entirely — container, volume, Redis keys
+      // Next createSandbox() call will spin up a fresh container + re-init
+      try {
+        await sandboxManager.suspend(projectId, 'user');
+      } catch (err) {
+        fastify.log.warn({ err, projectId }, 'Sandbox suspend failed during reset');
+      }
+
+      // Clear backup + S3 checkpoint so the next acquire() does a fresh init
+      // (not restore from dirty backup that suspend() just saved)
+      await db.update(sandboxSessions)
+        .set({ backupId: null })
+        .where(eq(sandboxSessions.projectId, projectId))
+        .catch(() => {});
+      await minioClient.removeObject(
+        config.storage.bucket,
+        `checkpoints/${projectId}/manifest.json`,
+      ).catch(() => {});
+
+      // 4. Reset DB project state — remove agent-generated tracks/items/visuals
+      // Keep only original tracks (video, audio, caption); cascade deletes their items
+      const ORIGINAL_TRACK_TYPES = ['video', 'audio', 'caption'];
+      await db.delete(tracks).where(
+        and(
+          eq(tracks.projectId, projectId),
+          notInArray(tracks.type, ORIGINAL_TRACK_TYPES),
+        ),
+      );
+
+      // Clear visuals table
+      await db.delete(visuals).where(eq(visuals.projectId, projectId)).catch(() => {});
+
+      // Reset project status back to ready
+      await db.update(projects)
+        .set({ status: 'ready' as any, outputKey: null })
+        .where(eq(projects.id, projectId));
+
+      // 5. Clear conversation in DB
+      await deleteConversation(projectId);
+
+      fastify.log.info({ projectId, hasBrief: !!brief }, 'Project reset complete');
+
+      reply.send({ ok: true, brief });
+    }
+  );
+
   // ─── POST /projects/:id/agent/cancel — cancel active agent ──────────────
 
   fastify.post<{ Params: { id: string } }>(
@@ -486,9 +529,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
 
       // Forward cancel to sandbox
-      const session = await getActiveSession(projectId);
+      const session = await sandboxManager.getActiveSession(projectId);
       if (session) {
-        const agentUrl = (session.metadata as any)?.agentUrl as string | undefined;
+        const agentUrl = session.agentUrl as string | undefined;
         if (agentUrl) {
           try {
             await proxyCancelAgent(agentUrl, session.sandboxSecret);

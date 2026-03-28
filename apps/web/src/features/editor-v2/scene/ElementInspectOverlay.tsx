@@ -199,7 +199,7 @@ export function ElementInspectOverlay({ playerContainerRef }: ElementInspectOver
           {/* Element name tooltip near cursor */}
           {mousePos && (
             <div
-              className="absolute pointer-events-none px-2 py-1 rounded-md text-xs font-medium text-white bg-black/80 backdrop-blur-sm border border-white/10 whitespace-nowrap"
+              className="absolute pointer-events-none px-2 py-1 rounded-md text-xs font-normal text-white bg-black/80 backdrop-blur-sm border border-white/10 whitespace-nowrap"
               style={{
                 left: Math.min(mousePos.x + 16, (overlayRef.current?.clientWidth ?? 1000) - 150),
                 top: Math.min(mousePos.y + 16, (overlayRef.current?.clientHeight ?? 800) - 40),

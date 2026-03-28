@@ -14,7 +14,6 @@ prompts/
 ├── references/                  # Few-shot code examples
 ├── motion/                      # Animation utility snippets
 ├── transcribe/                  # Caption word classification
-├── studio-templates.ts          # Dynamic template catalog (code, not .md)
 └── generate-visuals.ts          # Visual prompt builder (code, not .md)
 ```
 
@@ -339,7 +338,6 @@ These files contain runtime logic (not just static text) and remain as `.ts`/`.p
 
 | File | Reason |
 |------|--------|
-| `studio-templates.ts` | Calls `listTemplates()` dynamically at runtime |
 | `generate-visuals.ts` | `buildGenerateVisualsPrompt()` has conditional logic, transcript formatting |
 | Builder functions in `animator.py` | `get_studio_section()`, `build_animator_user_message()`, etc. |
 | Builder functions in `director.py` | `build_director_user_message()`, `get_layout_context()`, etc. |

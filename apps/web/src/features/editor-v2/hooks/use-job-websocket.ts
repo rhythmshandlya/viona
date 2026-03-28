@@ -1,17 +1,16 @@
 /**
- * WebSocket hook for real-time job progress updates
- * Replaces polling with push-based updates.
- * Includes auto-reconnect with exponential backoff.
+ * WebSocket hook for real-time job progress updates.
+ * Delegates to the singleton wsClient — no duplicate connections.
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { getSessionToken } from '@/lib/auth';
+import { wsClient, WSMessage } from '@/lib/ws';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-
-interface JobProgress {
+export interface JobProgress {
   jobId: string;
   progress: number;
+  /** Alias for progress — some backends send percent instead */
+  percent?: number;
   message?: string;
   phase?: string;
   phaseName?: string;
@@ -25,15 +24,16 @@ interface JobProgress {
     maxIterations?: number;
     score?: number;
     detail?: string;
+    agentName?: string;
   };
 }
 
-interface JobComplete {
+export interface JobComplete {
   jobId: string;
   projectId: string;
 }
 
-interface JobError {
+export interface JobError {
   jobId: string;
   error: string;
 }
@@ -44,147 +44,70 @@ type MessageHandler = {
   onError?: (data: JobError) => void;
   onHealth?: (data: any) => void;
   onActivity?: (data: any) => void;
-  /** Sandbox orchestrator: bundle rebuilt, increment version to reload player */
-  onBundleReady?: (version: number) => void;
-  /** Sandbox orchestrator: manifest changed, trigger refresh */
-  onManifestUpdated?: () => void;
 };
-
-const MAX_RECONNECT_DELAY = 30_000;
-const INITIAL_RECONNECT_DELAY = 1_000;
 
 export function useJobWebSocket(
   projectId: string | null,
   handlers: MessageHandler
 ) {
-  const socketRef = useRef<WebSocket | null>(null);
-  const subscribedJobsRef = useRef<Set<string>>(new Set());
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(wsClient.isConnected);
   const handlersRef = useRef(handlers);
-  const reconnectAttemptRef = useRef(0);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
 
   // Keep handlers ref up to date
   useEffect(() => {
     handlersRef.current = handlers;
   }, [handlers]);
 
-  // Connect to WebSocket with auto-reconnect
+  // Ensure wsClient is connected and track connection state
   useEffect(() => {
-    mountedRef.current = true;
     if (!projectId) return;
 
-    function connect() {
-      const token = getSessionToken();
-      if (!token || !mountedRef.current) return;
+    wsClient.connect(projectId);
+    setIsConnected(wsClient.isConnected);
 
-      // Clean up previous socket if any
-      if (socketRef.current) {
-        socketRef.current.onclose = null;
-        socketRef.current.onerror = null;
-        socketRef.current.close();
-      }
+    const removeStateHandler = wsClient.addStateHandler((connected) => {
+      setIsConnected(connected);
+    });
 
-      const socket = new WebSocket(`${WS_URL}/ws?projectId=${projectId}&token=${encodeURIComponent(token)}`);
-      socketRef.current = socket;
-
-      socket.onopen = () => {
-        if (!mountedRef.current) { socket.close(); return; }
-        setIsConnected(true);
-        reconnectAttemptRef.current = 0; // Reset backoff on successful connect
-
-        // Re-subscribe to any jobs that were being tracked
-        subscribedJobsRef.current.forEach((jobId) => {
-          socket.send(JSON.stringify({ type: 'subscribe:job', jobId }));
-        });
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          const { type, payload } = message;
-
-          switch (type) {
-            case 'job:progress':
-              handlersRef.current.onProgress?.(payload);
-              break;
-            case 'job:complete':
-              handlersRef.current.onComplete?.(payload);
-              break;
-            case 'job:error':
-              handlersRef.current.onError?.(payload);
-              break;
-            case 'job:health':
-              handlersRef.current.onHealth?.(payload);
-              break;
-            case 'job:activity':
-              handlersRef.current.onActivity?.(payload);
-              break;
-            // Sandbox orchestrator events
-            case 'bundle-ready':
-              handlersRef.current.onBundleReady?.(payload.version);
-              break;
-            case 'manifest-updated':
-              handlersRef.current.onManifestUpdated?.();
-              break;
-          }
-        } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
-        }
-      };
-
-      socket.onclose = () => {
-        if (!mountedRef.current) return;
-        setIsConnected(false);
-
-        // Auto-reconnect with exponential backoff
-        const delay = Math.min(
-          INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptRef.current),
-          MAX_RECONNECT_DELAY,
-        );
-        reconnectAttemptRef.current++;
-
-        reconnectTimerRef.current = setTimeout(() => {
-          if (mountedRef.current) connect();
-        }, delay);
-      };
-
-      socket.onerror = () => {
-        // onclose will fire after onerror, which handles reconnection
-      };
-    }
-
-    connect();
-
-    return () => {
-      mountedRef.current = false;
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      if (socketRef.current) {
-        socketRef.current.onclose = null; // Prevent reconnect on intentional close
-        socketRef.current.close();
-        socketRef.current = null;
-      }
-    };
+    return removeStateHandler;
   }, [projectId]);
 
-  // Subscribe to a job — queues the subscription if socket isn't ready yet
-  const subscribeToJob = useCallback((jobId: string) => {
-    subscribedJobsRef.current.add(jobId);
+  // Route job-related WS messages to handlers
+  useEffect(() => {
+    if (!projectId) return;
 
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'subscribe:job', jobId }));
-    }
-    // If not connected, the subscription will be sent on reconnect (onopen handler)
+    const removeHandler = wsClient.addHandler((message: WSMessage) => {
+      const h = handlersRef.current;
+      switch (message.type) {
+        case 'job:progress':
+          h.onProgress?.(message.payload as JobProgress);
+          break;
+        case 'job:complete':
+          h.onComplete?.(message.payload as JobComplete);
+          break;
+        case 'job:error':
+          h.onError?.(message.payload as JobError);
+          break;
+        case 'job:health':
+          h.onHealth?.(message.payload);
+          break;
+        case 'job:activity':
+          h.onActivity?.(message.payload);
+          break;
+      }
+    });
+
+    return removeHandler;
+  }, [projectId]);
+
+  // Subscribe to a job via the singleton client
+  const subscribeToJob = useCallback((jobId: string) => {
+    wsClient.subscribeToJob(jobId);
   }, []);
 
   // Unsubscribe from a job
   const unsubscribeFromJob = useCallback((jobId: string) => {
-    subscribedJobsRef.current.delete(jobId);
-
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'unsubscribe:job', jobId }));
-    }
+    wsClient.unsubscribeFromJob(jobId);
   }, []);
 
   return {

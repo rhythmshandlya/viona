@@ -30,6 +30,11 @@
       "types": "./dist/progress-types.d.ts",
       "import": "./dist/progress-types.mjs",
       "require": "./dist/progress-types.js"
+    },
+    "./typography-pairings": {
+      "types": "./dist/typography-pairings.d.ts",
+      "import": "./dist/typography-pairings.mjs",
+      "require": "./dist/typography-pairings.js"
     }
   },
   "scripts": {

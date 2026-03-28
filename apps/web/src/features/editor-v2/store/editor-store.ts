@@ -6,9 +6,8 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { api, Project as ApiProject } from '@/lib/api';
-import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
-import { manifestToStore, storeToManifest, StoreManifestOp } from './manifest-bridge';
+import { manifestToStore, storeToManifest } from './manifest-bridge';
 import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
 import {
   EditorStore,
@@ -55,32 +54,45 @@ const cancelDebouncedSave = () => {
   }
 };
 
-/** Dispatch a manifest operation to the workspace if active, otherwise no-op (legacy save handles it) */
-const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
-  const state = useEditorStore.getState();
-  if (state.workspaceStatus !== 'active' || !state.project) {
-    return;
-  }
-
-  try {
-    await api.applyManifestOp(state.project.id, op as any);
-    // Clear any previous sync error on success
-    if (useEditorStore.getState().manifestSyncError) {
-      useEditorStore.setState({ manifestSyncError: null });
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to sync edit';
-    console.error('Failed to apply manifest op:', err);
-    useEditorStore.setState({ manifestSyncError: message });
-  }
-};
-
 /** Fire-and-forget dispatch of sandbox ops (POST /ops). No-op if sandbox not active. */
 const dispatchOps = (ops: SandboxOp[]) => {
   const state = useEditorStore.getState();
   if (state.workspaceStatus !== 'active' || !state.project) return;
   dispatchToSandbox(state.project.id, ops);
 };
+
+/**
+ * Merge single-word caption items into multi-word phrase groups.
+ * Needed for dynamic hierarchy (poster staircase) layout which requires
+ * multiple words per caption item to build the visual phrase.
+ */
+function mergeSingleWordCaptions(manifestItems: any[], wordsPerPhrase: number): any[] {
+  // Find caption items
+  const captionIndices: number[] = [];
+  for (let i = 0; i < manifestItems.length; i++) {
+    if (manifestItems[i].type === 'caption') captionIndices.push(i);
+  }
+  // Check if they're single-word items
+  if (captionIndices.length < 2) return manifestItems;
+  const firstCaption = manifestItems[captionIndices[0]];
+  if (firstCaption.data?.words?.length > 1) return manifestItems;
+
+  // Group caption items into phrases
+  const nonCaptions = manifestItems.filter(i => i.type !== 'caption');
+  const captions = captionIndices.map(i => manifestItems[i]);
+  const merged: any[] = [];
+  for (let i = 0; i < captions.length; i += wordsPerPhrase) {
+    const group = captions.slice(i, i + wordsPerPhrase);
+    const allWords = group.flatMap((item: any) => item.data?.words ?? []);
+    if (allWords.length === 0) continue;
+    merged.push({
+      ...group[0],
+      endMs: group[group.length - 1].endMs,
+      data: { words: allWords },
+    });
+  }
+  return [...nonCaptions, ...merged];
+}
 
 /**
  * Rebuild workspaceManifest from current store state so the Remotion player
@@ -90,13 +102,8 @@ const syncWorkspaceManifest = () => {
   const state = useEditorStore.getState();
   if (!state.project) return;
 
-  // Extract caption style from first caption item, or use default
-  const firstCaption = state.itemIds
-    .map((id) => state.items[id])
-    .find((item) => item?.type === 'caption');
-  const captionStyle = firstCaption
-    ? (firstCaption.data as CaptionItemData).style ?? DEFAULT_CAPTION_STYLE
-    : DEFAULT_CAPTION_STYLE;
+  // Read caption preset directly from store state
+  const captionPreset = state.captionPreset;
 
   const manifest = storeToManifest(
     {
@@ -106,10 +113,32 @@ const syncWorkspaceManifest = () => {
       duration: state.duration,
       fps: state.fps,
       videoSettings: state.project.videoSettings,
+      sourceWidth: state.project.sourceWidth,
+      sourceHeight: state.project.sourceHeight,
       assets: state.assets,
     },
-    captionStyle,
+    captionPreset,
   );
+
+  // Phrase/karaoke/poster-staircase modes and dynamic hierarchy need multi-word caption items.
+  // If items are single-word (from word-by-word generation), merge them into phrases.
+  const needsMerge = captionPreset.typographyPairingId ||
+    captionPreset.displayMode === 'phrase' ||
+    captionPreset.displayMode === 'karaoke' ||
+    captionPreset.displayMode === 'poster-staircase';
+  if (needsMerge && Array.isArray((manifest as any).items)) {
+    (manifest as any).items = mergeSingleWordCaptions(
+      (manifest as any).items,
+      captionPreset.wordsPerPhrase ?? 6,
+    );
+  }
+
+  // Preserve captionAnalysis from project videoSettings so the PlayerComposition
+  // can access it for cinematic rendering (it reads manifest.captionAnalysis).
+  const vs = state.project.videoSettings as unknown as Record<string, unknown> | undefined;
+  if (vs?.captionAnalysis) {
+    (manifest as Record<string, unknown>).captionAnalysis = vs.captionAnalysis;
+  }
 
   useEditorStore.setState({ workspaceManifest: manifest });
 };
@@ -128,6 +157,9 @@ const initialState: EditorState = {
   duration: 0,
   fps: DEFAULT_FPS,
   assets: {},
+
+  // Caption preset
+  captionPreset: DEFAULT_CAPTION_STYLE,
 
   // Selection
   selectedIds: [],
@@ -191,6 +223,10 @@ const initialState: EditorState = {
 
   // Pending AI message
   pendingAIMessage: null,
+
+  // Agent activity
+  agentActivity: null,
+  agentBusy: false,
 
   // Transition picker
   transitionPickerItemId: null,
@@ -460,18 +496,6 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         aiWordOverrides?: Record<number, WordStyleOverrides>;
       };
 
-      // Merge caption style with defaults to ensure all properties exist
-      const apiCaptionStyle = data.style || {};
-      const captionStyle: CaptionStyle = {
-        ...DEFAULT_CAPTION_STYLE,
-        ...(apiCaptionStyle as Partial<CaptionStyle>),
-      };
-
-      // Migrate legacy animation string to V2 AnimationConfig
-      if (typeof captionStyle.animation === 'string') {
-        captionStyle.animation = migrateAnimationLegacy(captionStyle.animation);
-      }
-
       const captionItem: TimelineItem = {
         id: item.id,
         type: 'caption',
@@ -486,8 +510,6 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             endMs: w.endMs - item.startMs,
             ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
           })),
-          style: captionStyle,
-          ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
           ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
         } as CaptionItemData,
       };
@@ -635,7 +657,6 @@ function splitItemInDraft(
       data: {
         text: leftText,
         words: leftWords,
-        style: { ...data.style },
       } as CaptionItemData,
     };
 
@@ -648,7 +669,6 @@ function splitItemInDraft(
       data: {
         text: rightText,
         words: rightWords,
-        style: { ...data.style },
       } as CaptionItemData,
     };
   } else {
@@ -753,11 +773,17 @@ export const useEditorStore = create<EditorStore>()(
           visualMeta: (apiProject as any).visualMeta,
         });
 
-        // Set same-origin thumbnailSrc on video items for timeline thumbnail extraction
+        // Set same-origin proxy URLs on media items for timeline rendering (avoids CORS / relative path issues)
+        const publicBaseUrl = `/api/projects/${projectId}/sandbox/public`;
         for (const itemId of bridgeResult.itemIds) {
           const item = bridgeResult.items[itemId];
           if (item?.type === 'video') {
             (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+          } else if (item?.type === 'audio') {
+            const audioData = item.data as AudioItemData;
+            if (audioData.src) {
+              audioData.browserSrc = `${publicBaseUrl}/${audioData.src}`;
+            }
           }
         }
 
@@ -775,7 +801,13 @@ export const useEditorStore = create<EditorStore>()(
           fps: bridgeResult.fps,
           sourceWidth: apiProject.width,
           sourceHeight: apiProject.height,
-          videoSettings: bridgeResult.videoSettings,
+          videoSettings: {
+            ...bridgeResult.videoSettings,
+            // Preserve captionAnalysis from the API project (stored in DB, not in sandbox manifest)
+            ...((apiProject as any).videoSettings?.captionAnalysis ? {
+              captionAnalysis: (apiProject as any).videoSettings.captionAnalysis,
+            } : {}),
+          },
         };
 
         set((state) => {
@@ -785,6 +817,7 @@ export const useEditorStore = create<EditorStore>()(
           state.itemIds = bridgeResult.itemIds;
           state.duration = bridgeResult.duration;
           state.fps = bridgeResult.fps;
+          state.captionPreset = bridgeResult.captionPreset;
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
@@ -796,7 +829,25 @@ export const useEditorStore = create<EditorStore>()(
           state.workspaceBundleUrl = bundleBaseUrl;
           state.workspaceBundleVersion = 1;
           state.workspaceBundleError = null;
-          state.workspaceManifest = manifest as Record<string, unknown>;
+          // Merge captionAnalysis from API project into the sandbox manifest
+          // (analysis is stored in DB videoSettings, not in the sandbox manifest.json)
+          const wsManifest = manifest as Record<string, unknown>;
+          const apiVs = (apiProject as any).videoSettings;
+          if (apiVs?.captionAnalysis) {
+            wsManifest.captionAnalysis = apiVs.captionAnalysis;
+          }
+          // Merge single-word captions for phrase/karaoke/poster-staircase/DH display
+          const needsMergeOnLoad = state.captionPreset.typographyPairingId ||
+            state.captionPreset.displayMode === 'phrase' ||
+            state.captionPreset.displayMode === 'karaoke' ||
+            state.captionPreset.displayMode === 'poster-staircase';
+          if (needsMergeOnLoad && Array.isArray(wsManifest.items)) {
+            wsManifest.items = mergeSingleWordCaptions(
+              wsManifest.items as any[],
+              state.captionPreset.wordsPerPhrase ?? 6,
+            );
+          }
+          state.workspaceManifest = wsManifest;
           state.workspaceLockHolder = null;
           state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
           state.history = [];
@@ -832,12 +883,8 @@ export const useEditorStore = create<EditorStore>()(
 
         // Auto-load caption fonts
         const captionFonts = new Set<string>();
-        for (const id of bridgeResult.itemIds) {
-          const item = bridgeResult.items[id];
-          if (item?.type === 'caption') {
-            const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
-            if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
-          }
+        if (bridgeResult.captionPreset.fontFamily) {
+          captionFonts.add(bridgeResult.captionPreset.fontFamily.split(',')[0].trim());
         }
         for (const family of captionFonts) {
           const entry = findFont(family);
@@ -978,7 +1025,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds } = get();
+      const { project, items, itemIds, tracks: editorTracks } = get();
       if (!project) return;
 
       set((state) => {
@@ -1006,8 +1053,7 @@ export const useEditorStore = create<EditorStore>()(
                   endMs: Math.round(w.endMs + item.startMs),
                   ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
-                style: data.style,
-                ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+                style: get().captionPreset,
                 ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
               },
               ...(item.transform ? { transform: item.transform } : {}),
@@ -1116,9 +1162,22 @@ export const useEditorStore = create<EditorStore>()(
         const audioItemIds = audioItems.map((item) => item.id);
         const videoSettingsPayload = {
           ...project.videoSettings,
+          // Persist caption preset so it survives sandbox restart (DB stores it as captionStyle)
+          captionStyle: get().captionPreset,
         };
 
+        // Send tracks so the backend can create any that only exist on the frontend
+        const tracksPayload = editorTracks.map((t) => ({
+          id: t.id,
+          type: t.type,
+          name: t.name,
+          position: t.position,
+          locked: t.locked,
+          visible: t.visible,
+        }));
+
         await api.updateProject(project.id, {
+          tracks: tracksPayload,
           items: allItems,
           captionItemIds,
           visualItemIds,
@@ -1161,55 +1220,39 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      dispatchManifestOp({ op: 'update_video_settings', updates: { ...settings } });
+      syncWorkspaceManifest();
     },
 
     // ========================================
     // Caption Style Actions
     // ========================================
 
-    updateAllCaptionStyles: (styleUpdates: Partial<CaptionStyle>) => {
+    updateCaptionPreset: (updates: Partial<CaptionStyle>) => {
       set((state) => {
-        // Update style on all caption items
-        for (const itemId of state.itemIds) {
-          const item = state.items[itemId];
-          if (item?.type === 'caption') {
-            const captionData = item.data as CaptionItemData;
-            captionData.style = {
-              ...captionData.style,
-              ...styleUpdates,
-            };
-          }
-        }
-      });
-      get().pushHistory();
-      dispatchManifestOp({ op: 'update_caption_style', updates: { ...styleUpdates } });
-    },
+        // Deep-merge position, animation, effects, backgroundPadding; shallow-merge everything else
+        const current = JSON.parse(JSON.stringify(state.captionPreset)) as CaptionStyle;
+        const merged: CaptionStyle = { ...current, ...updates };
 
-    updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
-      set((state) => {
-        for (const id of ids) {
-          const item = state.items[id];
-          if (item?.type === 'caption') {
-            const captionData = item.data as CaptionItemData;
-            captionData.style = {
-              ...captionData.style,
-              ...styleUpdates,
-            };
-          }
+        // Deep-merge nested objects so partial updates don't clobber sibling keys
+        if (updates.position && typeof current.position === 'object' && typeof updates.position === 'object') {
+          merged.position = { ...current.position, ...updates.position };
         }
+        if (updates.animation && typeof current.animation === 'object' && typeof updates.animation === 'object') {
+          merged.animation = { ...(current.animation as AnimationConfig), ...(updates.animation as AnimationConfig) };
+        }
+        if (updates.effects && current.effects) {
+          merged.effects = { ...current.effects, ...updates.effects };
+        }
+        if (updates.backgroundPadding && current.backgroundPadding) {
+          merged.backgroundPadding = { ...current.backgroundPadding, ...updates.backgroundPadding };
+        }
+
+        state.captionPreset = merged;
       });
       get().pushHistory();
-      // Dispatch updateItem for each caption with updated data
-      const state = get();
-      const ops: SandboxOp[] = [];
-      for (const id of ids) {
-        const item = state.items[id];
-        if (item?.type === 'caption') {
-          ops.push({ tool: 'updateItem', input: { itemId: id, data: item.data } });
-        }
-      }
-      if (ops.length > 0) dispatchOps(ops);
+      syncWorkspaceManifest();
+      dispatchOps([{ tool: 'updateCaptionPreset', input: { updates } }]);
+      debouncedSave(() => get().saveProject());
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -1243,6 +1286,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      syncWorkspaceManifest();
       const updatedItem = get().items[captionId];
       if (updatedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: updatedItem.data } }]);
@@ -1570,6 +1614,10 @@ export const useEditorStore = create<EditorStore>()(
 
     play: () => {
       set((state) => {
+        // If at the end, restart from beginning
+        if (state.currentTimeMs >= state.duration) {
+          state.currentTimeMs = 0;
+        }
         state.isPlaying = true;
       });
     },
@@ -1582,7 +1630,12 @@ export const useEditorStore = create<EditorStore>()(
 
     togglePlayback: () => {
       set((state) => {
-        state.isPlaying = !state.isPlaying;
+        const willPlay = !state.isPlaying;
+        // If starting playback while at the end, restart from beginning
+        if (willPlay && state.currentTimeMs >= state.duration) {
+          state.currentTimeMs = 0;
+        }
+        state.isPlaying = willPlay;
       });
     },
 
@@ -1670,6 +1723,7 @@ export const useEditorStore = create<EditorStore>()(
         state.items = entry.items;
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
+        state.captionPreset = entry.captionPreset;
         state.historyIndex = newIndex;
         state.isDirty = true;
       });
@@ -1689,6 +1743,7 @@ export const useEditorStore = create<EditorStore>()(
         state.items = entry.items;
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
+        state.captionPreset = entry.captionPreset;
         state.historyIndex = newIndex;
         state.isDirty = true;
       });
@@ -1697,7 +1752,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     pushHistory: () => {
-      const { tracks, items, itemIds, selectedIds, history, historyIndex } = get();
+      const { tracks, items, itemIds, selectedIds, captionPreset, history, historyIndex } = get();
 
       // Create deep copy of current state
       const entry: HistoryEntry = {
@@ -1705,6 +1760,7 @@ export const useEditorStore = create<EditorStore>()(
         items: JSON.parse(JSON.stringify(items)),
         itemIds: [...itemIds],
         selectedIds: [...selectedIds],
+        captionPreset: JSON.parse(JSON.stringify(captionPreset)),
       };
 
       set((state) => {
@@ -1941,25 +1997,20 @@ export const useEditorStore = create<EditorStore>()(
 
       if (splitRelativeMs <= 100 || splitRelativeMs >= duration - 100) return;
 
-      // Capture pre-split info for visual items
-      const isVisual = item.type === 'visual';
-      const visualData = isVisual ? (item.data as VisualItemData) : null;
-
       let splitResult: [string, string] | null = null as [string, string] | null;
 
       set((state) => {
         const result = splitItemInDraft(state, itemId, atMs);
         if (result) {
           splitResult = result;
-          if (isVisual) {
-            state.regeneratingVisualItemIds.add(result[0]);
-            state.regeneratingVisualItemIds.add(result[1]);
-          }
         }
       });
 
       get().pushHistory();
       debouncedSave(() => get().saveProject());
+
+      // Immediately rebuild workspace manifest so the Remotion Player reflects the split
+      syncWorkspaceManifest();
 
       if (splitResult) {
         if (item.type === 'video' || item.type === 'audio') {
@@ -1981,31 +2032,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       }
 
-      // Trigger AI regeneration for visual splits
-      if (isVisual && splitResult && visualData?.sourceSceneId) {
-        const [leftId, rightId] = splitResult;
-        const projectId = get().project?.id;
-        if (projectId) {
-          api.splitVisualScene(projectId, {
-            compositionId: visualData.compositionId,
-            sourceSceneId: visualData.sourceSceneId,
-            splitAtMs: atMs,
-            leftItemId: leftId,
-            rightItemId: rightId,
-          }).then(({ jobId }) => {
-            wsClient.subscribeToJob(jobId);
-            set((state) => {
-              state.splitJobToItems[jobId] = [leftId, rightId];
-            });
-          }).catch((err) => {
-            console.error('[splitItem] Failed to trigger scene split:', err);
-            set((state) => {
-              state.regeneratingVisualItemIds.delete(leftId);
-              state.regeneratingVisualItemIds.delete(rightId);
-            });
-          });
-        }
-      }
     },
 
     splitAllAtPlayhead: () => {
@@ -2045,6 +2071,7 @@ export const useEditorStore = create<EditorStore>()(
 
       if (get().selectedIds.length > 0) {
         get().pushHistory();
+        syncWorkspaceManifest();
       }
     },
 
@@ -2145,6 +2172,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      syncWorkspaceManifest();
       // Cancel the debounced save from pushHistory — we save immediately below
       cancelDebouncedSave();
 
@@ -2314,6 +2342,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      syncWorkspaceManifest();
       const trimOps: SandboxOp[] = [];
       for (const id of ids) {
         const item = get().items[id];
@@ -2327,6 +2356,14 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
     // Subtitle-Specific Actions
     // ========================================
+
+    generateCaptions: (options?: { wordsPerPhrase?: number; captionPreset?: Record<string, unknown> }) => {
+      dispatchOps([{ tool: 'generateCaptions', input: options ?? {} }]);
+    },
+
+    applyCaptionStyle: (style: Record<string, unknown>) => {
+      dispatchOps([{ tool: 'updateCaptionPreset' as any, input: { updates: style } }]);
+    },
 
     splitCaption: (captionId: string, wordIndex: number) => {
       const item = get().items[captionId];
@@ -2364,7 +2401,6 @@ export const useEditorStore = create<EditorStore>()(
           data: {
             text: leftWords.map((w) => w.text).join(' '),
             words: leftWords.map((w) => ({ ...w })),
-            style: { ...captionData.style },
           } as CaptionItemData,
         };
 
@@ -2377,7 +2413,6 @@ export const useEditorStore = create<EditorStore>()(
           data: {
             text: adjustedRightWords.map((w) => w.text).join(' '),
             words: adjustedRightWords,
-            style: { ...captionData.style },
           } as CaptionItemData,
         };
 
@@ -2444,7 +2479,6 @@ export const useEditorStore = create<EditorStore>()(
           data: {
             text: mergedText,
             words: mergedWords,
-            style: { ...firstData.style },
           } as CaptionItemData,
         };
 
@@ -2577,6 +2611,18 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    setAgentActivity: (activity) => {
+      set((state) => {
+        state.agentActivity = activity;
+      });
+    },
+
+    setAgentBusy: (busy) => {
+      set((state) => {
+        state.agentBusy = busy;
+      });
+    },
+
     openTransitionPicker: (itemId: string) => {
       set((state) => { state.transitionPickerItemId = itemId; });
     },
@@ -2620,6 +2666,7 @@ export const useEditorStore = create<EditorStore>()(
     applyRemoteManifestUpdate: async (manifest) => {
       const state = get();
       if (!state.project) return;
+      const projectId = state.project.id;
 
       // Preserve existing visual metadata from current store items
       const existingVideoItem = state.itemIds
@@ -2637,15 +2684,47 @@ export const useEditorStore = create<EditorStore>()(
         visualMeta: undefined,
       });
 
+      // Set same-origin proxy URLs on media items (same as loadProject)
+      const publicBaseUrl = `/api/projects/${projectId}/sandbox/public`;
+      for (const itemId of bridgeResult.itemIds) {
+        const item = bridgeResult.items[itemId];
+        if (item?.type === 'video') {
+          (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+        } else if (item?.type === 'audio') {
+          const audioData = item.data as AudioItemData;
+          if (audioData.src) {
+            audioData.browserSrc = `${publicBaseUrl}/${audioData.src}`;
+          }
+        }
+      }
+
       set((s) => {
         s.tracks = bridgeResult.tracks;
         s.items = bridgeResult.items;
         s.itemIds = bridgeResult.itemIds;
         s.duration = bridgeResult.duration;
+        s.captionPreset = bridgeResult.captionPreset;
+        // Preserve presigned S3 URLs so syncWorkspaceManifest includes them
+        // when rebuilding manifest after local edits
+        if (manifest?.assets && typeof manifest.assets === 'object') {
+          s.assets = manifest.assets as Record<string, string>;
+        }
       });
 
-      // Also store the raw manifest
-      set((state) => { state.workspaceManifest = manifest as Record<string, unknown>; });
+      // Store the manifest — merge single-word captions for phrase/karaoke/poster-staircase/DH display
+      const cp = get().captionPreset;
+      const rawManifest = manifest as Record<string, unknown>;
+      const needsMergeRemote = cp.typographyPairingId ||
+        cp.displayMode === 'phrase' ||
+        cp.displayMode === 'karaoke' ||
+        cp.displayMode === 'poster-staircase';
+      if (needsMergeRemote && Array.isArray(rawManifest.items)) {
+        rawManifest.items = mergeSingleWordCaptions(
+          rawManifest.items as any[],
+          cp.wordsPerPhrase ?? 6,
+        );
+      }
+      set((state) => { state.workspaceManifest = rawManifest; });
     },
 
     // ========================================

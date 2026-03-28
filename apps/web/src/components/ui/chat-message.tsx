@@ -320,7 +320,7 @@ const ToolResult = ({ invocation }: { invocation: ToolResult }) => {
             <div className="flex items-center gap-2">
               <Code2 className="h-4 w-4" />
               <div className="flex flex-col">
-                <span className="text-sm font-medium">
+                <span className="text-sm font-normal">
                   {invocation.toolName}
                 </span>
               </div>

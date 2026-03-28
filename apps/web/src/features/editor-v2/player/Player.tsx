@@ -108,7 +108,6 @@ export function Player({ className }: PlayerProps) {
     const handlePause: CallbackListener<'pause'> = () => pauseRef.current();
     const handleEnded: CallbackListener<'ended'> = () => {
       pauseRef.current();
-      setCurrentTimeRef.current(0);
     };
 
     playerInstance.addEventListener('frameupdate', handleFrameChange);

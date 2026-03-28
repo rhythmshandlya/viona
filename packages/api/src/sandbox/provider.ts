@@ -39,4 +39,7 @@ export interface SandboxProvider {
 
   /** Health check — is the sandbox responsive? */
   isReady(url: string): Promise<boolean>;
+
+  /** List running sandbox containers/services for GC reconciliation. Optional — not all providers support it. */
+  listContainers?(): Promise<Array<{ id: string; projectId: string; createdAt: number }>>;
 }

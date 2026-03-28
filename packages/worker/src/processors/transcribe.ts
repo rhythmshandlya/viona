@@ -1,8 +1,8 @@
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, readFile } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 import { createReadStream } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
@@ -12,6 +12,7 @@ import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { DEFAULT_SUBTITLE_STYLE } from '@viona/shared';
+import { redisConnection } from '../utils/redis.js';
 
 export interface TranscribeJobData {
   projectId: string;
@@ -343,90 +344,6 @@ async function getVideoMetadata(videoPath: string): Promise<{ width: number; hei
   });
 }
 
-async function runWhisperX(
-  audioPath: string,
-  jobId: string,
-  projectId: string,
-): Promise<WhisperXOutput> {
-  const { scriptPath, model, language, device, computeType, batchSize } = config.whisperx;
-  const resolvedScript = resolve(scriptPath);
-
-  return new Promise((resolve, reject) => {
-    const args = [
-      resolvedScript,
-      '--input', audioPath,
-      '--model', model,
-      '--language', language,
-      '--device', device,
-      '--compute-type', computeType,
-      '--batch-size', String(batchSize),
-    ];
-
-    const proc = spawn(config.pythonPath, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        // PyTorch 2.6+ defaults weights_only=True which breaks pyannote model loading
-        TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD: '1',
-      },
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on('data', (data: Buffer) => {
-      const text = data.toString();
-      stderr += text;
-
-      // Parse progress lines: PROGRESS:<percent>%:<message>
-      for (const line of text.split('\n')) {
-        const match = line.match(/^PROGRESS:(\d+)%:(.+)$/);
-        if (match) {
-          const percent = parseInt(match[1], 10);
-          const message = match[2];
-          // Map WhisperX 0-100% to our 25-70% range
-          const mappedProgress = 25 + Math.round((percent / 100) * 45);
-          publishJobProgress(jobId, mappedProgress, message, { projectId });
-        }
-      }
-    });
-
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        // Extract error message from stderr
-        const errorMatch = stderr.match(/ERROR:(.+)/);
-        const lastLines = stderr.trim().split('\n').slice(-3).join(' | ');
-        const errorMsg = errorMatch ? errorMatch[1].trim() : `WhisperX exited with code ${code}: ${lastLines}`;
-        reject(new Error(errorMsg));
-        return;
-      }
-
-      try {
-        // Extract the last line that looks like JSON — libraries may leak
-        // log messages to stdout despite our stderr redirects.
-        const lines = stdout.trim().split('\n');
-        const jsonLine = lines.reverse().find(l => l.startsWith('{'));
-        if (!jsonLine) {
-          reject(new Error(`No JSON found in WhisperX output: ${stdout.slice(0, 500)}`));
-          return;
-        }
-        const result = JSON.parse(jsonLine);
-        resolve(result as WhisperXOutput);
-      } catch {
-        reject(new Error(`Failed to parse WhisperX output: ${stdout.slice(0, 500)}`));
-      }
-    });
-
-    proc.on('error', (err) => {
-      reject(new Error(`Failed to spawn WhisperX: ${err.message}`));
-    });
-  });
-}
-
 /**
  * Run OpenAI Whisper API for transcription.
  * Uses the OpenAI SDK to transcribe audio with word-level timestamps.
@@ -452,7 +369,7 @@ async function runOpenAIWhisper(
     model: 'whisper-1',
     response_format: 'verbose_json',
     timestamp_granularities: ['word'],
-    language: config.whisperx.language || 'en',
+    language: config.transcription.language,
   });
 
   // The SDK returns typed response
@@ -481,22 +398,8 @@ async function runOpenAIWhisper(
   return {
     words,
     segments,
-    language: config.whisperx.language || 'en',
+    language: config.transcription.language,
   };
-}
-
-/**
- * Run transcription using the configured mode (local or api).
- */
-async function runTranscription(
-  audioPath: string,
-  jobId: string,
-  projectId: string,
-): Promise<WhisperXOutput> {
-  if (config.transcription.mode === 'api') {
-    return runOpenAIWhisper(audioPath, jobId, projectId);
-  }
-  return runWhisperX(audioPath, jobId, projectId);
 }
 
 /**
@@ -685,9 +588,8 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     }
 
     // Step 4: Run transcription (25% - 70%)
-    const transcriptionMode = config.transcription.mode;
-    await publishJobProgress(jobId, 25, `Starting ${transcriptionMode === 'api' ? 'OpenAI Whisper' : 'WhisperX'} transcription...`, pubExtras);
-    const whisperxOutput = await runTranscription(audioPath, jobId, projectId);
+    await publishJobProgress(jobId, 25, 'Starting transcription...', pubExtras);
+    const whisperxOutput = await runOpenAIWhisper(audioPath, jobId, projectId);
     await publishJobProgress(jobId, 70, 'Transcription complete', pubExtras);
 
     // Step 4.5: LLM word style analysis (70% → 80%)
@@ -806,6 +708,18 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     await publishJobProgress(jobId, 100, 'Complete', pubExtras);
     await publishJobComplete(jobId, projectId);
+
+    // Queue cinematic caption analysis (non-blocking)
+    try {
+      const analyzeCaptionsQueue = new Queue('analyze-captions', { connection: redisConnection });
+      await analyzeCaptionsQueue.add('analyze', {
+        projectId,
+        jobId: `analyze-${jobId}`,
+      });
+      logger.info({ projectId }, '[transcribe] Queued analyze-captions job');
+    } catch (e) {
+      logger.error({ projectId, err: e }, '[transcribe] Failed to queue analyze-captions');
+    }
 
     logger.info({ projectId }, 'Transcription complete');
 

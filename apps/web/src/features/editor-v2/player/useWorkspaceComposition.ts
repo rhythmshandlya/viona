@@ -8,15 +8,6 @@ import * as RemotionPaths from '@remotion/paths';
 import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
 
 // ---------------------------------------------------------------------------
-// Module-level mutable ref for assets map — staticFile() reads this
-// ---------------------------------------------------------------------------
-let _currentAssetsMap: Record<string, string> = {};
-
-export function setAssetsMap(map: Record<string, string>) {
-  _currentAssetsMap = map;
-}
-
-// ---------------------------------------------------------------------------
 // Composition cache
 // ---------------------------------------------------------------------------
 const compositionCache = new Map<string, React.ComponentType<any>>();
@@ -82,24 +73,50 @@ function makeJsx() {
 }
 
 // ---------------------------------------------------------------------------
+// Resolve the public base URL from a bundle URL
+// ---------------------------------------------------------------------------
+export function resolvePublicBase(bundleBaseUrl: string): string {
+  const match = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
+  return match
+    ? `/api/projects/${match[1]}/${match[2]}/public`
+    : `${bundleBaseUrl}/public`;
+}
+
+/**
+ * Resolve a sandbox-local media filename to a direct API endpoint URL.
+ * Video/audio served from the sandbox proxy can be unreliable for large files
+ * (155MB+ videos going through Next.js rewrite → API → sandbox container).
+ * The direct MinIO endpoints bypass the sandbox entirely and are reliable.
+ * Returns null if no direct endpoint is available for the given filename.
+ */
+export function resolveDirectMediaUrl(bundleBaseUrl: string, filename: string): string | null {
+  const match = bundleBaseUrl.match(/\/projects\/([^/]+)\//);
+  if (!match) return null;
+  const projectId = match[1];
+
+  if (filename === 'source.mp4') {
+    return `/api/projects/${projectId}/video`;
+  }
+  // audio.aac is extracted inside the sandbox — no direct MinIO endpoint
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Custom require() — provides module shims for CJS evaluation
 // ---------------------------------------------------------------------------
 
 function createRequire(bundleBaseUrl: string) {
+  const publicBase = resolvePublicBase(bundleBaseUrl);
+
+  // staticFile returns a deterministic same-origin URL.
+  // For source video, uses direct MinIO endpoint (bypasses sandbox proxy).
+  // Remotion's prefetch() in WorkspacePlayer downloads these into blob URLs,
+  // so after initial load all playback is from memory — zero network.
   const customStaticFile = (relativePath: string) => {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-
-    // Check assets map first (presigned S3 URL)
-    if (_currentAssetsMap[cleanPath]) {
-      return _currentAssetsMap[cleanPath];
-    }
-
-    // Fallback to same-origin proxy URL (no cross-origin apiUrl prefix).
-    // Next.js rewrites /api/* to the backend, so media elements send cookies.
-    const projectIdMatch = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
-    const publicBase = projectIdMatch
-      ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
-      : `${bundleBaseUrl}/public`;
+    // Use direct API endpoint for source video — sandbox proxy is unreliable for large files
+    const directUrl = resolveDirectMediaUrl(bundleBaseUrl, cleanPath);
+    if (directUrl) return directUrl;
     return `${publicBase}/${cleanPath}`;
   };
 
@@ -125,13 +142,46 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
+      // Cap premountFor to 60 frames (~2s at 30fps).
+      // Video decode needs: container parse (~20ms) + decoder init (~50ms) +
+      // seek to non-keyframe (~200ms) + first frame decode (~30ms) = ~300ms.
+      // Scene components need: React mount + initial render = ~100-200ms.
+      // 2s covers worst case with generous margin for both.
+      // Chrome's power-saver only triggers after sustained (5s+) offscreen
+      // playback — 2s is safely under the threshold.
+      const PREMOUNT_CAP = 60;
+      const CappedPremountSequence = (props: any) => {
+        const { premountFor, ...rest } = props;
+        return React.createElement(Remotion.Sequence, {
+          ...rest,
+          premountFor: premountFor != null ? Math.min(premountFor, PREMOUNT_CAP) : undefined,
+        });
+      };
+
+      // Wrap Video to inject a default onError handler.
+      // Without onError, Remotion throws an uncatchable error from a
+      // useEffect event listener when the <video> element fails to load
+      // (e.g., media not yet available during sandbox init).
+      const SafeVideo = (props: any) => {
+        return React.createElement(Remotion.Video, {
+          ...props,
+          onError: props.onError || ((err: Error) => {
+            console.warn('[WorkspacePlayer] Video load error (will retry on next seek):', err.message);
+          }),
+        });
+      };
+
       return {
         ...Remotion,
+        Video: SafeVideo,
+        Sequence: CappedPremountSequence,
         Composition: () => null,
         staticFile: customStaticFile,
         // OffthreadVideo is for rendering; in the Player context, use Video
         // which renders a native <video> element with proper frame sync
-        OffthreadVideo: Remotion.Video,
+        OffthreadVideo: SafeVideo,
+        // Stub for resolveMediaSrc proxy logic — browser Player is always preview mode
+        getRemotionEnvironment: () => ({ isRendering: false, isPlayer: true }),
       };
     }
 
@@ -185,8 +235,6 @@ export function useWorkspaceComposition(
   const loadedRef = useRef<string | null>(null);
   const [reloadCounter, setReloadCounter] = useState(0);
 
-
-
   const reload = useCallback(() => {
     if (bundleUrl) {
       // Remove from cache so it re-fetches
@@ -236,7 +284,14 @@ export function useWorkspaceComposition(
 
         // Use same-origin path — Next.js rewrites /api/* to the backend
         const fullUrl = `${bundleUrl}/player-composition.cjs.js?v=${bundleVersion}`;
-        const response = await fetch(fullUrl, { credentials: 'include' });
+        let response = await fetch(fullUrl, { credentials: 'include' });
+
+        // On 401, the Stytch JWT may have expired — wait for SDK refresh and retry once
+        if (response.status === 401) {
+          await new Promise(r => setTimeout(r, 2000));
+          response = await fetch(fullUrl, { credentials: 'include' });
+        }
+
         if (!response.ok) {
           throw new Error(`Failed to fetch composition: ${response.status}`);
         }

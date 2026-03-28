@@ -1,16 +1,11 @@
 /**
  * Manifest-Store Bridge
  *
- * Converts between @viona/shared Manifest format and the Zustand editor store format.
+ * Converts between @viona/shared Manifest (v2) format and the Zustand editor store format.
  * Used when loading workspace state from the API or applying remote manifest updates.
- *
- * Supports both v1 manifests (version: 1) and v2 manifests (version: 2).
- * v2 adds per-item transform/keyframes/filters, asset resolution, and scene/shape types.
  */
 
 import type {
-  Manifest,
-  ManifestItem,
   ManifestCaptionStyle,
 } from '@viona/shared';
 
@@ -23,12 +18,8 @@ import type {
   VideoItemData,
   AudioItemData,
   VisualItemData,
-  BrollItemData,
   TextItemData,
   ImageItemData,
-} from './types';
-
-import type {
   Transform,
   Keyframe,
   Filters,
@@ -63,6 +54,7 @@ export interface ManifestToStoreResult {
   duration: number;
   fps: number;
   videoSettings: VideoSettings;
+  captionPreset: CaptionStyle;
 }
 
 export type StoreManifestOp =
@@ -71,11 +63,46 @@ export type StoreManifestOp =
   | { op: 'delete_item'; itemId: string }
   | { op: 'set_transition'; itemId: string; enter?: { type: string; durationMs: number }; exit?: { type: string; durationMs: number } }
   | { op: 'move_item'; itemId: string; startMs: number; endMs: number }
-  | { op: 'update_caption_style'; updates: Record<string, unknown> }
+  | { op: 'update_caption_preset'; updates: Record<string, unknown> }
   | { op: 'split_item'; itemId: string; atMs: number }
   | { op: 'reorder_tracks'; trackIds: string[] }
   | { op: 'update_video_settings'; updates: Record<string, unknown> }
   | { op: 'update_transform'; itemId: string; transform: Record<string, number | string> };
+
+// ============================================
+// Keyframe normalization
+// ============================================
+
+/**
+ * Strip x/y/width/height from scene keyframes when they just set full-canvas
+ * defaults (x:0, y:0, width:'100%', height:'100%'). Agents frequently write
+ * keyframes with ALL transform properties when they only intend to animate opacity,
+ * which overrides the base transform's positioning and causes scenes to render at (0,0).
+ */
+function stripRedundantSceneKeyframePositions(keyframes: Keyframe[], transform: Transform): Keyframe[] {
+  if (!keyframes || keyframes.length === 0) return keyframes;
+
+  const hasCustomPosition = (transform.x !== 0 && transform.x !== '0') ||
+    (transform.y !== 0 && transform.y !== '0') ||
+    (transform.width !== '100%') ||
+    (transform.height !== '100%');
+
+  if (!hasCustomPosition) return keyframes;
+
+  return keyframes.map(kf => {
+    if (!kf.props) return kf;
+    const cleaned = { ...kf.props };
+    for (const prop of ['x', 'y', 'width', 'height', 'rotation'] as const) {
+      const val = cleaned[prop];
+      if (val === undefined) continue;
+      const isFullCanvasDefault = val === 0 || val === '0' || val === '100%';
+      if (isFullCanvasDefault) {
+        delete cleaned[prop];
+      }
+    }
+    return { ...kf, props: cleaned };
+  });
+}
 
 // ============================================
 // Public API
@@ -83,62 +110,57 @@ export type StoreManifestOp =
 
 /**
  * Convert a Manifest (from @viona/shared) into the shape expected by the Zustand editor store.
- * Supports both v1 and v2 manifests — v2 detection is automatic.
  */
 export function manifestToStore(
-  manifest: any,  // Accept any — could be v1 or v2
+  manifest: any,
   context: ManifestToStoreContext,
 ): ManifestToStoreResult {
-  const isV2 = manifest.version === 2 || manifest.items?.some((i: any) => i.transform);
-
   const tracks = (manifest.tracks as any[]).map<Track>((t: any) => ({
     id: t.id,
-    type: isV2
-      ? (t.type === 'overlay' ? 'overlay' : t.type as Track['type'])
-      : (t.type === 'broll' ? 'overlay' : t.type as Track['type']),
+    type: t.type === 'overlay' ? 'overlay' : t.type as Track['type'],
     name: t.name,
     position: t.position,
     locked: false,
     visible: true,
-    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'visual' ? 48 : 28,
+    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'overlay' ? 48 : 28,
     collapsed: false,
   }));
 
-  const captionStyle = manifest.captionStyle
-    ? convertManifestCaptionStyle(manifest.captionStyle)
+  const rawPreset = (manifest as any).captionPreset ?? (manifest as any).captionStyle;
+  const captionPreset = rawPreset
+    ? convertManifestCaptionStyle(rawPreset)
     : DEFAULT_CAPTION_STYLE;
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
 
-  /** Resolve an asset key (e.g. "asset:main-video") to a presigned URL */
+  /** Resolve an asset key (e.g. "asset:main-video") to a presigned/proxy URL */
   const resolvedSrc = (key: string) => {
     if (!key) return context.videoUrl ?? '';
-    return context.assets?.[key] ?? key;
+    // Check assets map first (presigned URLs)
+    if (context.assets?.[key]) return context.assets[key];
+    // If the key is already an absolute URL, use as-is
+    if (/^https?:\/\//.test(key) || key.startsWith('/api/')) return key;
+    // Resolve sandbox-relative paths (e.g. "audio.aac") via the public file proxy
+    const projectIdMatch = context.bundleUrl?.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
+    if (projectIdMatch) {
+      return `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public/${key}`;
+    }
+    return context.videoUrl ?? '';
   };
 
   for (const manifestItem of manifest.items) {
-    const storeItem = isV2
-      ? convertManifestItemV2(manifestItem, context, captionStyle, resolvedSrc)
-      : convertManifestItem(manifestItem as ManifestItem, context, captionStyle);
+    const storeItem = convertManifestItemV2(manifestItem, context, resolvedSrc);
     items[storeItem.id] = storeItem;
     itemIds.push(storeItem.id);
   }
 
-  const videoSettings: VideoSettings = isV2
-    ? {
-        canvasWidth: manifest.canvas.width,
-        canvasHeight: manifest.canvas.height,
-        cropX: 50,
-        cropY: 50,
-        scale: 1,
-      }
-    : {
-        canvasWidth: manifest.canvas.width,
-        canvasHeight: manifest.canvas.height,
-        cropX: manifest.videoSettings.cropX,
-        cropY: manifest.videoSettings.cropY,
-        scale: manifest.videoSettings.scale,
-      };
+  const videoSettings: VideoSettings = {
+    canvasWidth: manifest.canvas.width,
+    canvasHeight: manifest.canvas.height,
+    cropX: 50,
+    cropY: 50,
+    scale: 1,
+  };
 
   return {
     tracks,
@@ -147,6 +169,7 @@ export function manifestToStore(
     duration: manifest.durationMs,
     fps: manifest.fps,
     videoSettings,
+    captionPreset,
   };
 }
 
@@ -162,9 +185,11 @@ export function storeToManifest(
     duration: number;
     fps: number;
     videoSettings: VideoSettings;
+    sourceWidth?: number;
+    sourceHeight?: number;
     assets?: Record<string, string>;
   },
-  captionStyle: CaptionStyle,
+  captionPreset: CaptionStyle,
 ): Record<string, unknown> {
   const tracks = state.tracks.map((t) => ({
     id: t.id,
@@ -189,7 +214,16 @@ export function storeToManifest(
 
       // Attach v2 transform — canonical source for all item types
       if (item.transform) base.transform = item.transform;
-      if (item.keyframes && item.keyframes.length > 0) base.keyframes = item.keyframes;
+      if (item.keyframes && item.keyframes.length > 0) {
+        // Strip redundant position overrides from scene keyframes — agents often
+        // write keyframes with x:0,y:0,width:'100%',height:'100%' that override
+        // the base transform's positioning
+        if ((item.type === 'scene' || item.type === 'visual') && item.transform) {
+          base.keyframes = stripRedundantSceneKeyframePositions(item.keyframes, item.transform);
+        } else {
+          base.keyframes = item.keyframes;
+        }
+      }
       if (item.filters) base.filters = item.filters;
 
       return base;
@@ -206,13 +240,13 @@ export function storeToManifest(
     tracks,
     items,
     assets: state.assets ?? {},
-    captionStyle: convertStoreCaptionStyle(captionStyle),
+    captionPreset: convertStoreCaptionStyle(captionPreset),
     videoSettings: {
       cropX: state.videoSettings.cropX,
       cropY: state.videoSettings.cropY,
       scale: state.videoSettings.scale,
-      sourceWidth: 1920,
-      sourceHeight: 1080,
+      sourceWidth: state.sourceWidth ?? state.videoSettings.canvasWidth,
+      sourceHeight: state.sourceHeight ?? state.videoSettings.canvasHeight,
     },
   };
 
@@ -239,148 +273,12 @@ export function extractCompositionId(sceneFile: string): string | undefined {
 }
 
 // ============================================
-// Internal Helpers — v1
-// ============================================
-
-function convertManifestItem(
-  item: ManifestItem,
-  context: ManifestToStoreContext,
-  captionStyle: CaptionStyle,
-): TimelineItem {
-  const base = {
-    id: item.id,
-    type: item.type as TimelineItem['type'],
-    trackId: item.trackId,
-    startMs: item.startMs,
-    endMs: item.endMs,
-  };
-
-  switch (item.type) {
-    case 'video': {
-      const d = item.data as any;
-      const data: VideoItemData = {
-        src: context.videoUrl ?? '',
-        width: 1920,
-        height: 1080,
-        volume: d.volume ?? 1,
-        playbackRate: d.playbackRate ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    case 'audio': {
-      const d = item.data as any;
-      // d.src from manifest is a worker-internal path like 'source.mp4';
-      // use absolute videoUrl for the editor preview instead
-      const videoUrl = context.videoUrl ?? '';
-      const audioSrc = (d.src && /^https?:\/\//.test(d.src)) ? d.src : videoUrl;
-      const data: AudioItemData = {
-        src: audioSrc,
-        originalSrc: audioSrc,
-        enhancedSrc: d.enhancedSrc || undefined,
-        isEnhanced: !!d.enhancedSrc,
-        sourceVideoItemId: '',
-        volume: d.volume ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    case 'caption': {
-      const d = item.data as any;
-      const words = (d.words || []).map((w: any) => ({
-        text: w.text,
-        // Convert absolute word timestamps to relative (matching store convention).
-        // DB/manifest stores absolute ms; the store uses relative-to-item-start.
-        startMs: w.startMs - item.startMs,
-        endMs: w.endMs - item.startMs,
-        ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
-      }));
-      const text = words.map((w: any) => w.text).join(' ');
-      const data: CaptionItemData = {
-        text,
-        words,
-        style: captionStyle,
-      };
-      return { ...base, data };
-    }
-
-    case 'visual': {
-      const d = item.data as any;
-      const meta = context.visualMeta?.[item.id];
-      const sceneId = extractSceneId(d.sceneFile || '');
-      const data: VisualItemData = {
-        visualId: item.id,
-        compositionId: meta?.compositionId || context.compositionId,
-        bundleUrl: meta?.bundleUrl || context.bundleUrl,
-        videoUrl: context.videoUrl,
-        type: 'visual',
-        description: '',
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        sourceSceneId: sceneId,
-        transition: d.transition,
-        speakerBbox: d.speakerBbox,
-      };
-      return { ...base, data };
-    }
-
-    case 'broll': {
-      const d = item.data as any;
-      const data: BrollItemData = {
-        sourceType: d.sourceType || 'upload',
-        src: d.src || '',
-        filename: d.filename,
-        photographer: d.photographer,
-        previewUrl: d.previewUrl,
-        volume: d.volume ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    case 'text': {
-      const d = item.data as any;
-      const data: TextItemData = {
-        text: d.text || '',
-        style: d.style || {
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 48,
-          fontWeight: 600,
-          color: '#ffffff',
-          textAlign: 'center' as const,
-        },
-        position: d.position || { x: 0, y: 0 },
-        size: d.size || { width: 400, height: 100 },
-      };
-      return { ...base, data };
-    }
-
-    case 'image': {
-      const d = item.data as any;
-      const data: ImageItemData = {
-        src: d.src || '',
-        width: d.width || 400,
-        height: d.height || 300,
-        position: d.position || { x: 0, y: 0 },
-        opacity: d.opacity ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    default:
-      // Fallback — should not happen with well-formed manifests
-      return { ...base, data: item.data as any };
-  }
-}
-
-// ============================================
-// Internal Helpers — v2
+// Internal Helpers — manifest to store
 // ============================================
 
 function convertManifestItemV2(
   item: any,
   context: ManifestToStoreContext,
-  captionStyle: CaptionStyle,
   resolvedSrc: (key: string) => string,
 ): TimelineItem {
   const base: Partial<TimelineItem> = {
@@ -396,7 +294,12 @@ function convertManifestItemV2(
     base.transform = item.transform as Transform;
   }
   if (item.keyframes && item.keyframes.length > 0) {
-    base.keyframes = item.keyframes as Keyframe[];
+    let kfs = item.keyframes as Keyframe[];
+    // Fix agent-written keyframes that override scene positioning with full-canvas defaults
+    if (item.type === 'scene' && base.transform) {
+      kfs = stripRedundantSceneKeyframePositions(kfs, base.transform);
+    }
+    base.keyframes = kfs;
   }
   if (item.filters) {
     base.filters = item.filters as Filters;
@@ -436,13 +339,14 @@ function convertManifestItemV2(
         // Convert absolute word timestamps to relative (matching store convention)
         startMs: w.startMs - item.startMs,
         endMs: w.endMs - item.startMs,
+        // Migrate classification → role
+        ...(w.role ? { role: w.role } : w.classification ? { role: w.classification } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
       }));
       const text = words.map((w: any) => w.text).join(' ');
       const data: CaptionItemData = {
         text,
         words,
-        style: captionStyle,
       };
       return { ...base, data } as TimelineItem;
     }
@@ -568,6 +472,7 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         text: w.text,
         startMs: w.startMs + item.startMs,
         endMs: w.endMs + item.startMs,
+        ...(w.role ? { role: w.role } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
       }));
       return { words };
@@ -577,7 +482,6 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
     case 'scene': {
       const result: Record<string, unknown> = {
         sceneFile: d.sourceSceneId != null ? `scenes/Scene${d.sourceSceneId}.tsx` : '',
-        frameOffset: 0,
       };
       if (d.transition) result.transition = d.transition;
       if (d.speakerBbox) result.speakerBbox = d.speakerBbox;
@@ -654,6 +558,11 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
   if (style.backgroundRadius != null) result.backgroundRadius = style.backgroundRadius;
   if (style.presetId) result.presetId = style.presetId;
 
+  // Dual typography
+  if (style.typographyPairingId) result.typographyPairingId = style.typographyPairingId;
+  if (style.displayFontFamily) result.displayFontFamily = style.displayFontFamily;
+  if (style.bodyFontFamily) result.bodyFontFamily = style.bodyFontFamily;
+
   // Animation
   if (style.animation && typeof style.animation === 'object') {
     result.animation = {
@@ -665,14 +574,20 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
   }
 
   // Position
-  if (style.position && typeof style.position === 'object' && 'anchor' in style.position) {
-    result.position = {
+  if (style.position && typeof style.position === 'object') {
+    const pos: Record<string, unknown> = {
       anchor: style.position.anchor,
       offsetX: style.position.offsetX,
       offsetY: style.position.offsetY,
       textAlign: style.position.textAlign,
       rotation: style.position.rotation,
     };
+    // Free-mode fields (set when user drags caption in preview)
+    if (style.position.mode) pos.mode = style.position.mode;
+    if (style.position.x != null) pos.x = style.position.x;
+    if (style.position.y != null) pos.y = style.position.y;
+    if (style.position.width != null) pos.width = style.position.width;
+    result.position = pos;
   }
 
   // Effects
@@ -683,6 +598,17 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
       glow: style.effects.glow,
     };
   }
+
+  // Cinematic renderer
+  if (style.useCinematicRenderer) {
+    result.useCinematicRenderer = true;
+    if (style.cinematicFonts) result.cinematicFonts = style.cinematicFonts;
+    if (style.cinematicColors) result.cinematicColors = style.cinematicColors;
+    if (style.cinematicScales) result.cinematicScales = style.cinematicScales;
+  }
+
+  // Poster staircase alignment
+  if (style.staircaseAlignment) result.staircaseAlignment = style.staircaseAlignment;
 
   return result;
 }
@@ -729,9 +655,40 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
           offsetY: mcs.position.offsetY ?? 0,
           rotation: mcs.position.rotation ?? 0,
           textAlign: mcs.position.textAlign || 'center',
+          // Preserve free-mode fields so position survives manifest round-trip
+          ...((mcs.position as any).mode ? { mode: (mcs.position as any).mode } : {}),
+          ...((mcs.position as any).x != null ? { x: (mcs.position as any).x } : {}),
+          ...((mcs.position as any).y != null ? { y: (mcs.position as any).y } : {}),
+          ...((mcs.position as any).width != null ? { width: (mcs.position as any).width } : {}),
         }
       : DEFAULT_CAPTION_STYLE.position,
     presetId: mcs.presetId ?? undefined,
+    // Dual typography
+    typographyPairingId: (mcs as any).typographyPairingId ?? undefined,
+    displayFontFamily: (mcs as any).displayFontFamily ?? undefined,
+    bodyFontFamily: (mcs as any).bodyFontFamily ?? undefined,
+    // Cinematic renderer
+    ...(mcs.useCinematicRenderer ? {
+      useCinematicRenderer: true as const,
+      cinematicFonts: mcs.cinematicFonts as CaptionStyle['cinematicFonts'],
+      cinematicColors: mcs.cinematicColors as CaptionStyle['cinematicColors'],
+      cinematicScales: mcs.cinematicScales as CaptionStyle['cinematicScales'],
+    } : {}),
+    // Poster staircase alignment — prefer new staircaseAlignment; fall back to mapping old staircaseVariant
+    staircaseAlignment: (() => {
+      const sa = (mcs as any).staircaseAlignment;
+      if (sa) return sa;
+      const sv = (mcs as any).staircaseVariant as string | undefined;
+      if (!sv) return undefined;
+      // Map old preset-specific variant names to consolidated alignment options
+      const variantMap: Record<string, string> = {
+        'impact-pop': 'impact',
+        'elegant-script': 'single',
+        'script-accent': 'single',
+        'scattered-poster': 'scattered',
+      };
+      return variantMap[sv] ?? sv; // 'bold-stack' and 'mega-bold' map to themselves
+    })(),
   };
 }
 

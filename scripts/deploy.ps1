@@ -47,6 +47,14 @@ railway up --service worker --detach
 
 Write-Host "`n✅ All services deployed!" -ForegroundColor Green
 Write-Host ""
+Write-Host "🔧 Sandbox Pipeline:" -ForegroundColor Cyan
+Write-Host "   Sandbox services are created dynamically by the API." -ForegroundColor White
+Write-Host "   Ensure these env vars are set on the API service:" -ForegroundColor White
+Write-Host "     SANDBOX_PROVIDER=railway" -ForegroundColor Gray
+Write-Host "     RAILWAY_API_TOKEN=<your-token>" -ForegroundColor Gray
+Write-Host "     RAILWAY_ENVIRONMENT_ID=<env-id>" -ForegroundColor Gray
+Write-Host "     ANTHROPIC_API_KEY=<your-key>" -ForegroundColor Gray
+Write-Host ""
 Write-Host "📊 Monitor deployments at:" -ForegroundColor Cyan
 Write-Host "   https://railway.com/project/$PROJECT_ID"
 Write-Host ""

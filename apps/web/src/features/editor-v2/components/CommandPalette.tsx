@@ -154,7 +154,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
           {Object.entries(groupedCommands).map(([category, cmds]) => (
             <div key={category}>
-              <div className="px-4 py-1.5 text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+              <div className="px-4 py-1.5 text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
                 {category}
               </div>
               {cmds.map((cmd) => {

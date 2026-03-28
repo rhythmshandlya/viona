@@ -1,98 +1,72 @@
-## Skill Loading Order
-
-### When planning (orchestrator mode):
-1. FIRST: editorial-planning (content type detection, edit plan format)
-2. SECOND: visual-treatment-guide (treatment selection decision tree)
-3. THIRD: narrative-structure (story arc, emotional pacing)
-4. FOURTH: transcript-analysis (sync points, filler detection)
-
-### When editing code (animator mode):
-1. FIRST: framer-motion (technique components)
-2. SECOND: motion-one (spring configs, timing)
-3. THIRD: video-engagement (hooks, retention, visual metaphors)
-4. REFERENCE: remotion-best-practices, graphic-designer, interaction-design
-
-### When researching (researcher mode):
-1. FIRST: screenshot-and-research (web research, screenshot framing)
-
-### When cutting (trimmer mode):
-1. FIRST: cutting-and-pacing (cut rules, retention rhythm)
-
-# Remotion Visual Generator
-
-## Commands
-- `npx tsc --noEmit --pretty false` - TypeScript validation
-- `npx remotion bundle --out-dir <path>` - Bundle composition
-
-## Code Style (CRITICAL)
-- TypeScript with React functional components
-- Use `useCurrentFrame()` and `useVideoConfig()` for all animation timing
-- Use `spring()` for entrances/exits — import SPRINGS from constants.ts (SMOOTH: `{ damping: 26, stiffness: 120, mass: 1.0 }`, SNAPPY: `{ damping: 22, stiffness: 170, mass: 0.8 }`)
-- Use `interpolate()` with BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'` ALWAYS
-- inputRange array MUST be strictly monotonically increasing (each value > previous) — e.g. `[0, 15, 30]` not `[0, 1, 0.4]`
-- Stagger elements by 6+ frames minimum (NEVER animate all at once)
-
-## File Structure
+## Workspace Layout
 ```
-src/proj_<id>/
-├── index.tsx           # Main composition - imports and assembles scenes
-├── constants.ts        # COLORS, TIMING, SPRING_CONFIG
-├── metadata.json       # Composition metadata for renderer
-├── components/         # Reusable components
-│   ├── Background.tsx  # Animated background
-│   └── ...             # Shared icons, shapes, etc.
-└── scenes/             # Individual scene components
-    ├── Scene1.tsx
-    ├── Scene2.tsx
-    └── ...
+manifest.json                    # Timeline: tracks, items, canvas, assets (use MCP manifest tools)
+manifest-original.json           # Immutable backup (never modify)
+docs/
+  transcript.json                # Word-level transcript {words, segments, language}
+  transcript-original.json       # Immutable backup
+  SCENE_PLAN.md                  # Scene plan (written by Planner, read by downstream agents)
+  user-brief.md                  # User's creative brief (if provided)
+  speaker-grid.json              # Head-tracking data (access via get_speaker_position tool, not directly)
+  guidelines/
+    editing-style.md             # Editing style guide
+    studio-theme.md              # Theme design system tokens
+  shared/                        # Shared prompt modules
+  themes/                        # Theme design files
+src/
+  scenes/                        # Individual scene .tsx files (default export)
+  components/                    # Shared components (Background.tsx, plan-specific components)
+  constants.ts                   # COLORS, TIMING, SPRINGS
+  scene-registry.ts              # Auto-generated scene imports
+public/
+  source.mp4                     # Source video
+  audio.aac                      # Extracted audio track
+  manifest.json                  # Symlink to /workspace/manifest.json
 ```
 
-### Import Pattern
+## Manifest Access
+Read and modify the manifest via MCP tools (`read_manifest`, `add_item`, `update_item`, etc.), NOT by editing the file directly.
+
+## Critical Manifest Rules
+- `split_item` operates on ONE item. When splitting video, ALSO split its paired audio item at the same timestamp.
+- Audio items MUST have `data.startFrom` set (milliseconds into the source file). Without it, audio plays from 0ms regardless of timeline position.
+- Keyframes MUST use `{timeMs, props: {...}}` format. Example: `{"timeMs": 0, "props": {"opacity": 0}}`. NEVER flat `{"timeMs": 0, "opacity": 0}`.
+- **Scene item keyframes must ONLY animate `opacity`** (fade in/out). NEVER include `x`, `y`, `width`, `height`, or `rotation` in scene keyframes — they override the base transform and break positioning. All spatial animation happens inside the scene component's React code.
+- Scene items MUST have `data.displayMode` set (`fullscreen`, `split-screen`, or `overlay`). Note: `split-screen` is the API value for what the Planner calls "Stacked".
+- `data.sceneFile` should include `.tsx` extension (e.g., `Scene1.tsx` not `Scene1`).
+- transcript.json syncs automatically after manifest changes. Use post-sync timestamps (not source timestamps) for scene planning.
+
+## Import Pattern
 ```tsx
-// In scenes/Scene1.tsx
-import { COLORS, SPRING_CONFIG } from '../constants';
+import { COLORS, SPRINGS } from '../constants';
 import { Background } from '../components/Background';
-
-// In index.tsx
-import { Scene1 } from './scenes/Scene1';
-import { Background } from './components/Background';
 ```
 
 ## Scene Export Convention
-- Scene files MUST use `export default` for the component
-- Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
-- The scene registry auto-detects default exports. Named exports may not be found.
+Scene files use `export default` for the component.
+Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 
-## Common Gotchas
-- NEVER use `Math.sin/cos` on text positions (causes jittery text)
-- NEVER use damping < 18 (too bouncy). SNAPPY (22) is the floor for hero reveals.
-- NEVER use R3F's `useFrame()` hook - breaks video rendering
-- For 3D: use `<ThreeCanvas>` from @remotion/three, NOT R3F `<Canvas>`
-- Vary visual techniques across scenes — don't put every scene in a card. Use path drawing, animated diagrams, morphing, particles as alternatives.
-- Non-card templates available: `path-draw-reveal`, `animated-diagram`, `shape-morph-transition`
+## interpolate() Rules — CRITICAL
+- `inputRange` MUST be strictly monotonically increasing: `[0, 100]` is valid, `[400, 100]` CRASHES.
+- If you need "higher input = lower output", swap both ranges: `interpolate(x, [100, 400], [0.4, 0])` not `interpolate(x, [400, 100], [0, 0.4])`.
+- ALWAYS include `extrapolateLeft: 'clamp', extrapolateRight: 'clamp'` to prevent runaway values.
 
-## MANDATORY: Use Skills Before Writing Code
+## Surface & Motion Rules
+- Every container/surface needs at least TWO animated treatments (gradient shift, depth shadow, shimmer, blur). Static flat rectangles are forbidden.
+- Spring vocabulary: SNAPPY (hero), SMOOTH (panels), BOUNCY (accents), HEAVY (large surfaces). Adjacent elements should use different springs.
+- Entrance directions must vary within a scene — not everything from bottom.
+- Every settled element needs idle motion (float, breathe, rotate drift, or glow pulse).
+- Background is never static — at least one continuously animating property.
+- Opacity and transform offsets: stagger by 3-5 frames (never start on same frame).
 
-**Before writing ANY scene code, you MUST read the relevant skills using the Skill tool.** Skills contain critical patterns, reusable components, and design principles that prevent common mistakes.
+## Anti-Slideshow Rules
+- Do NOT default to card/rectangle layouts. Prefer drawn SVG paths, animated charts, kinetic typography, visual metaphors.
+- Cards are acceptable ONLY when content genuinely calls for them (checklists, comparison tables) — and even then, connect them with drawn lines/arrows.
+- If your scene could be a static PowerPoint slide, redesign it. The viewer should feel motion and visual relationships, not layout.
+- No generic card wrapper components (GlassCard, DataCard). Build scene-specific visuals.
 
-### Required Skills (read these FIRST)
-1. **`framer-motion`** - Animation patterns, reusable technique components (Card, ParticleEmitter, AnimatedCounter, FlowingStream), prohibited patterns
-2. **`motion-one`** - Spring configs, Disney's 12 principles, stagger timing, choreography phases
-3. **`video-engagement`** - Hook techniques, retention, color palettes, scene structure, visual metaphors
-
-### Reference Skills (read when relevant)
-4. **`remotion-best-practices`** - Official Remotion patterns (shapes, noise, paths, transitions, 3D, audio). Read specific rule files for advanced effects.
-5. **`frontend-design`** - Avoid generic AI aesthetics, bold design decisions
-6. **`interaction-design`** - Interaction timing and motion design patterns
-7. **`typescript-skills`** - TypeScript patterns
-
-### Skill Usage Flow
-```
-1. Read `framer-motion` for technique components and patterns
-2. Read `motion-one` for spring configs and timing
-3. Read `video-engagement` for engagement strategy and visual metaphors
-4. Check `remotion-best-practices` rules/ for specific Remotion APIs (@remotion/shapes, @remotion/noise, etc.)
-5. Write code using patterns from skills — do NOT reinvent what skills already provide
-```
-
-For techniques like particle-emitter, cards, counters, flowing-streams — use the implementations from `framer-motion` skill directly. Do NOT simplify or rewrite them.
+## Video Positioning
+- Video uses `objectFit: 'cover'` with optional `crop` settings (`objectPosition` + `scale`).
+- `auto_center_speaker` sets optimal crop values to center the speaker's face (called by Layout Editor).
+- `get_speaker_position` returns the speaker's exact canvas-space coordinates for a time range. Use this when placing overlay elements — it accounts for the cover crop transform and returns concrete `safePlacements` rects.
+- Do NOT read `speaker-grid.json` directly — use the tool instead.

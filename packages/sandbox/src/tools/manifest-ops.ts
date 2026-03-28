@@ -1,7 +1,141 @@
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, rename } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { notifyManifestUpdated } from '../ws-notify.js';
+import { syncTranscript, syncCaptions } from './transcript-sync.js';
+
+// ---- Inline item data schemas (mirrors @viona/shared/manifest-v2) ----
+// Defined here to avoid runtime dependency on @viona/shared inside Docker container.
+
+const captionWordSchema = z.object({
+  text: z.string(),
+  startMs: z.number().min(0),
+  endMs: z.number().min(0),
+  classification: z.enum(['power', 'medium', 'filler']).optional(),
+  styleOverrides: z.record(z.string(), z.unknown()).optional(),
+});
+
+const itemDataSchemas: Record<string, z.ZodTypeAny> = {
+  video: z.object({
+    src: z.string(),
+    startFrom: z.number().min(0).default(0),
+    volume: z.number().min(0).max(2).default(1),
+    playbackRate: z.number().min(0.25).max(4).default(1),
+    fadeInMs: z.number().min(0).optional(),
+    fadeOutMs: z.number().min(0).optional(),
+    crop: z.object({
+      x: z.number().min(0).max(100).default(50),
+      y: z.number().min(0).max(100).default(50),
+      scale: z.number().min(0.5).max(3).default(1),
+    }).optional(),
+  }),
+  audio: z.object({
+    src: z.string(),
+    startFrom: z.number().min(0).default(0),
+    volume: z.number().min(0).max(2).default(1),
+    playbackRate: z.number().min(0.25).max(4).default(1),
+    fadeInMs: z.number().min(0).optional(),
+    fadeOutMs: z.number().min(0).optional(),
+  }),
+  text: z.object({
+    text: z.string(),
+    fontFamily: z.string().default('Inter'),
+    fontSize: z.number().min(1).default(48),
+    fontWeight: z.number().min(100).max(900).default(600),
+    color: z.string().default('#FFFFFF'),
+    backgroundColor: z.string().optional(),
+    borderRadius: z.number().optional(),
+    padding: z.number().optional(),
+    textAlign: z.enum(['left', 'center', 'right']).default('center'),
+    lineHeight: z.number().optional(),
+    letterSpacing: z.number().optional(),
+    textTransform: z.enum(['none', 'uppercase', 'lowercase']).default('none'),
+  }),
+  image: z.object({ src: z.string() }),
+  scene: z.object({
+    sceneFile: z.string(),
+    displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
+    sceneName: z.string().optional(),
+    sceneType: z.string().optional(),
+  }),
+  caption: z.object({ words: z.array(captionWordSchema) }),
+  shape: z.object({
+    shape: z.enum(['rectangle', 'circle', 'line']),
+    fill: z.string().default('#FFFFFF'),
+    stroke: z.string().optional(),
+    strokeWidth: z.number().optional(),
+    borderRadius: z.number().optional(),
+    // Layout Editor uses shape items as mockup placeholders with scene metadata
+    sceneFile: z.string().optional(),
+    displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
+  }),
+};
+
+// ---- Normalization helpers ----
+
+/**
+ * Normalize keyframes from flat {timeMs, y, height, opacity, ...} to
+ * canonical {timeMs, props: {y, height, opacity, ...}, easing?} format.
+ * Agents often write flat keyframes; this prevents Zod validation errors on the frontend.
+ */
+function normalizeKeyframes(keyframes: any[]): any[] {
+  if (!keyframes || keyframes.length === 0) return keyframes;
+  return keyframes.map(kf => {
+    if (kf.props && typeof kf.props === 'object') return kf; // already canonical
+    const { timeMs, easing, props, ...rest } = kf;
+    // If there are extra fields beyond timeMs/easing, they're flat transform props
+    if (Object.keys(rest).length > 0) {
+      return { timeMs, props: rest, ...(easing ? { easing } : {}) };
+    }
+    return kf;
+  });
+}
+
+/**
+ * Strip x/y/width/height from scene keyframes when they just set full-canvas
+ * defaults (x:0, y:0, width:'100%', height:'100%'). Agents frequently write
+ * keyframes with ALL transform properties when they only intend to animate opacity,
+ * which overrides the base transform's positioning and causes scenes to render at (0,0).
+ */
+function stripRedundantSceneKeyframePositions(keyframes: any[], transform: any): any[] {
+  if (!keyframes || keyframes.length === 0 || !transform) return keyframes;
+
+  // Only strip if the base transform has a non-default position
+  const hasCustomPosition = (transform.x !== 0 && transform.x !== '0') ||
+    (transform.y !== 0 && transform.y !== '0') ||
+    (transform.width !== '100%' && transform.width !== 1080) ||
+    (transform.height !== '100%' && transform.height !== 1920);
+
+  if (!hasCustomPosition) return keyframes;
+
+  return keyframes.map(kf => {
+    if (!kf.props) return kf;
+    const cleaned = { ...kf.props };
+    // Remove position/size props that are just full-canvas overrides
+    for (const prop of ['x', 'y', 'width', 'height', 'rotation'] as const) {
+      const val = cleaned[prop];
+      if (val === undefined) continue;
+      const isFullCanvasDefault = val === 0 || val === '0' || val === '100%';
+      if (isFullCanvasDefault) {
+        delete cleaned[prop];
+      }
+    }
+    return { ...kf, props: cleaned };
+  });
+}
+
+/**
+ * Ensure sceneFile has .tsx extension. Agents write "Scene1" but the
+ * scene-registry keys use "Scene1.tsx", so lookups fail without this.
+ */
+function normalizeSceneFile(data: any, type: string): void {
+  if ((type === 'scene' || type === 'shape') && typeof data?.sceneFile === 'string') {
+    if (data.sceneFile && !data.sceneFile.endsWith('.tsx')) {
+      data.sceneFile += '.tsx';
+    }
+  }
+}
 
 const MANIFEST_PATH = join('/workspace', 'manifest.json');
 
@@ -19,13 +153,17 @@ export async function readManifestRaw(): Promise<string> {
 }
 
 async function writeManifest(manifest: any): Promise<void> {
-  await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+  // Atomic write: write to temp file then rename, so concurrent reads
+  // never see a truncated manifest.json
+  const tmpPath = `${MANIFEST_PATH}.${randomUUID()}.tmp`;
+  await writeFile(tmpPath, JSON.stringify(manifest, null, 2));
+  await rename(tmpPath, MANIFEST_PATH);
   // Notify frontend of manifest change (best-effort)
   notifyManifestUpdated().catch(() => {});
 }
 
 /** Run a read-modify-write operation with mutex to prevent concurrent overwrites. */
-async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+export async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
   const prev = writeLock;
   let resolve: () => void;
   writeLock = new Promise<void>((r) => { resolve = r; });
@@ -79,7 +217,8 @@ export const readManifestTool = {
           tracks: trackSummaries,
           totalItems: (manifest.items ?? []).length,
           assetKeys: Object.keys(manifest.assets ?? {}),
-          captionStyle: manifest.captionStyle ?? null,
+          captionPreset: manifest.captionPreset ?? manifest.captionStyle ?? null,
+          videoSettings: manifest.videoSettings ?? null,
         });
       }
 
@@ -270,7 +409,27 @@ export const addItemTool = {
   }): Promise<string> {
     return withManifestLock(async () => {
       try {
+        // Validate data against type-specific schema
+        const schema = itemDataSchemas[input.type];
+        if (schema) {
+          const result = schema.safeParse(input.data);
+          if (!result.success) {
+            const issues = result.error.issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join('; ');
+            return `Invalid data for ${input.type} item: ${issues}`;
+          }
+          input.data = result.data as object; // use parsed data (with defaults applied)
+        }
+
+        // Normalize sceneFile extension
+        normalizeSceneFile(input.data, input.type);
+
         const manifest = await readManifest();
+        let keyframes = normalizeKeyframes(input.keyframes ?? []);
+        // Strip redundant position overrides from scene keyframes
+        if (input.type === 'scene' && input.transform) {
+          keyframes = stripRedundantSceneKeyframePositions(keyframes, input.transform);
+        }
+
         const item: any = {
           id: input.id ?? randomUUID(),
           type: input.type,
@@ -278,7 +437,7 @@ export const addItemTool = {
           startMs: input.startMs,
           endMs: input.endMs,
           data: input.data,
-          keyframes: input.keyframes ?? [],
+          keyframes,
         };
         if (input.transform) item.transform = input.transform;
         if (input.filters) item.filters = input.filters;
@@ -342,15 +501,28 @@ export const updateItemTool = {
         if (input.trackId !== undefined) item.trackId = input.trackId;
 
         // Deep-merge nested objects
-        if (input.data) item.data = { ...item.data, ...input.data };
+        if (input.data) {
+          item.data = { ...item.data, ...input.data };
+          normalizeSceneFile(item.data, item.type);
+        }
         if (input.transform) item.transform = { ...(item.transform ?? {}), ...input.transform };
         if (input.filters) item.filters = { ...(item.filters ?? {}), ...input.filters };
         if (input.style) item.style = { ...(item.style ?? {}), ...input.style };
 
-        // Replace keyframes array
-        if (input.keyframes !== undefined) item.keyframes = input.keyframes;
+        // Replace keyframes array (normalize flat → canonical format)
+        if (input.keyframes !== undefined) {
+          item.keyframes = normalizeKeyframes(input.keyframes);
+          // Strip redundant position overrides from scene keyframes
+          if (item.type === 'scene' && item.transform) {
+            item.keyframes = stripRedundantSceneKeyframePositions(item.keyframes, item.transform);
+          }
+        }
 
         await writeManifest(manifest);
+        // Auto-sync transcript after update (timing changes shift the timeline)
+        if (input.startMs !== undefined || input.endMs !== undefined || input.data) {
+          syncTranscript().then(() => syncCaptions()).catch(() => {});
+        }
         return JSON.stringify(item);
       } catch (err: any) {
         return `Failed to update item: ${err.message}`;
@@ -381,6 +553,8 @@ export const removeItemTool = {
         }
         items.splice(idx, 1);
         await writeManifest(manifest);
+        // Auto-sync transcript and captions after remove
+        syncTranscript().then(() => syncCaptions()).catch(() => {});
         return JSON.stringify({ removed: input.itemId });
       } catch (err: any) {
         return `Failed to remove item: ${err.message}`;
@@ -420,6 +594,9 @@ export const splitItemTool = {
         const splitOffset = input.atMs - item.startMs;
         const newId = randomUUID();
 
+        // Normalize existing keyframes before redistributing
+        const existingKeyframes = normalizeKeyframes(item.keyframes ?? []);
+
         // Build the new (right) item
         const newItem: any = {
           id: newId,
@@ -431,7 +608,7 @@ export const splitItemTool = {
             ...item.data,
             startFrom: (item.data.startFrom ?? 0) + splitOffset,
           },
-          keyframes: (item.keyframes ?? [])
+          keyframes: existingKeyframes
             .filter((kf: any) => kf.timeMs >= splitOffset)
             .map((kf: any) => ({ ...kf, timeMs: kf.timeMs - splitOffset })),
         };
@@ -442,10 +619,12 @@ export const splitItemTool = {
 
         // Trim the original (left) item
         item.endMs = input.atMs;
-        item.keyframes = (item.keyframes ?? []).filter((kf: any) => kf.timeMs < splitOffset);
+        item.keyframes = existingKeyframes.filter((kf: any) => kf.timeMs < splitOffset);
 
         items.push(newItem);
         await writeManifest(manifest);
+        // Auto-sync transcript and captions after split
+        syncTranscript().then(() => syncCaptions()).catch(() => {});
         return JSON.stringify({ originalId: item.id, newId });
       } catch (err: any) {
         return `Failed to split item: ${err.message}`;
@@ -454,11 +633,11 @@ export const splitItemTool = {
   },
 };
 
-export const updateCaptionStyleTool = {
-  name: 'update_caption_style',
+export const updateCaptionPresetTool = {
+  name: 'update_caption_preset',
   description:
-    'Update the global caption style. Deep-merges with existing style. ' +
-    'Fields: displayMode (word-by-word|phrase|karaoke|dynamic-hierarchy), wordsPerPhrase, ' +
+    'Update the global caption preset. Deep-merges with existing preset. ' +
+    'Fields: displayMode (word-by-word|phrase|karaoke), wordsPerPhrase, ' +
     'fontFamily, fontSize, fontWeight, color, activeColor, backgroundColor, activeBackgroundColor, ' +
     'backgroundPadding ({x,y}), backgroundRadius, letterSpacing, textTransform (none|uppercase|lowercase), ' +
     'opacity, lineHeight, stroke ({width,color}), presetId, ' +
@@ -469,29 +648,36 @@ export const updateCaptionStyleTool = {
     properties: {
       updates: {
         type: 'object',
-        description: 'Partial caption style fields to merge',
+        description: 'Partial caption preset fields to merge',
       },
     },
     required: ['updates'],
   },
-  async execute(input: { updates: Record<string, unknown> }): Promise<string> {
+  async execute(input: { updates?: Record<string, unknown>; [key: string]: unknown }): Promise<string> {
     return withManifestLock(async () => {
       try {
         const manifest = await readManifest();
-        const existing = manifest.captionStyle ?? {};
+        // Migrate: if captionPreset is undefined but captionStyle exists, migrate it
+        if (manifest.captionPreset === undefined && manifest.captionStyle !== undefined) {
+          manifest.captionPreset = manifest.captionStyle;
+          delete manifest.captionStyle;
+        }
+        const existing = manifest.captionPreset ?? {};
+        // Accept { updates: {...} } or treat input itself as updates
+        const updates = input.updates ?? input;
         // Deep-merge nested objects (animation, position, effects)
-        for (const [key, value] of Object.entries(input.updates)) {
+        for (const [key, value] of Object.entries(updates)) {
           if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
             existing[key] = { ...existing[key], ...value };
           } else {
             existing[key] = value;
           }
         }
-        manifest.captionStyle = existing;
+        manifest.captionPreset = existing;
         await writeManifest(manifest);
-        return JSON.stringify(manifest.captionStyle);
+        return JSON.stringify(manifest.captionPreset);
       } catch (err: any) {
-        return `Failed to update caption style: ${err.message}`;
+        return `Failed to update caption preset: ${err.message}`;
       }
     });
   },
@@ -511,19 +697,191 @@ export const updateManifestTool = {
     required: ['manifest'],
   },
   async execute(input: { manifest: object }): Promise<string> {
-    try {
-      await writeFile(MANIFEST_PATH, JSON.stringify(input.manifest, null, 2));
-      // Trigger rebuild so preview picks up manifest changes
-      const { triggerRebuild } = await import('../esbuild-watcher.js');
-      triggerRebuild();
-      return 'Manifest updated and rebuild triggered.';
-    } catch (err: any) {
-      return `Failed to update manifest: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        await writeFile(MANIFEST_PATH, JSON.stringify(input.manifest, null, 2));
+        await notifyManifestUpdated();
+        const { triggerRebuild } = await import('../esbuild-watcher.js');
+        triggerRebuild();
+        return 'Manifest updated and rebuild triggered.';
+      } catch (err: any) {
+        return `Failed to update manifest: ${err.message}`;
+      }
+    });
   },
 };
 
-/** All manifest tools for registration with the agent. */
+/** All manifest tools for registration with the agent.
+ *  NOTE: update_manifest is intentionally excluded — it replaces the entire
+ *  manifest in one call and has caused full data loss (Issue #9). The agent
+ *  must use granular tools (add_item, update_item, etc.) instead.
+ *  update_manifest is still available for the HTTP PATCH /manifest endpoint. */
+export const generateCaptionsTool = {
+  name: 'generate_captions',
+  description:
+    'Generate caption items from the transcript. Syncs transcript timing with current manifest edits, ' +
+    'creates a caption track if none exists, and builds phrase-grouped caption items. ' +
+    'Optionally accepts a captionPreset to apply (deep-merged with existing). ' +
+    'Call this after transcription is done or when the user wants captions added/regenerated.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      wordsPerPhrase: {
+        type: 'number',
+        description: 'Words per caption phrase (default: uses existing captionPreset.wordsPerPhrase or 5)',
+      },
+      captionPreset: {
+        type: 'object',
+        description: 'Optional caption preset to apply (deep-merged with existing). ' +
+          'Fields: displayMode, fontFamily, fontSize, fontWeight, color, activeColor, ' +
+          'backgroundColor, activeBackgroundColor, stroke, animation, position, effects, etc.',
+      },
+    },
+    required: [],
+  },
+  async execute(input: { wordsPerPhrase?: number; captionPreset?: Record<string, unknown> }): Promise<string> {
+    return withManifestLock(async () => {
+      try {
+        // 1. Sync transcript timing with current manifest edits
+        await syncTranscript();
+
+        // 2. Ensure caption track exists
+        const manifest = await readManifest();
+        let captionTrack = (manifest.tracks ?? []).find((t: any) => t.type === 'caption');
+        if (!captionTrack) {
+          const maxPos = Math.max(0, ...(manifest.tracks ?? []).map((t: any) => t.position ?? 0));
+          captionTrack = {
+            id: `track-caption-${randomUUID().slice(0, 8)}`,
+            type: 'caption',
+            name: 'Captions',
+            position: maxPos + 1,
+          };
+          manifest.tracks = [...(manifest.tracks ?? []), captionTrack];
+        }
+
+        // Migrate: read captionPreset with fallback to captionStyle
+        const currentPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
+
+        // 3. Apply wordsPerPhrase override
+        if (input.wordsPerPhrase) {
+          currentPreset.wordsPerPhrase = input.wordsPerPhrase;
+        }
+
+        // 4. Apply caption preset if provided (deep-merge)
+        if (input.captionPreset) {
+          for (const [key, value] of Object.entries(input.captionPreset)) {
+            if (value && typeof value === 'object' && !Array.isArray(value) && currentPreset[key] && typeof currentPreset[key] === 'object') {
+              currentPreset[key] = { ...currentPreset[key], ...value };
+            } else {
+              currentPreset[key] = value;
+            }
+          }
+        }
+
+        // Write to captionPreset; clean up legacy captionStyle if it existed
+        manifest.captionPreset = currentPreset;
+        if (manifest.captionStyle !== undefined) {
+          delete manifest.captionStyle;
+        }
+
+        // Write manifest with track + preset changes before syncCaptions reads it
+        await writeManifest(manifest);
+
+        // 5. Generate caption items from synced transcript
+        await syncCaptions();
+
+        // Re-read to get final state with captions
+        const final = await readManifest();
+        const captionCount = (final.items ?? []).filter((i: any) => i.type === 'caption').length;
+        return JSON.stringify({ ok: true, captionCount, trackId: captionTrack.id });
+      } catch (err: any) {
+        return `Failed to generate captions: ${err.message}`;
+      }
+    });
+  },
+};
+
+export const rippleDeleteTool = {
+  name: 'ripple_delete',
+  description:
+    'Remove an item and shift all later items on the SAME track backward to close the gap. ' +
+    'Optionally leave a gap (gapMs, default 150ms). Also shifts items on paired tracks — ' +
+    'e.g., if you ripple-delete a video item, matching audio items after that point shift too. ' +
+    'Use this instead of remove_item when trimming fillers to keep the timeline tight.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      itemId: { type: 'string', description: 'Item ID to remove' },
+      gapMs: {
+        type: 'number',
+        description: 'Gap to leave at the cut point (default 150ms). Set to 0 for no gap.',
+      },
+    },
+    required: ['itemId'],
+  },
+  async execute(input: { itemId: string; gapMs?: number }): Promise<string> {
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const items: any[] = manifest.items ?? [];
+        const item = items.find((i: any) => i.id === input.itemId);
+        if (!item) {
+          return JSON.stringify({ removed: input.itemId, alreadyGone: true });
+        }
+
+        const gapMs = input.gapMs ?? 150;
+        const removedDuration = item.endMs - item.startMs;
+        const shiftMs = Math.max(0, removedDuration - gapMs);
+        const cutPointMs = item.startMs;
+
+        // Determine which tracks to ripple. Video and audio tracks are paired —
+        // if you ripple on a video track, also ripple audio tracks and vice versa.
+        const tracks: any[] = manifest.tracks ?? [];
+        const sourceTrack = tracks.find((t: any) => t.id === item.trackId);
+        const MEDIA_TYPES = new Set(['video', 'audio']);
+        const isMediaTrack = sourceTrack && MEDIA_TYPES.has(sourceTrack.type);
+
+        const tracksToRipple = new Set<string>();
+        tracksToRipple.add(item.trackId);
+        if (isMediaTrack) {
+          // Also ripple all other media tracks (audio ↔ video pairing)
+          for (const t of tracks) {
+            if (MEDIA_TYPES.has(t.type)) {
+              tracksToRipple.add(t.id);
+            }
+          }
+        }
+
+        // Remove the item
+        const idx = items.indexOf(item);
+        items.splice(idx, 1);
+
+        // Shift all items on rippled tracks that start AFTER the cut point
+        let shifted = 0;
+        for (const i of items) {
+          if (tracksToRipple.has(i.trackId) && i.startMs >= cutPointMs) {
+            i.startMs = Math.max(0, i.startMs - shiftMs);
+            i.endMs = Math.max(i.startMs + 1, i.endMs - shiftMs);
+            shifted++;
+          }
+        }
+
+        await writeManifest(manifest);
+        // Auto-sync transcript and captions
+        syncTranscript().then(() => syncCaptions()).catch(() => {});
+        return JSON.stringify({
+          removed: input.itemId,
+          shiftMs,
+          gapMs,
+          itemsShifted: shifted,
+        });
+      } catch (err: any) {
+        return `Failed to ripple delete: ${err.message}`;
+      }
+    });
+  },
+};
+
 export const allManifestTools = [
   readManifestTool,
   readItemTool,
@@ -534,6 +892,7 @@ export const allManifestTools = [
   updateItemTool,
   removeItemTool,
   splitItemTool,
-  updateCaptionStyleTool,
-  updateManifestTool,
+  rippleDeleteTool,
+  updateCaptionPresetTool,
+  generateCaptionsTool,
 ];

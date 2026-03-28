@@ -8,7 +8,8 @@
  *   search_unsplash      - search Unsplash API, return results
  *   search_pexels        - search Pexels API, return results
  *   download_stock_photo - download from Unsplash/Pexels with attribution headers
- *   get_speaker_grid     - spatial grid showing speaker location for overlay placement
+ *   auto_center_speaker  - adjust video crop to center the speaker's face
+ *   get_speaker_position - canvas-space speaker coordinates for overlay placement
  *
  * Usage:
  *   node asset-server.js --workspace /path/to/remotion-project
@@ -17,12 +18,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { writeFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { writeFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { URL } from "node:url";
 import { Open as unzipOpen } from "unzipper";
 import { parseWorkspace } from "./lib/parse-args.js";
 import { errorMessage } from "./lib/errors.js";
+import {
+  computeCoverTransform,
+  computeCenterCrop,
+  sourceToCanvas,
+} from './utils/cover-transform.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,10 +47,20 @@ interface FaceBbox {
 
 /** A single frame of head tracking data. */
 interface HeadTrackingFrame {
+  frame?: number;
   timestamp_ms: number;
   face?: {
     bbox: FaceBbox;
+    landmarks?: Record<string, { x: number; y: number }>;
   } | null;
+  body?: {
+    left_shoulder?: { x: number; y: number; visible?: boolean };
+    right_shoulder?: { x: number; y: number; visible?: boolean };
+    left_hand?: { x: number; y: number; visible?: boolean };
+    right_hand?: { x: number; y: number; visible?: boolean };
+  } | null;
+  confidence?: number;
+  detection_failed?: boolean;
 }
 
 /** Full head tracking data file structure. */
@@ -54,19 +70,6 @@ interface HeadTrackingData {
     height?: number;
   };
   frames: HeadTrackingFrame[];
-}
-
-/** Output from the get_speaker_grid tool. */
-interface GridResult {
-  grid: number[][];
-  occupancy: string;
-  speakerBbox: {
-    x: string;
-    y: string;
-    w: string;
-    h: string;
-  } | null;
-  safePlacement: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -550,229 +553,489 @@ server.registerTool(
   }
 );
 
-// -- get_speaker_grid -------------------------------------------------------
+// -- auto_center_speaker ----------------------------------------------------
 server.registerTool(
-  "get_speaker_grid",
+  "auto_center_speaker",
   {
     description:
-      "Get a spatial grid showing where the speaker is located in the video for a given time range. Returns a 6x6 grid where 1=speaker present, 0=safe for overlay elements. Use this when implementing overlay scenes to avoid placing visuals on top of the speaker.",
+      "Automatically adjust the video item's crop to center the speaker's face. " +
+      "Reads head tracking data and the manifest, computes optimal objectPosition " +
+      "percentages, and writes updated crop values back to the manifest. " +
+      "Call this after placing video items in the timeline (Phase 5 Layout).",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      // 1. Read head tracking data
+      const trackingPath = path.join(WORKSPACE, "docs", "speaker-grid.json");
+      let trackingData: HeadTrackingData;
+      try {
+        trackingData = JSON.parse(await readFile(trackingPath, "utf-8"));
+      } catch {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              adjusted: false,
+              reason: "No head tracking data available at docs/speaker-grid.json",
+            }),
+          }],
+        };
+      }
+
+      const frames = trackingData.frames || [];
+      const videoW = trackingData.video?.width || 1;
+      const videoH = trackingData.video?.height || 1;
+
+      // Filter to frames with face detections
+      const withFace = frames.filter((f) => f.face?.bbox);
+      if (withFace.length === 0) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              adjusted: false,
+              reason: "No face detections found in tracking data. Keeping default crop.",
+            }),
+          }],
+        };
+      }
+
+      // 2. Compute average face center in source pixels
+      let sumX = 0, sumY = 0;
+      for (const f of withFace) {
+        const b = f.face!.bbox;
+        sumX += b.x + b.width / 2;
+        sumY += b.y + b.height / 2;
+      }
+      const faceCenterX = sumX / withFace.length;
+      const faceCenterY = sumY / withFace.length;
+
+      // 3. Read manifest to find video items and canvas dimensions
+      const manifestPath = path.join(WORKSPACE, "manifest.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
+      const canvas = manifest.canvas || { width: 1080, height: 1920 };
+
+      // Find all video items (manifest uses flat items[] array with trackId references)
+      const updated: Array<{ itemId: string; trackId: string; cropX: number; cropY: number }> = [];
+
+      for (const item of manifest.items || []) {
+        if (item.type !== "video") continue;
+
+        // Item dimensions come from item.transform (not item.width/height)
+        const t = item.transform || {};
+        const itemW = typeof t.width === 'number' ? t.width : canvas.width;
+        const itemH = typeof t.height === 'number' ? t.height : canvas.height;
+
+        const crop = computeCenterCrop(
+          faceCenterX, faceCenterY,
+          videoW, videoH,
+          itemW, itemH,
+        );
+
+        // Update item crop in manifest
+        if (!item.data) item.data = {};
+        item.data.crop = {
+          x: Math.round(crop.x * 10) / 10,
+          y: Math.round(crop.y * 10) / 10,
+          scale: item.data.crop?.scale ?? 1,
+        };
+
+        updated.push({
+          itemId: item.id,
+          trackId: item.trackId,
+          cropX: item.data.crop.x,
+          cropY: item.data.crop.y,
+        });
+      }
+
+      if (updated.length === 0) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({ adjusted: false, reason: "No video items found in manifest." }),
+          }],
+        };
+      }
+
+      // 4. Write updated manifest
+      await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            adjusted: true,
+            faceCenter: {
+              x: Math.round(faceCenterX),
+              y: Math.round(faceCenterY),
+              sourceSize: { width: videoW, height: videoH },
+            },
+            items: updated,
+          }),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error auto-centering speaker: ${errorMessage(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Speaker position tool — canvas-space coordinates with cover-crop transform
+// ---------------------------------------------------------------------------
+
+interface SpeakerPositionResult {
+  canvas: { width: number; height: number };
+  videoTransform: {
+    sourceSize: { width: number; height: number };
+    coverScale: number;
+    crop: { x: number; y: number; scale: number };
+    visibleRegion: { x: number; y: number; width: number; height: number };
+  };
+  speaker: {
+    bounds: { top: number; bottom: number; left: number; right: number };
+    face: { x: number; y: number; width: number; height: number };
+    shoulderLine: number;
+    hands: {
+      left: { x: number; y: number; active: boolean };
+      right: { x: number; y: number; active: boolean };
+    };
+    movement: "minimal" | "moderate" | "large";
+  } | null;
+  availableSpace: {
+    above: { from: number; to: number; height: number };
+    below: { from: number; to: number; height: number };
+    left: { from: number; to: number; width: number };
+    right: { from: number; to: number; width: number };
+  };
+  safePlacements: Array<{ name: string; rect: { x: number; y: number; width: number; height: number } }>;
+  confidence: number;
+}
+
+server.registerTool(
+  "get_speaker_position",
+  {
+    description:
+      "Get the speaker's exact position on the canvas for a given time range. " +
+      "Returns pixel coordinates in canvas space, accounting for objectFit:cover " +
+      "and crop transforms. Includes face bbox, body bounds, shoulder line, hand " +
+      "positions, available space in each direction, and concrete safe placement " +
+      "rects for overlay elements. Use this when implementing overlay scenes to " +
+      "avoid placing visuals on top of the speaker.",
     inputSchema: {
       startMs: z.number().describe("Start of time range in milliseconds"),
       endMs: z.number().describe("End of time range in milliseconds"),
-      gridRows: z
-        .number()
-        .int()
-        .min(2)
-        .max(12)
-        .optional()
-        .default(6)
-        .describe("Number of grid rows (default 6)"),
-      gridCols: z
-        .number()
-        .int()
-        .min(2)
-        .max(12)
-        .optional()
-        .default(6)
-        .describe("Number of grid columns (default 6)"),
     },
   },
-  async ({
-    startMs,
-    endMs,
-    gridRows,
-    gridCols,
-  }: {
-    startMs: number;
-    endMs: number;
-    gridRows: number;
-    gridCols: number;
-  }) => {
+  async ({ startMs, endMs }: { startMs: number; endMs: number }) => {
     try {
-      const rows = gridRows || 6;
-      const cols = gridCols || 6;
-
-      // Find head_tracking.json in workspace (scans src/*/)
-      const srcDir = path.join(WORKSPACE, "src");
-      let trackingPath: string | null = null;
+      // 1. Read head tracking data
+      const trackingPath = path.join(WORKSPACE, "docs", "speaker-grid.json");
+      let trackingData: HeadTrackingData;
       try {
-        const entries = await readdir(srcDir);
-        for (const entry of entries) {
-          const candidate = path.join(srcDir, entry, "head_tracking.json");
-          try {
-            await stat(candidate);
-            trackingPath = candidate;
-            break;
-          } catch {
-            /* not found, try next */
-          }
-        }
+        trackingData = JSON.parse(await readFile(trackingPath, "utf-8"));
       } catch {
-        /* src dir may not exist */
-      }
-
-      if (!trackingPath) {
         return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: "Head tracking data not available for this project.",
-                fallback: true,
-                hint: "Design overlay with generous margins on all sides.",
-              }),
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error: "Head tracking data not available.",
+              hint: "Design overlay with generous margins on all sides.",
+            }),
+          }],
           isError: true,
         };
       }
 
-      const raw: HeadTrackingData = JSON.parse(
-        await readFile(trackingPath, "utf-8")
-      );
-      const frames = raw.frames || [];
-      // Source video dimensions for normalizing pixel-coordinate bboxes
-      const videoW = raw.video?.width || 1;
-      const videoH = raw.video?.height || 1;
+      const srcW = trackingData.video?.width || 1920;
+      const srcH = trackingData.video?.height || 1080;
 
-      // Filter frames by time range
-      const filtered = frames.filter(
-        (f) =>
-          f.timestamp_ms >= startMs &&
-          f.timestamp_ms <= endMs &&
-          f.face?.bbox
-      );
+      // 2. Read manifest for video item geometry and canvas
+      const manifestPath = path.join(WORKSPACE, "manifest.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
+      const canvas = manifest.canvas || { width: 1080, height: 1920 };
 
-      if (filtered.length === 0) {
-        // No detections in range - entire frame is safe
-        const emptyGrid: number[][] = Array.from({ length: rows }, () =>
-          Array(cols).fill(0) as number[]
-        );
-        const result: GridResult = {
-          grid: emptyGrid,
-          occupancy: "0%",
-          speakerBbox: null,
-          safePlacement: ["entire frame"],
-        };
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-        };
+      // Find video item active during [startMs, endMs]
+      // Manifest uses flat items[] array with trackId references
+      let videoItem: any = null;
+      let bestOverlap = 0;
+      for (const item of manifest.items || []) {
+        if (item.type !== "video") continue;
+        const itemStart = item.startMs ?? 0;
+        const itemEnd = item.endMs ?? (itemStart + (item.durationMs ?? 0));
+        const overlapStart = Math.max(startMs, itemStart);
+        const overlapEnd = Math.min(endMs, itemEnd);
+        const overlap = overlapEnd - overlapStart;
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          videoItem = item;
+        }
       }
 
-      // Build grid: project each face bbox onto the grid
-      const cellHits: number[][] = Array.from({ length: rows }, () =>
-        Array(cols).fill(0) as number[]
+      // Video item dimensions from item.transform (not item.width/height)
+      const vt = videoItem?.transform || {};
+      const itemW = typeof vt.width === 'number' ? vt.width : canvas.width;
+      const itemH = typeof vt.height === 'number' ? vt.height : canvas.height;
+      const itemX = typeof vt.x === 'number' ? vt.x : 0;
+      const itemY = typeof vt.y === 'number' ? vt.y : 0;
+      const cropX = videoItem?.data?.crop?.x ?? 50;
+      const cropY = videoItem?.data?.crop?.y ?? 50;
+      const cropScale = videoItem?.data?.crop?.scale ?? 1;
+
+      // 3. Compute cover transform
+      const transform = computeCoverTransform(srcW, srcH, itemW, itemH, cropX, cropY, cropScale);
+
+      // Visible region in source pixels
+      const visOffsetX = transform.offsetX / transform.baseCoverScale;
+      const visOffsetY = transform.offsetY / transform.baseCoverScale;
+      const visW = itemW / (transform.baseCoverScale * cropScale);
+      const visH = itemH / (transform.baseCoverScale * cropScale);
+
+      // 4. Filter tracking frames to time range
+      const frames = (trackingData.frames || []).filter(
+        (f) => f.timestamp_ms >= startMs && f.timestamp_ms <= endMs
       );
+      const withFace = frames.filter((f) => f.face?.bbox);
+      const confidence = frames.length > 0 ? withFace.length / frames.length : 0;
 
-      for (const frame of filtered) {
-        const b = frame.face!.bbox; // {x, y, width, height} in pixels - normalize to 0-1
-        const bx1 = b.x / videoW;
-        const by1 = b.y / videoH;
-        const bx2 = (b.x + b.width) / videoW;
-        const by2 = (b.y + b.height) / videoH;
+      if (withFace.length === 0) {
+        // No detections — entire canvas is safe
+        const result: SpeakerPositionResult = {
+          canvas,
+          videoTransform: {
+            sourceSize: { width: srcW, height: srcH },
+            coverScale: transform.baseCoverScale,
+            crop: { x: cropX, y: cropY, scale: cropScale },
+            visibleRegion: { x: Math.round(visOffsetX), y: Math.round(visOffsetY), width: Math.round(visW), height: Math.round(visH) },
+          },
+          speaker: null,
+          availableSpace: {
+            above: { from: 0, to: canvas.height, height: canvas.height },
+            below: { from: 0, to: canvas.height, height: canvas.height },
+            left: { from: 0, to: canvas.width, width: canvas.width },
+            right: { from: 0, to: canvas.width, width: canvas.width },
+          },
+          safePlacements: [{ name: "entire-canvas", rect: { x: 0, y: 0, width: canvas.width, height: canvas.height } }],
+          confidence: 0,
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      }
 
-        for (let r = 0; r < rows; r++) {
-          const cellY1 = r / rows;
-          const cellY2 = (r + 1) / rows;
-          for (let c = 0; c < cols; c++) {
-            const cellX1 = c / cols;
-            const cellX2 = (c + 1) / cols;
-            // Check overlap
-            if (bx1 < cellX2 && bx2 > cellX1 && by1 < cellY2 && by2 > cellY1) {
-              cellHits[r][c]++;
-            }
+      // 5. Transform all detections to canvas space and aggregate
+      let boundsTop = Infinity, boundsBottom = -Infinity;
+      let boundsLeft = Infinity, boundsRight = -Infinity;
+      let faceSumX = 0, faceSumY = 0, faceSumW = 0, faceSumH = 0;
+      let shoulderSumY = 0, shoulderCount = 0;
+      let handLSumX = 0, handLSumY = 0, handLCount = 0;
+      let handRSumX = 0, handRSumY = 0, handRCount = 0;
+      const handLPositions: { x: number; y: number }[] = [];
+      const handRPositions: { x: number; y: number }[] = [];
+      const faceCenters: { x: number; y: number }[] = [];
+
+      for (const f of withFace) {
+        const bbox = f.face!.bbox;
+
+        // Transform face bbox corners
+        const topLeft = sourceToCanvas(bbox.x, bbox.y, transform, itemX, itemY);
+        const bottomRight = sourceToCanvas(bbox.x + bbox.width, bbox.y + bbox.height, transform, itemX, itemY);
+
+        const fX = Math.min(topLeft.x, bottomRight.x);
+        const fY = Math.min(topLeft.y, bottomRight.y);
+        const fW = Math.abs(bottomRight.x - topLeft.x);
+        const fH = Math.abs(bottomRight.y - topLeft.y);
+
+        faceSumX += fX; faceSumY += fY; faceSumW += fW; faceSumH += fH;
+        faceCenters.push({ x: fX + fW / 2, y: fY + fH / 2 });
+
+        // Update body bounds with face
+        boundsTop = Math.min(boundsTop, fY);
+        boundsBottom = Math.max(boundsBottom, fY + fH);
+        boundsLeft = Math.min(boundsLeft, fX);
+        boundsRight = Math.max(boundsRight, fX + fW);
+
+        // Body landmarks
+        if (f.body) {
+          if (f.body.left_shoulder && f.body.left_shoulder.visible !== false) {
+            const ls = sourceToCanvas(f.body.left_shoulder.x, f.body.left_shoulder.y, transform, itemX, itemY);
+            shoulderSumY += ls.y; shoulderCount++;
+            boundsBottom = Math.max(boundsBottom, ls.y);
+            boundsLeft = Math.min(boundsLeft, ls.x);
+            boundsRight = Math.max(boundsRight, ls.x);
+          }
+          if (f.body.right_shoulder && f.body.right_shoulder.visible !== false) {
+            const rs = sourceToCanvas(f.body.right_shoulder.x, f.body.right_shoulder.y, transform, itemX, itemY);
+            shoulderSumY += rs.y; shoulderCount++;
+            boundsBottom = Math.max(boundsBottom, rs.y);
+            boundsLeft = Math.min(boundsLeft, rs.x);
+            boundsRight = Math.max(boundsRight, rs.x);
+          }
+          if (f.body.left_hand?.visible) {
+            const lh = sourceToCanvas(f.body.left_hand.x, f.body.left_hand.y, transform, itemX, itemY);
+            handLSumX += lh.x; handLSumY += lh.y; handLCount++;
+            handLPositions.push(lh);
+            boundsBottom = Math.max(boundsBottom, lh.y);
+            boundsLeft = Math.min(boundsLeft, lh.x);
+            boundsRight = Math.max(boundsRight, lh.x);
+          }
+          if (f.body.right_hand?.visible) {
+            const rh = sourceToCanvas(f.body.right_hand.x, f.body.right_hand.y, transform, itemX, itemY);
+            handRSumX += rh.x; handRSumY += rh.y; handRCount++;
+            handRPositions.push(rh);
+            boundsBottom = Math.max(boundsBottom, rh.y);
+            boundsLeft = Math.min(boundsLeft, rh.x);
+            boundsRight = Math.max(boundsRight, rh.x);
           }
         }
       }
 
-      // Mark cells occupied if speaker present in >30% of filtered frames
-      const threshold = filtered.length * 0.3;
-      const grid: number[][] = cellHits.map((row) =>
-        row.map((count) => (count >= threshold ? 1 : 0))
-      );
+      // Clamp bounds to canvas
+      boundsTop = Math.max(0, Math.round(boundsTop));
+      boundsBottom = Math.min(canvas.height, Math.round(boundsBottom));
+      boundsLeft = Math.max(0, Math.round(boundsLeft));
+      boundsRight = Math.min(canvas.width, Math.round(boundsRight));
 
-      // Compute occupancy
-      const totalCells = rows * cols;
-      const occupiedCells = grid.flat().filter((v) => v === 1).length;
-      const occupancy = `${Math.round((occupiedCells / totalCells) * 100)}%`;
+      const n = withFace.length;
+      const face = {
+        x: Math.round(faceSumX / n),
+        y: Math.round(faceSumY / n),
+        width: Math.round(faceSumW / n),
+        height: Math.round(faceSumH / n),
+      };
 
-      // Compute aggregate bounding box (normalized to 0-1)
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      for (const frame of filtered) {
-        const b = frame.face!.bbox;
-        minX = Math.min(minX, b.x / videoW);
-        minY = Math.min(minY, b.y / videoH);
-        maxX = Math.max(maxX, (b.x + b.width) / videoW);
-        maxY = Math.max(maxY, (b.y + b.height) / videoH);
+      const shoulderLine = shoulderCount > 0 ? Math.round(shoulderSumY / shoulderCount) : face.y + face.height;
+
+      // Hand activity — active if hand moves >15% of canvas height
+      const handThreshold = canvas.height * 0.15;
+
+      function isHandActive(positions: { x: number; y: number }[]): boolean {
+        if (positions.length < 2) return false;
+        let minY = Infinity, maxY = -Infinity;
+        for (const p of positions) { minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+        return (maxY - minY) > handThreshold;
       }
 
-      const speakerBbox = {
-        x: `${Math.round(minX * 100)}%`,
-        y: `${Math.round(minY * 100)}%`,
-        w: `${Math.round((maxX - minX) * 100)}%`,
-        h: `${Math.round((maxY - minY) * 100)}%`,
+      const hands = {
+        left: {
+          x: handLCount > 0 ? Math.round(handLSumX / handLCount) : boundsLeft,
+          y: handLCount > 0 ? Math.round(handLSumY / handLCount) : boundsBottom,
+          active: isHandActive(handLPositions),
+        },
+        right: {
+          x: handRCount > 0 ? Math.round(handRSumX / handRCount) : boundsRight,
+          y: handRCount > 0 ? Math.round(handRSumY / handRCount) : boundsBottom,
+          active: isHandActive(handRPositions),
+        },
       };
 
-      // Compute safe placement regions
-      const safePlacement: string[] = [];
-      const midRow = Math.floor(rows / 2);
-      const midCol = Math.floor(cols / 2);
-
-      const regions: Record<string, () => boolean> = {
-        "top-left": () =>
-          grid
-            .slice(0, midRow)
-            .flatMap((r) => r.slice(0, midCol))
-            .every((v) => v === 0),
-        "top-right": () =>
-          grid
-            .slice(0, midRow)
-            .flatMap((r) => r.slice(midCol))
-            .every((v) => v === 0),
-        "bottom-left": () =>
-          grid
-            .slice(midRow)
-            .flatMap((r) => r.slice(0, midCol))
-            .every((v) => v === 0),
-        "bottom-right": () =>
-          grid
-            .slice(midRow)
-            .flatMap((r) => r.slice(midCol))
-            .every((v) => v === 0),
-        top: () => grid[0].every((v) => v === 0),
-        bottom: () => grid[rows - 1].every((v) => v === 0),
-        left: () => grid.every((r) => r[0] === 0),
-        right: () => grid.every((r) => r[cols - 1] === 0),
-      };
-
-      for (const [name, check] of Object.entries(regions)) {
-        if (check()) safePlacement.push(name);
+      // Movement classification
+      const canvasDiag = Math.sqrt(canvas.width ** 2 + canvas.height ** 2);
+      let movement: "minimal" | "moderate" | "large" = "minimal";
+      if (faceCenters.length > 1) {
+        const avgX = faceCenters.reduce((s, p) => s + p.x, 0) / faceCenters.length;
+        const avgY = faceCenters.reduce((s, p) => s + p.y, 0) / faceCenters.length;
+        const variance = faceCenters.reduce((s, p) => s + (p.x - avgX) ** 2 + (p.y - avgY) ** 2, 0) / faceCenters.length;
+        const stddev = Math.sqrt(variance);
+        const pct = stddev / canvasDiag * 100;
+        if (pct >= 8) movement = "large";
+        else if (pct >= 2) movement = "moderate";
       }
 
-      const result: GridResult = {
-        grid,
-        occupancy,
-        speakerBbox,
-        safePlacement,
+      // 6. Compute available space
+      const margin = movement === "large" ? 80 : movement === "moderate" ? 40 : 20;
+      const availableSpace = {
+        above: { from: 0, to: Math.max(0, boundsTop - margin), height: Math.max(0, boundsTop - margin) },
+        below: { from: Math.min(canvas.height, boundsBottom + margin), to: canvas.height, height: Math.max(0, canvas.height - boundsBottom - margin) },
+        left: { from: 0, to: Math.max(0, boundsLeft - margin), width: Math.max(0, boundsLeft - margin) },
+        right: { from: Math.min(canvas.width, boundsRight + margin), to: canvas.width, width: Math.max(0, canvas.width - boundsRight - margin) },
       };
 
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      // 7. Generate safe placements
+      const safePlacements: SpeakerPositionResult["safePlacements"] = [];
+      const minDimPct = 0.10;
+
+      if (availableSpace.above.height > canvas.height * minDimPct) {
+        safePlacements.push({
+          name: "top-strip",
+          rect: { x: 0, y: 0, width: canvas.width, height: availableSpace.above.to },
+        });
+      }
+      if (availableSpace.below.height > canvas.height * minDimPct) {
+        safePlacements.push({
+          name: "lower-third",
+          rect: { x: 0, y: availableSpace.below.from, width: canvas.width, height: availableSpace.below.height },
+        });
+      }
+      if (availableSpace.left.width > canvas.width * minDimPct) {
+        safePlacements.push({
+          name: "left-panel",
+          rect: { x: 0, y: 0, width: availableSpace.left.to, height: canvas.height },
+        });
+      }
+      if (availableSpace.right.width > canvas.width * minDimPct) {
+        safePlacements.push({
+          name: "right-panel",
+          rect: { x: availableSpace.right.from, y: 0, width: availableSpace.right.width, height: canvas.height },
+        });
+      }
+      if (safePlacements.length === 0) {
+        safePlacements.push({
+          name: "top-strip-tight",
+          rect: { x: 0, y: 0, width: canvas.width, height: Math.max(50, boundsTop) },
+        });
+      }
+
+      const result: SpeakerPositionResult = {
+        canvas,
+        videoTransform: {
+          sourceSize: { width: srcW, height: srcH },
+          coverScale: transform.baseCoverScale,
+          crop: { x: cropX, y: cropY, scale: cropScale },
+          visibleRegion: { x: Math.round(visOffsetX), y: Math.round(visOffsetY), width: Math.round(visW), height: Math.round(visH) },
+        },
+        speaker: { bounds: { top: boundsTop, bottom: boundsBottom, left: boundsLeft, right: boundsRight }, face, shoulderLine, hands, movement },
+        availableSpace,
+        safePlacements,
+        confidence,
       };
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err) {
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error reading speaker grid: ${errorMessage(err)}`,
-          },
-        ],
+        content: [{ type: "text" as const, text: `Error getting speaker position: ${errorMessage(err)}` }],
         isError: true,
       };
     }
+  }
+);
+
+// Deprecated alias — backward compat for prompts still referencing old name
+server.registerTool(
+  "get_speaker_grid",
+  {
+    description: "[Deprecated — use get_speaker_position] Get speaker position data for overlay placement.",
+    inputSchema: {
+      startMs: z.number().describe("Start of time range in milliseconds"),
+      endMs: z.number().describe("End of time range in milliseconds"),
+    },
+  },
+  async ({ startMs, endMs }: { startMs: number; endMs: number }) => {
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          deprecated: true,
+          message: "Use get_speaker_position instead for canvas-space coordinates.",
+          hint: "Call get_speaker_position with { startMs, endMs }",
+        }),
+      }],
+    };
   }
 );
 

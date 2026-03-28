@@ -89,7 +89,6 @@ src/
 │   ├── __init__.py          # Python barrel exports
 │   ├── generate-visuals.ts  # Style guidelines with design tokens
 │   ├── visual-references.ts # Few-shot Remotion code examples
-│   ├── studio-templates.ts  # Studio template catalog builder
 │   ├── animator/            # Animator phase prompts
 │   │   ├── animator.py      # Python prompt builder
 │   │   ├── system.md        # System-level instructions

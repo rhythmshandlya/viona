@@ -122,8 +122,12 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
         item.startMs <= currentTimeMs &&
         item.endMs > currentTimeMs
       )
-      // Sort: highest track position (frontmost) first
-      .sort((a, b) => (trackPositions.get(b.trackId) ?? 0) - (trackPositions.get(a.trackId) ?? 0));
+      // Sort: overlays/visuals first, video last (video covers full canvas and would eat all clicks)
+      .sort((a, b) => {
+        if (a.type === 'video' && b.type !== 'video') return 1;
+        if (b.type === 'video' && a.type !== 'video') return -1;
+        return (trackPositions.get(b.trackId) ?? 0) - (trackPositions.get(a.trackId) ?? 0);
+      });
 
     for (const item of visibleItems) {
       const t = item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 };
@@ -244,15 +248,15 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
             <ElementInspectOverlay playerContainerRef={playerContainerRef} />
           )}
 
-          {/* Caption drag/resize/rotate overlay */}
-          <CaptionDragOverlay
+          {/* Item drag/resize overlay for V2 transforms (rendered first = lower z-priority) */}
+          <ItemDragOverlay
             containerRef={playerContainerRef}
             canvasWidth={videoWidth}
             canvasHeight={videoHeight}
           />
 
-          {/* Item drag/resize overlay for V2 transforms */}
-          <ItemDragOverlay
+          {/* Caption drag/resize/rotate overlay (rendered last = highest click priority) */}
+          <CaptionDragOverlay
             containerRef={playerContainerRef}
             canvasWidth={videoWidth}
             canvasHeight={videoHeight}
@@ -285,7 +289,7 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
                           className="w-2.5 h-2.5 rounded-full animate-pulse"
                           style={{ backgroundColor: 'var(--editor-accent, #8b5cf6)' }}
                         />
-                        <span className="text-white text-sm font-medium">
+                        <span className="text-white text-sm font-normal">
                           {selectedElement.name}
                         </span>
                       </div>

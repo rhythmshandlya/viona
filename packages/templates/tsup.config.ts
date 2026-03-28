@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  external: ['react', 'react-dom', 'remotion', '@remotion/google-fonts'],
+  external: ['react', 'react-dom', 'remotion', '@remotion/google-fonts', 'react-globe.gl'],
 });

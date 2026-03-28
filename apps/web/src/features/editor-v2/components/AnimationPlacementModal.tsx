@@ -114,7 +114,7 @@ export function AnimationPlacementModal({
 
           {/* Animation Type */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Animation Type</label>
+            <label className="text-sm font-normal text-gray-700">Animation Type</label>
             <div className="grid grid-cols-2 gap-3">
               {ANIMATION_TYPES.map(({ id, name, description, icon: Icon }) => (
                 <button
@@ -136,7 +136,7 @@ export function AnimationPlacementModal({
                   )} />
                   <div className="text-center">
                     <p className={cn(
-                      'font-medium text-sm',
+                      'font-normal text-sm',
                       animationType === id ? 'text-violet-700' : 'text-gray-900'
                     )}>
                       {name}
@@ -150,7 +150,7 @@ export function AnimationPlacementModal({
 
           {/* Animation Style */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Style</label>
+            <label className="text-sm font-normal text-gray-700">Style</label>
             <div className="grid grid-cols-3 gap-2">
               {ANIMATION_STYLES.map(({ id, name, icon: Icon }) => (
                 <button
@@ -175,7 +175,7 @@ export function AnimationPlacementModal({
 
           {/* Duration */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Duration</label>
+            <label className="text-sm font-normal text-gray-700">Duration</label>
             <div className="flex items-center gap-3">
               <input
                 type="range"

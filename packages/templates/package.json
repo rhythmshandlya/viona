@@ -16,11 +16,18 @@
   "scripts": {
     "build": "tsup && tsx scripts/build-registry.ts",
     "build:registry": "tsx scripts/build-registry.ts",
+    "templates:build": "tsx scripts/build-templates.ts",
+    "templates:upload": "tsx scripts/upload-templates.ts",
+    "templates:screenshots": "tsx scripts/generate-screenshots.ts",
+    "templates:publish": "pnpm templates:build && pnpm templates:upload && pnpm templates:screenshots",
+    "themes:seed": "tsx scripts/seed-themes.ts",
     "dev": "tsup --watch",
+    "playground": "vite --config playground/vite.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@remotion/google-fonts": "4.0.422",
+    "react-globe.gl": "^2.37.0",
     "zod": "^3.22.4"
   },
   "peerDependencies": {
@@ -29,11 +36,24 @@
     "remotion": ">=4"
   },
   "devDependencies": {
+    "@remotion/bundler": "4.0.422",
+    "@remotion/player": "4.0.422",
+    "@remotion/renderer": "4.0.422",
     "@types/node": "^20.10.6",
+    "@types/pg": "^8.18.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.24.2",
+    "minio": "^7.1.4",
+    "pg": "^8.20.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "4.0.422",
     "tsup": "^8.0.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite": "^8.0.1",
+    "zod-to-json-schema": "^3.25.1"
   }
 }

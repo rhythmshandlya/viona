@@ -4,8 +4,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStytch } from "@stytch/nextjs";
 import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
-import { LiquidButton } from "@/components/ui/liquid-glass-button";
-import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
 
 type AuthState = "authenticating" | "success" | "error";
 
@@ -80,49 +78,51 @@ function AuthenticateContent() {
   }, [stytchClient, searchParams, router]);
 
   return (
-    <div className="max-w-md w-full space-y-8 text-center">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight text-white/95">
-          Viona <span className="text-[#8B5CF6]">Studio</span>
-        </h1>
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-background">
+      <div className="max-w-md w-full space-y-8 text-center">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-4xl font-normal tracking-tight">
+            <span className="text-primary">Viona</span> <span className="text-muted-foreground font-normal text-2xl">Studio</span>
+          </h1>
+        </div>
 
-      {/* Status */}
-      <div className="glass-surface p-8 space-y-4">
-        {state === "authenticating" && (
-          <>
-            <Loader2 className="w-12 h-12 animate-spin text-[#8B5CF6] mx-auto" />
-            <p className="text-lg font-medium text-white/90">Signing you in...</p>
-            <p className="text-sm text-white/45">
-              Please wait while we verify your credentials
-            </p>
-          </>
-        )}
+        {/* Status */}
+        <div className="bg-card border rounded-xl p-8 space-y-4">
+          {state === "authenticating" && (
+            <>
+              <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+              <p className="text-lg font-normal">Signing you in...</p>
+              <p className="text-sm text-muted-foreground">
+                Please wait while we verify your credentials
+              </p>
+            </>
+          )}
 
-        {state === "success" && (
-          <>
-            <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
-            <p className="text-lg font-medium text-white/90">Welcome!</p>
-            <p className="text-sm text-white/45">
-              Redirecting you to your dashboard...
-            </p>
-          </>
-        )}
+          {state === "success" && (
+            <>
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
+              <p className="text-lg font-normal">Welcome!</p>
+              <p className="text-sm text-muted-foreground">
+                Redirecting you to your dashboard...
+              </p>
+            </>
+          )}
 
-        {state === "error" && (
-          <>
-            <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
-            <p className="text-lg font-medium text-white/90">Authentication Failed</p>
-            <p className="text-sm text-white/45">{error}</p>
-            <LiquidButton
-              onClick={() => router.push("/login")}
-              className="mt-4"
-            >
-              Try Again
-            </LiquidButton>
-          </>
-        )}
+          {state === "error" && (
+            <>
+              <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+              <p className="text-lg font-normal">Authentication Failed</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+              <button
+                onClick={() => router.push("/login")}
+                className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Try Again
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -130,22 +130,14 @@ function AuthenticateContent() {
 
 export default function AuthenticatePage() {
   return (
-    <div className="liquid-glass-page min-h-screen relative">
-      <div className="fixed inset-0 z-0">
-        <SmokeBackground smokeColor="#3B1578" />
-      </div>
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8">
-        <Suspense
-          fallback={
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="w-8 h-8 animate-spin text-[#8B5CF6]" />
-              <p className="text-white/40">Loading...</p>
-            </div>
-          }
-        >
-          <AuthenticateContent />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <AuthenticateContent />
+    </Suspense>
   );
 }

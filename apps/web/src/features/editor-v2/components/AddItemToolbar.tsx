@@ -158,7 +158,7 @@ function ToolbarButton({ icon, label, onClick }: { icon: React.ReactNode; label:
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg
+      className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-normal rounded-lg
         bg-white/[0.04] border border-white/[0.08] text-[var(--editor-text-secondary)]
         hover:bg-white/[0.08] hover:text-[var(--editor-text-primary)] hover:border-white/[0.14]
         active:scale-[0.97] transition-all"

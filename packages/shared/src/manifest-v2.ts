@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { captionWordSchema, manifestCaptionStyleSchema } from './manifest.js';
+import { captionWordSchema, manifestCaptionPresetSchema } from './manifest-shared.js';
+import { captionAnalysisSchema } from './caption-analysis.js';
 
 // ---- Transform & Keyframes ----
 
@@ -60,6 +61,7 @@ export const videoItemDataV2Schema = z.object({
 
 export const audioItemDataV2Schema = z.object({
   src: z.string(),
+  startFrom: z.number().min(0).default(0),
   volume: z.number().min(0).max(2).default(1),
   playbackRate: z.number().min(0.25).max(4).default(1),
   fadeInMs: z.number().min(0).optional(),
@@ -87,6 +89,7 @@ export const imageItemDataV2Schema = z.object({
 
 export const sceneItemDataV2Schema = z.object({
   sceneFile: z.string(),
+  displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
 });
 
 export const shapeItemDataV2Schema = z.object({
@@ -95,6 +98,9 @@ export const shapeItemDataV2Schema = z.object({
   stroke: z.string().optional(),
   strokeWidth: z.number().optional(),
   borderRadius: z.number().optional(),
+  // Used by Layout Editor for mockup placeholders
+  sceneFile: z.string().optional(),
+  displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
 });
 
 export const captionItemDataV2Schema = z.object({
@@ -145,7 +151,7 @@ export const manifestV2Schema = z.object({
   tracks: z.array(manifestTrackV2Schema),
   items: z.array(manifestItemV2Schema),
   assets: z.record(z.string(), z.string()).default({}),
-  captionStyle: manifestCaptionStyleSchema.default(() => ({
+  captionPreset: manifestCaptionPresetSchema.default(() => ({
     displayMode: 'phrase' as const,
     wordsPerPhrase: 5,
     fontFamily: 'Inter',
@@ -162,6 +168,7 @@ export const manifestV2Schema = z.object({
     sourceWidth: 1920,
     sourceHeight: 1080,
   })),
+  captionAnalysis: z.record(z.string(), captionAnalysisSchema).optional(),
 });
 
 // ---- TypeScript types ----

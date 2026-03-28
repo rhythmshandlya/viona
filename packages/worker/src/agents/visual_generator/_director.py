@@ -2,17 +2,13 @@
 
 import json
 import shutil
-from pathlib import Path
 from typing import Any
 
 from sdk_config import (
     CLAUDE_CLI_PATH,
     ClaudeSDKClient,
     ClaudeAgentOptions,
-    safe_print,
 )
-from prompts.theme_loader import get_theme
-
 
 class DirectorMixin:
     """Mixin providing _run_director for ClaudeVisualGenerator."""
@@ -65,16 +61,6 @@ class DirectorMixin:
             pip_height=pip_height,
             safe_placement=safe_placement,
         )
-
-        # Inject studio template catalog
-        if get_theme(style_preset):
-            catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
-            if catalog_path.exists():
-                catalog_content = catalog_path.read_text(encoding="utf-8")
-                director_message += f"\n\n{catalog_content}"
-                safe_print(f"[ClaudeGenerator] Injected studio template catalog ({len(catalog_content)} chars) into Director prompt")
-            else:
-                safe_print("[ClaudeGenerator] WARNING: STUDIO_TEMPLATES.md not found, Director will plan without template catalog")
 
         # Write restricted security settings for the Director
         director_settings_dir = self.src_dir / ".claude"

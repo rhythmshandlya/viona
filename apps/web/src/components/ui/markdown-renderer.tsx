@@ -163,12 +163,12 @@ function childrenTakeAllStringContents(element: any): string {
 }
 
 const COMPONENTS = {
-  h1: withClass("h1", "text-2xl font-semibold"),
-  h2: withClass("h2", "font-semibold text-xl"),
-  h3: withClass("h3", "font-semibold text-lg"),
-  h4: withClass("h4", "font-semibold text-base"),
-  h5: withClass("h5", "font-medium"),
-  strong: withClass("strong", "font-semibold"),
+  h1: withClass("h1", "text-2xl font-normal"),
+  h2: withClass("h2", "font-normal text-xl"),
+  h3: withClass("h3", "font-normal text-lg"),
+  h4: withClass("h4", "font-normal text-base"),
+  h5: withClass("h5", "font-normal"),
+  strong: withClass("strong", "font-normal"),
   a: withClass("a", "text-primary underline underline-offset-2"),
   blockquote: withClass("blockquote", "border-l-2 border-primary pl-4"),
   code: ({ children, className, node, ...rest }: any) => {
@@ -220,7 +220,7 @@ const COMPONENTS = {
   ),
   th: withClass(
     "th",
-    "border border-foreground/20 px-4 py-2 text-left font-bold [&[align=center]]:text-center [&[align=right]]:text-right"
+    "border border-foreground/20 px-4 py-2 text-left font-normal [&[align=center]]:text-center [&[align=right]]:text-right"
   ),
   td: withClass(
     "td",

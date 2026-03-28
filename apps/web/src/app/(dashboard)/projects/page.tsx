@@ -1,14 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useDropzone } from "react-dropzone";
-import { api, UserProject, type Job } from "@/lib/api";
-import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
+import { api, UserProject, type Job, type ProjectsListResponse } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -23,49 +19,34 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Loader2,
-  Plus,
   Video,
-  Clock,
-  Calendar,
   MoreVertical,
   Trash2,
-  Upload,
-  FileVideo,
-  FileAudio,
-  CheckCircle,
-  AlertCircle,
-  Sparkles,
   Play,
   Music,
+  AlertCircle,
+  ChevronDown,
+  Search,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
-
-// ============================================
-// Types
-// ============================================
-
-type UploadState = "idle" | "uploading" | "processing" | "complete" | "error";
+import { AnimatedAIChat } from "@/components/ui/animated-ai-chat";
+import { TextShimmer } from "@/components/ui/text-shimmer";
 
 // ============================================
 // Utility Functions
 // ============================================
 
-function formatDuration(ms: number | null): string {
-  if (!ms) return "—";
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
-}
-
 /**
  * Poll processing jobs (transcribe + head-tracking) until all complete or fail.
- * Returns once all jobs are done. Calls onProgress with combined progress.
  */
 async function pollProcessingJobs(
   jobIds: string[],
   onProgress: (percent: number, message: string) => void,
 ): Promise<void> {
-  const maxPolls = 300; // 5 minutes at 1s intervals
+  const maxPolls = 300;
   for (let i = 0; i < maxPolls; i++) {
     const jobs: Job[] = await Promise.all(jobIds.map(id => api.getJob(id)));
 
@@ -78,7 +59,6 @@ async function pollProcessingJobs(
 
     if (allDone) return;
 
-    // Combine progress across jobs
     const avgProgress = Math.round(jobs.reduce((sum, j) => sum + (j.progress || 0), 0) / jobs.length);
     const activeJob = jobs.find(j => j.status === 'processing');
     const message = activeJob?.progressMessage || 'Processing...';
@@ -147,7 +127,7 @@ function DeleteDialog({
           <DialogTitle className="text-xl text-white/95">Delete project?</DialogTitle>
         </DialogHeader>
         <p className="text-white/50">
-          <span className="font-medium text-white/90">&ldquo;{projectName}&rdquo;</span> will be permanently deleted. This action cannot be undone.
+          <span className="font-normal text-white/90">&ldquo;{projectName}&rdquo;</span> will be permanently deleted. This action cannot be undone.
         </p>
         <div className="flex gap-3 justify-end mt-4">
           <LiquidButton variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting} className="border-white/[0.1] text-white/70">
@@ -196,7 +176,7 @@ function ThumbnailImage({ projectId, alt, hasVideoKey }: { projectId: string; al
   );
 }
 
-function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) {
+function VideoThumbnail({ projectId }: { projectId: string; alt: string }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
@@ -279,7 +259,7 @@ function ProjectCard({
         )}
 
         {/* Status Badge */}
-        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-xl ${status.className}`}>
+        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-normal border backdrop-blur-xl ${status.className}`}>
           {status.label}
         </div>
 
@@ -324,7 +304,7 @@ function ProjectCard({
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="font-semibold text-white/90 truncate mb-1">{projectName}</h3>
+        <h3 className="font-normal text-white/90 truncate mb-1">{projectName}</h3>
         <p className="text-sm text-white/40">
           {formatDate(project.createdAt)}
         </p>
@@ -334,574 +314,75 @@ function ProjectCard({
 }
 
 // ============================================
-// Upload Zone Component
-// ============================================
-
-function UploadZone({
-  projectName,
-  onProjectNameChange,
-  description,
-  onDescriptionChange,
-  onFileDrop,
-  uploadState,
-  progress,
-  statusMessage,
-  error,
-  onReset,
-  inline = false,
-}: {
-  projectName: string;
-  onProjectNameChange: (name: string) => void;
-  description: string;
-  onDescriptionChange: (desc: string) => void;
-  onFileDrop: (file: File) => void;
-  uploadState: UploadState;
-  progress: number;
-  statusMessage: string;
-  error: string | null;
-  onReset: () => void;
-  inline?: boolean;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0];
-      if (file) {
-        onFileDrop(file);
-      }
-    },
-    [onFileDrop]
-  );
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "video/mp4": [".mp4"],
-      "video/quicktime": [".mov"],
-      "video/webm": [".webm"],
-      "audio/mpeg": [".mp3"],
-      "audio/mp4": [".m4a"],
-      "audio/wav": [".wav"],
-      "audio/ogg": [".ogg"],
-      "audio/flac": [".flac"],
-    },
-    maxFiles: 1,
-    disabled: uploadState !== "idle",
-  });
-
-  // Auto-focus the name input
-  useEffect(() => {
-    if (uploadState === "idle" && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [uploadState]);
-
-  return (
-    <div className={`space-y-6 ${inline ? "" : ""}`}>
-      {/* Project Name Input */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-white/50">Project name</label>
-        <Input
-          ref={inputRef}
-          value={projectName}
-          onChange={(e) => onProjectNameChange(e.target.value)}
-          placeholder="Untitled Project"
-          className="text-lg h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/25 focus:border-[#8B5CF6]/50 focus:ring-[#8B5CF6]/10"
-          disabled={uploadState === "complete"}
-        />
-      </div>
-
-      {/* Creative Brief */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-white/50">Creative brief <span className="text-white/25">(optional)</span></label>
-        <textarea
-          value={description}
-          onChange={(e) => onDescriptionChange(e.target.value)}
-          placeholder="Describe your vision — what style, mood, and scenes you want. Or leave blank and chat with AI after upload."
-          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-xl border border-white/[0.08] bg-white/[0.04] text-white placeholder:text-white/25 focus:border-[#8B5CF6]/50 focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/10 resize-none"
-          disabled={uploadState === "complete"}
-        />
-      </div>
-
-      {/* Drop Zone */}
-      {uploadState === "idle" ? (
-        <div
-          {...getRootProps()}
-          className={`
-            glass-dropzone relative p-12 text-center cursor-pointer group
-            ${isDragActive ? "active" : ""}
-          `}
-        >
-          <input {...getInputProps()} />
-
-          <div className="flex flex-col items-center gap-4">
-            <div className={`
-              w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300
-              ${isDragActive ? "bg-[#8B5CF6]/20 scale-110" : "bg-[#8B5CF6]/10 group-hover:bg-[#8B5CF6]/15"}
-            `}>
-              <Upload className={`w-10 h-10 transition-colors ${isDragActive ? "text-[#8B5CF6]" : "text-[#8B5CF6]/60 group-hover:text-[#8B5CF6]"}`} />
-            </div>
-            <div className="space-y-2">
-              <p className="text-lg font-medium text-white/90">
-                {isDragActive ? "Drop your file here" : "Drag & drop your video or audio"}
-              </p>
-              <p className="text-sm text-white/40">
-                or click to browse &middot; MP4, MOV, WebM, MP3, M4A, WAV
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="glass-surface p-8 space-y-6">
-          {/* File Preview */}
-          <div className="flex items-center gap-4">
-            <div className={`
-              w-14 h-14 rounded-xl flex items-center justify-center
-              ${uploadState === "error" ? "bg-red-500/15" : uploadState === "complete" ? "bg-emerald-500/15" : "bg-[#8B5CF6]/15"}
-            `}>
-              {uploadState === "uploading" || uploadState === "processing" ? (
-                <Loader2 className="w-7 h-7 text-[#8B5CF6] animate-spin" />
-              ) : uploadState === "complete" ? (
-                <CheckCircle className="w-7 h-7 text-emerald-400" />
-              ) : uploadState === "error" ? (
-                <AlertCircle className="w-7 h-7 text-red-400" />
-              ) : (
-                <FileVideo className="w-7 h-7 text-[#8B5CF6]/60" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-white/90 truncate">
-                {uploadState === "uploading" && "Uploading video..."}
-                {uploadState === "processing" && "Processing..."}
-                {uploadState === "complete" && "Ready!"}
-                {uploadState === "error" && "Upload failed"}
-              </p>
-              <p className="text-sm text-white/40 truncate">
-                {error || statusMessage}
-              </p>
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          {(uploadState === "uploading" || uploadState === "processing") && (
-            <div className="space-y-2">
-              <Progress value={progress} className="h-2" />
-              <p className="text-xs text-white/40 text-right">{progress}%</p>
-            </div>
-          )}
-
-          {/* Error Actions */}
-          {uploadState === "error" && (
-            <LiquidButton variant="outline" onClick={onReset} className="w-full border-white/[0.1] text-white/70">
-              Try Again
-            </LiquidButton>
-          )}
-
-          {/* Complete Message */}
-          {uploadState === "complete" && (
-            <p className="text-sm text-white/40 text-center">
-              Opening editor...
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================
-// Job monitoring: WebSocket + HTTP polling fallback
-// ============================================
-
-/**
- * Starts monitoring jobs via WebSocket events with HTTP polling fallback.
- * Returns a cleanup function that stops polling and removes the WS handler.
- */
-function startJobMonitor(opts: {
-  projectId: string;
-  jobIds: string[];
-  totalJobs: number;
-  jobProgressRef: React.MutableRefObject<Record<string, number>>;
-  setProgress: (p: number) => void;
-  setStatusMessage: (m: string) => void;
-  onAllComplete: () => void;
-  onError: (error: string) => void;
-}): () => void {
-  const { projectId, jobIds, totalJobs, jobProgressRef, setProgress, setStatusMessage, onAllComplete, onError } = opts;
-  const completedJobs = new Set<string>();
-  let cleaned = false;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-  function cleanup() {
-    if (cleaned) return;
-    cleaned = true;
-    if (pollTimer) clearInterval(pollTimer);
-    removeHandler();
-  }
-
-  function checkAllComplete() {
-    if (completedJobs.size >= totalJobs) {
-      cleanup();
-      onAllComplete();
-      return true;
-    }
-    return false;
-  }
-
-  // --- WebSocket handler (primary) ---
-  const removeHandler = wsClient.addHandler((message: WSMessage) => {
-    if (cleaned) return;
-
-    if (message.type === "job:progress") {
-      const payload = message.payload as JobProgressPayload;
-      jobProgressRef.current[payload.jobId] = payload.progress;
-      const values = Object.values(jobProgressRef.current);
-      const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
-      setProgress(avg);
-      if (payload.message) {
-        setStatusMessage(payload.message);
-      }
-    } else if (message.type === "job:complete") {
-      const payload = message.payload as JobCompletePayload;
-      completedJobs.add(payload.jobId);
-      jobProgressRef.current[payload.jobId] = 100;
-
-      if (!checkAllComplete()) {
-        setStatusMessage("Finishing up...");
-      }
-    } else if (message.type === "job:error") {
-      const payload = message.payload as JobErrorPayload;
-      cleanup();
-      onError(payload.error);
-    }
-  });
-
-  // Subscribe to job events
-  for (const jid of jobIds) {
-    wsClient.subscribeToJob(jid);
-  }
-
-  // --- HTTP polling fallback ---
-  // Catches cases where WS events are missed (subscription race, reconnect, etc.)
-  async function pollJobs() {
-    if (cleaned) return;
-    try {
-      for (const jid of jobIds) {
-        if (completedJobs.has(jid)) continue;
-        const job = await api.getJob(jid);
-
-        if (job.status === "complete") {
-          completedJobs.add(jid);
-          jobProgressRef.current[jid] = 100;
-          if (checkAllComplete()) return;
-          setStatusMessage("Finishing up...");
-        } else if (job.status === "failed") {
-          cleanup();
-          onError(job.error || "Job failed");
-          return;
-        } else {
-          // Update progress from HTTP if higher than what we have
-          const current = jobProgressRef.current[jid] || 0;
-          if (job.progress > current) {
-            jobProgressRef.current[jid] = job.progress;
-            const values = Object.values(jobProgressRef.current);
-            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
-            setProgress(avg);
-            if (job.progressMessage) {
-              setStatusMessage(job.progressMessage);
-            }
-          }
-        }
-      }
-
-      // Fallback: if all tracked jobs are done but checkAllComplete hasn't
-      // fired (e.g., totalJobs mismatch), check project status directly
-      if (!cleaned && completedJobs.size > 0 && completedJobs.size < totalJobs) {
-        try {
-          const project = await api.getProject(projectId);
-          if (project.status === "ready") {
-            cleanup();
-            onAllComplete();
-          }
-        } catch {
-          // Project status check is best-effort
-        }
-      }
-    } catch (err) {
-      // Log polling errors — silent swallowing can hide auth/network issues
-      console.warn("Job poll error (will retry):", err);
-    }
-  }
-
-  // Run first poll immediately, then every 3 seconds
-  pollJobs();
-  pollTimer = setInterval(pollJobs, 3000);
-
-  return cleanup;
-}
-
-// ============================================
-// New Project Modal
-// ============================================
-
-function NewProjectModal({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const router = useRouter();
-  const [projectName, setProjectName] = useState("");
-  const [description, setDescription] = useState("");
-  const [uploadState, setUploadState] = useState<UploadState>("idle");
-  const [progress, setProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const resetState = () => {
-    setProjectName("");
-    setDescription("");
-    setUploadState("idle");
-    setProgress(0);
-    setStatusMessage("");
-    setError(null);
-  };
-
-  const handleFileDrop = useCallback(
-    async (file: File) => {
-      setUploadState("uploading");
-      setProgress(0);
-      setError(null);
-      try {
-        const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        setStatusMessage("Creating project...");
-        const { projectId } = await api.createProject(file.name, title, description);
-        if (description.trim()) {
-          sessionStorage.setItem(`project-brief-${projectId}`, description.trim());
-        }
-        setStatusMessage("Uploading video...");
-
-        await api.uploadViaProxy(projectId, file, (uploadProgress) => {
-          setProgress(uploadProgress);
-        });
-
-        // Run transcription + head-tracking before sandbox creation
-        setStatusMessage("Analyzing video...");
-        setUploadState("processing");
-        setProgress(0);
-
-        const processResult = await api.processProject(projectId);
-        const jobIds = [processResult.transcribeJobId];
-        if (processResult.headTrackJobId) jobIds.push(processResult.headTrackJobId);
-
-        await pollProcessingJobs(jobIds, (percent, message) => {
-          setProgress(Math.round(percent * 0.7)); // 0-70% for processing
-          setStatusMessage(message);
-        });
-
-        // Now create sandbox — transcript + head-tracking data will be included in init
-        setStatusMessage("Setting up workspace...");
-        setProgress(70);
-
-        const result = await api.createSandbox(projectId);
-
-        if (result.status !== 'ready') {
-          for (let i = 0; i < 90; i++) {
-            await new Promise(r => setTimeout(r, 2000));
-            const status = await api.getSandboxStatus(projectId);
-            if (status.status === 'ready') break;
-            setProgress(Math.min(95, 70 + Math.round((i / 90) * 25)));
-          }
-        }
-
-        setUploadState("complete");
-        setStatusMessage("Ready!");
-        setProgress(100);
-
-        setTimeout(() => {
-          onOpenChange(false);
-          resetState();
-          router.push(`/project/${projectId}`);
-        }, 500);
-      } catch (err) {
-        setUploadState("error");
-        setError(err instanceof Error ? err.message : "Upload failed");
-      }
-    },
-    [projectName, description, router, onOpenChange]
-  );
-
-  const handleClose = (open: boolean) => {
-    if (!open && uploadState !== "uploading" && uploadState !== "processing") {
-      resetState();
-      onOpenChange(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-xl bg-[rgba(28,28,35,0.9)] backdrop-blur-2xl border-white/[0.08] shadow-[0_16px_48px_rgba(0,0,0,0.5)] rounded-2xl text-white" showCloseButton={uploadState === "idle" || uploadState === "error"}>
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-white/95">New Project</DialogTitle>
-        </DialogHeader>
-        <UploadZone
-          projectName={projectName}
-          onProjectNameChange={setProjectName}
-          description={description}
-          onDescriptionChange={setDescription}
-          onFileDrop={handleFileDrop}
-          uploadState={uploadState}
-          progress={progress}
-          statusMessage={statusMessage}
-          error={error}
-          onReset={resetState}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ============================================
-// Empty State
-// ============================================
-
-function EmptyState() {
-  const router = useRouter();
-  const [projectName, setProjectName] = useState("");
-  const [description, setDescription] = useState("");
-  const [uploadState, setUploadState] = useState<UploadState>("idle");
-  const [progress, setProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const resetState = () => {
-    setProjectName("");
-    setDescription("");
-    setUploadState("idle");
-    setProgress(0);
-    setStatusMessage("");
-    setError(null);
-  };
-
-  const handleFileDrop = useCallback(
-    async (file: File) => {
-      setUploadState("uploading");
-      setProgress(0);
-      setError(null);
-      setStatusMessage("Creating project...");
-
-      try {
-        const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId } = await api.createProject(file.name, title, description);
-        if (description.trim()) {
-          sessionStorage.setItem(`project-brief-${projectId}`, description.trim());
-        }
-        setStatusMessage("Uploading video...");
-
-        await api.uploadViaProxy(projectId, file, (uploadProgress) => {
-          setProgress(uploadProgress);
-        });
-
-        // Run transcription + head-tracking before sandbox creation
-        setStatusMessage("Analyzing video...");
-        setUploadState("processing");
-        setProgress(0);
-
-        const processResult = await api.processProject(projectId);
-        const jobIds = [processResult.transcribeJobId];
-        if (processResult.headTrackJobId) jobIds.push(processResult.headTrackJobId);
-
-        await pollProcessingJobs(jobIds, (percent, message) => {
-          setProgress(Math.round(percent * 0.7));
-          setStatusMessage(message);
-        });
-
-        // Now create sandbox — transcript + head-tracking data will be included in init
-        setStatusMessage("Setting up workspace...");
-        setProgress(70);
-
-        const result = await api.createSandbox(projectId);
-
-        if (result.status !== 'ready') {
-          for (let i = 0; i < 90; i++) {
-            await new Promise(r => setTimeout(r, 2000));
-            const status = await api.getSandboxStatus(projectId);
-            if (status.status === 'ready') break;
-            setProgress(Math.min(95, 70 + Math.round((i / 90) * 25)));
-          }
-        }
-
-        setUploadState("complete");
-        setStatusMessage("Ready!");
-        setProgress(100);
-
-        setTimeout(() => {
-          resetState();
-          router.push(`/project/${projectId}`);
-        }, 500);
-      } catch (err) {
-        setUploadState("error");
-        setError(err instanceof Error ? err.message : "Upload failed");
-      }
-    },
-    [projectName, description, router]
-  );
-
-  return (
-    <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto flex flex-col items-center justify-center text-center">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-badge text-[#8B5CF6] text-sm font-medium mb-6 animate-fade-in-up">
-          <Sparkles className="w-4 h-4" />
-          Get started
-        </div>
-
-        <h1 className="text-4xl font-bold mb-4 animate-fade-in-up stagger-1 text-white/95">
-          Create your first project
-        </h1>
-        <p className="text-white/45 text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
-          Upload a video or audio file and let AI generate stunning visuals
-        </p>
-
-        {/* Upload Zone */}
-        <div className="w-full max-w-lg animate-fade-in-up stagger-3">
-          <UploadZone
-            projectName={projectName}
-            onProjectNameChange={setProjectName}
-            description={description}
-            onDescriptionChange={setDescription}
-            onFileDrop={handleFileDrop}
-            uploadState={uploadState}
-            progress={progress}
-            statusMessage={statusMessage}
-            error={error}
-            onReset={resetState}
-            inline
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
 // Main Dashboard Page
 // ============================================
+
+type SortBy = 'createdAt' | 'updatedAt' | 'title' | 'status';
+type SortOrder = 'asc' | 'desc';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'uploading', label: 'Uploading' },
+  { value: 'rendering', label: 'Rendering' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'failed', label: 'Failed' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'createdAt', label: 'Date Created' },
+  { value: 'updatedAt', label: 'Last Updated' },
+  { value: 'title', label: 'Title' },
+];
 
 export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<UserProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserProject | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [bootingProjectId, setBootingProjectId] = useState<string | null>(null);
 
+  // Pagination & filtering state
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [sortBy, setSortBy] = useState<SortBy>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+
+  // Chat state
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const greeting = (
+    <TextShimmer
+      as="span"
+      duration={3}
+      className="[--base-color:theme(colors.white/0.3)] [--base-gradient-color:theme(colors.white/0.9)]"
+    >
+      What would you like to create?
+    </TextShimmer>
+  );
+
   const fetchProjects = useCallback(async () => {
     try {
-      const data = await api.getCurrentUserProjects();
-      setProjects(data);
+      const data = await api.getCurrentUserProjects({
+        page,
+        limit: 12,
+        sortBy,
+        sortOrder,
+        ...(statusFilter && { status: statusFilter }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      setProjects(data.items);
+      setTotalPages(data.pagination.totalPages);
+      setTotal(data.pagination.total);
       setError(null);
     } catch (err) {
       console.error("Failed to fetch projects:", err);
@@ -909,11 +390,20 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, sortBy, sortOrder, statusFilter, searchQuery]);
 
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -921,13 +411,23 @@ export default function ProjectsPage() {
     setIsDeleting(true);
     try {
       await api.deleteProject(deleteTarget.id);
-      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       setDeleteTarget(null);
+      fetchProjects(); // Re-fetch to update counts and pagination
     } catch (err) {
       console.error("Failed to delete project:", err);
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const toggleSort = (field: SortBy) => {
+    if (sortBy === field) {
+      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    setPage(1);
   };
 
   const handleOpenProject = useCallback(async (projectId: string) => {
@@ -942,7 +442,6 @@ export default function ProjectsPage() {
         return;
       }
 
-      // Poll for readiness
       for (let i = 0; i < 90; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const status = await api.getSandboxStatus(projectId);
@@ -960,82 +459,273 @@ export default function ProjectsPage() {
     }
   }, [bootingProjectId, router]);
 
+  // Handle chat send — create project from attached file + brief
+  const handleChatSend = useCallback(async (message: string, files: File[]) => {
+    if (files.length === 0 && !message.trim()) return;
+    if (files.length === 0) return;
+
+    const file = files[0];
+    setIsProcessing(true);
+    setUploadProgress(0);
+
+    try {
+      const title = (message.trim() || file.name.replace(/\.[^/.]+$/, "")).slice(0, 255);
+
+      setProcessingMessage("Creating project...");
+      const { projectId } = await api.createProject(file.name, title, message);
+      if (message.trim()) {
+        sessionStorage.setItem(`project-brief-${projectId}`, message.trim());
+      }
+
+      setProcessingMessage("Uploading media...");
+      await api.uploadViaProxy(projectId, file, (pct) => {
+        setUploadProgress(pct);
+      });
+      setUploadProgress(100);
+
+      setProcessingMessage("Transcribing...");
+      const processResult = await api.processProject(projectId);
+
+      await pollProcessingJobs([processResult.transcribeJobId], () => {
+        setProcessingMessage("Transcribing...");
+      });
+
+      setProcessingMessage("Setting up workspace...");
+      const result = await api.createSandbox(projectId);
+
+      if (result.status !== 'ready') {
+        for (let i = 0; i < 90; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          const status = await api.getSandboxStatus(projectId);
+          if (status.status === 'ready') break;
+        }
+      }
+
+      setProcessingMessage("Opening editor...");
+      router.push(`/project/${projectId}`);
+    } catch (err) {
+      console.error("Failed to create project:", err);
+      setIsProcessing(false);
+      setProcessingMessage("");
+      setUploadProgress(0);
+    }
+  }, [router]);
+
+  // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-[#8B5CF6]" />
-            <p className="text-white/40">Loading your projects...</p>
-          </div>
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-[#8B5CF6]" />
+          <p className="text-white/40">Loading your projects...</p>
         </div>
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
-      <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mb-4">
-            <AlertCircle className="w-8 h-8 text-red-400" />
-          </div>
-          <h2 className="text-xl font-semibold mb-2 text-white/90">Something went wrong</h2>
-          <p className="text-white/40 mb-6">{error}</p>
-          <LiquidButton onClick={fetchProjects}>Try Again</LiquidButton>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 py-12">
+        <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mb-4">
+          <AlertCircle className="w-8 h-8 text-red-400" />
         </div>
+        <h2 className="text-xl font-normal mb-2 text-white/90">Something went wrong</h2>
+        <p className="text-white/40 mb-6">{error}</p>
+        <LiquidButton onClick={fetchProjects}>Try Again</LiquidButton>
       </div>
     );
   }
 
-  if (projects.length === 0) {
-    return <EmptyState />;
-  }
-
-  // Helper to get stagger class based on index
-  const getStaggerClass = (index: number) => {
-    const staggerNum = Math.min(index + 1, 6);
-    return `stagger-${staggerNum}`;
-  };
+  const hasProjects = total > 0 || projects.length > 0;
+  const hasActiveFilters = statusFilter !== '' || searchQuery !== '';
 
   return (
-    <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-white/95">My Projects</h1>
-            <p className="text-white/40 mt-1">
-              {projects.length} project{projects.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <LiquidButton
-            onClick={() => setIsNewProjectOpen(true)}
-            size="lg"
-            className="gap-2"
-          >
-            <Plus className="h-5 w-5" />
-            New Project
-          </LiquidButton>
-        </div>
+    <div className={hasProjects ? "h-screen overflow-y-auto snap-y snap-mandatory" : "h-screen"}>
+      {/* Slide 1: AI Chat */}
+      <div className="h-screen snap-start snap-always shrink-0 flex items-center justify-center relative">
+        <AnimatedAIChat
+          greeting={greeting}
+          onSend={handleChatSend}
+          isProcessing={isProcessing}
+          processingMessage={processingMessage}
+          uploadProgress={uploadProgress}
+          compact={false}
+          placeholder="Describe your creative vision..."
+        />
 
-        {/* Project Grid */}
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project, index) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onDelete={setDeleteTarget}
-              onOpen={handleOpenProject}
-              isBooting={bootingProjectId === project.id}
-              className={`animate-fade-in-up ${getStaggerClass(index)}`}
-            />
-          ))}
-        </div>
+        {/* Scroll hint arrow */}
+        {hasProjects && (
+          <button
+            onClick={() => document.getElementById("projects-grid")?.scrollIntoView({ behavior: "smooth" })}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/25 hover:text-white/60 transition-colors"
+          >
+            <ChevronDown className="w-6 h-6" />
+          </button>
+        )}
       </div>
 
-      {/* New Project Modal */}
-      <NewProjectModal open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen} />
+      {/* Slide 2: Projects Grid */}
+      {hasProjects && (
+        <div id="projects-grid" className="h-screen px-4 md:px-6 lg:px-8 pt-10 pb-12 snap-start snap-always shrink-0 overflow-y-auto">
+          <div className="max-w-[1600px] mx-auto w-full">
+            {/* Section Header */}
+            <div className="flex items-center justify-between mb-6 px-2">
+              <div>
+                <h2 className="text-lg font-normal text-white/80">Recent Projects</h2>
+                <p className="text-sm text-white/35 mt-0.5">
+                  {total} project{total !== 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+
+            {/* Filters & Sort Bar */}
+            <div className="flex flex-wrap items-center gap-3 mb-6 px-2">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                <input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition-colors"
+                />
+                {searchInput && (
+                  <button
+                    onClick={() => { setSearchInput(''); setSearchQuery(''); setPage(1); }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                className="px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/70 focus:outline-none focus:border-white/20 cursor-pointer appearance-none pr-8 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255%2C255%2C255%2C0.3)%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[right_8px_center] bg-no-repeat"
+              >
+                {STATUS_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value} className="bg-[#1c1c23] text-white">
+                    {opt.value ? opt.label : 'All Statuses'}
+                  </option>
+                ))}
+              </select>
+
+              {/* Sort */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/70 hover:bg-white/[0.06] transition-colors">
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    {SORT_OPTIONS.find(s => s.value === sortBy)?.label}
+                    <span className="text-white/40">{sortOrder === 'desc' ? '↓' : '↑'}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-[rgba(28,28,35,0.95)] backdrop-blur-2xl border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-xl">
+                  {SORT_OPTIONS.map(opt => (
+                    <DropdownMenuItem
+                      key={opt.value}
+                      onClick={() => toggleSort(opt.value as SortBy)}
+                      className="text-white/70 hover:bg-white/[0.06] focus:bg-white/[0.06] cursor-pointer rounded-lg"
+                    >
+                      {opt.label}
+                      {sortBy === opt.value && (
+                        <span className="ml-auto text-white/40">{sortOrder === 'desc' ? '↓' : '↑'}</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Clear filters */}
+              {hasActiveFilters && (
+                <button
+                  onClick={() => { setSearchInput(''); setSearchQuery(''); setStatusFilter(''); setPage(1); }}
+                  className="flex items-center gap-1 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Grid */}
+            {projects.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {projects.map((project, index) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onDelete={setDeleteTarget}
+                    onOpen={handleOpenProject}
+                    isBooting={bootingProjectId === project.id}
+                    className={`animate-fade-in-up stagger-${Math.min(index + 1, 6)}`}
+                  />
+                ))}
+              </div>
+            ) : hasActiveFilters ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <Search className="w-10 h-10 text-white/15 mb-3" />
+                <p className="text-white/40 text-sm">No projects match your filters</p>
+                <button
+                  onClick={() => { setSearchInput(''); setSearchQuery(''); setStatusFilter(''); setPage(1); }}
+                  className="mt-3 text-sm text-[#8B5CF6] hover:text-[#8B5CF6]/80 transition-colors"
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : null}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8 pb-4">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/50 hover:bg-white/[0.08] hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                  .reduce<(number | 'dots')[]>((acc, p, i, arr) => {
+                    if (i > 0 && p - (arr[i - 1]) > 1) acc.push('dots');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, i) =>
+                    item === 'dots' ? (
+                      <span key={`dots-${i}`} className="px-1 text-white/20">...</span>
+                    ) : (
+                      <button
+                        key={item}
+                        onClick={() => setPage(item)}
+                        className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                          page === item
+                            ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30'
+                            : 'bg-white/[0.04] border border-white/[0.08] text-white/50 hover:bg-white/[0.08] hover:text-white/80'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/50 hover:bg-white/[0.08] hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation */}
       <DeleteDialog

@@ -25,7 +25,7 @@ if (isProduction) {
 }
 
 // Determine if running on Railway (production)
-const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
+const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
 // Internal Railway connections (*.railway.internal) use HTTP, not HTTPS
 const storageEndpoint = process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost';
 const isInternalConnection = storageEndpoint.includes('.railway.internal');
@@ -104,6 +104,18 @@ export const config = {
       apiToken: process.env.RAILWAY_API_TOKEN || '',
       projectId: process.env.RAILWAY_PROJECT_ID || '',
       environmentId: process.env.RAILWAY_ENVIRONMENT_ID || '',
+      repo: process.env.SANDBOX_REPO || 'rhythmshandlya/clippify',
+      branch: process.env.SANDBOX_BRANCH || 'main',
+    },
+    /** Callback URL that sandbox containers use to reach this API instance. */
+    get callbackUrl(): string {
+      if (process.env.RAILWAY_PRIVATE_DOMAIN) {
+        return `http://${process.env.RAILWAY_PRIVATE_DOMAIN}`;
+      }
+      if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+      }
+      return process.env.API_CALLBACK_URL || 'http://host.docker.internal:4000';
     },
   },
 } as const;

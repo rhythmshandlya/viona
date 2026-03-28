@@ -7,6 +7,8 @@ import {
   updateItemTool,
   removeItemTool,
   splitItemTool,
+  updateCaptionPresetTool,
+  generateCaptionsTool,
 } from './tools/manifest-ops.js';
 
 const toolMap: Record<string, { execute: (input: any) => Promise<string> }> = {
@@ -17,6 +19,9 @@ const toolMap: Record<string, { execute: (input: any) => Promise<string> }> = {
   updateItem: updateItemTool,
   removeItem: removeItemTool,
   splitItem: splitItemTool,
+  updateCaptionPreset: updateCaptionPresetTool,
+  updateCaptionStyle: updateCaptionPresetTool, // deprecated alias
+  generateCaptions: generateCaptionsTool,
 };
 
 export function mountOpsEndpoint(app: Express): void {

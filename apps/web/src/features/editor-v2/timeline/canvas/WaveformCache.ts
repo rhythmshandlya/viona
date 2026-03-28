@@ -10,6 +10,7 @@ interface WaveformData {
 class WaveformCache {
   private cache = new Map<string, WaveformData>();
   private pending = new Set<string>();
+  private failed = new Set<string>();
 
   getWaveform(src: string): Float32Array | null {
     const entry = this.cache.get(src);
@@ -20,8 +21,12 @@ class WaveformCache {
     return this.pending.has(src);
   }
 
+  hasFailed(src: string): boolean {
+    return this.failed.has(src);
+  }
+
   requestWaveform(src: string, callback: () => void): void {
-    if (this.cache.has(src) || this.pending.has(src) || !src) return;
+    if (this.cache.has(src) || this.pending.has(src) || this.failed.has(src) || !src) return;
 
     this.pending.add(src);
     this.decodeWaveform(src, callback);
@@ -30,6 +35,10 @@ class WaveformCache {
   private async decodeWaveform(src: string, callback: () => void): Promise<void> {
     try {
       const response = await fetch(src);
+      if (!response.ok) {
+        this.failed.add(src);
+        return;
+      }
       const arrayBuffer = await response.arrayBuffer();
 
       const audioContext = new AudioContext();
@@ -56,7 +65,8 @@ class WaveformCache {
       await audioContext.close();
       callback();
     } catch {
-      // Silently fail — sine wave placeholder will remain
+      // Mark as failed to prevent infinite retries
+      this.failed.add(src);
     } finally {
       this.pending.delete(src);
     }
@@ -65,6 +75,7 @@ class WaveformCache {
   clear(): void {
     this.cache.clear();
     this.pending.clear();
+    this.failed.clear();
   }
 }
 

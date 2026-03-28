@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
 import { Track } from '../../store/types';
-import { useTrackActions } from '../../store/use-editor-store';
+import { useTrackActions, useEditorStore } from '../../store/use-editor-store';
 
 interface TrackHeaderProps {
   track: Track;
@@ -24,6 +24,14 @@ export function TrackHeader({ track }: TrackHeaderProps) {
   const [editName, setEditName] = useState(track.name);
   const inputRef = useRef<HTMLInputElement>(null);
   const { updateTrack } = useTrackActions();
+
+  const selectAllOnTrack = () => {
+    const { items, itemIds, select } = useEditorStore.getState();
+    const trackItemIds = itemIds.filter((id) => items[id]?.trackId === track.id);
+    if (trackItemIds.length > 0) {
+      select(trackItemIds, 'replace');
+    }
+  };
 
   const Icon = TRACK_ICONS[track.type] || Type;
 
@@ -82,8 +90,9 @@ export function TrackHeader({ track }: TrackHeaderProps) {
   return (
     <div
       className="flex items-center gap-1.5 px-2 border-b border-[var(--editor-border-subtle)]
-                 hover:bg-[var(--editor-bg-hover)]/50 transition-colors group"
+                 hover:bg-[var(--editor-bg-hover)]/50 transition-colors group cursor-pointer"
       style={{ height: track.height }}
+      onClick={selectAllOnTrack}
     >
       {/* Collapse chevron */}
       <button

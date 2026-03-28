@@ -1,22 +1,6 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { config } from '../config.js';
-import type {
-  VisualsLayoutMode,
-  VisualsDimensions,
-  VideoSelection,
-  GenerateVisualsJobData,
-  PlanVisualsJobData,
-  EditVisualsJobData,
-} from '@viona/shared';
-export type {
-  VisualsLayoutMode,
-  VisualsDimensions,
-  VideoSelection,
-  GenerateVisualsJobData,
-  PlanVisualsJobData,
-  EditVisualsJobData,
-};
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -38,7 +22,8 @@ export const transcribeQueue = new Queue('transcribe', {
     removeOnFail: { count: 500 },
   },
 });
-export const renderQueue = new Queue('render', {
+
+export const sandboxRenderQueue = new Queue('sandbox-render', {
   connection,
   defaultJobOptions: {
     removeOnComplete: { count: 200 },
@@ -65,6 +50,7 @@ export interface RenderJobData {
   }>;
   manifest?: unknown;
   workspaceBundlePath?: string;
+  bundleMinioKey?: string;
 }
 
 // Queue job creators
@@ -74,8 +60,8 @@ export async function queueTranscribeJob(data: TranscribeJobData) {
   });
 }
 
-export async function queueRenderJob(data: RenderJobData) {
-  return renderQueue.add('render', data, {
+export async function queueSandboxRender(data: RenderJobData) {
+  return sandboxRenderQueue.add('sandbox-render', data, {
     attempts: 1,
   });
 }
@@ -99,85 +85,6 @@ export const enhanceAudioQueue = new Queue('enhance-audio', {
 
 export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   return enhanceAudioQueue.add('enhance-audio', data, {
-    attempts: 1,
-  });
-}
-
-// VisualsLayoutMode, VisualsDimensions, VideoSelection, GenerateVisualsJobData
-// are imported from @viona/shared
-
-export const generateVisualsQueue = new Queue('generate-visuals', {
-  connection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 200 },
-    removeOnFail: { count: 500 },
-  },
-});
-
-export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
-  return generateVisualsQueue.add('generate-visuals', data, {
-    jobId: `${data.projectId}:generate:${Date.now()}`,
-    attempts: 1,
-  });
-}
-
-// PlanVisualsJobData imported from @viona/shared
-
-export const planVisualsQueue = new Queue('plan-visuals', {
-  connection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 200 },
-    removeOnFail: { count: 500 },
-  },
-});
-
-export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
-  return planVisualsQueue.add('plan-visuals', data, {
-    jobId: `${data.projectId}:plan:${Date.now()}`,
-    attempts: 1,
-  });
-}
-
-// EditVisualsJobData imported from @viona/shared
-
-export const editVisualsQueue = new Queue('edit-visuals', {
-  connection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 200 },
-    removeOnFail: { count: 500 },
-  },
-});
-
-export async function queueEditVisualsJob(data: EditVisualsJobData) {
-  return editVisualsQueue.add('edit-visuals', data, {
-    jobId: `${data.projectId}:edit:${Date.now()}`,
-    attempts: 1,
-  });
-}
-
-// Split visual scene job — triggered when user cuts a visual timeline item
-export interface SplitVisualSceneJobData {
-  projectId: string;
-  jobId: string;
-  compositionId: string;      // e.g. "proj-abc-def" (with hyphens)
-  sourceSceneId: number;      // 1-indexed scene being split
-  splitAtMs: number;          // Absolute timeline position of cut
-  leftItemId: string;         // New timeline item ID for left half
-  rightItemId: string;        // New timeline item ID for right half
-  transcript?: string;        // Full transcript text with timestamps for context
-}
-
-export const splitVisualSceneQueue = new Queue('split-visual-scene', {
-  connection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 200 },
-    removeOnFail: { count: 500 },
-  },
-});
-
-export async function queueSplitVisualSceneJob(data: SplitVisualSceneJobData) {
-  return splitVisualSceneQueue.add('split-visual-scene', data, {
-    jobId: `${data.projectId}:split:${Date.now()}`,
     attempts: 1,
   });
 }
@@ -330,14 +237,17 @@ export async function queueYouTubeClipJob(data: YouTubeClipJobData) {
   });
 }
 
-// Segmentation queue — ML video segmentation pipeline
-export interface SegmentationJobData {
-  projectId: string;
-  videoItemId: string;
-  videoKey: string;
+// Render template queue — renders a template with custom props
+export interface RenderTemplateJobData {
+  exportId: string;
+  templateId: string;
+  slug: string;
+  bundleKey: string;
+  props: Record<string, unknown>;
+  userId: string;
 }
 
-export const segmentationQueue = new Queue('segmentation', {
+export const renderTemplateQueue = new Queue('render-template', {
   connection,
   defaultJobOptions: {
     removeOnComplete: { count: 200 },
@@ -345,10 +255,14 @@ export const segmentationQueue = new Queue('segmentation', {
   },
 });
 
-export async function queueSegmentationJob(data: SegmentationJobData) {
-  return segmentationQueue.add('segment-video', data, {
-    jobId: `${data.projectId}:segment:${Date.now()}`,
-    attempts: 1,
+export async function queueRenderTemplateJob(data: RenderTemplateJobData) {
+  return renderTemplateQueue.add('render-template', data, {
+    jobId: `render-tpl-${data.exportId}`,
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
   });
 }
 

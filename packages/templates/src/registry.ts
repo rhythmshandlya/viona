@@ -30,7 +30,10 @@ export function listTemplates(filters?: TemplateFilters): TemplateRegistryEntry[
   }
 
   if (filters.theme) {
-    entries = entries.filter((e) => e.meta.tags.includes(`${filters.theme}-theme`));
+    entries = entries.filter((e) =>
+      e.meta.themes?.includes(filters.theme!) ||
+      e.meta.tags.includes(`${filters.theme}-theme`)
+    );
   }
 
   if (filters.search) {

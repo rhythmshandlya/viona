@@ -5,8 +5,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, X, CheckCircle, AlertCircle, Loader2, Film, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Download, CheckCircle, AlertCircle, Film, Settings } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,8 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
+import { useEditorStore } from '../store/editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
-import { useProjectActions } from '../store/use-editor-store';
 
 interface ExportModalProps {
   open: boolean;
@@ -34,7 +34,7 @@ export function ExportModal({
   projectStatus,
   hasOutputKey,
 }: ExportModalProps) {
-  const { saveProject } = useProjectActions();
+  const saveProject = useEditorStore((s) => s.saveProject);
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
   const jobIdRef = useRef<string | null>(null);
@@ -44,13 +44,13 @@ export function ExportModal({
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [wantsNewExport, setWantsNewExport] = useState(false);
 
-  // WebSocket for real-time progress
+  // WebSocket for real-time progress from worker
   const { isConnected, subscribeToJob, unsubscribeFromJob } = useJobWebSocket(
     projectId,
     {
       onProgress: (data) => {
         if (data.jobId === jobIdRef.current) {
-          setProgress(data.progress || 0);
+          setProgress(data.progress ?? data.percent ?? 0);
           if (data.message) {
             setStatusMessage(data.message);
           }
@@ -61,7 +61,6 @@ export function ExportModal({
           setExportState('complete');
           setProgress(100);
           setStatusMessage('Export complete!');
-          // Fetch download URL
           try {
             const { url } = await api.getDownloadUrl(projectId);
             setDownloadUrl(url);
@@ -87,18 +86,18 @@ export function ExportModal({
     }
   }, [jobId, isConnected, subscribeToJob, unsubscribeFromJob]);
 
-  // Fallback polling when WebSocket isn't connected
+  // Poll job progress (always active as backup alongside WebSocket)
   useEffect(() => {
     if (!jobId || exportState !== 'rendering') return;
-    if (isConnected) return;
 
     const interval = setInterval(async () => {
       try {
         const job = await api.getJob(jobId);
-        setProgress(job.progress || 0);
-
+        if (job.progress) setProgress(job.progress);
+        if (job.progressMessage) setStatusMessage(job.progressMessage);
         if (job.status === 'complete') {
           setExportState('complete');
+          setProgress(100);
           setStatusMessage('Export complete!');
           const { url } = await api.getDownloadUrl(projectId);
           setDownloadUrl(url);
@@ -110,29 +109,23 @@ export function ExportModal({
         console.error('Failed to poll job:', err);
       }
     }, 2000);
-
     return () => clearInterval(interval);
-  }, [jobId, exportState, isConnected, projectId]);
+  }, [jobId, exportState, projectId]);
 
   // Check if there's already an output available
   useEffect(() => {
     if (open && hasOutputKey && exportState === 'idle' && !wantsNewExport) {
-      // Project already has a rendered output
       api.getDownloadUrl(projectId).then(({ url }) => {
         setDownloadUrl(url);
         setExportState('complete');
-      }).catch(() => {
-        // No output available
-      });
+      }).catch(() => {});
     }
   }, [open, hasOutputKey, exportState, projectId, wantsNewExport]);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      // Reset wantsNewExport so next open will check for existing output
       setWantsNewExport(false);
-      // Keep download URL if export completed
       if (exportState !== 'complete') {
         setExportState('idle');
         setJobId(null);
@@ -147,19 +140,19 @@ export function ExportModal({
   const handleStartExport = async () => {
     setExportState('rendering');
     setProgress(0);
-    setStatusMessage('Saving project...');
+    setStatusMessage('Bundling project...');
     setError(null);
     setDownloadUrl(null);
 
     try {
-      // Save project first to ensure caption styles are persisted to database
       await saveProject();
+      setStatusMessage('Bundling & queuing render...');
 
-      setStatusMessage('Starting export...');
-      // Layout and visual data now come from the workspace manifest
-      const { jobId: newJobId } = await api.renderProject(projectId);
+      // Calls sandbox to bundle → API queues worker render job → returns jobId
+      const { jobId: newJobId } = await api.renderSandbox(projectId);
       setJobId(newJobId);
       jobIdRef.current = newJobId;
+      setStatusMessage('Render queued, waiting for worker...');
     } catch (err) {
       setExportState('error');
       setError(err instanceof Error ? err.message : 'Failed to start export');
@@ -206,7 +199,7 @@ export function ExportModal({
                   <div className="flex items-center gap-3">
                     <Settings className="w-4 h-4 text-gray-400" />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-normal text-gray-900">
                         Output Format
                       </div>
                       <div className="text-xs text-gray-500">
@@ -220,7 +213,7 @@ export function ExportModal({
                   <div className="flex items-center gap-3">
                     <Settings className="w-4 h-4 text-gray-400" />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-normal text-gray-900">
                         Quality
                       </div>
                       <div className="text-xs text-gray-500">
@@ -235,7 +228,7 @@ export function ExportModal({
                 <button
                   onClick={handleStartExport}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                             bg-violet-500 text-white font-medium
+                             bg-violet-500 text-white font-normal
                              hover:bg-violet-600 transition-colors"
                 >
                   <Download className="w-4 h-4" />
@@ -266,14 +259,14 @@ export function ExportModal({
                     </svg>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-gray-900">
+                    <span className="text-lg font-normal text-gray-900">
                       {progress}%
                     </span>
                   </div>
                 </div>
 
                 <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     Exporting...
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
@@ -299,7 +292,7 @@ export function ExportModal({
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     Export Complete!
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
@@ -312,7 +305,7 @@ export function ExportModal({
                 <button
                   onClick={handleDownload}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                             bg-green-600 text-white font-medium
+                             bg-green-600 text-white font-normal
                              hover:bg-green-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
@@ -321,7 +314,7 @@ export function ExportModal({
                 <button
                   onClick={handleExportAgain}
                   className="px-4 py-2.5 rounded-lg
-                             bg-white text-gray-700 font-medium
+                             bg-white text-gray-700 font-normal
                              hover:bg-gray-100 transition-colors
                              border border-gray-300"
                 >
@@ -339,7 +332,7 @@ export function ExportModal({
                   <AlertCircle className="w-8 h-8 text-red-500" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     Export Failed
                   </div>
                   <div className="text-xs text-red-600 mt-1">
@@ -351,7 +344,7 @@ export function ExportModal({
               <button
                 onClick={handleExportAgain}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                           bg-violet-500 text-white font-medium
+                           bg-violet-500 text-white font-normal
                            hover:bg-violet-600 transition-colors"
               >
                 Try Again

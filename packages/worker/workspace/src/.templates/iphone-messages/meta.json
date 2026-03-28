@@ -1,0 +1,24 @@
+{
+  "slug": "iphone-messages",
+  "name": "iPhone Messages",
+  "description": "3D iPhone with animated iMessage conversation — text bubbles pop in with spring physics",
+  "category": "ui-mockup",
+  "tags": [
+    "iphone",
+    "imessage",
+    "text",
+    "messages",
+    "chat",
+    "conversation",
+    "ui",
+    "mockup",
+    "3d",
+    "phone",
+    "social-media"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

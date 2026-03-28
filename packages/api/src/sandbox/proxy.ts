@@ -1,7 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { PassThrough, Readable } from 'stream';
 import { logger } from '../logger.js';
-import { redis } from '../services/redis.js';
 
 /**
  * Proxy a GET request to the sandbox file server.
@@ -52,17 +51,29 @@ export async function proxyFileRequest(
     // Stream response body via PassThrough
     if (res.body) {
       const passthrough = new PassThrough();
+      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+      // Stop reading from sandbox if client disconnects
+      passthrough.on('close', () => {
+        if (reader) { reader.cancel().catch(() => {}); reader = null; }
+      });
+      passthrough.on('error', () => {
+        if (reader) { reader.cancel().catch(() => {}); reader = null; }
+      });
+
       reply.status(res.status).send(passthrough);
 
-      const reader = (res.body as ReadableStream).getReader();
+      reader = (res.body as ReadableStream).getReader();
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (passthrough.destroyed) break;
           passthrough.write(value);
         }
       } finally {
-        passthrough.end();
+        if (reader) { reader.cancel().catch(() => {}); }
+        if (!passthrough.destroyed) { try { passthrough.end(); } catch { /* already ended */ } }
       }
     } else {
       reply.status(res.status).send('');
@@ -85,6 +96,7 @@ export async function proxyPrompt(
   reply: FastifyReply,
 ): Promise<void> {
   const url = `${agentUrl}/prompt`;
+  const abortController = new AbortController();
 
   try {
     const res = await fetch(url, {
@@ -94,6 +106,7 @@ export async function proxyPrompt(
         'Authorization': `Bearer ${secret}`,
       },
       body: JSON.stringify(body),
+      signal: abortController.signal,
     });
 
     if (!res.ok) {
@@ -103,6 +116,15 @@ export async function proxyPrompt(
 
     // Use PassThrough stream to forward SSE while preserving CORS headers
     const passthrough = new PassThrough();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+    // Cancel reader before aborting to prevent unhandled AbortError rejections
+    const safeAbort = () => {
+      if (reader) { reader.cancel().catch(() => {}); reader = null; }
+      try { abortController.abort(); } catch { /* expected */ }
+    };
+    passthrough.on('close', safeAbort);
+    passthrough.on('error', safeAbort);
 
     reply
       .header('Content-Type', 'text/event-stream')
@@ -112,24 +134,35 @@ export async function proxyPrompt(
       .send(passthrough);
 
     if (res.body) {
-      const reader = (res.body as ReadableStream).getReader();
+      reader = (res.body as ReadableStream).getReader();
       const decoder = new TextDecoder();
 
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          let readResult: { done: boolean; value?: Uint8Array };
+          try {
+            readResult = await reader.read();
+          } catch (readErr: any) {
+            if (readErr.name === 'AbortError') break;
+            throw readErr;
+          }
+          const { done, value } = readResult;
           if (done) break;
-          passthrough.write(decoder.decode(value, { stream: true }));
+          if (!passthrough.destroyed) {
+            passthrough.write(decoder.decode(value, { stream: true }));
+          }
         }
       } finally {
-        passthrough.end();
+        if (reader) { reader.cancel().catch(() => {}); }
+        if (!passthrough.destroyed) { try { passthrough.end(); } catch { /* already ended */ } }
       }
     } else {
       passthrough.end();
     }
   } catch (err: any) {
+    if (err.name === 'AbortError') return; // client disconnect — expected
     logger.error({ err, url }, 'Prompt proxy failed');
-    if (!reply.sent) {
+    if (!reply.sent && !reply.raw.headersSent) {
       reply.status(502).send({ error: 'Sandbox agent unavailable' });
     }
   }
@@ -141,9 +174,11 @@ export async function proxyPrompt(
  */
 export interface InterceptCallbacks {
   onText?: (text: string) => void;
-  onDone?: (data: { sessionId?: string; cost?: number }) => Promise<void>;
+  onDone?: (data: { sessionId?: string; cost?: number; numTurns?: number }) => Promise<void>;
   onWidget?: (widget: Record<string, unknown>) => void;
-  onProgress?: (progress: { phase: string; percent: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number }) => void;
+  onProgress?: (progress: { phase: string; percent?: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number }) => void;
+  onActivity?: (activity: { agent: string | null; action: string | null; phase?: string; startedAt?: number }) => void;
+  onPlan?: (plan: { title: string; tasks: Array<{ id: string; title: string; status: string; agent?: string; subtasks?: Array<{ id: string; title: string; status: string; tools?: string[] }> }> }) => void;
   onError?: (error: string) => void;
 }
 
@@ -169,8 +204,14 @@ export async function proxyPromptWithIntercept(
   projectId?: string,
 ): Promise<void> {
   const url = `${agentUrl}/prompt`;
+  const logCtx = { projectId, url };
+
+  // AbortController to cancel the sandbox fetch when the frontend disconnects
+  const abortController = new AbortController();
 
   try {
+    logger.info(logCtx, 'Proxy: connecting to sandbox');
+
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -178,14 +219,68 @@ export async function proxyPromptWithIntercept(
         'Authorization': `Bearer ${secret}`,
       },
       body: JSON.stringify(body),
+      signal: abortController.signal,
     });
 
     if (!res.ok) {
+      logger.warn({ ...logCtx, status: res.status }, 'Proxy: sandbox returned non-OK');
+
+      if (res.status === 409) {
+        // Agent busy — send as SSE error so frontend can show a friendly message
+        const errorStream = new PassThrough();
+        reply
+          .header('Content-Type', 'text/event-stream')
+          .header('Cache-Control', 'no-cache')
+          .send(errorStream);
+        errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Agent is busy processing another request. Please wait.', busy: true, recoverable: true })}\n\n`);
+        errorStream.end();
+        return;
+      }
+
       reply.status(res.status).send({ error: `Agent returned ${res.status}` });
       return;
     }
 
     const passthrough = new PassThrough();
+    let clientAlive = true;
+    let receivedDone = false;
+    let eventCount = 0;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+    // Cancel the reader so its pending read() resolves {done:true}
+    // instead of rejecting with AbortError (which escapes as unhandled rejection).
+    const safeAbort = () => {
+      if (reader) {
+        reader.cancel().catch(() => {});
+        reader = null;
+      }
+      try { abortController.abort(); } catch { /* expected */ }
+    };
+
+    // When the browser disconnects, keep draining sandbox events so that
+    // widgets, plans, and the final done event are still captured by
+    // callbacks and persisted to DB. Without this, any widget sent after
+    // the SSE disconnect is lost and the user never sees it.
+    let drainTimeout: ReturnType<typeof setTimeout> | null = null;
+    passthrough.on('close', () => {
+      if (!clientAlive) return;
+      clientAlive = false;
+      logger.info(logCtx, 'Proxy: client disconnected — draining sandbox events for persistence');
+      // Safety timeout: abort reader if sandbox doesn't finish within 10 min
+      drainTimeout = setTimeout(() => {
+        logger.warn(logCtx, 'Proxy: drain safety timeout — aborting sandbox reader');
+        safeAbort();
+      }, 10 * 60 * 1000);
+    });
+    passthrough.on('error', (err) => {
+      if (!clientAlive) return;
+      clientAlive = false;
+      logger.warn({ ...logCtx, err: err.message }, 'Proxy: passthrough error — draining sandbox events');
+      drainTimeout = setTimeout(() => {
+        logger.warn(logCtx, 'Proxy: drain safety timeout — aborting sandbox reader');
+        safeAbort();
+      }, 10 * 60 * 1000);
+    });
 
     reply
       .header('Content-Type', 'text/event-stream')
@@ -194,30 +289,53 @@ export async function proxyPromptWithIntercept(
       .header('X-Accel-Buffering', 'no')
       .send(passthrough);
 
+    const writeSSE = (eventType: string, data: unknown, id?: string) => {
+      if (!clientAlive || passthrough.destroyed) return;
+      try {
+        let sse = '';
+        if (id) sse += `id: ${id}\n`;
+        sse += `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+        passthrough.write(sse);
+      } catch {
+        clientAlive = false;
+        safeAbort();
+      }
+    };
+
     if (res.body) {
-      const reader = (res.body as ReadableStream).getReader();
+      reader = (res.body as ReadableStream).getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
-      // --- Text buffering to suppress internal monologue ---
+      // --- Text dedup + monologue suppression ---
       let textBuffer = '';
       let lastToolEventTime = 0;
-      const MONOLOGUE_WINDOW_MS = 2000;
-
-      const writeSSE = (eventType: string, data: unknown) => {
-        passthrough.write(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`);
-      };
+      let toolsUsedInTurn = false;
+      let lastTextContent = '';
+      let lastTextTime = 0;
+      const MONOLOGUE_WINDOW_MS = 5000;
+      const MONOLOGUE_CHAR_LIMIT = 500;
 
       const flushTextBuffer = () => {
         if (textBuffer) {
           writeSSE('text', { text: textBuffer });
+          callbacks.onText?.(textBuffer);
           textBuffer = '';
         }
       };
 
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          let readResult: { done: boolean; value?: Uint8Array };
+          try {
+            readResult = await reader.read();
+          } catch (readErr: any) {
+            // reader.cancel() from safeAbort resolves with {done:true},
+            // but abort() can still race and reject — treat as stream end.
+            if (readErr.name === 'AbortError') break;
+            throw readErr;
+          }
+          const { done, value } = readResult;
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
@@ -233,95 +351,162 @@ export async function proxyPromptWithIntercept(
             try {
               let eventType = 'message';
               let dataStr = '';
+              let eventId = '';
 
               for (const line of raw.split('\n')) {
                 if (line.startsWith('event:')) {
                   eventType = line.slice(6).trim();
                 } else if (line.startsWith('data:')) {
-                  dataStr += line.slice(5).trim();
+                  // Use newline separator for multi-line data (SSE spec)
+                  dataStr += (dataStr ? '\n' : '') + line.slice(5).trim();
+                } else if (line.startsWith('id:')) {
+                  eventId = line.slice(3).trim();
                 }
               }
 
               if (!dataStr) continue;
               const data = JSON.parse(dataStr);
+              eventCount++;
 
               switch (eventType) {
                 case 'text': {
                   const text = data.text ?? data;
-                  if (typeof text === 'string') {
-                    const timeSinceTool = Date.now() - lastToolEventTime;
-                    if (lastToolEventTime > 0 && timeSinceTool < MONOLOGUE_WINDOW_MS && text.length < 200) {
-                      // Likely internal monologue — buffer it
-                      textBuffer += text;
+                  if (typeof text !== 'string') break;
+
+                  // Dedup: skip identical consecutive text chunks within 100ms.
+                  // Catches transport-level duplication (SDK, proxy, network).
+                  const now = Date.now();
+                  if (text.length > 0 && text === lastTextContent && now - lastTextTime < 100) {
+                    break;
+                  }
+                  lastTextContent = text;
+                  lastTextTime = now;
+
+                  // Monologue suppression: buffer text that arrives shortly after
+                  // tool events (model reasoning between tool calls).
+                  const timeSinceTool = now - lastToolEventTime;
+                  if (toolsUsedInTurn && timeSinceTool < MONOLOGUE_WINDOW_MS && text.length < MONOLOGUE_CHAR_LIMIT) {
+                    textBuffer += text;
+                  } else {
+                    if (textBuffer) {
+                      writeSSE('text', { text: textBuffer + text }, eventId);
+                      callbacks.onText?.(textBuffer + text);
+                      textBuffer = '';
                     } else {
-                      // Real response — flush buffer + forward
-                      if (textBuffer) {
-                        writeSSE('text', { text: textBuffer + text });
-                        textBuffer = '';
-                      } else {
-                        writeSSE('text', data);
-                      }
+                      writeSSE('text', data, eventId);
+                      callbacks.onText?.(text);
                     }
                   }
-                  callbacks.onText?.(text);
                   break;
                 }
                 case 'done': {
+                  receivedDone = true;
                   flushTextBuffer();
-                  writeSSE('done', data);
-                  callbacks.onDone?.(data).catch((err) =>
-                    logger.error({ err }, 'InterceptCallbacks.onDone failed'),
-                  );
-                  // Clear progress from Redis on completion
-                  if (projectId) {
-                    redis.del(`sandbox:progress:${projectId}`).catch(() => {});
+                  // Reset monologue suppression so it doesn't carry over
+                  toolsUsedInTurn = false;
+                  lastToolEventTime = 0;
+                  writeSSE('done', data, eventId);
+                  try {
+                    await callbacks.onDone?.(data);
+                  } catch (err) {
+                    logger.error({ err }, 'InterceptCallbacks.onDone failed');
                   }
                   break;
                 }
                 case 'widget':
-                  writeSSE('widget', data);
+                  writeSSE('widget', data, eventId);
                   callbacks.onWidget?.(data);
                   break;
                 case 'progress': {
-                  writeSSE('progress', data);
+                  writeSSE('progress', data, eventId);
                   callbacks.onProgress?.(data);
-                  // Persist to Redis for refresh recovery (TTL: 30 minutes)
-                  if (projectId) {
-                    redis.set(`sandbox:progress:${projectId}`, JSON.stringify(data), 'EX', 1800).catch(() => {});
-                  }
+                  break;
+                }
+                case 'activity': {
+                  writeSSE('activity', data, eventId);
+                  callbacks.onActivity?.(data);
                   break;
                 }
                 case 'tool_use':
                 case 'tool_result':
                   lastToolEventTime = Date.now();
-                  writeSSE(eventType, data);
+                  toolsUsedInTurn = true;
+                  writeSSE(eventType, data, eventId);
+                  callbacks.onActivity?.(data);
                   break;
                 case 'error':
-                  writeSSE('error', data);
+                  writeSSE('error', data, eventId);
                   callbacks.onError?.(data.message ?? data.error ?? String(data));
                   break;
+                case 'agent_plan': {
+                  writeSSE('agent_plan', data, eventId);
+                  callbacks.onPlan?.(data);
+                  break;
+                }
+                case 'task_started':
+                case 'task_updated':
+                case 'task_completed':
+                  writeSSE(eventType, data, eventId);
+                  break;
                 default:
-                  // Forward unknown events as-is
-                  writeSSE(eventType, data);
+                  writeSSE(eventType, data, eventId);
                   break;
               }
             } catch {
               // Non-JSON or malformed event — forward raw to browser
-              passthrough.write(raw + '\n\n');
+              if (clientAlive && !passthrough.destroyed) {
+                try { passthrough.write(raw + '\n\n'); } catch { clientAlive = false; }
+              }
             }
           }
         }
       } finally {
+        if (drainTimeout) clearTimeout(drainTimeout);
+
+        // Cancel sandbox reader if still open
+        if (reader) {
+          try { reader.cancel().catch(() => {}); } catch { /* already closed */ }
+        }
+
         flushTextBuffer();
-        passthrough.end();
+
+        // If sandbox stream ended without a done event, inject a synthetic error
+        // so the frontend knows the connection was lost (not a clean finish)
+        if (!receivedDone && clientAlive) {
+          logger.warn({ ...logCtx, eventCount }, 'Proxy: sandbox stream ended without done event');
+          writeSSE('error', { message: 'Connection to sandbox was interrupted. Your work may still be in progress.', recoverable: true });
+        }
+
+        logger.info({ ...logCtx, eventCount, receivedDone, clientAlive }, 'Proxy: stream ended');
+
+        if (!passthrough.destroyed) {
+          try { passthrough.end(); } catch { /* already ended */ }
+        }
       }
     } else {
+      logger.warn(logCtx, 'Proxy: sandbox returned empty response body');
       passthrough.end();
     }
   } catch (err: any) {
-    logger.error({ err, url }, 'Prompt proxy (intercept) failed');
-    if (!reply.sent) {
-      reply.status(502).send({ error: 'Sandbox agent unavailable' });
+    // Don't log abort errors from client disconnect — that's expected
+    if (err.name !== 'AbortError') {
+      logger.error({ err, ...logCtx }, 'Proxy: relay failed');
+    }
+    // Guard against double-send: reply.sent covers normal sends,
+    // reply.raw.headersSent covers streaming (where headers went out via passthrough)
+    if (!reply.sent && !reply.raw.headersSent) {
+      // Send as SSE recoverable error so frontend can retry via polling
+      const errorStream = new PassThrough();
+      reply
+        .header('Content-Type', 'text/event-stream')
+        .header('Cache-Control', 'no-cache')
+        .header('Connection', 'keep-alive')
+        .send(errorStream);
+      try {
+        errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Connection to sandbox lost', recoverable: true })}\n\n`);
+      } finally {
+        errorStream.end();
+      }
     }
   }
 }
@@ -363,6 +548,26 @@ export async function proxyManifestOp(
   });
 
   return { status: res.status, data: await res.json() };
+}
+
+/**
+ * Send a reset request to the sandbox agent (clears workspace back to post-init state).
+ */
+export async function proxyResetSandbox(
+  agentUrl: string,
+  secret: string,
+): Promise<void> {
+  const res = await fetch(`${agentUrl}/reset`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${secret}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Reset failed' }));
+    throw new Error(body.error || `Sandbox reset returned ${res.status}`);
+  }
 }
 
 /**

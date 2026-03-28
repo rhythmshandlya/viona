@@ -149,8 +149,11 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         keyframes: [],
         data: {
           src,
+          startFrom: (data as any).startFrom ?? 0,
           volume: (data as any).volume ?? 1,
-          playbackRate: 1,
+          playbackRate: (data as any).playbackRate ?? 1,
+          ...((data as any).fadeInMs ? { fadeInMs: (data as any).fadeInMs } : {}),
+          ...((data as any).fadeOutMs ? { fadeOutMs: (data as any).fadeOutMs } : {}),
         },
       };
     }
@@ -343,11 +346,12 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
     tracks: manifestTracks,
     items: manifestItems,
     assets: {},
-    captionStyle: (videoSettings.captionStyle as any) || {},
+    captionPreset: (videoSettings.captionStyle as any) || {},
     videoSettings: {
       sourceWidth: project.sourceWidth || 1920,
       sourceHeight: project.sourceHeight || 1080,
     },
+    captionAnalysis: (project.videoSettings as any)?.captionAnalysis ?? undefined,
   };
 
   return manifestV2Schema.parse(raw);
@@ -432,7 +436,9 @@ export function manifestToDb(manifest: ManifestV2): {
     scale: videoCrop?.scale ?? 1,
     sourceWidth: manifest.videoSettings.sourceWidth,
     sourceHeight: manifest.videoSettings.sourceHeight,
-    captionStyle: manifest.captionStyle,
+    // DB stores as "captionStyle" for backward compat, but manifest field is "captionPreset"
+    captionStyle: manifest.captionPreset ?? (manifest as any).captionStyle ?? {},
+    captionAnalysis: manifest.captionAnalysis ?? undefined,
   };
 
   return { tracks, items, videoSettings };

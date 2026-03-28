@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-inkmap",
+  "name": "Magazine Ink Map",
+  "description": "Cartographic ink map with sepia-toned tiles, animated borders, and route tracing on aged paper",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "map", "geographic", "ink", "cartography"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "4s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Img, staticFile } from 'remotion';
+import { Img } from 'remotion';
+import { resolveMediaSrc } from './resolveMediaSrc';
 
 interface ImageItemData {
   src: string;
@@ -11,14 +12,7 @@ interface ImageItemProps {
 }
 
 export const ImageItem: React.FC<ImageItemProps> = ({ data, assets }) => {
-  let src: string;
-  if (assets[data.src]) {
-    src = assets[data.src];
-  } else if (/^https?:\/\/|^blob:/.test(data.src)) {
-    src = data.src;
-  } else {
-    src = staticFile(data.src);
-  }
+  const src = resolveMediaSrc(data.src, assets);
 
   return (
     <Img

@@ -4,13 +4,11 @@ import { nanoid } from 'nanoid';
 import { eq, inArray, or, and, desc } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix, deleteObject } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel, segmentationQueue } from '../services/queue.js';
+import { queueTranscribeJob, queueEnhanceAudioJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 import { apiProgressStore } from '../progress/progress-store.js';
 import { logger } from '../logger.js';
-import { isWorkspaceActive, snapshotManifest, spinUpWorkspace } from '../workspace/workspace-service.js';
-import { bundlerService } from '../workspace/bundler-service.js';
 
 // Validation schemas
 const createProjectSchema = z.object({
@@ -24,7 +22,9 @@ const updateProjectSchema = z.object({
   title: z.string().max(255).optional(),
   tracks: z.array(z.object({
     id: z.string(),
+    type: z.string().optional(),
     name: z.string().optional(),
+    position: z.number().optional(),
     locked: z.boolean().optional(),
     visible: z.boolean().optional(),
   })).optional(),
@@ -138,7 +138,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         data.mimetype
       );
 
-      // For video projects, create video item and trigger segmentation
+      // For video projects, create video item
       if (project.projectType !== 'audio' && project.videoKey) {
         // Find the video track
         const videoTrack = await db.query.tracks.findFirst({
@@ -153,25 +153,16 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
           if (existingVideoItem.length === 0) {
             // Create video timeline item (duration will be updated by transcribe worker)
-            const [videoItem] = await db.insert(timelineItems).values({
+            await db.insert(timelineItems).values({
               trackId: videoTrack.id,
               type: 'video',
               startMs: 0,
               endMs: 0, // Will be updated once duration is known
               data: {
                 src: `/api/projects/${id}/video`,
-                volume: 1,
+                volume: 0, // Muted — audio plays from the separate audio track
               },
             }).returning();
-
-            // Queue segmentation job (non-blocking)
-            segmentationQueue.add('segment-video', {
-              projectId: id,
-              videoItemId: videoItem.id,
-              videoKey: project.videoKey,
-            }).catch((err) => {
-              fastify.log.warn({ err, projectId: id }, 'Failed to queue segmentation job (non-critical)');
-            });
           }
         }
       }
@@ -383,6 +374,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
         reply.header('Accept-Ranges', 'bytes');
         reply.header('Content-Length', chunkSize);
         reply.header('Content-Type', contentType);
+        // Cache video chunks for the session — avoids re-fetching on seeks
+        reply.header('Cache-Control', 'private, max-age=3600, immutable');
 
         return reply.send(stream);
       }
@@ -393,6 +386,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
       reply.header('Accept-Ranges', 'bytes');
+      // Cache video for the session
+      reply.header('Cache-Control', 'private, max-age=3600, immutable');
 
       return reply.send(stream);
     } catch (err) {
@@ -483,16 +478,31 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    // Update tracks if provided
+    // Upsert tracks if provided (handles frontend-created tracks that don't exist in DB yet)
     if (body.tracks) {
       for (const track of body.tracks) {
-        await db.update(tracks)
+        const result = await db.update(tracks)
           .set({
-            name: track.name,
-            locked: track.locked,
-            visible: track.visible,
+            ...(track.name != null ? { name: track.name } : {}),
+            ...(track.locked != null ? { locked: track.locked } : {}),
+            ...(track.visible != null ? { visible: track.visible } : {}),
+            ...(track.position != null ? { position: track.position } : {}),
           })
-          .where(eq(tracks.id, track.id));
+          .where(eq(tracks.id, track.id))
+          .returning({ id: tracks.id });
+
+        // If no rows updated, INSERT the new track (created on frontend but not yet in DB)
+        if (result.length === 0 && track.type && track.name) {
+          await db.insert(tracks).values({
+            id: track.id,
+            projectId: id,
+            type: track.type,
+            name: track.name,
+            position: track.position ?? 0,
+            locked: track.locked ?? false,
+            visible: track.visible ?? true,
+          });
+        }
       }
     }
 
@@ -702,7 +712,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       updateData.title = body.title;
     }
     if (body.videoSettings !== undefined) {
-      updateData.videoSettings = body.videoSettings;
+      // Merge with existing videoSettings to preserve fields the editor doesn't manage
+      // (e.g. captionAnalysis written by the worker pipeline)
+      const existingVs = (project.videoSettings as Record<string, unknown>) ?? {};
+      updateData.videoSettings = { ...existingVs, ...(body.videoSettings as Record<string, unknown>) };
     }
     await db.update(projects)
       .set(updateData)
@@ -835,70 +848,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { success: true, message: 'Project status reset to ready', previousStatus: project.status };
   });
 
-  // Start rendering
-  fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = request.body as { videoClipData?: Array<{ sourceSceneId: number; sourceVideoUrl: string; trimStartSeconds: number; trimEndSeconds: number }> } || {};
-
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, id),
-    });
-
-    if (!project) {
-      return reply.status(404).send({ error: 'Project not found' });
-    }
-
-    // Check ownership
-    if (!checkProjectOwnership(project.userId, request.user?.id)) {
-      return reply.status(403).send({ error: 'Access denied' });
-    }
-
-    // Create job record
-    const [job] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'render',
-      status: 'pending',
-    }).returning();
-
-    // Update project status
-    await db.update(projects)
-      .set({ status: 'rendering' })
-      .where(eq(projects.id, id));
-
-    // Ensure workspace is active for rendering
-    if (!(await isWorkspaceActive(id))) {
-      // Spin up workspace — generates manifest, copies composition, runs codegen
-      // NOTE: spinUpWorkspace queues a bundle build async (fire-and-forget)
-      await spinUpWorkspace(id);
-    }
-
-    // Always await a bundle build to ensure it's ready for export.
-    // enqueueBuild is idempotent — if bundle is cached and hash matches,
-    // it returns immediately. If a build was queued by spinUpWorkspace,
-    // the debounce timer deduplicates.
-    await bundlerService.enqueueBuild(id, 'user');
-
-    // Snapshot workspace manifest (now guaranteed to exist)
-    const manifestSnapshot = await snapshotManifest(id);
-    if (!manifestSnapshot) {
-      return reply.status(500).send({ error: 'Failed to snapshot workspace manifest' });
-    }
-
-    const workspaceBundlePath = bundlerService.getBundlePath(id);
-
-    // Queue the render job — layout/visuals come from the workspace manifest
-    await queueRenderJob({
-      projectId: id,
-      jobId: job.id,
-      projectType: project.projectType || 'video',
-      videoClipData: body.videoClipData,
-      manifest: manifestSnapshot,
-      workspaceBundlePath,
-    });
-
-    return { jobId: job.id };
-  });
-
   // Generate AI caption styles — LLM analyzes transcript and generates per-caption style overrides
   fastify.post('/projects/:id/generate-caption-styles', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -925,161 +874,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
     await queueGenerateCaptionStylesJob({
       projectId: id,
       jobId: job.id,
-    });
-
-    return { jobId: job.id };
-  });
-
-  // Generate AI visuals
-  fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = z.object({
-      stylePreset: z.string(),
-      layoutMode: z.enum(['pip', 'stacked']),
-      dimensions: z.object({
-        width: z.number().int().min(100).max(4096),
-        height: z.number().int().min(100).max(4096),
-      }),
-      styleGuide: z.string().max(2000).optional(),
-    }).parse(request.body);
-
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, id),
-    });
-
-    if (!project) {
-      return reply.status(404).send({ error: 'Project not found' });
-    }
-
-    // Check ownership
-    if (!checkProjectOwnership(project.userId, request.user?.id)) {
-      return reply.status(403).send({ error: 'Access denied' });
-    }
-
-    // Check for transcript
-    const transcript = await db.query.transcripts.findFirst({
-      where: eq(transcripts.projectId, id),
-    });
-
-    if (!transcript || !transcript.words) {
-      return reply.status(400).send({ error: 'Project has no transcript. Run processing first.' });
-    }
-
-    // Check for existing pending/processing job (idempotency check)
-    const existingJob = await db.query.jobs.findFirst({
-      where: and(
-        eq(jobs.projectId, id),
-        eq(jobs.type, 'generate-visuals'),
-        or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing'))
-      ),
-    });
-
-    if (existingJob) {
-      return reply.status(409).send({
-        error: 'A visual generation job is already in progress',
-        jobId: existingJob.id,
-      });
-    }
-
-    // Create job record
-    const [job] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'generate-visuals',
-      status: 'pending',
-    }).returning();
-
-    // Update project status
-    await db.update(projects)
-      .set({ status: 'generating' })
-      .where(eq(projects.id, id));
-
-    // Queue the job
-    await queueGenerateVisualsJob({
-      projectId: id,
-      jobId: job.id,
-      stylePreset: body.stylePreset,
-      layoutMode: body.layoutMode,
-      dimensions: body.dimensions,
-      styleGuide: body.styleGuide,
-    });
-
-    return { jobId: job.id };
-  });
-
-  // Edit existing visuals with AI
-  // User types a prompt like "Make particles bigger" and AI edits the existing composition
-  // Optional sceneId targets edits to a specific scene
-  fastify.post('/projects/:id/edit-visuals', { preHandler: authMiddleware }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = z.object({
-      prompt: z.string().min(1).max(2000),
-      sceneId: z.number().int().min(1).optional(),
-      elementName: z.string().optional(),
-    }).parse(request.body);
-
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, id),
-    });
-
-    if (!project) {
-      return reply.status(404).send({ error: 'Project not found' });
-    }
-
-    // Check ownership
-    if (!checkProjectOwnership(project.userId, request.user?.id)) {
-      return reply.status(403).send({ error: 'Access denied' });
-    }
-
-    // Check for existing visuals (need something to edit)
-    const visual = await db.query.visuals.findFirst({
-      where: eq(visuals.projectId, id),
-    });
-
-    if (!visual) {
-      return reply.status(400).send({ error: 'No visuals to edit. Generate visuals first.' });
-    }
-
-    // Note: We don't check sourceUrl here anymore - the worker will attempt to
-    // download source files from MinIO based on compositionId. This allows
-    // editing even if sourceUrl wasn't stored in DB (for older projects that
-    // might still have sources in MinIO).
-
-    // Check for existing pending/processing edit job
-    const existingJob = await db.query.jobs.findFirst({
-      where: and(
-        eq(jobs.projectId, id),
-        eq(jobs.type, 'edit-visuals'),
-        or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing'))
-      ),
-    });
-
-    if (existingJob) {
-      return reply.status(409).send({
-        error: 'An edit job is already in progress',
-        jobId: existingJob.id,
-      });
-    }
-
-    // Create job record
-    const [job] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'edit-visuals',
-      status: 'pending',
-    }).returning();
-
-    // Update project status
-    await db.update(projects)
-      .set({ status: 'generating' })
-      .where(eq(projects.id, id));
-
-    // Queue the edit job
-    await queueEditVisualsJob({
-      projectId: id,
-      jobId: job.id,
-      compositionId: visual.compositionId,
-      prompt: body.prompt,
-      sceneId: body.sceneId,
-      elementName: body.elementName,
     });
 
     return { jobId: job.id };

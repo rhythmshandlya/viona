@@ -63,8 +63,13 @@ packages/worker/remotion-template/node_modules/
 # Worktrees
 .worktrees/
 
-# Worker generated files
-packages/worker/workspace/
+# Worker workspace — track source, ignore generated/build output
+packages/worker/workspace/node_modules/
+packages/worker/workspace/out/
+packages/worker/workspace/dist/
+packages/worker/workspace/bundle/
+packages/worker/workspace/src/proj-*/
+packages/worker/workspace/src/proj_*/
 packages/worker/bundles/
 
 # Conda environments
@@ -81,3 +86,9 @@ tests/e2e/fixtures/*.mp4
 tests/e2e/fixtures/*.mov
 tests/e2e/fixtures/*.mkv
 tests/e2e/output/
+
+# Obsidian vault (separate repo)
+docs/viona-notes/
+
+# Reference repos
+.reference/

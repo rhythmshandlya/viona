@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Bold, Maximize2, Palette, Highlighter, X, Type } from 'lucide-react';
-import { useCaptionActions, useFirstCaptionStyle } from '../store/use-editor-store';
+import { useCaptionActions, useCaptionPreset } from '../store/use-editor-store';
 import type { CaptionWord } from '../store/types';
 import { FONT_REGISTRY, loadFont, findFont } from '@/lib/font-registry';
 
@@ -16,7 +16,7 @@ interface WordToolbarProps {
 
 export function WordToolbar({ captionId, wordIndex, word, position, onClose }: WordToolbarProps) {
   const { updateWordStyleOverrides } = useCaptionActions();
-  const captionStyle = useFirstCaptionStyle();
+  const captionStyle = useCaptionPreset();
   const overrides = word.styleOverrides || {};
   const [expanded, setExpanded] = useState(false);
 
@@ -245,7 +245,7 @@ export function WordToolbar({ captionId, wordIndex, word, position, onClose }: W
             <div className="flex rounded overflow-hidden border border-[var(--editor-border-subtle)]">
               <button
                 onClick={() => handleTextTransformChange(overrides.textTransform === 'uppercase' ? undefined : 'uppercase')}
-                className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                className={`px-1.5 py-1 text-[10px] font-normal transition-colors ${
                   overrides.textTransform === 'uppercase'
                     ? 'bg-[var(--editor-accent)]/20 text-[var(--editor-accent)]'
                     : 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
@@ -256,7 +256,7 @@ export function WordToolbar({ captionId, wordIndex, word, position, onClose }: W
               </button>
               <button
                 onClick={() => handleTextTransformChange(overrides.textTransform === 'lowercase' ? undefined : 'lowercase')}
-                className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                className={`px-1.5 py-1 text-[10px] font-normal transition-colors ${
                   overrides.textTransform === 'lowercase'
                     ? 'bg-[var(--editor-accent)]/20 text-[var(--editor-accent)]'
                     : 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'

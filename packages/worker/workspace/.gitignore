@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+bundle/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated compositions (created by Claude Code)
+src/proj-*/
+src/proj_*/
+
+# Generated/uploaded assets
+public/assets/
+
+# npm lockfile (monorepo uses pnpm-lock.yaml)
+package-lock.json
+
+# Test scratch files
+src/test_prompt_optimization/
+
+# Logs
+*.log
+npm-debug.log*

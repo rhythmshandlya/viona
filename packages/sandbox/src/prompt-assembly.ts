@@ -1,9 +1,9 @@
 // packages/sandbox/src/prompt-assembly.ts
 //
-// Layered prompt assembly for the Animator subagent.
-// The orchestrator CODE (not Viona) assembles a focused prompt per-scene
-// from modular pieces based on theme and scene brief.
-// Canvas dimensions come from the scene plan.
+// Per-scene prompt assembly for the Animator subagent.
+// The Animator's system prompt lives in prompts/animator/system.md (loaded by assembleAgentPrompt).
+// This module builds the per-scene USER message that Viona passes when dispatching each Animator.
+// It provides scene-specific context: brief, dimensions, display mode, sync points.
 
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -18,63 +18,44 @@ export interface SceneConfig {
   sceneBrief: string;          // visual description from the plan
   syncPoints: Array<{ frame: number; action: string }>;
   durationFrames: number;
-  canvasWidth: number;
-  canvasHeight: number;
+  canvasWidth: number;         // full canvas width (for reference)
+  canvasHeight: number;        // full canvas height (for reference)
+  sceneWidth: number;          // actual scene render width
+  sceneHeight: number;         // actual scene render height
   fps: number;
   theme: string;
+  displayMode: 'fullscreen' | 'split-screen' | 'overlay';
 }
 
-// ---- Layout rules ----
+// ---- Display mode context ----
 
-const LAYOUT_RULES = `
-## LAYOUT & SPATIAL RULES
+function displayModeContext(config: SceneConfig): string {
+  switch (config.displayMode) {
+    case 'overlay':
+      return `
+### Display Mode: Overlay
+- This scene renders ON TOP of the speaker video at ${config.sceneWidth}×${config.sceneHeight}
+- Root container MUST be transparent — NO Background component, NO background color
+- Use glass cards for elements (they have their own semi-transparent backgrounds)
+- Maximum 3-4 visible elements — overlays supplement, not compete
+- All text needs \`textShadow\` for readability over video
+- Keep animations subtle and focused`;
 
-General principles for scene composition. All sizes must be relative to the effective
-width and height provided in the scene plan.
+    case 'split-screen':
+      return `
+### Display Mode: Stacked (split-screen)
+- Your scene occupies the top ${config.sceneHeight}px — speaker is visible below
+- Include the <Background> component
+- Extra padding near bottom edge (split boundary)
+- Key elements should be bold and readable at a glance — attention is divided`;
 
-### Motion & Direction
-- Animate entrance from a consistent direction (e.g., left-to-right for new content)
-- Exit animations should reverse the entrance direction
-- Stagger entrances by at least 4 frames to avoid simultaneous pops
-
-### Text Placement
-- Bottom ~15% of the canvas should be kept clear for potential captions
-- Text must have \`textShadow\` or a contrasting backdrop for readability
-- Text opacity 1.0 at rest — no dimming
-
-### Z-Ordering & Overflow
-- Use \`overflow: 'hidden'\` on the root container
-- Layer decorative elements behind content (lower z-index)
-- Max 2-3 elements visible at any moment — avoid clutter
-
-### Backgrounds
-- Prefer animated backgrounds — gradients, patterns, or subtle motion
-- Avoid flat solid colors unless the scene brief explicitly calls for them
-`;
-
-// ---- Theme loading ----
-
-async function loadThemeContent(theme: string): Promise<string> {
-  const paths = [
-    join(WORKSPACE, 'docs', 'themes', 'studio', 'design-system.md'),
-    join(WORKSPACE, 'docs', 'themes', 'studio', `${theme.includes('light') ? 'light' : 'dark'}`, 'style-guide.md'),
-  ];
-
-  const sections: string[] = [];
-  for (const p of paths) {
-    try {
-      const content = await readFile(p, 'utf-8');
-      sections.push(content);
-    } catch {
-      // Theme file not found — skip
-    }
+    case 'fullscreen':
+      return `
+### Display Mode: Fullscreen
+- You have the full canvas — speaker is hidden during this scene
+- Include the <Background> component with a rich animated gradient
+- Go bold — this is your moment to fill the space`;
   }
-
-  if (sections.length === 0) {
-    return `## THEME: ${theme}\n\nNo theme file found. Use sensible defaults.`;
-  }
-
-  return `## THEME: ${theme}\n\n${sections.join('\n\n---\n\n')}`;
 }
 
 // ---- Scene brief formatting ----
@@ -84,12 +65,14 @@ function formatSceneBrief(config: SceneConfig): string {
     ? config.syncPoints.map(sp => `  - Frame ${sp.frame}: ${sp.action}`).join('\n')
     : '  (no sync points specified)';
 
-  return `
-## SCENE ASSIGNMENT
+  return `## SCENE ASSIGNMENT
 
 - **Scene name:** ${config.sceneName}
-- **Scene file:** \`scenes/${config.sceneFile}.tsx\`
+- **Skeleton file:** \`src/scenes/${config.sceneFile}.tsx\` (already exists — read it first, then edit)
+- **Display mode:** ${config.displayMode}
+- **Render size:** ${config.sceneWidth}×${config.sceneHeight}
 - **Duration:** ${config.durationFrames} frames (${(config.durationFrames / config.fps).toFixed(1)}s)
+- **Canvas:** ${config.canvasWidth}×${config.canvasHeight} @ ${config.fps}fps
 
 ### Visual Brief
 
@@ -99,76 +82,27 @@ ${config.sceneBrief}
 
 ${syncPointsText}
 
-### Important
+${displayModeContext(config)}
 
-- Write ONLY the file \`scenes/${config.sceneFile}.tsx\`
-- Import from \`../constants\` and \`../components/Background\` (already exist)
-- Export the component as the default export AND as a named export matching the filename
-- The component receives \`width\`, \`height\`, \`durationInFrames\`, and \`fps\` props
+### Your Task
+
+1. **Read** the skeleton file at \`src/scenes/${config.sceneFile}.tsx\` — it has imports, DATA, dimensions, and component structure ready
+2. **Edit** the skeleton to add dense, choreographed animation (replace placeholder comments with real code)
+3. Keep the existing DATA object, SCENE_WIDTH, SCENE_HEIGHT, and metadata comments
+4. Add animation logic: spring entrances, animated surfaces, idle motion, decorative layers
+5. **Verify:** \`npx tsc --noEmit\` → \`trigger_rebuild\` → \`render_still\` at a key frame
 `;
 }
-
-// ---- Self-healing section ----
-
-const SELF_HEALING_RULES = `
-## SELF-HEALING (MANDATORY)
-
-After writing your scene file, you MUST verify it compiles:
-
-1. Run \`npx tsc --noEmit --pretty false\` via Bash
-2. If errors appear in YOUR scene file:
-   - Read the error, fix the code, save
-   - Re-run tsc
-   - Max 2 fix attempts
-3. After tsc passes, trigger a rebuild via \`mcp__render__trigger_rebuild\`
-4. Render a still via \`mcp__render__render_still\` at your key sync frame to verify visually
-5. If the still shows problems (blank frame, overflow, wrong layout), fix and re-render
-
-You are responsible for producing CLEAN, COMPILING output. There is no separate healer agent.
-`;
 
 // ---- Main assembly function ----
 
 /**
- * Build a complete Animator prompt for a specific scene.
- * Assembles from modular pieces — deterministic, no AI involved.
+ * Build a per-scene dispatch message for the Animator subagent.
  *
- * Always included:
- * - Theme design system (colors, fonts, spacing, background conventions)
- * - Layout rules (motion direction, text placement, z-ordering)
- * - Self-healing instructions
- *
- * Included per-scene:
- * - Scene brief from the plan
- * - Duration in frames
- * - Sync points
+ * This is NOT the system prompt (that's in prompts/animator/system.md).
+ * This is the user message Viona sends when dispatching each Animator
+ * with scene-specific context: brief, dimensions, sync points, display mode.
  */
 export async function buildAnimatorPrompt(config: SceneConfig): Promise<string> {
-  // Load theme content
-  const themeContent = await loadThemeContent(config.theme);
-
-  // Assemble the prompt
-  const sections = [
-    `# Animator — Scene: ${config.sceneName}`,
-    '',
-    `Canvas: ${config.canvasWidth}×${config.canvasHeight} @ ${config.fps}fps`,
-    '',
-    '---',
-    '',
-    themeContent,
-    '',
-    '---',
-    '',
-    LAYOUT_RULES,
-    '',
-    '---',
-    '',
-    formatSceneBrief(config),
-    '',
-    '---',
-    '',
-    SELF_HEALING_RULES,
-  ];
-
-  return sections.join('\n');
+  return formatSceneBrief(config);
 }

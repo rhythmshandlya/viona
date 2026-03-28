@@ -92,14 +92,14 @@ export function TransformSection({ item }: TransformSectionProps) {
     <div className="flex flex-col gap-3">
       {/* Position */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-[var(--editor-text-secondary)]">Position</span>
+        <span className="text-xs font-normal text-[var(--editor-text-secondary)]">Position</span>
         {renderRow('X', 'x', { unit: 'px' })}
         {renderRow('Y', 'y', { unit: 'px' })}
       </div>
 
       {/* Size */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-[var(--editor-text-secondary)]">Size</span>
+        <span className="text-xs font-normal text-[var(--editor-text-secondary)]">Size</span>
         {renderRow('Width', 'width', { min: 0, unit: 'px' })}
         {renderRow('Height', 'height', { min: 0, unit: 'px' })}
       </div>

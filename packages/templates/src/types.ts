@@ -18,13 +18,16 @@ export interface TemplateMeta {
     | 'education'
     | 'social'
     | 'corporate'
-    | 'entertainment';
+    | 'entertainment'
+    | 'overlay';
   tags: string[];
   stylePreset: string;
   aspectRatio: '16:9' | '9:16' | '1:1';
   sceneCount: number;
   estimatedDuration: string;
   thumbnail: string;
+  type?: 'scene' | 'overlay';
+  themes?: string[];
 }
 
 export interface CompositionMeta {

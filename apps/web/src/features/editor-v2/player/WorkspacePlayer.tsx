@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
-import { Player } from '@remotion/player';
-import { AbsoluteFill } from 'remotion';
-import { useWorkspaceComposition, setAssetsMap } from './useWorkspaceComposition';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Player, type RenderLoading } from '@remotion/player';
+import { AbsoluteFill, prefetch } from 'remotion';
+import { useWorkspaceComposition, resolvePublicBase, resolveDirectMediaUrl } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
   manifest: Record<string, unknown>;
@@ -32,24 +32,173 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
   const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
 
+  // -----------------------------------------------------------------------
+  // Suppress Remotion's uncatchable video errors.
+  //
+  // Remotion's <Video> throws from a DOM event listener when the <video>
+  // element fails to load — this cannot be caught by React error boundaries
+  // or the onError prop (Remotion always throws when error details exist).
+  // During sandbox init, media files may not be available yet, causing
+  // transient errors. Suppress them so Next.js dev overlay doesn't block.
+  // -----------------------------------------------------------------------
   useEffect(() => {
-    const assets = (manifest as any)?.assets;
-    if (assets) {
-      // Don't pass sandbox's Docker-internal presigned URLs to the browser.
-      // customStaticFile in useWorkspaceComposition falls back to the API proxy
-      // which works for all assets (video, images, etc).
-      setAssetsMap({});
+    const handler = (e: ErrorEvent) => {
+      if (e.message?.includes('error while playing the video')) {
+        e.preventDefault();
+        console.warn('[WorkspacePlayer] Suppressed transient video error');
+      }
+    };
+    window.addEventListener('error', handler);
+    return () => window.removeEventListener('error', handler);
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Media prefetching via Remotion's prefetch() — downloads full media
+  // files into blob URLs in the background.
+  //
+  // NLE-style timelines create multiple <Video> components for the same
+  // source file at different trim points. At cuts, old elements unmount
+  // and new ones mount — each needing to seek within the file. With
+  // network URLs, this seek requires HTTP range requests and codec init
+  // (~300ms+), causing visible lag. With blob URLs the entire file is in
+  // memory, so seeks are instant.
+  //
+  // Trade-off: blob download runs alongside the Player's native streaming
+  // during initial playback (minor bandwidth competition). Once complete,
+  // all subsequent cuts/seeks are lag-free.
+  // -----------------------------------------------------------------------
+  const prefetchHandlesRef = useRef<Map<string, () => void>>(new Map());
+
+  useEffect(() => {
+    const m = manifest as any;
+    if (!m?.items || !bundleUrl) return;
+
+    const publicBase = resolvePublicBase(bundleUrl);
+
+    // Collect unique media URLs
+    const currentMedia = new Set<string>();
+    for (const item of m.items) {
+      if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
+        const src = item.data.src as string;
+        let resolved: string;
+        if (/^https?:\/\/|^blob:/.test(src)) {
+          resolved = src;
+        } else if (src.startsWith('/api/') || src.startsWith('/media-proxy/')) {
+          // Already an absolute same-origin path (e.g. from store → storeToManifest round-trip)
+          resolved = src;
+        } else {
+          const cleanPath = src.startsWith('/') ? src.slice(1) : src;
+          const directUrl = resolveDirectMediaUrl(bundleUrl, cleanPath);
+          resolved = directUrl ?? `${publicBase}/${cleanPath}`;
+        }
+        currentMedia.add(resolved);
+      }
     }
-  }, [manifest]);
+
+    // Prefetch each media URL into a blob. Once downloaded, Remotion
+    // internally maps the original URL → blob URL so all <Video>/<Audio>
+    // components using that URL get instant seeks from memory.
+    for (const url of currentMedia) {
+      if (!prefetchHandlesRef.current.has(url)) {
+        try {
+          const { free, waitUntilDone } = prefetch(url);
+          // Catch the async rejection so it doesn't surface as an unhandled
+          // promise rejection (Remotion rejects waitUntilDone on HTTP errors).
+          waitUntilDone().catch(() => {});
+          prefetchHandlesRef.current.set(url, free);
+        } catch {
+          // prefetch may fail for blob: or invalid URLs — fall back silently
+        }
+      }
+    }
+
+    // Free prefetches no longer in the manifest
+    for (const [url, free] of prefetchHandlesRef.current) {
+      if (!currentMedia.has(url)) {
+        free();
+        prefetchHandlesRef.current.delete(url);
+      }
+    }
+  }, [manifest, bundleUrl]);
+
+  // Cleanup prefetches on unmount
+  useEffect(() => {
+    return () => {
+      for (const [, free] of prefetchHandlesRef.current) {
+        free();
+      }
+      prefetchHandlesRef.current.clear();
+    };
+  }, []);
+
+  // Buffering indicator
+  const renderLoading: RenderLoading = useCallback(() => {
+    return (
+      <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            right: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 10px',
+            borderRadius: 6,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid #a855f7',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }}
+          />
+          <span style={{ color: '#94a3b8', fontSize: 11 }}>Buffering...</span>
+        </div>
+      </AbsoluteFill>
+    );
+  }, []);
 
   const inputProps = useMemo(() => {
-    // Strip sandbox assets map — composition will use staticFile fallback
-    // which resolves to the API proxy URL (browser-accessible)
+    // Strip sandbox assets map so resolveMediaSrc always falls through to
+    // staticFile(), returning the direct video URL for native streaming.
     const m = manifest as any;
-    if (m?.assets) {
-      return { manifest: { ...m, assets: {} } };
+    const cleaned = m?.assets ? { ...m, assets: {} } : { ...m };
+
+    // Phrase/karaoke/DH modes need multi-word caption items.
+    // Merge single-word items into phrase groups right before passing to Player.
+    const cp = cleaned.captionPreset ?? cleaned.captionStyle;
+    const needsMergePlayer = cp?.typographyPairingId ||
+      cp?.displayMode === 'phrase' ||
+      cp?.displayMode === 'karaoke';
+    if (needsMergePlayer && Array.isArray(cleaned.items)) {
+      const wpp = cp.wordsPerPhrase || 6;
+      const captions = cleaned.items.filter((i: any) => i.type === 'caption');
+      const nonCaptions = cleaned.items.filter((i: any) => i.type !== 'caption');
+      if (captions.length > 1 && captions[0]?.data?.words?.length <= 1) {
+        const merged: any[] = [];
+        for (let i = 0; i < captions.length; i += wpp) {
+          const group = captions.slice(i, i + wpp);
+          const allWords = group.flatMap((it: any) => it.data?.words ?? []);
+          if (allWords.length === 0) continue;
+          merged.push({
+            ...group[0],
+            id: group[0].id + '-merged',
+            endMs: group[group.length - 1].endMs,
+            data: { words: allWords },
+          });
+        }
+        cleaned.items = [...nonCaptions, ...merged];
+      }
     }
-    return { manifest };
+
+    return { manifest: cleaned };
   }, [manifest]);
 
   if (loading || (!Component && !error)) {
@@ -128,10 +277,13 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
       fps={fps}
       className={className}
       style={{ width: '100%', height: '100%' }}
+      renderLoading={renderLoading}
       controls={false}
       loop={false}
       clickToPlay={false}
       acknowledgeRemotionLicense
+      numberOfSharedAudioTags={5}
+      bufferStateDelayInMilliseconds={300}
     />
   );
 });

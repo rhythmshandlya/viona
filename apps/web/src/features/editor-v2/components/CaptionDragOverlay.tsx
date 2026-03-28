@@ -2,12 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  useEditorStore,
   useShowCaptions,
   useCaptionItems,
   useSelectedIds,
   useCaptionActions,
 } from '../store/use-editor-store';
-import type { CaptionItemData, CaptionStyle, CaptionPosition } from '../store/types';
+import type { CaptionStyle, CaptionPosition } from '../store/types';
 import { anchorToFreeCoords } from '../store/types';
 
 // --- Types ---
@@ -148,7 +149,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const showCaptions = useShowCaptions();
   const captionItems = useCaptionItems();
   const selectedIds = useSelectedIds();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useCaptionActions();
+  const { updateCaptionPreset } = useCaptionActions();
+  const select = useEditorStore((s) => s.select);
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -160,26 +162,21 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<BoundingBox | null>(null);
 
-  // Get the current caption style (from first selected caption or first caption)
+  // Get the current caption style from the store's captionPreset
+  const captionPreset = useEditorStore((s) => s.captionPreset);
   const getCaptionStyle = useCallback((): CaptionStyle | null => {
     if (!captionItems.length) return null;
-    if (selectedIds.length > 0) {
-      const selected = captionItems.find((item) => selectedIds.includes(item.id));
-      if (selected) return (selected.data as CaptionItemData).style;
-    }
-    return (captionItems[0].data as CaptionItemData).style;
-  }, [captionItems, selectedIds]);
+    return captionPreset;
+  }, [captionItems, captionPreset]);
 
-  // Update style — matches StylePanel behavior: all when no selection, selected otherwise
+  // Caption position, fontSize, and rotation are global properties shared by ALL
+  // captions, so always use the global update path. This also avoids ID mismatches
+  // between the frontend store (DB IDs) and the sandbox manifest (agent-generated IDs).
   const updateStyle = useCallback(
     (updates: Partial<CaptionStyle>) => {
-      if (selectedIds.length === 0) {
-        updateAllCaptionStyles(updates);
-      } else {
-        updateSelectedCaptionStyles(selectedIds, updates);
-      }
+      updateCaptionPreset(updates);
     },
-    [selectedIds, updateAllCaptionStyles, updateSelectedCaptionStyles]
+    [updateCaptionPreset]
   );
 
   // Measure the caption element's bounding box
@@ -417,6 +414,14 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
     }
   }, []);
 
+  // Sync local isSelected with store — clear when caption deselected externally
+  const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
+  useEffect(() => {
+    if (!hasCaptionSelected) {
+      setIsSelected(false);
+    }
+  }, [hasCaptionSelected]);
+
   // --- Render ---
 
   if (!box || !showCaptions || captionItems.length === 0) return null;
@@ -426,7 +431,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const currentRotation = currentPosition.rotation;
 
   // Show box + handles when a caption is selected, hovered, or being dragged
-  const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
   const isActive = isHovered || isSelected || isDragging || hasCaptionSelected;
 
   return (
@@ -437,6 +441,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         // Click on background (not a child) to deselect
         if (e.target === e.currentTarget && !isDragging) {
           setIsSelected(false);
+          select([], 'replace');
         }
       }}
       onPointerMove={isDragging ? handlePointerMove : undefined}
@@ -488,6 +493,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         }}
         onPointerEnter={() => setIsHovered(true)}
         onPointerLeave={() => !isDragging && setIsHovered(false)}
+        onClick={(e) => e.stopPropagation()}
       />
 
       {/* Bounding box + move area */}
@@ -505,8 +511,13 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         }}
         onPointerDown={(e) => {
           setIsSelected(true);
+          // Select the first caption item in the store so style panel activates
+          if (captionItems.length > 0) {
+            select([captionItems[0].id], 'replace');
+          }
           handlePointerDown(e, 'move');
         }}
+        onClick={(e) => e.stopPropagation()}
       />
 
       {/* Position readout tooltip during drag */}

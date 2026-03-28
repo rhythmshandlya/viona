@@ -129,7 +129,7 @@ export function TranscriptPanel() {
       <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--editor-border-subtle)]">
         <div className="flex items-center gap-2">
           <AlignLeft size={14} className="text-[var(--editor-text-muted)]" />
-          <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
+          <span className="text-xs font-normal text-[var(--editor-text-secondary)]">
             Transcript
           </span>
           <span className="text-[10px] text-[var(--editor-text-muted)]">
@@ -174,7 +174,7 @@ export function TranscriptPanel() {
       {/* Current scene indicator */}
       {showScenes && currentScene && (
         <div className="px-3 py-1.5 bg-[var(--editor-accent)]/5 border-b border-[var(--editor-border-subtle)]">
-          <span className="text-[10px] font-medium text-[var(--editor-accent)]">
+          <span className="text-[10px] font-normal text-[var(--editor-accent)]">
             Scene {currentScene.id}
           </span>
         </div>
@@ -231,7 +231,7 @@ export function TranscriptPanel() {
                       }`}
                     title="Click to select this scene for AI editing"
                   >
-                    <span className={`text-[10px] font-medium ${selectedSceneId === captionScene.id ? 'text-[var(--editor-accent)]' : 'text-[var(--editor-text-secondary)]'}`}>
+                    <span className={`text-[10px] font-normal ${selectedSceneId === captionScene.id ? 'text-[var(--editor-accent)]' : 'text-[var(--editor-text-secondary)]'}`}>
                       Scene {captionScene.id}
                     </span>
                     <span className="text-[10px] text-[var(--editor-text-muted)] font-mono">
@@ -294,7 +294,7 @@ export function TranscriptPanel() {
                               }}
                               className={`cursor-pointer rounded px-0.5 transition-colors ${
                                 isActiveWord
-                                  ? 'text-[var(--editor-accent)] font-semibold'
+                                  ? 'text-[var(--editor-accent)] font-normal'
                                   : ''
                               } ${
                                 hasOverrides ? 'underline decoration-dotted underline-offset-2' : ''

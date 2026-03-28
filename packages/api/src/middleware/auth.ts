@@ -4,6 +4,27 @@ import { validateSession, validateSessionJwt, StytchSession } from '../services/
 import { db, users, User } from '../db/index.js';
 import { logger } from '../logger.js';
 
+const isDevMode = !process.env.RAILWAY_ENVIRONMENT && !process.env.STYTCH_PROJECT_ID;
+
+// Dev-only: get or create a local dev user, bypassing Stytch
+let _devUser: User | null = null;
+async function getOrCreateDevUser(): Promise<User> {
+  if (_devUser) return _devUser;
+  const devStytchId = 'dev-user-local';
+  const existing = await db.query.users.findFirst({
+    where: eq(users.stytchUserId, devStytchId),
+  });
+  if (existing) { _devUser = existing; return existing; }
+  const [newUser] = await db.insert(users).values({
+    stytchUserId: devStytchId,
+    email: 'dev@localhost',
+    name: 'Dev User',
+  }).returning();
+  logger.info('Created local dev user');
+  _devUser = newUser;
+  return newUser;
+}
+
 // FastifyRequest augmentation is in src/fastify.d.ts
 
 /**
@@ -80,6 +101,12 @@ export async function authMiddleware(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
+  if (isDevMode) {
+    request.user = await getOrCreateDevUser();
+    request.stytchSession = { sessionId: 'dev', userId: 'dev-user-local', email: 'dev@localhost' };
+    return;
+  }
+
   const tokenInfo = extractSessionToken(request);
 
   if (!tokenInfo) {
@@ -117,6 +144,12 @@ export async function optionalAuthMiddleware(
   request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> {
+  if (isDevMode) {
+    request.user = await getOrCreateDevUser();
+    request.stytchSession = { sessionId: 'dev', userId: 'dev-user-local', email: 'dev@localhost' };
+    return;
+  }
+
   const tokenInfo = extractSessionToken(request);
 
   if (!tokenInfo) {

@@ -1,0 +1,39 @@
+<tool_usage_rules>
+## Tool Usage — Dedicated Tools First
+
+You have access to dedicated tools that are far more reliable than Bash equivalents. ALWAYS prefer them:
+
+| Task | Use This | NOT This |
+|---|---|---|
+| Read file contents | `Read` tool | `cat`, `head`, `tail` via Bash |
+| Search file names | `Glob` tool | `find`, `ls` via Bash |
+| Search file contents | `Grep` tool | `grep`, `rg` via Bash |
+| Edit existing file | `Edit` tool (targeted replacement) | `sed`, `awk`, or rewriting with `Write` |
+| Create new file | `Write` tool | `echo >`, heredoc via Bash |
+
+Reserve Bash exclusively for commands with no dedicated equivalent: `npm`, `tsc`, `git`, etc.
+
+## Workflow — Read Before Modify
+
+- ALWAYS read a file with the Read tool before editing it. Understand its structure, imports, and conventions first.
+- When fixing errors: read the error output → read the relevant source file → make a targeted Edit.
+- When exploring unfamiliar code: Glob to find files → Grep to find patterns → Read to understand context.
+- Do NOT guess at file contents. Read first, then modify.
+
+## Efficiency — Parallel Tool Calls
+
+- Issue multiple independent tool calls in the same turn (e.g., read 3 files simultaneously).
+- Do NOT issue sequential reads when the files are independent of each other.
+
+## Error Recovery
+
+- If a tool call fails, read the error message carefully before retrying.
+- If Edit fails because old_string wasn't found, Read the file to see its current state, then retry with correct content.
+- After writing or editing code, verify your changes (trigger_rebuild, render_still, validate_timeline).
+- Max 2 fix attempts per error. If still failing, report the issue with full context rather than looping.
+
+## Path & Shell Rules
+- Always use absolute paths: /workspace/... (not relative).
+- Quote paths containing spaces in Bash commands.
+- Never use interactive commands (anything requiring stdin input).
+</tool_usage_rules>

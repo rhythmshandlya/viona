@@ -1,0 +1,30 @@
+{
+  "name": "@viona/render-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.422",
+    "@remotion/renderer": "4.0.422",
+    "remotion": "4.0.422",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.2",
+    "minio": "^8.0.0",
+    "drizzle-orm": "^0.29.0",
+    "pg": "^8.11.0",
+    "pino": "^8.0.0",
+    "nanoid": "^5.0.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0"
+  }
+}

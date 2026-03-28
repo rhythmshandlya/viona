@@ -189,16 +189,6 @@ COPY --from=builder /app/packages/templates/src/fonts.ts ./packages/templates/sr
 # Remotion's bundle() needs the original TSX files to create the browser bundle
 COPY --from=builder /app/packages/renderer/src ./packages/renderer/src
 
-# Copy remotion template (source only, deps installed on first use)
-COPY --from=builder /app/packages/worker/remotion-template/package.json ./packages/worker/remotion-template/
-COPY --from=builder /app/packages/worker/remotion-template/package-lock.json ./packages/worker/remotion-template/
-COPY --from=builder /app/packages/worker/remotion-template/tsconfig.json ./packages/worker/remotion-template/
-COPY --from=builder /app/packages/worker/remotion-template/remotion.config.ts ./packages/worker/remotion-template/
-COPY --from=builder /app/packages/worker/remotion-template/postcss.config.mjs ./packages/worker/remotion-template/
-COPY --from=builder /app/packages/worker/remotion-template/src ./packages/worker/remotion-template/src
-# Copy .claude directory with CLAUDE.md and skills
-COPY --from=builder /app/packages/worker/remotion-template/.claude ./packages/worker/remotion-template/.claude
-
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 worker
@@ -220,7 +210,5 @@ WORKDIR /app/packages/worker
 
 # Set Python path for Claude Agent SDK
 ENV PYTHON_PATH="/opt/venv/bin/python3"
-# Set template path to bundled template (skips S3 download)
-ENV WORKSPACE_TEMPLATE_PATH="/app/packages/worker/remotion-template"
 
 CMD ["node", "dist/index.js"]

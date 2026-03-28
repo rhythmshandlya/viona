@@ -85,14 +85,14 @@ export interface AudioItemData {
   waveformData?: number[];
   enhancementStatus?: 'idle' | 'processing' | 'complete' | 'error';
   enhancementProgress?: number;
+  browserSrc?: string; // Same-origin proxy URL for waveform decoding (avoids CORS / relative path issues)
 }
 
 export interface CaptionItemData {
-  text: string;
+  text: string;   // Kept for search/display
   words: CaptionWord[];
-  style: CaptionStyle;
-  styleOverrides?: Partial<CaptionStyle>;
   aiWordOverrides?: Record<number, WordStyleOverrides>;
+  // style field REMOVED — lives at store.captionPreset
 }
 
 export interface WordStyleOverrides {
@@ -207,10 +207,11 @@ export interface CaptionWord {
   text: string;
   startMs: number; // Relative to caption start
   endMs: number;   // Relative to caption start
+  role?: string;   // Word emphasis role (e.g. 'power', 'medium', 'filler')
   styleOverrides?: WordStyleOverrides;
 }
 
-export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
+export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
 
 // Legacy position type (for backward compatibility)
 export type CaptionPositionLegacy = 'top' | 'center' | 'bottom';
@@ -375,6 +376,37 @@ export interface CaptionStyle {
 
   // Preset reference
   presetId?: string;
+
+  // Dual typography — display font for power/strong, body font for medium/filler
+  typographyPairingId?: string;
+  displayFontFamily?: string;
+  bodyFontFamily?: string;
+
+  // Cinematic renderer
+  useCinematicRenderer?: boolean;
+  cinematicFonts?: {
+    boldSans: string;
+    elegantCursive: string;
+    default: string;
+  };
+  cinematicColors?: {
+    primary: string;
+    accent: string;
+    accentGradient?: string;
+    glow: string;
+  };
+  cinematicScales?: {
+    hero: number;
+    accent: number;
+    normal: number;
+    whisper: number;
+  };
+
+  // Poster staircase alignment variant
+  staircaseAlignment?: 'center' | 'left' | 'stagger' | 'bold-stack' | 'impact' | 'single' | 'scattered';
+
+  // Poster staircase visual variant (bold-stack, impact-pop, elegant-script, mega-bold, script-accent, scattered-poster)
+  staircaseVariant?: string;
 }
 
 export interface TextItemData {
@@ -580,6 +612,7 @@ export interface HistoryEntry {
   items: Record<string, TimelineItem>;
   itemIds: string[];
   selectedIds: string[];
+  captionPreset: CaptionStyle;
 }
 
 // ============================================
@@ -598,6 +631,9 @@ export interface EditorState {
   itemIds: string[];
   duration: number;  // Total duration in ms
   fps: number;
+
+  // Caption preset (single source of truth for all caption styling)
+  captionPreset: CaptionStyle;
 
   // Asset registry (v2)
   assets: Record<string, string>;
@@ -665,6 +701,12 @@ export interface EditorState {
   // Pending AI message (auto-sent by AI panel, e.g. from "Change & AI Adapt")
   pendingAIMessage: string | null;
 
+  // Agent activity state (surfaced from AIAssistantPanel for global visibility)
+  agentActivity: { agent: string; action: string | null; startedAt: number } | null;
+
+  // Whether the agent is busy (true while activeTasks are running)
+  agentBusy: boolean;
+
   // Transition picker (set when user triggers "Change Transition" from context menu)
   transitionPickerItemId: string | null;
 
@@ -698,8 +740,7 @@ export interface EditorActions {
   updateVideoSettings: (settings: Partial<VideoSettings>) => void;
 
   // Caption style actions
-  updateAllCaptionStyles: (style: Partial<CaptionStyle>) => void;
-  updateSelectedCaptionStyles: (ids: string[], style: Partial<CaptionStyle>) => void;
+  updateCaptionPreset: (updates: Partial<CaptionStyle>) => void;
   updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => void;
   setApplyStyleToAll: (value: boolean) => void;
   setShowCaptions: (value: boolean) => void;
@@ -772,6 +813,8 @@ export interface EditorActions {
   trimItems: (ids: string[], edge: 'start' | 'end', deltaMs: number) => void;
 
   // Subtitle-specific
+  generateCaptions: (options?: { wordsPerPhrase?: number; captionPreset?: Record<string, unknown> }) => void;
+  applyCaptionStyle: (style: Record<string, unknown>) => void;
   splitCaption: (captionId: string, wordIndex: number) => void;
   mergeCaptions: (captionId1: string, captionId2: string) => void;
   updateCaptionText: (captionId: string, newText: string) => void;
@@ -792,6 +835,10 @@ export interface EditorActions {
 
   // Pending AI message
   setPendingAIMessage: (message: string | null) => void;
+
+  // Agent activity (global visibility)
+  setAgentActivity: (activity: { agent: string; action: string | null; startedAt: number } | null) => void;
+  setAgentBusy: (busy: boolean) => void;
 
   // Transition picker
   openTransitionPicker: (itemId: string) => void;
@@ -879,7 +926,7 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
 
   position: DEFAULT_CAPTION_POSITION,
 
-  presetId: 'mrbeast-bold',
+  presetId: 'default',
 };
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {

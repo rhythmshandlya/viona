@@ -73,7 +73,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
     trimItems,
   } = useTimelineActions();
   const { undo, redo } = useHistoryActions();
-  const { updateAllCaptionStyles } = useCaptionActions();
+  const { updateCaptionPreset } = useCaptionActions();
 
   const selectedIds = useSelectedIds();
   const canUndo = useCanUndo();
@@ -247,7 +247,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         const displayMode = displayModeMap[e.code];
         if (displayMode) {
           e.preventDefault();
-          updateAllCaptionStyles({ displayMode });
+          updateCaptionPreset({ displayMode });
           return;
         }
       }
@@ -318,7 +318,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       duplicateItems,
       nudgeItems,
       trimItems,
-      updateAllCaptionStyles,
+      updateCaptionPreset,
       onToggleTranscript,
       onClosePanel,
       onToggleInspectMode,

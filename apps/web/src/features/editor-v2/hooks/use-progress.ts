@@ -1,96 +1,165 @@
-import { useState, useRef, useCallback } from 'react';
-import type { ProgressState, HealthState, ActivityEvent } from '@viona/shared';
+import { useState, useCallback, useRef } from 'react';
+import type { ActivityState } from '@viona/shared';
+import type { ActiveTask } from '../components/ai-chat/types';
 
-type ProgressSource = 'sse' | 'ws' | 'http' | null;
+// ---------------------------------------------------------------------------
+// useActiveTasks — new resilient progress model
+// ---------------------------------------------------------------------------
 
-interface UseProgressResult {
-  progress: ProgressState | null;
-  health: HealthState | null;
-  activity: ActivityEvent[];
-  source: ProgressSource;
-  onSSEProgress: (data: Record<string, unknown>) => void;
-  onSSEActivity: (data: Record<string, unknown>) => void;
-  onSSEHealth: (data: Record<string, unknown>) => void;
-  onWSProgress: (data: Record<string, unknown>) => void;
-  onWSHealth: (data: Record<string, unknown>) => void;
-  onHTTPProgress: (data: Record<string, unknown>) => void;
+interface UseActiveTasksResult {
+  tasks: ActiveTask[];
+  busy: boolean;
+  onTaskStarted: (task: ActiveTask) => void;
+  onTaskUpdated: (id: string, action: string) => void;
+  onTaskCompleted: (id: string) => void;
+  onDone: () => void;
+  restoreFromApi: (apiTasks: ActiveTask[], apiBusy: boolean) => void;
+}
+
+export function useActiveTasks(): UseActiveTasksResult {
+  const [tasks, setTasks] = useState<ActiveTask[]>([]);
+  const [busy, setBusy] = useState(false);
+  // Track IDs with pending removal timers so restoreFromApi doesn't re-add them
+  const pendingRemovals = useRef(new Set<string>());
+
+  const onTaskStarted = useCallback((task: ActiveTask) => {
+    // If this task was pending removal (e.g. restarted), cancel that
+    pendingRemovals.current.delete(task.id);
+    setTasks(prev => [...prev.filter(t => t.id !== task.id), task]);
+    setBusy(true);
+  }, []);
+
+  const onTaskUpdated = useCallback((id: string, action: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, action } : t));
+  }, []);
+
+  const onTaskCompleted = useCallback((id: string) => {
+    pendingRemovals.current.add(id);
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed' as const } : t));
+    setTimeout(() => {
+      setTasks(prev => prev.filter(t => t.id !== id));
+      pendingRemovals.current.delete(id);
+    }, 2500);
+  }, []);
+
+  const onDone = useCallback(() => {
+    pendingRemovals.current.clear();
+    setTasks([]);
+    setBusy(false);
+  }, []);
+
+  const restoreFromApi = useCallback((apiTasks: ActiveTask[], apiBusy: boolean) => {
+    setTasks(prev => {
+      // Filter out completed tasks from API (they should have been removed, but
+      // Redis may still hold them if the Lua complete op races with a read)
+      // Also don't re-add tasks that have pending removal timers
+      const filtered = apiTasks.filter(t =>
+        t.status !== 'completed' && !pendingRemovals.current.has(t.id)
+      );
+      // Preserve completed tasks that are mid-fade-out (have pending timers)
+      const completedPending = prev.filter(t =>
+        t.status === 'completed' && pendingRemovals.current.has(t.id)
+      );
+      // Build merged list: API active tasks + transitioning-out completed tasks
+      const apiIds = new Set(filtered.map(t => t.id));
+      const merged = [...filtered];
+      for (const ct of completedPending) {
+        if (!apiIds.has(ct.id)) merged.push(ct);
+      }
+      return merged;
+    });
+    setBusy(apiBusy);
+  }, []);
+
+  return { tasks, busy, onTaskStarted, onTaskUpdated, onTaskCompleted, onDone, restoreFromApi };
+}
+
+// ---------------------------------------------------------------------------
+// useActivity — legacy hook (kept for backward compat)
+// ---------------------------------------------------------------------------
+
+interface UseActivityResult {
+  /** Current activity state (agent working, or null) */
+  activity: ActivityState | null;
+  /** Update from an SSE 'activity' event */
+  onActivity: (data: Record<string, unknown>) => void;
+  /** Update from an SSE 'progress' event (overrides action text only) */
+  onProgress: (data: Record<string, unknown>) => void;
+  /** Update from a stateful heartbeat */
+  onHeartbeat: (data: Record<string, unknown>) => void;
+  /** Clear all state */
   reset: () => void;
 }
 
-export function useProgress(): UseProgressResult {
-  const [progress, setProgress] = useState<ProgressState | null>(null);
-  const [health, setHealth] = useState<HealthState | null>(null);
-  const [activity, setActivity] = useState<ActivityEvent[]>([]);
-  const [source, setSource] = useState<ProgressSource>(null);
-  const highWaterRef = useRef(0);
-  const sourceRef = useRef<ProgressSource>(null);
+const DEBOUNCE_MS = 2000;
 
-  const updateProgress = useCallback((data: Record<string, unknown>, src: ProgressSource) => {
-    const priority: Record<string, number> = { sse: 3, ws: 2, http: 1 };
-    const currentPriority = priority[sourceRef.current ?? ''] ?? 0;
-    const newPriority = priority[src ?? ''] ?? 0;
+export function useActivity(): UseActivityResult {
+  const [activity, setActivity] = useState<ActivityState | null>(null);
+  // Use ref for debounce timestamp to avoid stale closures in setActivity updater
+  const lastAgentChangeRef = useRef(0);
 
-    if (newPriority < currentPriority) return;
+  const onActivity = useCallback((data: Record<string, unknown>) => {
+    const agent = (data.agent as string) || null;
+    const action = (data.action as string) || null;
 
-    const percent = Math.max(
-      (data.percent as number) ?? 0,
-      highWaterRef.current,
-    );
-    highWaterRef.current = percent;
+    if (!agent) {
+      // Explicit clear
+      setActivity(null);
+      lastAgentChangeRef.current = 0;
+      return;
+    }
 
-    sourceRef.current = src;
-    setSource(src);
-    setProgress({
-      percent,
-      message: (data.message as string) || 'Processing...',
-      phase: (data.phase as string) || 'unknown',
-      phaseName: (data.phaseName as string) || 'Processing',
-      detail: (data.detail as string) || undefined,
-      updatedAt: Date.now(),
-      meta: (data.meta as Record<string, unknown>) || undefined,
-      agentName: (data.agentName as string) || undefined,
-      trackName: (data.trackName as string) || undefined,
-      estimatedTimeRemaining: (data.estimatedTimeRemaining as number) || undefined,
+    setActivity((prev: ActivityState | null) => {
+      // Debounce rapid agent changes (Phase 5-6 interleaving)
+      const now = Date.now();
+      if (prev?.agent && prev.agent !== agent && (now - lastAgentChangeRef.current) < DEBOUNCE_MS) {
+        return prev;
+      }
+      lastAgentChangeRef.current = now;
+      return {
+        agent,
+        action,
+        phase: (data.phase as string) || undefined,
+        startedAt: (data.startedAt as number) || Date.now(),
+      };
     });
   }, []);
 
-  const onSSEProgress = useCallback((data: Record<string, unknown>) => updateProgress(data, 'sse'), [updateProgress]);
-  const onWSProgress = useCallback((data: Record<string, unknown>) => updateProgress(data, 'ws'), [updateProgress]);
-  const onHTTPProgress = useCallback((data: Record<string, unknown>) => updateProgress(data, 'http'), [updateProgress]);
+  const onProgress = useCallback((data: Record<string, unknown>) => {
+    // Progress overrides action text only — agent badge comes from activity events
+    const message = data.message as string;
+    if (!message) return;
 
-  const onSSEActivity = useCallback((data: Record<string, unknown>) => {
-    const event = data as unknown as ActivityEvent;
-    setActivity((prev) => [...prev.slice(-99), event]);
+    setActivity((prev: ActivityState | null) => {
+      if (!prev) {
+        // No active activity — create one from progress (LLM-only path)
+        return {
+          agent: (data.agentName as string) || null,
+          action: message,
+          phase: (data.phase as string) || undefined,
+          startedAt: Date.now(),
+        };
+      }
+      return { ...prev, action: message };
+    });
   }, []);
 
-  const onSSEHealth = useCallback((data: Record<string, unknown>) => {
-    setHealth(data as unknown as HealthState);
-  }, []);
-
-  const onWSHealth = useCallback((data: Record<string, unknown>) => {
-    setHealth(data as unknown as HealthState);
+  const onHeartbeat = useCallback((data: Record<string, unknown>) => {
+    const heartbeatActivity = data.activity as ActivityState | null;
+    if (heartbeatActivity?.agent) {
+      setActivity((prev: ActivityState | null) => {
+        // Only restore from heartbeat if we have no current state
+        // (missed the original activity event)
+        if (!prev) return heartbeatActivity;
+        return prev;
+      });
+    }
   }, []);
 
   const reset = useCallback(() => {
-    setProgress(null);
-    setHealth(null);
-    setActivity([]);
-    setSource(null);
-    sourceRef.current = null;
-    highWaterRef.current = 0;
+    setActivity(null);
+    lastAgentChangeRef.current = 0;
   }, []);
 
-  return {
-    progress,
-    health,
-    activity,
-    source,
-    onSSEProgress,
-    onSSEActivity,
-    onSSEHealth,
-    onWSProgress,
-    onWSHealth,
-    onHTTPProgress,
-    reset,
-  };
+  return { activity, onActivity, onProgress, onHeartbeat, reset };
 }

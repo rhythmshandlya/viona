@@ -54,9 +54,18 @@ export async function runMigrations() {
         await client.query('INSERT INTO _migrations (name) VALUES ($1)', [file]);
         await client.query('COMMIT');
         applied_count++;
-      } catch (err) {
+      } catch (err: any) {
         await client.query('ROLLBACK');
-        throw err;
+        // If the migration failed because objects already exist (e.g. column, table, index),
+        // mark it as applied so we don't retry on every restart.
+        const alreadyExists = err?.code === '42701' || err?.code === '42P07' || err?.code === '42710';
+        if (alreadyExists) {
+          logger.warn({ file, code: err.code }, 'Migration objects already exist, marking as applied');
+          await client.query('INSERT INTO _migrations (name) VALUES ($1) ON CONFLICT DO NOTHING', [file]);
+          applied_count++;
+        } else {
+          throw err;
+        }
       }
     }
 

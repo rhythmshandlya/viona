@@ -1,12 +1,6 @@
 import React from 'react';
-import { Video, staticFile } from 'remotion';
-
-/** Resolve media source: assets map → URL → staticFile fallback */
-export function resolveMediaSrc(src: string, assets: Record<string, string>): string {
-  if (assets[src]) return assets[src];
-  if (/^https?:\/\/|^blob:/.test(src)) return src;
-  return staticFile(src);
-}
+import { Video } from 'remotion';
+import { resolveMediaSrc } from './resolveMediaSrc';
 
 interface VideoCrop {
   x: number;
@@ -19,8 +13,6 @@ interface VideoItemData {
   startFrom?: number;
   volume?: number;
   playbackRate?: number;
-  fadeInMs?: number;
-  fadeOutMs?: number;
   crop?: VideoCrop;
 }
 
@@ -31,55 +23,50 @@ interface VideoItemProps {
   durationInFrames: number;
 }
 
-export const VideoItem: React.FC<VideoItemProps> = ({
+export const VideoItem: React.FC<VideoItemProps> = React.memo(({
   data,
   assets,
   fps,
   durationInFrames,
 }) => {
   const src = resolveMediaSrc(data.src, assets);
-  const startFrom = data.startFrom
-    ? Math.round((data.startFrom / 1000) * fps)
-    : undefined;
+  const startFrom =
+    data.startFrom != null
+      ? Math.round((data.startFrom / 1000) * fps)
+      : undefined;
 
-  const videoElement = (
-    <Video
-      src={src}
-      startFrom={startFrom}
-      volume={data.volume ?? 1}
-      playbackRate={data.playbackRate ?? 1}
-      style={
-        data.crop
-          ? {
-              position: 'absolute',
-              width: `${100 * data.crop.scale}%`,
-              height: `${100 * data.crop.scale}%`,
-              left: `${50 - data.crop.x * data.crop.scale}%`,
-              top: `${50 - data.crop.y * data.crop.scale}%`,
-            }
-          : {
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }
-      }
-    />
-  );
+  const crop = data.crop;
+  const hasCrop = crop && (crop.x !== 50 || crop.y !== 50 || crop.scale !== 1);
 
-  if (data.crop) {
+  if (hasCrop) {
     return (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        {videoElement}
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        <Video
+          src={src}
+          startFrom={startFrom}
+          pauseWhenBuffering
+          volume={data.volume ?? 1}
+          playbackRate={data.playbackRate ?? 1}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: `${crop.x}% ${crop.y}%`,
+            transform: `scale(${crop.scale})`,
+          }}
+        />
       </div>
     );
   }
 
-  return videoElement;
-};
+  return (
+    <Video
+      src={src}
+      startFrom={startFrom}
+      pauseWhenBuffering
+      volume={data.volume ?? 1}
+      playbackRate={data.playbackRate ?? 1}
+      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+    />
+  );
+});

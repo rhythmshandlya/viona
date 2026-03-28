@@ -44,6 +44,8 @@ import {
   useAIEditRequested,
   useEditorStore,
   useIsDirty,
+  useAgentActivity,
+  useAgentBusy,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api } from '@/lib/api';
@@ -57,6 +59,8 @@ export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'assets' | 'agent'>('agent');
+  const agentActivity = useAgentActivity();
+  const agentBusy = useAgentBusy();
 
   // Right panel state (item inspector)
   const [panelOpen, setPanelOpen] = useState(false);
@@ -127,14 +131,28 @@ export function Editor({ projectId }: EditorProps) {
     // No-op: right panel no longer has tabs
   }, []);
 
-  // Auto-open right panel when an item is selected
+  // Auto-open right panel when a non-caption item is selected, and seek to midpoint
   useEffect(() => {
     if (selectedIds.length > 0) {
-      setPanelOpen(true);
+      const state = useEditorStore.getState();
+      const allCaptions = selectedIds.every((id) => state.items[id]?.type === 'caption');
+      if (!allCaptions) {
+        setPanelOpen(true);
+      } else {
+        setPanelOpen(false);
+      }
+      // Seek timeline to the midpoint of the first selected item
+      if (selectedIds.length === 1) {
+        const item = state.items[selectedIds[0]];
+        if (item) {
+          const midpoint = Math.round((item.startMs + item.endMs) / 2);
+          state.seek(midpoint);
+        }
+      }
     } else {
       setPanelOpen(false);
     }
-  }, [selectedIds.length]);
+  }, [selectedIds]);
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
@@ -197,11 +215,19 @@ export function Editor({ projectId }: EditorProps) {
     },
     onManifestUpdated: async (data) => {
       if (data.source === 'ai' && projectId) {
-        try {
-          const manifest = await api.readSandboxManifest(projectId);
-          useEditorStore.getState().applyRemoteManifestUpdate(manifest);
-        } catch (err) {
-          console.error('Failed to apply remote manifest update:', err);
+        // Retry up to 3 times — manifest write may be in-flight when we read
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const manifest = await api.readSandboxManifest(projectId);
+            useEditorStore.getState().applyRemoteManifestUpdate(manifest);
+            break;
+          } catch (err) {
+            if (attempt < 2) {
+              await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+            } else {
+              console.error('Failed to apply remote manifest update:', err);
+            }
+          }
         }
       }
     },
@@ -299,13 +325,19 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-switch to Style tab when a single non-caption item is selected and sidebar is open
+  // Auto-switch to Style tab when a single item is selected
   useEffect(() => {
-    if (selectedIds.length === 1 && leftSidebarOpen) {
+    if (selectedIds.length === 1) {
       const state = useEditorStore.getState();
       const item = state.items[selectedIds[0]];
-      if (item && item.type !== 'caption' && item.type !== 'visual') {
-        setLeftSidebarTab('style');
+      if (item && item.type !== 'visual' && item.type !== 'scene') {
+        // For captions, always open sidebar and switch to Style tab
+        if (item.type === 'caption') {
+          setLeftSidebarOpen(true);
+          setLeftSidebarTab('style');
+        } else if (leftSidebarOpen) {
+          setLeftSidebarTab('style');
+        }
       }
     }
   }, [selectedIds, leftSidebarOpen]);
@@ -396,7 +428,7 @@ export function Editor({ projectId }: EditorProps) {
     {
       onProgress: (data) => {
         if (data.jobId === visualsJobId) {
-          setVisualsProgress(data.progress || 0);
+          setVisualsProgress(data.progress ?? data.percent ?? 0);
           if (data.message) {
             setVisualsStatus(data.message);
           }
@@ -563,6 +595,7 @@ export function Editor({ projectId }: EditorProps) {
             const labels = { agent: 'Chat', captions: 'Captions', style: 'Style', assets: 'Assets' };
             const Icon = icons[tab];
             const active = leftSidebarOpen && leftSidebarTab === tab;
+            const showActivityDot = tab === 'agent' && (!!agentActivity || agentBusy) && !(leftSidebarOpen && leftSidebarTab === 'agent');
             return (
               <button
                 key={tab}
@@ -574,45 +607,49 @@ export function Editor({ projectId }: EditorProps) {
                     setLeftSidebarOpen(true);
                   }
                 }}
-                className={`w-12 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all active:scale-[0.95] ${
+                className={`relative w-12 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all active:scale-[0.95] ${
                   active
                     ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)] shadow-[inset_0_1px_0_rgba(139,92,246,0.15)]'
                     : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] hover:bg-white/[0.06]'
                 }`}
-                title={labels[tab]}
+                title={showActivityDot ? (agentActivity ? `${agentActivity.agent}: ${agentActivity.action || 'Working...'}` : 'Agent is working...') : labels[tab]}
               >
                 <Icon className="w-5 h-5" />
                 <span className="text-[10px]">{labels[tab]}</span>
+                {showActivityDot && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--editor-accent)] animate-pulse" />
+                )}
               </button>
             );
           })}
         </div>
 
-        {/* Left Sidebar Panel */}
+        {/* AI Assistant Panel — always mounted to preserve SSE connection and state.
+            Visually hidden (width: 0, overflow: hidden) when another tab is active. */}
+        <div
+          className="flex-shrink-0 overflow-hidden editor-panel transition-all duration-150 ease-out"
+          style={{
+            width: leftSidebarOpen && leftSidebarTab === 'agent' ? 488 : 0,
+            opacity: leftSidebarOpen && leftSidebarTab === 'agent' ? 1 : 0,
+            pointerEvents: leftSidebarOpen && leftSidebarTab === 'agent' ? 'auto' : 'none',
+          }}
+        >
+          <ErrorBoundary name="AI Assistant">
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+              <AIAssistantPanel
+                projectId={project.id}
+                onEditComplete={() => reloadVisuals(project.id)}
+                className="w-[488px]"
+              />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+
+        {/* Other Left Sidebar Panels */}
         <AnimatePresence mode="wait">
-          {leftSidebarOpen && leftSidebarTab === 'agent' && (
-            <motion.div
-              key="agent-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 488, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="flex-shrink-0 overflow-hidden editor-panel"
-            >
-              <ErrorBoundary name="AI Assistant">
-                <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-                  <AIAssistantPanel
-                    projectId={project.id}
-                    onEditComplete={() => reloadVisuals(project.id)}
-                    className="w-[488px]"
-                  />
-                </Suspense>
-              </ErrorBoundary>
-            </motion.div>
-          )}
           {leftSidebarOpen && leftSidebarTab !== 'agent' && (
             <motion.div
-              key={`sidebar-${leftSidebarTab}`}
+              key="sidebar-panels"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 488, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
@@ -621,7 +658,7 @@ export function Editor({ projectId }: EditorProps) {
             >
               <div className="w-[488px] flex flex-col h-full overflow-hidden">
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-                  <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+                  <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}
                     {leftSidebarTab === 'style' && 'Style Settings'}
                     {leftSidebarTab === 'assets' && 'Visual Assets'}

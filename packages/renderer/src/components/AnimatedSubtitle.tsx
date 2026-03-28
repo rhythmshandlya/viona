@@ -232,8 +232,13 @@ export interface SubtitleStyle {
   textTransform?: 'none' | 'uppercase' | 'lowercase';
   stroke?: StrokeStyle | null;
   // Display mode
-  displayMode?: 'word-by-word' | 'phrase' | 'karaoke';
+  displayMode?: 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
   wordsPerPhrase?: number;
+  // Word emphasis overrides per role (from captionPreset.wordEmphasis)
+  wordEmphasis?: {
+    enabled: boolean;
+    roles: Record<string, Partial<WordStyleOverrides>>;
+  };
   // Preset reference
   presetId?: string;
   // Background box styling
@@ -248,7 +253,7 @@ export interface AnimatedSubtitleProps {
   style?: SubtitleStyle;
 }
 
-// Dynamic hierarchy word classification (matches Composition.tsx preview)
+// Word classification sets — used by classifyWordTier() runtime fallback
 const POWER_WORD_SET = new Set([
   'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
   'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
@@ -277,93 +282,13 @@ const FILLER_WORD_SET = new Set([
   'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
 ]);
 
-// ---------------------------------------------------------------------------
-// Emotional line breaking — matches Composition.tsx preview exactly
-// ---------------------------------------------------------------------------
-
-interface EmotionalSegment {
-  lines: number[][]; // each line is an array of word indices
-  startIdx: number;
-  endIdx: number;    // exclusive
-}
-
+// Runtime fallback word classification (used when word.role is not set)
 function classifyWordTier(text: string): 'power' | 'medium' | 'filler' {
   const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
   if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
   if (POWER_WORD_SET.has(clean)) return 'power';
   if (FILLER_WORD_SET.has(clean)) return 'filler';
   return 'medium';
-}
-
-function computeEmotionalSegments(words: SubtitleWord[]): EmotionalSegment[] {
-  if (words.length === 0) return [];
-
-  const MAX_LINE = 5;
-  const PAUSE_THRESHOLD_MS = 400;
-  const lines: number[][] = [];
-  let currentLine: number[] = [];
-
-  for (let i = 0; i < words.length; i++) {
-    const tier = classifyWordTier(words[i].text);
-
-    const hasPause = i > 0 && (words[i].startMs - words[i - 1].endMs) > PAUSE_THRESHOLD_MS;
-
-    if (hasPause && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = [];
-    }
-
-    if (tier === 'power' && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = [];
-    }
-
-    if (tier === 'filler' && currentLine.length === 0 && lines.length > 0) {
-      const prevLine = lines[lines.length - 1];
-      if (prevLine.length < MAX_LINE) {
-        prevLine.push(i);
-        continue;
-      }
-    }
-
-    currentLine.push(i);
-
-    if (tier === 'power' && currentLine.length === 1) {
-      lines.push(currentLine);
-      currentLine = [];
-      continue;
-    }
-
-    if (currentLine.length >= MAX_LINE) {
-      lines.push(currentLine);
-      currentLine = [];
-    }
-  }
-
-  if (currentLine.length > 0) {
-    lines.push(currentLine);
-  }
-
-  const segments: EmotionalSegment[] = [];
-  for (let l = 0; l < lines.length; l += 2) {
-    const segLines = [lines[l]];
-    if (l + 1 < lines.length) segLines.push(lines[l + 1]);
-    const allIndices = segLines.flat();
-    segments.push({
-      lines: segLines,
-      startIdx: allIndices[0],
-      endIdx: allIndices[allIndices.length - 1] + 1,
-    });
-  }
-
-  return segments;
-}
-
-function findActiveSegment(segments: EmotionalSegment[], wordIdx: number): EmotionalSegment | null {
-  for (const seg of segments) {
-    if (wordIdx >= seg.startIdx && wordIdx < seg.endIdx) return seg;
-  }
-  return segments.length > 0 ? segments[0] : null;
 }
 
 const defaultStyle: SubtitleStyle = {
@@ -407,8 +332,7 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
 
   const displayMode = style.displayMode || 'phrase';
-  const wordsPerPhrase = style.wordsPerPhrase || 5;
-  const isDynamicHierarchy = style.presetId === 'dynamic-hierarchy';
+  const wordsPerPhrase = style.wordsPerPhrase || 7;
 
   // Find active word index
   const activeWordIndex = words.findIndex(
@@ -455,38 +379,11 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
     ...effectsStyles,
   });
 
-  // ── Dynamic hierarchy helpers ──
-  // Only compute per-word style overrides for dynamic hierarchy preset.
-  // Other presets must not be affected by AI-baked word classifications.
-  const getDHOverrides = (wordText: string, existing?: WordStyleOverrides): WordStyleOverrides => {
-    if (!isDynamicHierarchy) return {};
-    const clean = wordText.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
-    const isPower = /^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')
-      || POWER_WORD_SET.has(clean);
-    const isFiller = FILLER_WORD_SET.has(clean);
-    const computed: WordStyleOverrides = {};
-    if (isPower) {
-      computed.scale = 1.8;
-      computed.fontWeight = 900;
-      computed.activeColor = '#FFD400';
-      computed.color = '#FFFFFF';
-    } else if (isFiller) {
-      computed.scale = 0.65;
-      computed.fontWeight = 500;
-      computed.color = 'rgba(255,255,255,0.6)';
-      computed.activeColor = 'rgba(255,255,255,0.8)';
-    } else {
-      computed.scale = 1.0;
-      computed.fontWeight = 700;
-    }
-    return { ...computed, ...existing };
-  };
-
   // ── Word-by-word mode: only show the active word ──
   if (displayMode === 'word-by-word') {
     if (activeWordIndex < 0) return null;
     const activeWord = words[activeWordIndex];
-    const overrides = getDHOverrides(activeWord.text, activeWord.styleOverrides);
+    const overrides = activeWord.styleOverrides;
 
     const elapsedMs = currentTimeMs - activeWord.startMs;
     const wordDurationMs = activeWord.endMs - activeWord.startMs;
@@ -525,6 +422,335 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
     );
   }
 
+  // ── Poster Staircase mode ──
+  // Layout: find the single strongest/most-central word as the pivot; words before
+  // it form line 1, pivot word is line 2 (large emphasis), words after form line 3.
+  // staircaseVariant selects one of 6 distinct visual treatments.
+  if (displayMode === 'poster-staircase') {
+    if (lastAppearedIdx < 0) return null;
+
+    const POWER_SET = new Set([
+      'love','hate','fear','die','dead','death','kill','destroy','dream',
+      'obsessed','insane','crazy','incredible','amazing','unbelievable',
+      'shocking','terrifying','brilliant','genius','perfect','worst',
+      'best','greatest','legendary','epic','massive','huge','evil',
+      'now','stop','wait','listen','watch','look','never','always',
+      'forever','immediately','urgent','warning','danger','critical',
+      'important','breaking','exclusive','secret','finally','today',
+      'million','billion','thousand','money','rich','free','paid',
+      'but','however','actually','wrong','right','truth','lie','real',
+      'fake','only','everything','nothing','impossible','possible',
+      'everyone','nobody','first','last','biggest','smallest',
+      'win','won','lose','lost','fight','broke','crushed','dominated',
+      'exploded','changed','saved','failed','success','discovered',
+    ]);
+    const FILLER_SET = new Set([
+      'the','a','an','is','are','was','were','be','been','being',
+      'to','of','in','for','on','at','by','with','from','as',
+      'and','or','if','it','its','that','this','than','then',
+      'so','up','do','did','has','had','have','will','would',
+      'could','should','can','may','might','shall','just','very',
+      'also','about','into','not','no','yes','some','my','your',
+      'we','they','he','she','i','me','us','them','our','their',
+    ]);
+    const wordScore = (text: string): number => {
+      const c = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+      if (/^\$?\d/.test(c) || /\d{4,}/.test(c) || c.endsWith('%')) return 4;
+      if (POWER_SET.has(c)) return 4;
+      if (FILLER_SET.has(c)) return 1;
+      if (c.length >= 7) return 3;
+      return 2;
+    };
+
+    // Find single pivot: highest-scoring word closest to phrase center
+    const scores = visibleWords.map((w) => wordScore(w.text));
+    const maxScore = Math.max(...scores);
+    const phraseCenter = (visibleWords.length - 1) / 2;
+    let pivotIdx = -1;
+    if (maxScore >= 3) {
+      let bestDist = Infinity;
+      for (let i = 0; i < scores.length; i++) {
+        if (scores[i] === maxScore) {
+          const dist = Math.abs(i - phraseCenter);
+          if (dist < bestDist) { bestDist = dist; pivotIdx = i; }
+        }
+      }
+    }
+
+    const emphasisFont = (style as any).displayFontFamily || 'Dancing Script';
+    const bodyFont = (style as any).bodyFontFamily || 'Montserrat';
+    const baseFontSize = (style.fontSize || 55) * fontScale;
+    const alignment = (style as any).staircaseAlignment || 'center';
+
+    const pos = resolvePosition(style.position);
+    const buildOuterStyle = (width = '88%', align: 'center' | 'flex-start' = 'center'): React.CSSProperties => {
+      const s: React.CSSProperties = {
+        position: 'absolute',
+        bottom: `${pos.offsetY}%`,
+        left: '50%',
+        transform: `translateX(calc(-50% + ${pos.offsetX}%))`,
+        width,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: align,
+        gap: '4px',
+      };
+      if (pos.anchor === 'top') { s.bottom = undefined; s.top = `${10 + pos.offsetY}%`; }
+      else if (pos.anchor === 'center') { s.bottom = undefined; s.top = '50%'; s.transform = 'translate(-50%, -50%)'; }
+      return s;
+    };
+
+    // ── bold-stack: every word large, gold, uppercase, flex-wrapped ──────────
+    if (alignment === 'bold-stack') {
+      const outerStyle: React.CSSProperties = {
+        ...buildOuterStyle('92%', 'center'),
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: '2px 10px',
+      };
+      const wordStyle: React.CSSProperties = {
+        fontFamily: "'Montserrat', system-ui, sans-serif",
+        fontSize: baseFontSize * 1.5,
+        fontWeight: 900,
+        color: '#FFD700',
+        textTransform: 'uppercase',
+        letterSpacing: '2px',
+        lineHeight: 1.05,
+        textShadow: '0 2px 12px rgba(0,0,0,0.9), 0 0 30px rgba(255,180,0,0.35)',
+        display: 'inline-block',
+        WebkitFontSmoothing: 'antialiased',
+      };
+      return (
+        <div style={outerStyle}>
+          {visibleWords.map((w, i) => <span key={i} style={wordStyle}>{w.text}</span>)}
+        </div>
+      );
+    }
+
+    // ── impact: extreme contrast — tiny body, massive gold pivot ─────────────
+    if (alignment === 'impact') {
+      const outerStyle = buildOuterStyle('92%');
+      const bodyStyle = (marginLeft: string): React.CSSProperties => ({
+        fontFamily: "'Montserrat', system-ui, sans-serif",
+        fontSize: baseFontSize * 0.38,
+        fontWeight: 700,
+        color: '#FFFFFF',
+        textTransform: 'uppercase',
+        letterSpacing: '2.5px',
+        lineHeight: 1.2,
+        textAlign: 'center',
+        textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+        width: '100%',
+        marginLeft,
+        WebkitFontSmoothing: 'antialiased',
+      });
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: "'Montserrat', 'Impact', system-ui, sans-serif",
+        fontSize: baseFontSize * 2.5,
+        fontWeight: 900,
+        color: '#FFD700',
+        textTransform: 'uppercase',
+        letterSpacing: '-1px',
+        lineHeight: 1.0,
+        textAlign: 'center',
+        textShadow: '0 0 22px rgba(255,180,0,0.7), 0 3px 15px rgba(0,0,0,0.9)',
+        width: '100%',
+        WebkitFontSmoothing: 'antialiased',
+      };
+      if (pivotIdx === -1) {
+        return (
+          <div style={outerStyle}>
+            <div style={bodyStyle('0%')}>{visibleWords.map(w => w.text).join(' ')}</div>
+          </div>
+        );
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={outerStyle}>
+          {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={bodyStyle('0%')}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
+    // ── single: thin body + cursive pivot in gold ────────────────────────────
+    if (alignment === 'single') {
+      const outerStyle = buildOuterStyle('90%');
+      const bodyStyle: React.CSSProperties = {
+        fontFamily: "'Montserrat', system-ui, sans-serif",
+        fontSize: baseFontSize * 0.65,
+        fontWeight: 300,
+        color: 'rgba(255,255,255,0.85)',
+        letterSpacing: '1.5px',
+        lineHeight: 1.3,
+        textAlign: 'center',
+        textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+        width: '100%',
+        WebkitFontSmoothing: 'antialiased',
+      };
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: "'Great Vibes', cursive",
+        fontSize: baseFontSize * 2.1,
+        fontWeight: 400,
+        fontStyle: 'italic',
+        color: '#FFD700',
+        letterSpacing: '0.5px',
+        lineHeight: 1.1,
+        textAlign: 'center',
+        textShadow: '0 0 18px rgba(255,180,0,0.4), 0 2px 12px rgba(0,0,0,0.85)',
+        width: '100%',
+        WebkitFontSmoothing: 'antialiased',
+      };
+      if (pivotIdx === -1) {
+        return (
+          <div style={outerStyle}>
+            <div style={pivotStyle}>{visibleWords.map(w => w.text).join(' ')}</div>
+          </div>
+        );
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={outerStyle}>
+          {beforeText ? <div style={bodyStyle}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={bodyStyle}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
+    // ── scattered: absolute positioning across canvas ────────────────────────
+    if (alignment === 'scattered') {
+      // Scatter slots [xPercent, yPercent, rotationDeg] — lower 45% of 9:16 canvas
+      const SLOTS: Array<[number, number, number]> = [
+        [50, 62,  0],   // 0: center-primary (pivot)
+        [18, 57, -4],   // 1: upper-left
+        [76, 58,  3],   // 2: upper-right
+        [30, 72, -2],   // 3: mid-left
+        [66, 72,  2],   // 4: mid-right
+        [22, 82, -3],   // 5: lower-left
+        [72, 81,  2],   // 6: lower-right
+        [46, 86, -1],   // 7: bottom-center
+        [58, 52,  1],   // 8: upper-center-right
+      ];
+      const LEFT_SLOTS = [1, 3, 5, 7];
+      const RIGHT_SLOTS = [2, 4, 6, 8];
+
+      const effectivePivot = pivotIdx >= 0 ? pivotIdx : scores.indexOf(Math.max(...scores));
+      let leftIdx = 0;
+      let rightIdx = 0;
+      const placements = visibleWords.map((w, i) => {
+        const tier = classifyWordTier(w.text);
+        if (i === effectivePivot) return { word: w, slot: SLOTS[0], tier };
+        if (i < effectivePivot) {
+          const slot = SLOTS[LEFT_SLOTS[leftIdx % LEFT_SLOTS.length]];
+          leftIdx++;
+          return { word: w, slot, tier };
+        }
+        const slot = SLOTS[RIGHT_SLOTS[rightIdx % RIGHT_SLOTS.length]];
+        rightIdx++;
+        return { word: w, slot, tier };
+      });
+
+      const tierSizeMultiplier: Record<string, number> = {
+        power: 2.4, medium: 0.88, filler: 0.58,
+      };
+      const getMultiplier = (tier: string) => tierSizeMultiplier[tier] ?? 0.88;
+      const maxFontSize = canvasWidth * 0.14; // cap at 14% of canvas width
+
+      return (
+        <div style={{ position: 'absolute', inset: 0 }}>
+          {placements.map(({ word, slot, tier }, idx) => {
+            const [xPct, yPct, rot] = slot;
+            const rawSize = baseFontSize * getMultiplier(tier);
+            const fontSize = Math.min(rawSize, maxFontSize);
+            const isEmphasis = tier === 'power';
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  left: `${xPct}%`,
+                  top: `${yPct}%`,
+                  transform: `translate(-50%, -50%) rotate(${rot}deg)`,
+                  fontFamily: "'Montserrat', system-ui, sans-serif",
+                  fontSize,
+                  fontWeight: isEmphasis ? 900 : 400,
+                  color: isEmphasis ? '#FFD700' : '#FFFFFF',
+                  textTransform: 'uppercase',
+                  letterSpacing: isEmphasis ? '-0.5px' : '1px',
+                  lineHeight: 1.0,
+                  textShadow: isEmphasis ? '0 2px 10px rgba(0,0,0,0.9), 0 0 20px rgba(255,180,0,0.4)' : '0 2px 10px rgba(0,0,0,0.9)',
+                  whiteSpace: 'nowrap',
+                  opacity: isEmphasis ? 1 : 0.8,
+                  WebkitFontSmoothing: 'antialiased',
+                }}
+              >
+                {word.text}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // ── Default Cinematic Luxe staircase (no variant) ─────────────────────────
+    const outerStyle: React.CSSProperties = buildOuterStyle('88%', alignment === 'left' ? 'flex-start' : 'center');
+
+    const bodyStyle = (indent: string): React.CSSProperties => ({
+      fontFamily: `'${bodyFont}', Montserrat, sans-serif`,
+      fontSize: baseFontSize * 0.72,
+      fontWeight: 500,
+      color: '#FFFFFF',
+      lineHeight: 1.2,
+      textAlign: alignment === 'left' ? 'left' : 'center',
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase',
+      textShadow: '0 1px 8px rgba(0,0,0,0.9)',
+      opacity: 0.9,
+      marginLeft: indent,
+      WebkitFontSmoothing: 'antialiased',
+    });
+
+    const emphasisStyle: React.CSSProperties = {
+      fontFamily: `'${emphasisFont}', 'Dancing Script', cursive`,
+      fontSize: baseFontSize * 1.9,
+      fontWeight: 700,
+      fontStyle: 'italic',
+      color: '#FFD700',
+      lineHeight: 1.05,
+      textAlign: alignment === 'left' ? 'left' : 'center',
+      letterSpacing: '-0.5px',
+      textShadow: '0 0 20px rgba(255,180,0,0.7), 0 2px 12px rgba(0,0,0,0.9)',
+      marginLeft: alignment === 'stagger' ? '8%' : '0%',
+      WebkitFontSmoothing: 'antialiased',
+    };
+
+    if (pivotIdx === -1) {
+      // No strong/power word — single body line
+      return (
+        <div style={outerStyle}>
+          <div style={bodyStyle('0%')}>{visibleWords.map((w) => w.text).join(' ')}</div>
+        </div>
+      );
+    }
+
+    const beforeText = visibleWords.slice(0, pivotIdx).map((w) => w.text).join(' ');
+    const pivotText = visibleWords[pivotIdx].text;
+    const afterText = visibleWords.slice(pivotIdx + 1).map((w) => w.text).join(' ');
+
+    return (
+      <div style={outerStyle}>
+        {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
+        <div style={emphasisStyle}>{pivotText}</div>
+        {afterText ? <div style={bodyStyle(alignment === 'stagger' ? '16%' : '0%')}>{afterText}</div> : null}
+      </div>
+    );
+  }
+
   // ── Karaoke mode: progressive color fill (windowed) ──
   if (displayMode === 'karaoke') {
     return (
@@ -533,7 +759,7 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
           const globalIndex = groupStart + index;
           const isActive = globalIndex === activeWordIndex;
           const hasAppeared = currentTimeMs >= word.startMs;
-          const overrides = getDHOverrides(word.text, word.styleOverrides);
+          const overrides = word.styleOverrides;
 
           const elapsedMs = currentTimeMs - word.startMs;
           const wordDurationMs = word.endMs - word.startMs;
@@ -585,76 +811,15 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
     );
   }
 
-  // ── Dynamic hierarchy: emotional line breaking (matches preview exactly) ──
-  if (isDynamicHierarchy) {
-    const segments = computeEmotionalSegments(words);
-    const effectiveIdx = lastAppearedIdx >= 0 ? lastAppearedIdx : 0;
-    const activeSeg = findActiveSegment(segments, effectiveIdx);
-
-    if (!activeSeg) return null;
-
-    const textAlign = (typeof style.position === 'object' && style.position?.textAlign) || 'center';
-
-    return (
-      <div style={{
-        ...positionStyles,
-        width: '60%',
-        maxWidth: '60%',
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: textAlign === 'left' ? 'flex-start'
-          : textAlign === 'right' ? 'flex-end'
-          : 'center',
-        gap: '2px',
-        overflow: 'hidden',
-      }}>
-        {activeSeg.lines.map((lineIndices, lineIdx) => (
-          <div
-            key={lineIdx}
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              alignItems: 'baseline',
-              gap: '0 6px',
-              maxWidth: '100%',
-            }}
-          >
-            {lineIndices.map((wordIdx) => {
-              const word = words[wordIdx];
-              const mergedWord = {
-                ...word,
-                styleOverrides: getDHOverrides(word.text, word.styleOverrides),
-              };
-              return (
-                <Word
-                  key={wordIdx}
-                  word={mergedWord}
-                  style={style}
-                  currentTimeMs={currentTimeMs}
-                />
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   // ── Default phrase mode: show windowed words, highlight active ──
-  // Strip per-word styleOverrides — they are only for dynamic hierarchy preset
   return (
     <div style={positionStyles}>
       {visibleWords.map((word, index) => {
         const globalIndex = groupStart + index;
-        const cleanWord = word.styleOverrides
-          ? { ...word, styleOverrides: undefined }
-          : word;
         return (
           <Word
             key={globalIndex}
-            word={cleanWord}
+            word={word}
             style={style}
             currentTimeMs={currentTimeMs}
           />

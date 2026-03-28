@@ -115,7 +115,7 @@ export function remapManifestSceneFiles(
   const downloadedSet = new Set(downloadedCompositions);
 
   for (const item of manifest.items) {
-    if (item.type !== 'visual') continue;
+    if (item.type !== 'scene') continue;
 
     const compositionId = visualCompositionMap.get(item.id);
     if (!compositionId || !downloadedSet.has(compositionId)) continue;

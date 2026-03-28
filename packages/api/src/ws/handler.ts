@@ -49,11 +49,11 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       } else if (channel.includes(':error')) {
         type = 'job:error';
       } else if (channel.includes(':health')) {
+        // Reserved: no publisher yet — wired for future worker health signals
         type = 'job:health';
       } else if (channel.includes(':logs')) {
+        // Reserved: no publisher yet — wired for future streaming logs
         type = 'job:logs';
-      } else if (channel.includes(':updated')) {
-        type = 'project:updated';
       } else {
         return;
       }

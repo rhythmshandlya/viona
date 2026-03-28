@@ -4,7 +4,11 @@ import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
+import { analyzeTranscriptTool } from './tools/transcript-analysis.js';
+import { validateTimelineTool } from './tools/timeline-validation.js';
+import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
+import { allTemplateTools } from './tools/template-tools.js';
 
 /**
  * Convert a raw JSON schema property to a Zod type.
@@ -29,7 +33,7 @@ function jsonPropToZod(prop: any, isRequired: boolean): z.ZodTypeAny {
       zodType = z.array(z.unknown());
       break;
     case 'object':
-      zodType = z.record(z.unknown());
+      zodType = z.record(z.string(), z.unknown());
       break;
     default:
       zodType = z.unknown();
@@ -97,7 +101,7 @@ export function createMcpServers(
 
   const renderServer = createSdkMcpServer({
     name: 'render',
-    tools: [wrapTool(renderStillTool), wrapTool(triggerRebuildTool)],
+    tools: [wrapTool(renderStillTool), wrapTool(triggerRebuildTool), wrapTool(validateWorkspaceTool)],
   });
 
   const widgetServer = createSdkMcpServer({
@@ -107,9 +111,9 @@ export function createMcpServers(
         'show_widget',
         'Show an interactive widget to the user in the chat panel. Use this to present choices, plans for approval, theme pickers, and confirmations. The widget appears inline in the conversation and the user can interact with it.',
         {
-          kind: z.enum(['theme_picker', 'scene_plan', 'choice', 'confirmation']),
+          kind: z.enum(['theme_picker', 'scene_plan', 'choice', 'confirmation', 'completion']),
           id: z.string(),
-          data: z.record(z.unknown()).optional(),
+          data: z.record(z.string(), z.unknown()).optional(),
         },
         async (input) => {
           // Spread data to top level so frontend sees widget.scenes, not widget.data.scenes
@@ -127,17 +131,17 @@ export function createMcpServers(
         'report_progress',
         'Report progress to the user during long-running operations. Shows a progress indicator with agent name, active track, and estimated time remaining.',
         {
-          phase: z.string().describe('Pipeline phase: trimming, planning, editing, generating, reviewing, assembling, complete'),
-          percent: z.number().describe('Progress percentage 0-100'),
+          phase: z.string().describe('Pipeline phase: preparing, planning, setup, layout, generating, assembling, complete, error'),
+          percent: z.number().optional().describe('Optional progress percentage (ignored by frontend)'),
           message: z.string().describe('Human-readable status message (Viona-centric, no internal agent names)'),
-          agentName: z.string().optional().describe('Which agent is working: Editor, Planner, Animator, Reviewer'),
+          agentName: z.string().optional().describe('Which agent is working: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer'),
           trackName: z.string().optional().describe('Which track/region is being edited: Video, Overlay, Captions, Audio'),
           estimatedTimeRemaining: z.number().optional().describe('Estimated seconds remaining for current phase'),
         },
         async (input) => {
           widgetCallbacks.onProgress({
             phase: input.phase,
-            percent: input.percent,
+            percent: input.percent ?? 0,
             message: input.message,
             agentName: input.agentName,
             trackName: input.trackName,
@@ -146,7 +150,40 @@ export function createMcpServers(
           return { content: [{ type: 'text' as const, text: 'Progress reported.' }] };
         },
       ),
+      tool(
+        'report_plan',
+        'Report the current execution plan to the user. Shows a live task tree with status indicators. Call this at the start of workflow dispatch (all tasks pending), then again as each task transitions to running/complete/failed.',
+        {
+          title: z.string().describe('Plan title shown in the widget header'),
+          tasks: z.array(z.object({
+            id: z.string(),
+            title: z.string(),
+            status: z.enum(['pending', 'running', 'complete', 'failed']),
+            agent: z.string().optional().describe('Agent handling this task: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer'),
+            subtasks: z.array(z.object({
+              id: z.string(),
+              title: z.string(),
+              status: z.enum(['pending', 'running', 'complete', 'failed']),
+              tools: z.array(z.string()).optional().describe('Tool names used for this subtask'),
+            })).optional(),
+          })),
+        },
+        async (input) => {
+          widgetCallbacks.onPlan({ title: input.title, tasks: input.tasks });
+          return { content: [{ type: 'text' as const, text: 'Plan reported.' }] };
+        },
+      ),
     ],
+  });
+
+  const analysisServer = createSdkMcpServer({
+    name: 'analysis',
+    tools: [wrapTool(analyzeTranscriptTool), wrapTool(validateTimelineTool)],
+  });
+
+  const templatesServer = createSdkMcpServer({
+    name: 'templates',
+    tools: allTemplateTools.map(wrapTool),
   });
 
   return {
@@ -154,5 +191,7 @@ export function createMcpServers(
     scenes: scenesServer,
     render: renderServer,
     widgets: widgetServer,
+    analysis: analysisServer,
+    templates: templatesServer,
   };
 }

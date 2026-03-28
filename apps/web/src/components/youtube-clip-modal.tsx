@@ -242,7 +242,7 @@ export function YouTubeClipModal({ isOpen, onClose, onClipAdded }: YouTubeClipMo
 
                 {/* Video title overlay */}
                 <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/70 to-transparent">
-                  <p className="text-white text-sm font-medium truncate">
+                  <p className="text-white text-sm font-normal truncate">
                     {streamInfo.title}
                   </p>
                   <p className="text-white/70 text-xs">
@@ -314,7 +314,7 @@ export function YouTubeClipModal({ isOpen, onClose, onClipAdded }: YouTubeClipMo
 
               {/* Frame Style Selector */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Frame Style</label>
+                <label className="text-sm font-normal">Frame Style</label>
                 <Select value={frameStyle} onValueChange={(v) => setFrameStyle(v as FrameStyle)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a frame style" />

@@ -3,20 +3,29 @@ import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 import { join, resolve } from 'path';
-import { existsSync, mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, cpSync, createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
+import { minioClient } from '../services/minio.js';
 import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js';
 
+// Keep execFile for backup operations where dockerode doesn't add value
 const execFileAsync = promisify(execFile);
 
 // Local directory for bind-mounted workspaces (visible on host for dev inspection)
-const WORKSPACES_ROOT = resolve(process.cwd(), '.sandbox-workspaces');
+// Resolve to monorepo root — API cwd is packages/api/, go up two levels
+const WORKSPACES_ROOT = resolve(process.cwd(), '..', '..', '.sandbox-workspaces');
 
-// Find an available port
-let nextPort = 18080;
-function allocatePort(): number {
-  return nextPort++;
+// Lazy-load dockerode — only used in Docker provider, not on Railway
+import type Docker from 'dockerode';
+let _docker: Docker | null = null;
+async function getDocker(): Promise<Docker> {
+  if (!_docker) {
+    const { default: DockerClient } = await import('dockerode');
+    _docker = new DockerClient();
+  }
+  return _docker;
 }
 
 export class DockerSandboxProvider implements SandboxProvider {
@@ -25,15 +34,28 @@ export class DockerSandboxProvider implements SandboxProvider {
     const containerName = `sandbox-${projectId}`;
     const workspacePath = join(WORKSPACES_ROOT, projectId);
     const secret = randomUUID();
-    const filePort = allocatePort();
-    const agentPort = allocatePort();
+
+    // Kill existing container for THIS project only (not all sandboxes)
+    try {
+      const docker = await getDocker();
+      const existing = docker.getContainer(containerName);
+      await existing.remove({ force: true });
+      logger.info({ containerName }, 'Removed existing container for project');
+    } catch {
+      // Container didn't exist — that's fine
+    }
 
     try {
+      const docker = await getDocker();
+
       // 1. Create local workspace directory (bind mount — visible on host)
       mkdirSync(workspacePath, { recursive: true });
 
-      // 2. If restoring from backup, copy backup volume into local directory
-      if (backupId) {
+      // 2. Try git bundle restore from MinIO first, fall back to backup volume
+      let bundleRestored = false;
+      bundleRestored = await this.tryBundleRestore(projectId, workspacePath);
+
+      if (!bundleRestored && backupId) {
         await execFileAsync('docker', [
           'run', '--rm',
           '-v', `${backupId}:/backup`,
@@ -42,7 +64,7 @@ export class DockerSandboxProvider implements SandboxProvider {
         ], { timeout: 60_000 });
       }
 
-      // 3. Build container args
+      // 3. Build environment variables
       const envEntries: Record<string, string> = {
         SANDBOX_SECRET: secret,
         SANDBOX_ID: projectId,
@@ -54,30 +76,63 @@ export class DockerSandboxProvider implements SandboxProvider {
         MINIO_SECRET_KEY: config.storage.secretKey,
         MINIO_BUCKET: config.storage.bucket,
         MINIO_USE_SSL: 'false',
+        // Forward AI credentials to sandbox for Agent SDK
+        ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+        ...(process.env.CLAUDE_CODE_OAUTH_TOKEN ? { CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN } : {}),
         ...env,
       };
 
-      const dockerArgs = [
-        'run', '-d', '--name', containerName,
-        '-v', `${workspacePath}:/workspace`,
-        '-p', `${filePort}:8080`, '-p', `${agentPort}:8081`,
-        ...Object.entries(envEntries).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
-      ];
+      // 4. Build bind mounts
+      const binds = [`${workspacePath}:/workspace`];
 
       // Mount Claude Code credentials for Agent SDK authentication
       const claudeDir = join(homedir(), '.claude');
       if (existsSync(claudeDir)) {
-        dockerArgs.push('-v', `${claudeDir}:/home/sandbox/.claude`);
+        binds.push(`${claudeDir}:/home/sandbox/.claude`);
       }
 
-      dockerArgs.push(config.sandbox.image);
+      // 5. Create container with dockerode
+      const container = await docker.createContainer({
+        name: containerName,
+        Image: config.sandbox.image,
+        Env: Object.entries(envEntries).map(([k, v]) => `${k}=${v}`),
+        ExposedPorts: {
+          '8080/tcp': {},
+          '8081/tcp': {},
+        },
+        Labels: {
+          'viona.sandbox': 'true',
+          'viona.projectId': projectId,
+          'viona.createdAt': String(Date.now()),
+        },
+        HostConfig: {
+          Binds: binds,
+          PortBindings: {
+            '8080/tcp': [{ HostPort: '0' }],
+            '8081/tcp': [{ HostPort: '0' }],
+          },
+          Memory: 4 * 1024 * 1024 * 1024,       // 4GB
+          MemorySwap: 4 * 1024 * 1024 * 1024,   // 4GB (no swap)
+          NanoCpus: 2e9,                          // 2 CPUs
+          PidsLimit: 512,
+          Init: true,
+        },
+      });
 
-      // 4. Run container
-      const { stdout } = await execFileAsync('docker', dockerArgs);
-      const containerId = stdout.trim();
+      // 6. Start the container
+      await container.start();
+
+      // 7. Read dynamic ports from container inspect
+      const info = await container.inspect();
+      const filePort = info.NetworkSettings.Ports['8080/tcp']?.[0]?.HostPort;
+      const agentPort = info.NetworkSettings.Ports['8081/tcp']?.[0]?.HostPort;
+
+      if (!filePort || !agentPort) {
+        throw new Error('Failed to read dynamic port assignments from container');
+      }
 
       const sandbox: Sandbox = {
-        id: containerId,
+        id: info.Id,
         projectId,
         volumeId: workspacePath,
         volumeInstanceId: workspacePath,  // Local directory path for bind mount
@@ -87,34 +142,97 @@ export class DockerSandboxProvider implements SandboxProvider {
         status: 'creating',
       };
 
-      // 5. Wait for health check
+      // 8. Wait for health check
       await this.waitForReady(sandbox.internalUrl, 60_000);
       sandbox.status = 'ready';
 
+      logger.info({
+        containerName,
+        containerId: info.Id.substring(0, 12),
+        filePort,
+        agentPort,
+      }, 'Docker sandbox created with dynamic ports');
+
       return sandbox;
     } catch (err: any) {
-      // Log full error including stderr for debugging
       logger.error({
         message: err.message,
-        stderr: err.stderr,
-        stdout: err.stdout,
-        code: err.code,
         containerName,
       }, 'Docker sandbox create failed');
-      // Cleanup on failure
-      try { await execFileAsync('docker', ['rm', '-f', containerName]); } catch {}
+
+      // Cleanup on failure — remove container by name
+      try {
+        const docker = await getDocker();
+        await docker.getContainer(containerName).remove({ force: true });
+      } catch {}
+
       if (!backupId) {
         try { rmSync(workspacePath, { recursive: true, force: true }); } catch {}
       }
-      throw new Error(`Docker sandbox create failed: ${err.stderr || err.message}`);
+
+      throw new Error(`Docker sandbox create failed: ${err.message}`);
+    }
+  }
+
+  /**
+   * Attempt to restore workspace from git bundle in MinIO.
+   * Returns true if restore succeeded, false if no bundle or restore failed.
+   * Git operations run inside a container (API host may be Windows).
+   */
+  private async tryBundleRestore(projectId: string, workspacePath: string): Promise<boolean> {
+    const bundleKey = `checkpoints/${projectId}/workspace.bundle`;
+    const bundleTmpPath = join(workspacePath, `${projectId}.bundle`);
+
+    try {
+      // Check if bundle exists in MinIO
+      await minioClient.statObject(config.storage.bucket, bundleKey);
+    } catch {
+      return false; // No bundle available
+    }
+
+    try {
+      // Download bundle to workspace dir (which is bind-mounted into containers)
+      const stream = await minioClient.getObject(config.storage.bucket, bundleKey);
+      await pipeline(stream, createWriteStream(bundleTmpPath));
+
+      // Use a git-capable Docker image to clone the bundle.
+      // The workspace dir is bind-mounted so the container can access the bundle file.
+      // Clone into /workspace/repo-tmp, then move contents to /workspace root.
+      // Note: skip `git bundle verify` — it requires an existing repo. `git clone`
+      // will fail naturally if the bundle is corrupt.
+      await execFileAsync('docker', [
+        'run', '--rm',
+        '-v', `${workspacePath}:/workspace`,
+        'alpine/git',
+        'clone', `/workspace/${projectId}.bundle`, '/workspace/repo-tmp',
+      ], { timeout: 60_000 });
+
+      // Move cloned contents (including .git) to workspace root using Node.js cross-platform APIs
+      const cloneTmp = join(workspacePath, 'repo-tmp');
+      // Copy all contents from repo-tmp to workspace root
+      cpSync(cloneTmp, workspacePath, { recursive: true, force: true });
+      // Clean up temp clone dir and bundle file
+      rmSync(cloneTmp, { recursive: true, force: true });
+      rmSync(bundleTmpPath, { force: true });
+
+      logger.info({ projectId }, 'Workspace restored from git bundle');
+      return true;
+    } catch (err) {
+      logger.warn({ err, projectId }, 'Git bundle restore failed, falling back to volume backup');
+      // Cleanup temp files on failure
+      try { rmSync(bundleTmpPath, { force: true }); } catch {}
+      try { rmSync(join(workspacePath, 'repo-tmp'), { recursive: true, force: true }); } catch {}
+      return false;
     }
   }
 
   async destroy(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'projectId'>): Promise<void> {
     const containerName = `sandbox-${sandbox.projectId}`;
     try {
-      await execFileAsync('docker', ['stop', containerName], { timeout: 15_000 });
-      await execFileAsync('docker', ['rm', containerName]);
+      const docker = await getDocker();
+      const container = docker.getContainer(containerName);
+      await container.stop({ t: 30 });
+      await container.remove();
     } catch (err: any) {
       logger.warn({ err: err.message }, 'Docker stop/rm failed (may already be stopped)');
     }
@@ -159,6 +277,19 @@ export class DockerSandboxProvider implements SandboxProvider {
     } catch {
       return false;
     }
+  }
+
+  async listContainers(): Promise<Array<{ id: string; projectId: string; createdAt: number }>> {
+    const docker = await getDocker();
+    const containers = await docker.listContainers({
+      all: true,
+      filters: { label: ['viona.sandbox=true'] },
+    });
+    return containers.map(c => ({
+      id: c.Id,
+      projectId: c.Labels['viona.projectId'] || '',
+      createdAt: Number(c.Labels['viona.createdAt'] || 0),
+    }));
   }
 
   private async waitForReady(url: string, timeoutMs: number): Promise<void> {

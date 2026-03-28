@@ -26,7 +26,7 @@ export function InspectorSection({ label, defaultOpen = true, children }: Inspec
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.03] transition-colors"
       >
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--editor-text-muted)]">
+        <span className="text-[10px] font-normal uppercase tracking-wider text-[var(--editor-text-muted)]">
           {label}
         </span>
         <ChevronDown

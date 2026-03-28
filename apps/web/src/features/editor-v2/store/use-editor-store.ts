@@ -71,15 +71,8 @@ export function useSourceDimensions(): { width: number; height: number } | null 
 // Caption Style Selectors
 // ============================================
 
-export function useFirstCaptionStyle(): CaptionStyle | null {
-  return useEditorStore(
-    useShallow((state) => {
-      const captionId = state.itemIds.find((id) => state.items[id]?.type === 'caption');
-      if (!captionId) return null;
-      const caption = state.items[captionId];
-      return (caption?.data as CaptionItemData)?.style || null;
-    })
-  );
+export function useCaptionPreset(): CaptionStyle {
+  return useEditorStore((state) => state.captionPreset);
 }
 
 // ============================================
@@ -238,26 +231,11 @@ export const useShowCaptions = () => useEditorStore((s) => s.showCaptions);
 // ============================================
 
 /**
- * Get the caption style for the first selected caption item.
- * Falls back to the first caption in the project if nothing is selected.
+ * Get the active caption style.
+ * Now just returns the top-level captionPreset (single source of truth).
  */
-export function useActiveCaptionStyle(): CaptionStyle | null {
-  return useEditorStore(
-    useShallow((state) => {
-      // Try selected items first
-      for (const id of state.selectedIds) {
-        const item = state.items[id];
-        if (item?.type === 'caption') {
-          return (item.data as CaptionItemData)?.style || null;
-        }
-      }
-      // Fall back to first caption in project
-      const captionId = state.itemIds.find((id) => state.items[id]?.type === 'caption');
-      if (!captionId) return null;
-      const caption = state.items[captionId];
-      return (caption?.data as CaptionItemData)?.style || null;
-    })
-  );
+export function useActiveCaptionStyle(): CaptionStyle {
+  return useEditorStore((state) => state.captionPreset);
 }
 
 // ============================================
@@ -294,6 +272,14 @@ export function useAIEditRequested() {
 
 export function usePendingAIMessage() {
   return useEditorStore((state) => state.pendingAIMessage);
+}
+
+export function useAgentActivity() {
+  return useEditorStore((state) => state.agentActivity);
+}
+
+export function useAgentBusy() {
+  return useEditorStore((state) => state.agentBusy);
 }
 
 export function useTransitionPickerItemId() {
@@ -410,8 +396,7 @@ export function useEditorActions() {
       updateVideoSettings: state.updateVideoSettings,
 
       // Caption Styles
-      updateAllCaptionStyles: state.updateAllCaptionStyles,
-      updateSelectedCaptionStyles: state.updateSelectedCaptionStyles,
+      updateCaptionPreset: state.updateCaptionPreset,
       updateWordStyleOverrides: state.updateWordStyleOverrides,
       setApplyStyleToAll: state.setApplyStyleToAll,
       selectAllCaptionsOnTrack: state.selectAllCaptionsOnTrack,
@@ -576,8 +561,8 @@ export function useTimelineActions() {
 export function useCaptionActions() {
   return useEditorStore(
     useShallow((state) => ({
-      updateAllCaptionStyles: state.updateAllCaptionStyles,
-      updateSelectedCaptionStyles: state.updateSelectedCaptionStyles,
+      updateCaptionPreset: state.updateCaptionPreset,
+      generateCaptions: state.generateCaptions,
       updateWordStyleOverrides: state.updateWordStyleOverrides,
       setApplyStyleToAll: state.setApplyStyleToAll,
       selectAllCaptionsOnTrack: state.selectAllCaptionsOnTrack,

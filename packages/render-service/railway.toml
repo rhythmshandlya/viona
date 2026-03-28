@@ -1,0 +1,9 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "packages/render-service/Dockerfile"
+watchPatterns = ["packages/render-service/**"]
+
+[deploy]
+# Render service is a background BullMQ worker, no HTTP
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

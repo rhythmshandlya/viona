@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useCurrentFrame, interpolate, Easing } from 'remotion';
 
 interface Transform {
@@ -91,30 +91,24 @@ function interpolateValue(
 }
 
 /**
- * Resolve the current value of a transform property by walking keyframes.
+ * Resolve the current value of a transform property by walking pre-sorted keyframes.
+ * Keyframes are already filtered for this specific property and sorted by timeMs.
  * - Before first keyframe: interpolate from base to first keyframe
  * - Between keyframes: interpolate between adjacent pair
  * - After last keyframe: use last keyframe value
  */
 function resolveValue(
   prop: keyof Transform,
-  base: Transform,
-  keyframes: Keyframe[],
+  baseValue: number | string,
+  sorted: Keyframe[],
   currentTimeMs: number,
 ): number | string {
-  // Filter to keyframes that define this property
-  const relevant = keyframes
-    .filter((kf) => kf.props[prop] !== undefined)
-    .sort((a, b) => a.timeMs - b.timeMs);
-
-  const baseValue = base[prop];
-
-  if (relevant.length === 0) {
+  if (sorted.length === 0) {
     return baseValue;
   }
 
-  const first = relevant[0];
-  const last = relevant[relevant.length - 1];
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
 
   // Before first keyframe: interpolate from base to first keyframe
   if (currentTimeMs <= first.timeMs) {
@@ -129,9 +123,9 @@ function resolveValue(
   }
 
   // Between keyframes: find the surrounding pair
-  for (let i = 0; i < relevant.length - 1; i++) {
-    const kfA = relevant[i];
-    const kfB = relevant[i + 1];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const kfA = sorted[i];
+    const kfB = sorted[i + 1];
     if (currentTimeMs >= kfA.timeMs && currentTimeMs <= kfB.timeMs) {
       const duration = kfB.timeMs - kfA.timeMs;
       const progress = duration > 0 ? (currentTimeMs - kfA.timeMs) / duration : 1;
@@ -141,6 +135,22 @@ function resolveValue(
 
   // Fallback (shouldn't happen)
   return baseValue;
+}
+
+/** Pre-sort and group keyframes by property. Computed once per keyframes change. */
+type KeyframesByProp = Record<keyof Transform, Keyframe[]>;
+const TRANSFORM_PROPS: (keyof Transform)[] = ['x', 'y', 'width', 'height', 'rotation', 'opacity'];
+const EMPTY_KF: Keyframe[] = [];
+
+function buildKeyframeIndex(keyframes: Keyframe[]): KeyframesByProp {
+  const result = {} as KeyframesByProp;
+  for (const prop of TRANSFORM_PROPS) {
+    const relevant = keyframes
+      .filter((kf) => kf.props[prop] !== undefined)
+      .sort((a, b) => a.timeMs - b.timeMs);
+    result[prop] = relevant.length > 0 ? relevant : EMPTY_KF;
+  }
+  return result;
 }
 
 /** Build a CSS filter string from a Filters object */
@@ -182,18 +192,24 @@ export const TransformWrapper: React.FC<TransformWrapperProps> = ({
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
 
-  const sortedKeyframes = keyframes ?? [];
+  // Memoize per-property keyframe sorting — avoids .filter().sort() on every
+  // frame for every property (was 6 allocations × N items × 30fps).
+  const kfIndex = useMemo(
+    () => buildKeyframeIndex(keyframes ?? []),
+    [keyframes],
+  );
 
-  // Resolve each transform property
-  const x = resolveValue('x', transform, sortedKeyframes, currentTimeMs);
-  const y = resolveValue('y', transform, sortedKeyframes, currentTimeMs);
-  const width = resolveValue('width', transform, sortedKeyframes, currentTimeMs);
-  const height = resolveValue('height', transform, sortedKeyframes, currentTimeMs);
-  const rotation = resolveValue('rotation', transform, sortedKeyframes, currentTimeMs) as number;
-  const opacity = resolveValue('opacity', transform, sortedKeyframes, currentTimeMs) as number;
+  // Resolve each transform property using pre-sorted arrays
+  const x = resolveValue('x', transform.x, kfIndex.x, currentTimeMs);
+  const y = resolveValue('y', transform.y, kfIndex.y, currentTimeMs);
+  const width = resolveValue('width', transform.width, kfIndex.width, currentTimeMs);
+  const height = resolveValue('height', transform.height, kfIndex.height, currentTimeMs);
+  const rotation = resolveValue('rotation', transform.rotation, kfIndex.rotation, currentTimeMs) as number;
+  const opacity = resolveValue('opacity', transform.opacity, kfIndex.opacity, currentTimeMs) as number;
 
   const filterStr = buildFilterString(filters);
 
+  const hasAnimation = (keyframes ?? []).length > 0;
   const style: React.CSSProperties = {
     position: 'absolute',
     left: toCss(x),
@@ -204,6 +220,9 @@ export const TransformWrapper: React.FC<TransformWrapperProps> = ({
     opacity,
     overflow: 'hidden',
     filter: filterStr !== 'none' ? filterStr : undefined,
+    // GPU compositing hint — promotes animated elements to their own layer
+    // so transforms/opacity changes don't trigger main-thread repaints.
+    willChange: hasAnimation ? 'transform, opacity' : undefined,
     ...extraStyle, // borders, borderRadius, boxShadow, etc.
   };
 

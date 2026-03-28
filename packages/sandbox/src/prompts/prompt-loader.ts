@@ -1,25 +1,19 @@
 // packages/sandbox/src/prompts/prompt-loader.ts
-import { readFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// In production (sandbox container), .md files are at /app/dist/prompts/
+// In production (sandbox container), prompt files are at /app/dist/prompts/
 // In dev, they're relative to the compiled source
 const PROMPTS_DIR = process.env.NODE_ENV === 'production'
   ? '/app/dist/prompts'
   : join(__dirname);
 
-// Shared modules are copied into /workspace/docs/shared/ during init
-const WORKSPACE_SHARED = '/workspace/docs/shared';
+// --- Shared modules (cacheable prefix) ---
 
-const SHARED_MODULES = [
-  'technical-rules.md',
-  'motion-design-principles.md',
-  'vocabulary.md',
-  'quality-checklist.md',
-];
+const SHARED_FILES = ['identity.xml', 'tool-usage.xml', 'manifest-tools.xml', 'quality-rules.xml'];
 
 async function loadFile(path: string): Promise<string> {
   return readFile(path, 'utf-8');
@@ -27,28 +21,72 @@ async function loadFile(path: string): Promise<string> {
 
 export async function loadSharedModules(): Promise<string> {
   const modules: string[] = [];
-  for (const file of SHARED_MODULES) {
+  for (const file of SHARED_FILES) {
     try {
-      const content = await loadFile(join(WORKSPACE_SHARED, file));
-      modules.push(`## ${file.replace('.md', '').replace(/-/g, ' ').toUpperCase()}\n\n${content}`);
+      modules.push(await loadFile(join(PROMPTS_DIR, 'shared', file)));
     } catch {
-      // Shared module not found — skip (dev environment)
+      // Shared module not found — skip
     }
   }
-  return modules.join('\n\n---\n\n');
+  return modules.join('\n\n');
 }
 
-export async function loadPrompt(name: string): Promise<string> {
-  return loadFile(join(PROMPTS_DIR, `${name}.md`));
+// --- Agent-specific loading ---
+
+async function loadAgentSystem(agentName: string): Promise<string> {
+  return loadFile(join(PROMPTS_DIR, agentName, 'system.md'));
 }
 
-export async function loadPromptWithShared(name: string): Promise<string> {
-  const [shared, prompt] = await Promise.all([
+async function loadExamples(agentName: string): Promise<string> {
+  const examplesDir = join(PROMPTS_DIR, agentName, 'examples');
+  try {
+    const files = await readdir(examplesDir);
+    const contents = await Promise.all(
+      files.filter(f => f.endsWith('.md')).map(f => loadFile(join(examplesDir, f)))
+    );
+    return contents.join('\n\n');
+  } catch {
+    return ''; // No examples directory
+  }
+}
+
+async function loadCriticalReminder(agentName: string): Promise<string> {
+  try {
+    return await loadFile(join(PROMPTS_DIR, agentName, 'reminder.md'));
+  } catch {
+    return ''; // No reminder file
+  }
+}
+
+// --- Full assembly ---
+
+/**
+ * Assemble a complete agent prompt in research-backed order:
+ * 1. Shared modules (cacheable prefix) — at TOP
+ * 2. Agent system prompt — role, core rules, task
+ * 3. Few-shot examples — concrete good/bad examples
+ * 4. Injected context (via template vars) — variable per dispatch
+ * 5. Critical reminder (sandwich pattern) — at BOTTOM
+ */
+export async function assembleAgentPrompt(agentName: string, ctx: PromptContext): Promise<string> {
+  const [shared, system, examples, reminder] = await Promise.all([
     loadSharedModules(),
-    loadPrompt(name),
+    loadAgentSystem(agentName),
+    loadExamples(agentName),
+    loadCriticalReminder(agentName),
   ]);
-  return `${shared}\n\n---\n\n${prompt}`;
+
+  const sections = [shared, system, examples].filter(Boolean);
+  const assembled = sections.join('\n\n---\n\n');
+  const injected = injectContext(assembled, ctx);
+
+  if (reminder) {
+    return injected + '\n\n---\n\n' + injectContext(reminder, ctx);
+  }
+  return injected;
 }
+
+// --- Context injection ---
 
 export interface PromptContext {
   canvasWidth: number;
@@ -82,4 +120,15 @@ export function injectContext(prompt: string, ctx: PromptContext): string {
     .replaceAll('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))
     .replaceAll('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))
     .replaceAll('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown');
+}
+
+// --- Legacy compat (remove after migration) ---
+
+export async function loadPrompt(name: string): Promise<string> {
+  return loadFile(join(PROMPTS_DIR, `${name}.md`));
+}
+
+export async function loadPromptWithShared(name: string): Promise<string> {
+  const [shared, prompt] = await Promise.all([loadSharedModules(), loadPrompt(name)]);
+  return `${shared}\n\n---\n\n${prompt}`;
 }

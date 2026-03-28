@@ -64,7 +64,7 @@ export async function* parseSSEStream(
         if (line.startsWith('event: ')) {
           currentEvent = line.slice(7).trim();
         } else if (line.startsWith('data: ')) {
-          currentData = line.slice(6).trim();
+          currentData += (currentData ? '\n' : '') + line.slice(6).trim();
         } else if (line.startsWith('id: ')) {
           currentId = parseInt(line.slice(4).trim(), 10);
         } else if (line.startsWith(':')) {

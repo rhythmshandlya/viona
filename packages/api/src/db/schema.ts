@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, boolean, timestamp, jsonb, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, boolean, timestamp, jsonb, text, primaryKey } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -178,13 +178,74 @@ export const sandboxSessions = pgTable('sandbox_sessions', {
   backupId: varchar('backup_id', { length: 255 }),
   sandboxSecret: varchar('sandbox_secret', { length: 255 }).notNull(),
   internalUrl: varchar('internal_url', { length: 512 }),
-  sandboxPort: integer('sandbox_port'),
+  agentUrl: varchar('agent_url', { length: 512 }),
   provider: varchar('provider', { length: 20 }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastActivityAt: timestamp('last_activity_at').defaultNow().notNull(),
   suspendedAt: timestamp('suspended_at'),
+  suspendReason: varchar('suspend_reason', { length: 50 }), // 'idle' | 'user' | 'health_failure' | 'limit_exceeded' | 'api_shutdown'
   metadata: jsonb('metadata').default({}).$type<Record<string, unknown>>(),
 });
+
+// Templates — reusable video templates with bundled Remotion compositions
+export const templates = pgTable('templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 100 }).notNull(),
+  tags: jsonb('tags').$type<string[]>().default([]),
+  type: varchar('type', { length: 20 }).default('scene'),
+  aspectRatio: varchar('aspect_ratio', { length: 10 }).notNull().default('16:9'),
+  durationFrames: integer('duration_frames').notNull().default(360),
+  fps: integer('fps').notNull().default(30),
+  width: integer('width').notNull().default(1920),
+  height: integer('height').notNull().default(1080),
+  propsSchema: jsonb('props_schema').$type<Record<string, unknown>>(),
+  defaultProps: jsonb('default_props').$type<Record<string, unknown>>(),
+  screenshotUrl: varchar('screenshot_url', { length: 1024 }),
+  bundleKey: varchar('bundle_key', { length: 1024 }),
+  sourceKey: varchar('source_key', { length: 1024 }),
+  version: integer('version').notNull().default(1),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Template exports — user-initiated renders from templates
+export const templateExports = pgTable('template_exports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  templateId: uuid('template_id').notNull().references(() => templates.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  props: jsonb('props').$type<Record<string, unknown>>(),
+  status: varchar('status', { length: 50 }).notNull().default('queued'),
+  outputUrl: varchar('output_url', { length: 1024 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+});
+
+// Themes — creative direction collections for templates
+export const themes = pgTable('themes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  colorPalette: jsonb('color_palette').$type<Record<string, string>>(),
+  fontRecommendations: jsonb('font_recommendations').$type<Record<string, string>>(),
+  styleGuidance: text('style_guidance'),
+  previewUrl: varchar('preview_url', { length: 1024 }),
+  isPublished: boolean('is_published').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Template-Theme join table (many-to-many)
+export const templateThemes = pgTable('template_themes', {
+  themeId: uuid('theme_id').notNull().references(() => themes.id, { onDelete: 'cascade' }),
+  templateId: uuid('template_id').notNull().references(() => templates.id, { onDelete: 'cascade' }),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.themeId, table.templateId] }),
+}));
 
 // Waitlist signups
 export const waitlist = pgTable('waitlist', {
@@ -218,3 +279,9 @@ export type SandboxSession = typeof sandboxSessions.$inferSelect;
 export type NewSandboxSession = typeof sandboxSessions.$inferInsert;
 export type WaitlistEntry = typeof waitlist.$inferSelect;
 export type NewWaitlistEntry = typeof waitlist.$inferInsert;
+export type Template = typeof templates.$inferSelect;
+export type NewTemplate = typeof templates.$inferInsert;
+export type TemplateExport = typeof templateExports.$inferSelect;
+export type NewTemplateExport = typeof templateExports.$inferInsert;
+export type Theme = typeof themes.$inferSelect;
+export type NewTheme = typeof themes.$inferInsert;

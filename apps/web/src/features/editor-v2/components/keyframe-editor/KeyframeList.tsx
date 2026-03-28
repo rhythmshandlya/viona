@@ -94,7 +94,7 @@ export const KeyframeList: React.FC<KeyframeListProps> = ({
     >
       {/* Header */}
       <div
-        className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide select-none"
+        className="px-3 py-1.5 text-[10px] font-normal uppercase tracking-wide select-none"
         style={{
           color: 'var(--editor-text-muted)',
           borderBottom: '1px solid var(--editor-border-default)',
@@ -157,7 +157,7 @@ export const KeyframeList: React.FC<KeyframeListProps> = ({
                     border: '1px solid var(--editor-border-default)',
                   }}
                 >
-                  {kf.easing.startsWith('cubic-bezier') ? 'custom' : kf.easing}
+                  {kf.easing?.startsWith('cubic-bezier') ? 'custom' : (kf.easing ?? 'linear')}
                 </span>
 
                 {/* Delete button */}
@@ -181,7 +181,7 @@ export const KeyframeList: React.FC<KeyframeListProps> = ({
 
       {/* Add Keyframe button */}
       <button
-        className="w-full px-3 py-2 text-xs font-medium transition-colors hover:bg-[var(--editor-bg-hover)]"
+        className="w-full px-3 py-2 text-xs font-normal transition-colors hover:bg-[var(--editor-bg-hover)]"
         style={{
           color: 'var(--editor-accent)',
           borderTop: '1px solid var(--editor-border-default)',

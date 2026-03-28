@@ -1,19 +1,19 @@
 # Railway Deployment Guide
 
-This guide covers deploying Viona to Railway with 3 services (Web, API, Worker) and supporting infrastructure.
+This guide covers deploying Viona to Railway with 3 static services (Web, API, Worker), dynamic sandbox services, and supporting infrastructure.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Railway Project                       │
-├─────────────┬─────────────┬─────────────┬──────────────────┤
-│   Web App   │   API       │   Worker    │  Infrastructure  │
-│  (Next.js)  │  (Fastify)  │  (Node+Py)  │                  │
-│   Port 3000 │  Port 4000  │   No port   │  PostgreSQL      │
-│             │             │             │  Redis           │
-│             │             │             │  Storage Bucket  │
-└─────────────┴─────────────┴─────────────┴──────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           Railway Project                            │
+├─────────────┬─────────────┬─────────────┬──────────────┬────────────┤
+│   Web App   │   API       │   Worker    │Infrastructure│  Sandbox   │
+│  (Next.js)  │  (Fastify)  │  (Node+Py)  │              │ (dynamic,  │
+│   Port 3000 │  Port 4000  │   No port   │ PostgreSQL   │  per-      │
+│             │             │             │ Redis        │  project)  │
+│             │             │             │ S3 Bucket    │            │
+└─────────────┴─────────────┴─────────────┴──────────────┴────────────┘
 ```
 
 ## Prerequisites
@@ -96,6 +96,28 @@ This guide covers deploying Viona to Railway with 3 services (Web, API, Worker) 
    ```
 4. Generate domain: Settings → Networking → Generate Domain
 
+### Sandbox Pipeline (Dynamic)
+
+The sandbox is **not** a static Railway service — the API dynamically creates sandbox services on-demand via Railway's GraphQL API. Each project gets its own ephemeral container + persistent volume.
+
+**Setup — add these env vars to the API service:**
+
+```
+SANDBOX_PROVIDER=railway
+RAILWAY_API_TOKEN=<generate at railway.com → Account → Tokens>
+RAILWAY_ENVIRONMENT_ID=<from Railway dashboard URL>
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**How it works:**
+1. User opens a project in the editor → API calls Railway `serviceCreate` with `source: { repo }`
+2. Railway builds the sandbox from `packages/sandbox/Dockerfile`
+3. A volume is mounted at `/workspace` for the project files
+4. After 10 min idle, the sandbox is suspended (volume backed up, service destroyed)
+5. On next open, the volume is restored from backup
+
+**Optimization (optional):** For faster sandbox creation (~30s vs ~3-5min), push the sandbox image to a Docker registry and set `SANDBOX_IMAGE=<registry-url>` on the API service.
+
 ## Step 4: Upload Remotion Template
 
 Before the worker can generate visuals, upload the template to S3:
@@ -131,6 +153,12 @@ pnpm --filter @viona/api db:migrate
 | `DATABASE_URL` | PostgreSQL connection string | Yes (auto-injected) |
 | `REDIS_URL` | Redis connection string | Yes (auto-injected) |
 | `BUCKET_*` | S3 storage credentials | Yes (auto-injected) |
+| `SANDBOX_PROVIDER` | `railway` for production | Yes (prod) |
+| `RAILWAY_API_TOKEN` | Railway API token for sandbox management | Yes (prod) |
+| `RAILWAY_ENVIRONMENT_ID` | Railway environment ID | Yes (prod) |
+| `ANTHROPIC_API_KEY` | Claude API key (passed to sandboxes) | Yes |
+| `SANDBOX_REPO` | GitHub repo for sandbox builds (default: `rhythmshandlya/clippify`) | No |
+| `SANDBOX_BRANCH` | Branch to build sandbox from (default: `main`) | No |
 
 ### Worker Service
 | Variable | Description | Required |
@@ -177,6 +205,7 @@ pnpm --filter @viona/api db:migrate
 | Storage | MinIO (Docker) | Railway Bucket |
 | Template | Local directory | S3 download |
 | Bundles | Shared directory | Ephemeral |
+| Sandbox | Docker containers | Railway dynamic services |
 
 ## Updating
 
