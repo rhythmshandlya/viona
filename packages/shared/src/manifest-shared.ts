@@ -91,7 +91,7 @@ export const manifestCaptionPresetSchema = z.object({
     whisper: z.number(),
   }).optional(),
   // Poster staircase alignment variant
-  staircaseAlignment: z.enum(['center', 'left', 'stagger']).optional(),
+  staircaseAlignment: z.enum(['center', 'left', 'stagger', 'bold-stack', 'impact', 'single', 'scattered']).optional(),
 }).passthrough();
 
 /** @deprecated Use `manifestCaptionPresetSchema` instead */

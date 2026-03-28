@@ -674,8 +674,21 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
       cinematicColors: mcs.cinematicColors as CaptionStyle['cinematicColors'],
       cinematicScales: mcs.cinematicScales as CaptionStyle['cinematicScales'],
     } : {}),
-    // Poster staircase alignment
-    staircaseAlignment: (mcs as any).staircaseAlignment ?? undefined,
+    // Poster staircase alignment — prefer new staircaseAlignment; fall back to mapping old staircaseVariant
+    staircaseAlignment: (() => {
+      const sa = (mcs as any).staircaseAlignment;
+      if (sa) return sa;
+      const sv = (mcs as any).staircaseVariant as string | undefined;
+      if (!sv) return undefined;
+      // Map old preset-specific variant names to consolidated alignment options
+      const variantMap: Record<string, string> = {
+        'impact-pop': 'impact',
+        'elegant-script': 'single',
+        'script-accent': 'single',
+        'scattered-poster': 'scattered',
+      };
+      return variantMap[sv] ?? sv; // 'bold-stack' and 'mega-bold' map to themselves
+    })(),
   };
 }
 

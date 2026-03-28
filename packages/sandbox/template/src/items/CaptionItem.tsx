@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCurrentFrame } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 
 interface CaptionWord {
   text: string;
@@ -81,6 +81,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
   itemStartMs,
 }) => {
   const frame = useCurrentFrame();
+  const { width: canvasW } = useVideoConfig();
   // Caption word timestamps are ABSOLUTE. Convert current frame to absolute ms.
   const currentTimeMs = itemStartMs + (frame / fps) * 1000;
 
@@ -134,7 +135,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     const emphasisFont = captionPreset.displayFontFamily || 'Dancing Script';
     const bodyFont = captionPreset.bodyFontFamily || 'Montserrat';
     const baseFontSize = captionPreset.fontSize ?? 55;
-    const alignment: 'center' | 'left' | 'stagger' = captionPreset.staircaseAlignment || 'center';
+    const alignment = captionPreset.staircaseAlignment || 'center';
 
     // Find the single pivot word: highest tier, closest to phrase center.
     // Only power (score 4) or strong (score 3, length ≥ 7) words qualify as emphasis.
@@ -169,6 +170,229 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     const offsetX = position?.offsetX ?? 0;
     const offsetY = position?.offsetY ?? 5;
 
+    // ── bold-stack: every word large, gold, uppercase, flex-wrapped ──────────
+    if (alignment === 'bold-stack') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute',
+        bottom: `${offsetY}%`,
+        left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '92%',
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '2px 10px',
+      };
+      const wordStyle: React.CSSProperties = {
+        fontFamily: "'Montserrat', system-ui, sans-serif",
+        fontSize: baseFontSize * 1.5,
+        fontWeight: 900,
+        color: '#FFD700',
+        textTransform: 'uppercase',
+        letterSpacing: '2px',
+        lineHeight: 1.05,
+        textShadow: '0 2px 12px rgba(0,0,0,0.9), 0 0 30px rgba(255,180,0,0.35)',
+        display: 'inline-block',
+      };
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {visibleWords.map((w, i) => (
+            <span key={i} style={wordStyle}>{w.text}</span>
+          ))}
+        </div>
+      );
+    }
+
+    // ── impact: extreme contrast — tiny body, massive gold pivot ─────────────
+    if (alignment === 'impact') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute',
+        bottom: `${offsetY}%`,
+        left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '92%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '2px',
+      };
+      const bodyStyle = (marginLeft: string): React.CSSProperties => ({
+        fontFamily: "'Montserrat', system-ui, sans-serif",
+        fontSize: baseFontSize * 0.38,
+        fontWeight: 700,
+        color: '#FFFFFF',
+        textTransform: 'uppercase',
+        letterSpacing: '2.5px',
+        lineHeight: 1.2,
+        textAlign: 'center',
+        textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+        width: '100%',
+        marginLeft,
+      });
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: "'Montserrat', 'Impact', system-ui, sans-serif",
+        fontSize: baseFontSize * 2.5,
+        fontWeight: 900,
+        color: '#FFD700',
+        textTransform: 'uppercase',
+        letterSpacing: '-1px',
+        lineHeight: 1.0,
+        textAlign: 'center',
+        textShadow: '0 0 22px rgba(255,180,0,0.7), 0 3px 15px rgba(0,0,0,0.9)',
+        width: '100%',
+      };
+
+      if (pivotIdx === -1) {
+        return (
+          <div style={containerStyle} data-caption-overlay>
+            <div style={bodyStyle('0%')}>{visibleWords.map(w => w.text).join(' ')}</div>
+          </div>
+        );
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {beforeText ? <div style={bodyStyle('0%')}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={bodyStyle('0%')}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
+    // ── single: thin body + cursive pivot in gold ────────────────────────────
+    if (alignment === 'single') {
+      const containerStyle: React.CSSProperties = {
+        position: 'absolute',
+        bottom: `${offsetY}%`,
+        left: '50%',
+        transform: `translateX(calc(-50% + ${offsetX}px))`,
+        width: '90%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '3px',
+      };
+      const bodyStyle: React.CSSProperties = {
+        fontFamily: "'Montserrat', system-ui, sans-serif",
+        fontSize: baseFontSize * 0.65,
+        fontWeight: 300,
+        color: 'rgba(255,255,255,0.85)',
+        letterSpacing: '1.5px',
+        lineHeight: 1.3,
+        textAlign: 'center',
+        textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+        width: '100%',
+        textTransform: 'none',
+      };
+      const pivotStyle: React.CSSProperties = {
+        fontFamily: "'Great Vibes', cursive",
+        fontSize: baseFontSize * 2.1,
+        fontWeight: 400,
+        fontStyle: 'italic',
+        color: '#FFD700',
+        letterSpacing: '0.5px',
+        lineHeight: 1.1,
+        textAlign: 'center',
+        textShadow: '0 0 18px rgba(255,180,0,0.4), 0 2px 12px rgba(0,0,0,0.85)',
+        width: '100%',
+      };
+
+      if (pivotIdx === -1) {
+        return (
+          <div style={containerStyle} data-caption-overlay>
+            <div style={pivotStyle}>{visibleWords.map(w => w.text).join(' ')}</div>
+          </div>
+        );
+      }
+      const beforeText = visibleWords.slice(0, pivotIdx).map(w => w.text).join(' ');
+      const afterText = visibleWords.slice(pivotIdx + 1).map(w => w.text).join(' ');
+      return (
+        <div style={containerStyle} data-caption-overlay>
+          {beforeText ? <div style={bodyStyle}>{beforeText}</div> : null}
+          <div style={pivotStyle}>{visibleWords[pivotIdx].text}</div>
+          {afterText ? <div style={bodyStyle}>{afterText}</div> : null}
+        </div>
+      );
+    }
+
+    // ── scattered: absolute positioning across canvas ────────────────────────
+    if (alignment === 'scattered') {
+      // Scatter position slots [xPercent, yPercent, rotationDeg]
+      // Designed for lower 45% of 9:16 vertical canvas (caption zone)
+      const SLOTS: Array<[number, number, number]> = [
+        [50, 62,  0],   // 0: center-primary (pivot)
+        [18, 57, -4],   // 1: upper-left
+        [76, 58,  3],   // 2: upper-right
+        [30, 72, -2],   // 3: mid-left
+        [66, 72,  2],   // 4: mid-right
+        [22, 82, -3],   // 5: lower-left
+        [72, 81,  2],   // 6: lower-right
+        [46, 86, -1],   // 7: bottom-center
+        [58, 52,  1],   // 8: upper-center-right
+      ];
+      const LEFT_SLOTS = [1, 3, 5, 7];
+      const RIGHT_SLOTS = [2, 4, 6, 8];
+
+      // Use pivot from existing logic, fallback to highest-scored word
+      const effectivePivot = pivotIdx >= 0 ? pivotIdx : scores.indexOf(Math.max(...scores));
+
+      let leftIdx = 0;
+      let rightIdx = 0;
+      const placements = visibleWords.map((w, i) => {
+        if (i === effectivePivot) return { word: w, slot: SLOTS[0], tier: classifyWord(w.text) };
+        if (i < effectivePivot) {
+          const slot = SLOTS[LEFT_SLOTS[leftIdx % LEFT_SLOTS.length]];
+          leftIdx++;
+          return { word: w, slot, tier: classifyWord(w.text) };
+        }
+        const slot = SLOTS[RIGHT_SLOTS[rightIdx % RIGHT_SLOTS.length]];
+        rightIdx++;
+        return { word: w, slot, tier: classifyWord(w.text) };
+      });
+
+      const tierSizeMultiplier: Record<WordTier, number> = {
+        power: 2.4, strong: 1.8, medium: 0.88, filler: 0.58,
+      };
+      const maxFontSize = canvasW * 0.14; // cap at 14% of canvas width
+
+      return (
+        <div style={{ position: 'absolute', inset: 0 }} data-caption-overlay>
+          {placements.map(({ word, slot, tier }, idx) => {
+            const [xPct, yPct, rot] = slot;
+            const rawSize = baseFontSize * tierSizeMultiplier[tier];
+            const fontSize = Math.min(rawSize, maxFontSize);
+            const isEmphasis = tier === 'power' || tier === 'strong';
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  left: `${xPct}%`,
+                  top: `${yPct}%`,
+                  transform: `translate(-50%, -50%) rotate(${rot}deg)`,
+                  fontFamily: "'Montserrat', system-ui, sans-serif",
+                  fontSize,
+                  fontWeight: isEmphasis ? 900 : 400,
+                  color: isEmphasis ? '#FFD700' : '#FFFFFF',
+                  textTransform: 'uppercase',
+                  letterSpacing: isEmphasis ? '-0.5px' : '1px',
+                  lineHeight: 1.0,
+                  textShadow: isEmphasis ? '0 2px 10px rgba(0,0,0,0.9), 0 0 20px rgba(255,180,0,0.4)' : '0 2px 10px rgba(0,0,0,0.9)',
+                  whiteSpace: 'nowrap',
+                  opacity: isEmphasis ? 1 : 0.8,
+                }}
+              >
+                {word.text}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // ── Default Cinematic Luxe staircase (no variant / 'cinematic-luxe') ──────
     const containerStyle: React.CSSProperties = {
       position: 'absolute',
       bottom: `${offsetY}%`,

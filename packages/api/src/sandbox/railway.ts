@@ -5,21 +5,60 @@ import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js'
 
 const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
 
-async function railwayGql(query: string, variables: Record<string, unknown> = {}): Promise<any> {
-  const res = await fetch(RAILWAY_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.sandbox.railway.apiToken}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const data = (await res.json()) as { errors?: unknown[]; data: unknown };
-  if (data.errors) {
-    throw new Error(`Railway API error: ${JSON.stringify(data.errors)}`);
+async function railwayGql(query: string, variables: Record<string, unknown> = {}, step?: string): Promise<any> {
+  const token = config.sandbox.railway.apiToken;
+  if (!token) {
+    throw new Error(`Railway API token not configured (step: ${step || 'unknown'})`);
   }
-  return data.data;
+
+  const MAX_RETRIES = 3;
+  const RETRY_BASE_MS = 1000;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(RAILWAY_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Railway API HTTP ${res.status} at step "${step || 'unknown'}": ${body}`);
+      }
+
+      const data = (await res.json()) as { errors?: unknown[]; data: unknown };
+      if (data.errors) {
+        const errStr = JSON.stringify(data.errors);
+        // "Problem processing request" is a transient Railway server error — retry
+        if (errStr.includes('Problem processing request') && attempt < MAX_RETRIES - 1) {
+          logger.warn({ step, attempt: attempt + 1, errors: errStr }, 'Railway API transient error, retrying');
+          await new Promise(r => setTimeout(r, RETRY_BASE_MS * Math.pow(2, attempt)));
+          continue;
+        }
+        throw new Error(`Railway API error at step "${step || 'unknown'}": ${errStr}`);
+      }
+      return data.data;
+    } catch (err: any) {
+      // Retry on network/fetch failures (not on our own thrown errors with step info)
+      const isTransient = err.cause?.code === 'ECONNRESET' ||
+        err.cause?.code === 'ETIMEDOUT' ||
+        err.message?.includes('fetch failed') ||
+        err.message?.includes('Problem processing request');
+
+      if (isTransient && attempt < MAX_RETRIES - 1) {
+        logger.warn({ step, attempt: attempt + 1, err: err.message }, 'Railway API transient error, retrying');
+        await new Promise(r => setTimeout(r, RETRY_BASE_MS * Math.pow(2, attempt)));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error(`Railway API failed after ${MAX_RETRIES} retries at step "${step || 'unknown'}"`);
 }
 
 export class RailwaySandboxProvider implements SandboxProvider {
@@ -34,6 +73,14 @@ export class RailwaySandboxProvider implements SandboxProvider {
       // 1. Create service — use image source if a custom SANDBOX_IMAGE is set,
       //    otherwise build from the GitHub repo (no external registry needed)
       const useImage = config.sandbox.image !== 'viona-sandbox:latest';
+      logger.info({
+        projectId,
+        useImage,
+        railwayProjectId: config.sandbox.railway.projectId,
+        railwayEnvId: config.sandbox.railway.environmentId,
+        tokenPrefix: config.sandbox.railway.apiToken?.slice(0, 8),
+      }, 'Creating sandbox service on Railway');
+
       const serviceResult = await railwayGql(`
         mutation($input: ServiceCreateInput!) {
           serviceCreate(input: $input) { id name }
@@ -48,7 +95,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
             : { repo: config.sandbox.railway.repo },
           branch: config.sandbox.railway.branch,
         },
-      });
+      }, 'serviceCreate');
       serviceId = serviceResult.serviceCreate.id;
 
       // 1b. Configure build settings (Dockerfile path, health check)
@@ -66,7 +113,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
           restartPolicyType: 'ON_FAILURE',
           restartPolicyMaxRetries: 3,
         },
-      });
+      }, 'serviceInstanceUpdate');
 
       // 2. Set environment variables
       const allEnv: Record<string, string> = {
@@ -95,7 +142,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
           serviceId,
           variables: allEnv,
         },
-      });
+      }, 'variableCollectionUpsert');
 
       // 3. Create volume
       const volumeResult = await railwayGql(`
@@ -110,7 +157,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
           mountPath: '/workspace',
           name: `workspace-${projectId.slice(0, 8)}`,
         },
-      });
+      }, 'volumeCreate');
       volumeId = volumeResult.volumeCreate.id;
 
       // 4. Deploy
@@ -121,7 +168,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
       `, {
         serviceId,
         environmentId: config.sandbox.railway.environmentId,
-      });
+      }, 'serviceInstanceDeployV2');
 
       // 5. Wait for deployment and get volume instance ID
       //    Repo-based builds take longer than image pulls — poll for up to 5 min
@@ -135,7 +182,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
               volumeInstances { id }
             }
           }
-        `, { volumeId });
+        `, { volumeId }, 'volumeInstancePoll');
 
         const instances = volData.volume?.volumeInstances || [];
         if (instances.length > 0) {
@@ -160,7 +207,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
         `, {
           volumeInstanceBackupId: backupId,
           volumeInstanceId,
-        });
+        }, 'volumeInstanceBackupRestore');
       }
 
       // 7. Resolve internal URL
@@ -187,12 +234,12 @@ export class RailwaySandboxProvider implements SandboxProvider {
       // Cleanup on failure — delete both service and orphaned volume
       if (volumeId) {
         try {
-          await railwayGql(`mutation($volumeId: String!) { volumeDelete(volumeId: $volumeId) }`, { volumeId });
+          await railwayGql(`mutation($volumeId: String!) { volumeDelete(volumeId: $volumeId) }`, { volumeId }, 'cleanup:volumeDelete');
         } catch {}
       }
       if (serviceId) {
         try {
-          await railwayGql(`mutation($id: String!) { serviceDelete(id: $id) }`, { id: serviceId });
+          await railwayGql(`mutation($id: String!) { serviceDelete(id: $id) }`, { id: serviceId }, 'cleanup:serviceDelete');
         } catch {}
       }
       throw new Error(`Railway sandbox create failed: ${err.message}`);

@@ -27,7 +27,8 @@
     "deploy:web": "cp apps/web/railway.toml railway.toml && railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s web -e production && railway up -d",
     "deploy:api": "cp packages/api/railway.toml railway.toml && railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s api -e production && railway up -d",
     "deploy:worker": "cp packages/worker/railway.toml railway.toml && railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s worker -e production && railway up -d",
-    "deploy:all": "pnpm deploy:web && pnpm deploy:api && pnpm deploy:worker",
+    "deploy:render": "cp packages/render-service/railway.toml railway.toml && railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s render-service -e production && railway up -d",
+    "deploy:all": "pnpm deploy:web && pnpm deploy:api && pnpm deploy:worker && pnpm deploy:render",
     "lint": "pnpm run --parallel lint",
     "typecheck": "pnpm run --parallel typecheck",
     "push-tokens": "pnpm --filter @viona/worker push-tokens"

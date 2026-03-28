@@ -66,6 +66,8 @@ export interface SubtitlePreset {
   };
   // Dual typography — power/strong words use display font, medium/filler use body font
   typographyPairingId?: string;
+  // Poster staircase visual variant
+  staircaseVariant?: string;
   // Cinematic renderer
   useCinematicRenderer?: boolean;
   cinematicFonts?: {

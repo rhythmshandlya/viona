@@ -117,10 +117,11 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
           .sort((a, b) => a.startMs - b.startMs);
         if (trackItems.length === 0) return null;
 
-        // Merge single-word captions into phrase groups for phrase/karaoke/DH display
+        // Merge single-word captions into phrase groups for phrase/karaoke/poster-staircase/DH display
         const needsMergeComp = isDynamicHierarchy ||
           captionPreset.displayMode === 'phrase' ||
-          captionPreset.displayMode === 'karaoke';
+          captionPreset.displayMode === 'karaoke' ||
+          captionPreset.displayMode === 'poster-staircase';
         if (needsMergeComp && trackItems[0]?.type === 'caption') {
           trackItems = mergeCaptionPhrases(trackItems, captionPreset.wordsPerPhrase || 6);
         }

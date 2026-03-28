@@ -164,6 +164,8 @@ export function StylePanel() {
       typographyPairingId: preset.typographyPairingId || '',
       displayFontFamily: pairing?.displayFont.family || '',
       bodyFontFamily: pairing?.bodyFont.family || '',
+      // Staircase visual variant — empty string clears previous variant
+      staircaseVariant: preset.staircaseVariant || '',
       // Cinematic renderer fields
       ...(preset.useCinematicRenderer ? {
         useCinematicRenderer: true,
@@ -350,11 +352,15 @@ export function StylePanel() {
           {/* Staircase alignment picker — only shown for poster-staircase mode */}
           {style.displayMode === 'poster-staircase' && (
             <Section label="Staircase Layout">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {([
-                  { value: 'center', label: 'Centered', icon: '⊟' },
-                  { value: 'left',   label: 'Left',     icon: '⊞' },
-                  { value: 'stagger',label: 'Cascade',  icon: '⊠' },
+                  { value: 'center',     label: 'Centered', icon: '⊟' },
+                  { value: 'left',       label: 'Left',     icon: '⊞' },
+                  { value: 'stagger',    label: 'Cascade',  icon: '⊠' },
+                  { value: 'bold-stack', label: 'Stack',    icon: '▣' },
+                  { value: 'impact',     label: 'Impact',   icon: '◉' },
+                  { value: 'single',     label: 'Single',   icon: '◯' },
+                  { value: 'scattered',  label: 'Scatter',  icon: '✦' },
                 ] as const).map(({ value, label, icon }) => {
                   const active = (style.staircaseAlignment ?? 'center') === value;
                   return (
@@ -367,30 +373,7 @@ export function StylePanel() {
                           : 'border-[var(--editor-border-subtle)] bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:border-[var(--editor-border)] hover:text-[var(--editor-text-primary)]'
                       }`}
                     >
-                      {/* Mini staircase preview */}
-                      <div className="flex flex-col gap-0.5 w-full px-2">
-                        {value === 'center' && (
-                          <>
-                            <div className="h-1.5 rounded-sm bg-current opacity-90 mx-auto w-3/4" />
-                            <div className="h-0.5 rounded-sm bg-current opacity-50 mx-auto w-1/2" />
-                            <div className="h-1.5 rounded-sm bg-current opacity-90 mx-auto w-3/4" />
-                          </>
-                        )}
-                        {value === 'left' && (
-                          <>
-                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
-                            <div className="h-0.5 rounded-sm bg-current opacity-50 w-1/2" />
-                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
-                          </>
-                        )}
-                        {value === 'stagger' && (
-                          <>
-                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
-                            <div className="h-0.5 rounded-sm bg-current opacity-50 w-1/2 self-end" />
-                            <div className="h-1.5 rounded-sm bg-current opacity-90 w-3/4" />
-                          </>
-                        )}
-                      </div>
+                      <span className="text-lg leading-none">{icon}</span>
                       <span className="text-[10px] leading-none">{label}</span>
                     </button>
                   );

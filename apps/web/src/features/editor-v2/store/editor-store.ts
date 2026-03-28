@@ -120,11 +120,12 @@ const syncWorkspaceManifest = () => {
     captionPreset,
   );
 
-  // Phrase/karaoke modes and dynamic hierarchy need multi-word caption items.
+  // Phrase/karaoke/poster-staircase modes and dynamic hierarchy need multi-word caption items.
   // If items are single-word (from word-by-word generation), merge them into phrases.
   const needsMerge = captionPreset.typographyPairingId ||
     captionPreset.displayMode === 'phrase' ||
-    captionPreset.displayMode === 'karaoke';
+    captionPreset.displayMode === 'karaoke' ||
+    captionPreset.displayMode === 'poster-staircase';
   if (needsMerge && Array.isArray((manifest as any).items)) {
     (manifest as any).items = mergeSingleWordCaptions(
       (manifest as any).items,
@@ -835,10 +836,11 @@ export const useEditorStore = create<EditorStore>()(
           if (apiVs?.captionAnalysis) {
             wsManifest.captionAnalysis = apiVs.captionAnalysis;
           }
-          // Merge single-word captions for phrase/karaoke/DH display
+          // Merge single-word captions for phrase/karaoke/poster-staircase/DH display
           const needsMergeOnLoad = state.captionPreset.typographyPairingId ||
             state.captionPreset.displayMode === 'phrase' ||
-            state.captionPreset.displayMode === 'karaoke';
+            state.captionPreset.displayMode === 'karaoke' ||
+            state.captionPreset.displayMode === 'poster-staircase';
           if (needsMergeOnLoad && Array.isArray(wsManifest.items)) {
             wsManifest.items = mergeSingleWordCaptions(
               wsManifest.items as any[],
@@ -2709,12 +2711,13 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
 
-      // Store the manifest — merge single-word captions for phrase/karaoke/DH display
+      // Store the manifest — merge single-word captions for phrase/karaoke/poster-staircase/DH display
       const cp = get().captionPreset;
       const rawManifest = manifest as Record<string, unknown>;
       const needsMergeRemote = cp.typographyPairingId ||
         cp.displayMode === 'phrase' ||
-        cp.displayMode === 'karaoke';
+        cp.displayMode === 'karaoke' ||
+        cp.displayMode === 'poster-staircase';
       if (needsMergeRemote && Array.isArray(rawManifest.items)) {
         rawManifest.items = mergeSingleWordCaptions(
           rawManifest.items as any[],

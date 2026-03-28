@@ -403,7 +403,10 @@ export interface CaptionStyle {
   };
 
   // Poster staircase alignment variant
-  staircaseAlignment?: 'center' | 'left' | 'stagger';
+  staircaseAlignment?: 'center' | 'left' | 'stagger' | 'bold-stack' | 'impact' | 'single' | 'scattered';
+
+  // Poster staircase visual variant (bold-stack, impact-pop, elegant-script, mega-bold, script-accent, scattered-poster)
+  staircaseVariant?: string;
 }
 
 export interface TextItemData {
