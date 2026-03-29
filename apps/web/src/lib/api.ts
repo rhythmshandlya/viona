@@ -867,7 +867,7 @@ class ApiClient {
   async createSandbox(projectId: string): Promise<{ status: string; internalUrl: string }> {
     return this.request(`/api/projects/${projectId}/sandbox`, {
       method: 'POST',
-    }, 180_000);
+    }, 360_000);
   }
 
   /** Get sandbox status (includes current agent progress from Redis for restore on reconnect) */
