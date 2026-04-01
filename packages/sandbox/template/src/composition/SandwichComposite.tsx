@@ -13,6 +13,7 @@ interface SandwichCompositeProps {
   matteSrc: string;
   startFrom: number;
   children: React.ReactNode;
+  backgroundless?: boolean;
 }
 
 /**
@@ -28,22 +29,28 @@ interface SandwichCompositeProps {
  *   pixel data from these DOM <video> elements on every frame tick, ensuring
  *   the composite is always frame-accurate.
  *
- * Canvas approach:
- *   1. Draw source video frame onto canvas
- *   2. Set globalCompositeOperation to 'destination-in'
- *   3. Draw matte frame — white pixels = keep, black = discard
- *   4. Result: person-only pixels on transparent background
+ * Canvas approach (temp canvas):
+ *   The RGB matte (H.264) has alpha=255 everywhere — 'destination-in' on the
+ *   matte video directly has no effect. Instead:
+ *   1. Draw source video onto main canvas (source-over)
+ *   2. On temp canvas: draw matte video, getImageData, copy red channel → alpha
+ *      channel, putImageData back — temp canvas now has correct alpha mask
+ *   3. On main canvas: set destination-in, drawImage(tempCanvas) — keeps source
+ *      pixels only where temp canvas alpha > 0 (i.e. where person is present)
+ *   4. Reset composite operation to source-over
  */
 export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
   videoSrc,
   matteSrc,
   startFrom,
   children,
+  backgroundless = false,
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const tempCanvasRef = useRef<HTMLCanvasElement>(null);
   const sourceVideoRef = useRef<HTMLVideoElement>(null);
   const matteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -52,28 +59,37 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
+    const tempCanvas = tempCanvasRef.current;
     const sourceVideo = sourceVideoRef.current;
     const matteVideo = matteVideoRef.current;
-    if (!canvas || !sourceVideo || !matteVideo) return;
+    if (!canvas || !tempCanvas || !sourceVideo || !matteVideo) return;
     if (sourceVideo.readyState < 2 || matteVideo.readyState < 2) return;
 
-    const ctx = canvas.getContext('2d', { willReadFrequently: false });
-    if (!ctx) return;
+    const ctx = canvas.getContext('2d');
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx || !tempCtx) return;
 
-    // Clear canvas
+    // Step 1: Draw source video onto main canvas
     ctx.clearRect(0, 0, width, height);
-
-    // Step 1: Draw source video frame (person + background)
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(sourceVideo, 0, 0, width, height);
 
-    // Step 2: Apply matte as alpha mask
-    // 'destination-in' keeps existing pixels only where the new draw is opaque.
-    // The matte is white (opaque) where the person is, black (transparent) elsewhere.
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.drawImage(matteVideo, 0, 0, width, height);
+    // Step 2: Build alpha mask on temp canvas from matte red channel.
+    // H.264 RGB matte always has alpha=255 — we must promote the red channel
+    // to alpha so that destination-in produces the correct cutout.
+    tempCtx.clearRect(0, 0, width, height);
+    tempCtx.drawImage(matteVideo, 0, 0, width, height);
+    const imageData = tempCtx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i + 3] = pixels[i]; // alpha = red channel value
+    }
+    tempCtx.putImageData(imageData, 0, 0);
 
-    // Reset composite operation
+    // Step 3: Apply temp canvas as alpha mask onto main canvas
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(tempCanvas, 0, 0, width, height);
+
     ctx.globalCompositeOperation = 'source-over';
   }, [width, height]);
 
@@ -88,32 +104,26 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
   return (
     <AbsoluteFill>
       {/* Layer 0: Original video (background — visible through gaps) */}
-      <AbsoluteFill>
-        <Video
-          src={resolvedVideoSrc}
-          startFrom={startFromFrames}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          pauseWhenBuffering
-        />
-      </AbsoluteFill>
+      {!backgroundless && (
+        <AbsoluteFill>
+          <Video
+            src={resolvedVideoSrc}
+            startFrom={startFromFrames}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            pauseWhenBuffering
+          />
+        </AbsoluteFill>
+      )}
 
       {/* Layer 1: Mid-layer children (animations behind the person) */}
-      <AbsoluteFill>
-        {children}
-      </AbsoluteFill>
+      {!backgroundless && (
+        <AbsoluteFill>
+          {children}
+        </AbsoluteFill>
+      )}
 
       {/* Layer 2: Person extracted via canvas matte */}
       <AbsoluteFill style={{ pointerEvents: 'none' }}>
-        {/*
-         * Hidden Remotion <Video> elements for canvas reads.
-         * Using Remotion's <Video> (not raw <video>) ensures frame-accurate
-         * seeking during both preview and server-side rendering. The elements
-         * are visually hidden (opacity: 0) but remain in the DOM so the canvas
-         * can drawImage() from them.
-         *
-         * We attach refs via the callback pattern to capture the underlying
-         * <video> DOM element that Remotion's <Video> renders.
-         */}
         <Video
           ref={sourceVideoRef}
           src={resolvedVideoSrc}
@@ -137,6 +147,12 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
           width={width}
           height={height}
           style={{ width: '100%', height: '100%' }}
+        />
+        <canvas
+          ref={tempCanvasRef}
+          width={width}
+          height={height}
+          style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
         />
       </AbsoluteFill>
     </AbsoluteFill>
