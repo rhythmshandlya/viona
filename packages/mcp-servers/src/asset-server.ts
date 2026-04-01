@@ -1484,20 +1484,21 @@ server.registerTool(
             totalMattes: matteFiles.length,
             techniques: matteFiles.length > 0 ? {
               behindSpeaker: {
-                description: "Place graphics behind the speaker using alpha matte compositing.",
+                description: "Place graphics behind the speaker using the person track's alpha matte compositing.",
                 usage: [
-                  "1. Import the matte video: const matteUrl = staticFile('matte/{sceneId}.mp4');",
-                  "2. Use <OffthreadVideo> with the matte as an alpha mask on a container.",
-                  "3. Layer order: background graphic → masked video (speaker) on top.",
-                  "4. The matte is white (person) on black (background). Use it as a luma matte.",
+                  "1. The person track automatically handles matte compositing — no manual setup needed.",
+                  "2. Place behind-speaker animations on the scene-bg track (position 1).",
+                  "3. Place in-front-of-speaker animations on the scene-fg track (position 3).",
+                  "4. The person matte layer (position 2) composites the speaker between the two.",
+                  "5. Use SPEAKER.bboxPx and VISIBLE_ZONES constants for spatial positioning.",
                 ],
               },
               depthParallax: {
                 description: "Create depth-of-field parallax with foreground/background separation.",
                 usage: [
-                  "1. Render background layer with graphics at slower parallax speed.",
-                  "2. Overlay speaker layer using matte as mask at normal speed.",
-                  "3. Optionally add foreground particles or blur effects.",
+                  "1. Render background elements on scene-bg with slower parallax speed.",
+                  "2. The person matte layer provides the natural depth separator.",
+                  "3. Add foreground elements on scene-fg for additional depth layering.",
                 ],
               },
             } : null,
