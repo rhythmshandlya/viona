@@ -42,7 +42,7 @@
 ## Depth Layers (Overlay Only)
 - Overlay skeletons have `SPEAKER`, `VISIBLE_ZONES` constants and BehindSpeaker/InFrontOfSpeaker layer comments.
 - Place elements per the animation brief: "behind" / "emerge-behind" → BehindSpeaker layer. "in front" / "lower third" → InFrontOfSpeaker layer.
-- Behind-speaker elements should PEEK from edges of SPEAKER.bboxPx — don't center behind the face.
+- Behind-speaker elements should PEEK from edges of SPEAKER.bboxPx — the full body silhouette, not just the face.
 - If the brief doesn't mention depth, put everything in InFrontOfSpeaker (standard overlay behavior).
 - Stacked/Fullscreen scenes do NOT have SPEAKER constants or depth layers.
 

@@ -392,7 +392,7 @@ Your overlay skeleton includes `SPEAKER` and `VISIBLE_ZONES` constants plus Behi
 - Place behind-speaker elements so they PEEK from the edges of `SPEAKER.bboxPx` — partially visible creates the depth illusion
 - Position behind-speaker content at chest/shoulder height (`SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3` to `0.6`) for the best partial-occlusion effect
 - Use `VISIBLE_ZONES.left` and `VISIBLE_ZONES.right` for behind-speaker content that must be readable
-- Use `SPEAKER.centerPx` as the origin for radial/burst effects behind the speaker
+- Use `SPEAKER.centerPx` as the origin for radial/burst effects behind the speaker (center of full body silhouette)
 - Never place readable text fully behind the speaker's face area
 
 **Coding pattern:**
