@@ -186,13 +186,13 @@ The animator decides per-element which layer it belongs to. The layout editor se
 
 ### Display modes (updated with depth awareness)
 
-Matting is always available. Every display mode now supports depth — elements can go behind or in front of the speaker. "Depth" is not a separate mode; it's a capability of all modes.
+Matting is always available. Depth interactions (elements behind/in front of the speaker) apply to **overlay mode only** — the speaker is full-screen, so there's a body to interact with. Stacked and fullscreen modes don't use depth.
 
 | Mode | Description | Depth capability |
 |------|-------------|-----------------|
-| **Overlay** | Speaker full-screen, graphic interacts with speaker | Elements can slide behind speaker's body, weave between layers, pass behind shoulders. A stat card enters from the right, passes behind the speaker, settles to the left. Lower thirds pass behind the speaker's torso. |
-| **Stacked** | Speaker in bottom portion, animation in top portion | Top animation is above speaker. But elements can extend downward into the speaker zone, passing behind the person. Timeline items can cascade down behind the speaker. |
-| **Fullscreen** | Speaker hidden, animation fills canvas | Speaker is faded out — no depth interaction. Pure animation canvas. |
+| **Overlay** | Speaker full-screen, animations interact with speaker layers | **Full depth.** Elements can slide behind speaker's body, weave between layers, pass behind shoulders. Multiple animations per scene: stats behind + lower third in front + background wash. |
+| **Stacked** | Speaker in bottom portion, animation in top portion | **No depth.** Speaker is cropped to bottom half — no full body to interact with. Animation stays in top portion. |
+| **Fullscreen** | Speaker hidden, animation fills canvas | **No depth.** Speaker is faded out — nothing to go behind. Pure animation canvas. |
 
 The planner's animation brief now describes **which elements go behind vs in front** of the speaker, not just what the animation does:
 
@@ -232,7 +232,8 @@ The planner uses these terms in animation briefs to describe layer behavior:
 - Don't put every element behind the speaker — mix front and back for contrast
 - Don't animate multiple behind-speaker elements simultaneously (one motion per moment)
 - Don't place readable text fully behind the speaker's face (occluded = invisible)
-- Don't use depth interactions in Fullscreen mode (speaker is hidden, no depth to interact with)
+- Don't use depth interaction terms in Stacked or Fullscreen briefs (no speaker body to interact with)
+- Depth vocabulary (`emerge-behind`, `peek-sides`, `weave-through`, etc.) is for Overlay mode only
 
 ---
 
