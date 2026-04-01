@@ -45,6 +45,7 @@ export const PersonItem: React.FC<PersonItemProps> = React.memo(({
       videoSrc={videoSrc}
       matteSrc={matteSrc}
       startFrom={startFrom}
+      backgroundless
     >
       {/* No mid-layer children — in the track system, scene-bg/scene-fg
           tracks handle the behind/in-front layers separately. */}
