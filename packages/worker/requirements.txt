@@ -15,3 +15,10 @@ typing-extensions>=4.0.0
 mediapipe>=0.10.0
 opencv-python>=4.8.0
 numpy>=1.24.0
+
+# Shot boundary detection
+scenedetect[opencv]>=0.6.4
+
+# Person segmentation (RVM — Robust Video Matting)
+torch>=2.0.0
+torchvision>=0.15.0
