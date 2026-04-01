@@ -297,11 +297,13 @@ add_item({
 - `speakerCenter` — face center point (for radial effects, glow origin, etc.)
 - `visibleZones` — areas not occluded by the speaker (for placing elements that need to be fully visible)
 
-**Speaker position sources (progressive refinement):**
-- **Initial (Phase 3-5):** Head tracking data (face bbox from `get_speaker_position` MCP tool, already available from upload). Less accurate — face only, no body contour.
-- **Refined (when matte arrives):** Derive exact silhouette bounding box from the matte video — full body outline including shoulders, arms, hair. Tighter and more accurate than face-only head tracking. The matte-derived bbox can replace the head tracking estimate in the skeleton before animators run.
+**Speaker position source: matte-derived bbox (replaces head tracking).**
 
-The Layout Editor uses head tracking as the initial estimate. If the matte clip arrives before Setup Agent writes skeletons (likely for short clips), the Setup Agent uses matte-derived bounds instead. This means `speakerBbox` and `visibleZones` progressively improve as data becomes available.
+The old head tracking pipeline (MediaPipe face/pose landmarks via `detect_head.py`) is deprecated for speaker positioning. The matte video provides a more accurate full-body silhouette — shoulders, arms, hair, torso — not just face landmarks.
+
+Speaker bbox is derived from the matte by scanning the alpha channel for the bounding rectangle of white pixels per frame. This runs as a lightweight post-processing step after RVM segmentation (no additional ML model needed — just numpy operations on the matte frames).
+
+The `get_speaker_position` MCP tool will be updated to read from matte-derived data instead of head tracking data. Head tracking (`detect_head.py`) remains only for shot boundary detection — speaker positioning is fully replaced by matte-derived bounds.
 
 ### What the Setup Agent writes (skeleton)
 
