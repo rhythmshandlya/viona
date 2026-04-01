@@ -74,6 +74,15 @@ export interface ActiveTask {
 
 /* ── Agent style config ── */
 
+export const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  mcp__assets__request_segmentation: 'Requesting speaker segmentation...',
+  mcp__assets__check_segmentation_status: 'Checking segmentation status...',
+  mcp__assets__get_depth_compositing_info: 'Checking depth compositing...',
+  request_segmentation: 'Requesting speaker segmentation...',
+  check_segmentation_status: 'Checking segmentation status...',
+  get_depth_compositing_info: 'Checking depth compositing...',
+};
+
 export const AGENT_STYLES: Record<string, { color: string; icon: string }> = {
   Viona:            { color: '#f472b6', icon: '✦' },
   'Trim Editor':    { color: '#60a5fa', icon: '✂' },

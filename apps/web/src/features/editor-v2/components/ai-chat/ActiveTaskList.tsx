@@ -2,7 +2,7 @@
 
 import React, { memo, useState, useEffect } from 'react';
 import type { ActiveTask } from './types';
-import { AGENT_STYLES } from './types';
+import { AGENT_STYLES, TOOL_DISPLAY_NAMES } from './types';
 
 interface ActiveTaskListProps {
   tasks: ActiveTask[];
@@ -24,6 +24,7 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 function TaskRow({ task }: { task: ActiveTask }) {
   const style = AGENT_STYLES[task.agent] ?? { color: '#94a3b8', icon: '●' };
   const isCompleted = task.status === 'completed';
+  const actionLabel = TOOL_DISPLAY_NAMES[task.action] ?? task.action;
 
   return (
     <div
@@ -43,7 +44,7 @@ function TaskRow({ task }: { task: ActiveTask }) {
       </span>
       {/* Action text */}
       <span className="text-xs text-[var(--editor-text-secondary)] truncate flex-1">
-        {task.action}
+        {actionLabel}
       </span>
       {/* Target (e.g., scene name) */}
       {task.target && (
@@ -75,7 +76,13 @@ export const ActiveTaskList = memo(function ActiveTaskList({ tasks, busy, isVisi
   const dedupedTasks = tasks.length > 0
     ? [...new Map(tasks.map(t => [t.id, t])).values()]
     : [{ id: 'fallback', agent: 'Viona', action: 'Working...', startedAt: fallbackStartRef.current, status: 'active' as const }];
-  const activeTasks = dedupedTasks;
+
+  // Hide the orchestrator (Viona) row when subagents are actively working —
+  // the subagent row is more informative. Viona re-appears when it's the only one.
+  const hasActiveSubagent = dedupedTasks.some(t => t.agent !== 'Viona' && t.status !== 'completed');
+  const activeTasks = hasActiveSubagent
+    ? dedupedTasks.filter(t => t.agent !== 'Viona')
+    : dedupedTasks;
 
   return (
     <div className="rounded-xl border border-[var(--chat-bubble-assistant-border)] bg-[var(--chat-bubble-assistant-bg)] backdrop-blur-xl overflow-hidden">
