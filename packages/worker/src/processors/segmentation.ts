@@ -1,7 +1,7 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { existsSync } from 'fs';
-import { mkdir, rm } from 'fs/promises';
+import { mkdir, rm, readFile, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
@@ -100,9 +100,13 @@ export async function processSegmentationJob(job: Job<SegmentationJobData>) {
     await uploadFile('outputs', outputKey, mattePath);
 
     // Upload matte-bbox.json (written by segment_person.py alongside the matte)
+    // Inject sourceStartMs so downstream tools can convert clip-relative frames to source timeline
     const bboxPath = join(workDir, 'matte-bbox.json');
     const bboxKey = outputKey.replace(/\.mp4$/, '-bbox.json');
     if (existsSync(bboxPath)) {
+      const bboxData = JSON.parse(await readFile(bboxPath, 'utf-8'));
+      bboxData.sourceStartMs = startMs;
+      await writeFile(bboxPath, JSON.stringify(bboxData));
       await uploadFile('outputs', bboxKey, bboxPath);
       logger.info({ projectId, sceneId, bboxKey }, 'Matte bbox uploaded');
     }

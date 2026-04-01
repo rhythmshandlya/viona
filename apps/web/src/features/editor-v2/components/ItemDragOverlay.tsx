@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { User } from 'lucide-react';
 import {
   useSingleSelectedItem,
   useEditorStore,
@@ -399,23 +398,6 @@ function ItemDragOverlayInner({
           zIndex: 10,
         }}>
           Pan Video
-        </div>
-      )}
-
-      {/* Person item badge */}
-      {itemType === 'person' && (
-        <div style={{
-          position: 'absolute',
-          left: displayX + displayW / 2,
-          top: displayY - 24,
-          transform: 'translateX(-50%)',
-          pointerEvents: 'none',
-          zIndex: 10,
-        }}>
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded text-xs text-emerald-300">
-            <User size={12} />
-            Speaker Layer
-          </div>
         </div>
       )}
 

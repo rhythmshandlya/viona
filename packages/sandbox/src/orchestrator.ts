@@ -381,6 +381,7 @@ export async function buildOrchestratorOptions(
         prompt: setupAgentPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+          ...MANIFEST_READ_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...TEMPLATE_TOOL_NAMES,
         ],

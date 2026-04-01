@@ -52,6 +52,7 @@ interface MatteBboxFrame {
 
 interface MatteBboxData {
   fps: number;
+  sourceStartMs?: number;  // clip start offset in source timeline (injected by worker)
   frames: MatteBboxFrame[];
 }
 
@@ -547,10 +548,10 @@ server.registerTool(
   "auto_center_speaker",
   {
     description:
-      "Automatically adjust the video item's crop to center the speaker's face. " +
-      "Reads head tracking data and the manifest, computes optimal objectPosition " +
-      "percentages, and writes updated crop values back to the manifest. " +
-      "Call this after placing video items in the timeline (Phase 5 Layout).",
+      "Automatically adjust the video item's crop to center the speaker. " +
+      "Reads matte bbox data from segmentation and the manifest, computes optimal " +
+      "objectPosition percentages, and writes updated crop values back to the manifest. " +
+      "Call this after placing video items and after segmentation mattes are available.",
     inputSchema: {},
   },
   async () => {
@@ -742,8 +743,9 @@ server.registerTool(
           const data: MatteBboxData = JSON.parse(await readFile(path.join(matteDir, bboxFile), "utf-8"));
           if (data.frames && data.frames.length > 0) {
             const fps = data.fps || 30;
-            const firstMs = (data.frames[0].frame / fps) * 1000;
-            const lastMs = (data.frames[data.frames.length - 1].frame / fps) * 1000;
+            const offset = data.sourceStartMs ?? 0;
+            const firstMs = offset + (data.frames[0].frame / fps) * 1000;
+            const lastMs = offset + (data.frames[data.frames.length - 1].frame / fps) * 1000;
             if (firstMs <= endMs && lastMs >= startMs) {
               matteBbox = data;
               break;
@@ -763,8 +765,9 @@ server.registerTool(
       if (matteBbox && matteBbox.frames.length > 0) {
         // 4. Matte bbox found — compute speaker bounds from averaged frames in the time range
         const mFps = matteBbox.fps || 30;
+        const mOffset = matteBbox.sourceStartMs ?? 0;
         const matteFrames = matteBbox.frames.filter(mf => {
-          const ms = (mf.frame / mFps) * 1000;
+          const ms = mOffset + (mf.frame / mFps) * 1000;
           return ms >= startMs && ms <= endMs;
         });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles, ArrowDownFromLine, ArrowUpFromLine, User } from 'lucide-react';
+import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
 import { Track, VideoItemData } from '../../store/types';
 import { useTrackActions, useEditorStore } from '../../store/use-editor-store';
 import { SegmentationStatus } from '../../components/SegmentationStatus';
@@ -20,17 +20,23 @@ const TRACK_ICONS: Record<string, React.ComponentType<any>> = {
   visual: Sparkles,
 };
 
-const TRACK_NAME_ICONS: Record<string, React.ComponentType<any>> = {
-  'scene-bg': ArrowDownFromLine,
-  'person': User,
-  'scene-fg': ArrowUpFromLine,
-};
 
-const TRACK_NAME_COLORS: Record<string, string> = {
-  'scene-bg': 'text-blue-400',
-  'person': 'text-emerald-400',
-  'scene-fg': 'text-amber-400',
-};
+/** NLE-style track display names: V1, V2, A1, Captions */
+function getTrackDisplayName(track: Track, allTracks: Track[]): string {
+  if (track.type === 'caption') return 'Captions';
+
+  // Count tracks of this visual/audio group sorted by position
+  const isVideo = track.type === 'video' || track.type === 'overlay';
+  const isAudio = track.type === 'audio';
+  const prefix = isVideo ? 'V' : isAudio ? 'A' : track.type[0].toUpperCase();
+
+  const sameGroup = allTracks
+    .filter(t => isVideo ? (t.type === 'video' || t.type === 'overlay') : t.type === track.type)
+    .sort((a, b) => a.position - b.position);
+
+  const index = sameGroup.findIndex(t => t.id === track.id);
+  return `${prefix}${index + 1}`;
+}
 
 export function TrackHeader({ track }: TrackHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -55,8 +61,11 @@ export function TrackHeader({ track }: TrackHeaderProps) {
     return (videoItem.data as VideoItemData).segmentation;
   });
 
-  const Icon = TRACK_NAME_ICONS[track.name] || TRACK_ICONS[track.type] || Type;
-  const nameColor = TRACK_NAME_COLORS[track.name];
+  const allTracks = useEditorStore((state) => state.trackIds.map(id => state.tracks[id]).filter(Boolean));
+
+  const Icon = TRACK_ICONS[track.type] || Type;
+  const nameColor: string | undefined = undefined;
+  const displayName = getTrackDisplayName(track, allTracks);
 
   const handleDoubleClick = () => {
     setIsEditing(true);
@@ -105,7 +114,7 @@ export function TrackHeader({ track }: TrackHeaderProps) {
       >
         <ChevronRight size={12} className="text-[var(--editor-text-muted)]" />
         <Icon size={12} className={nameColor || 'text-[var(--editor-text-secondary)]'} />
-        <span className={`text-[10px] truncate ${nameColor || 'text-[var(--editor-text-muted)]'}`}>{track.name}</span>
+        <span className={`text-[10px] truncate ${nameColor || 'text-[var(--editor-text-muted)]'}`}>{displayName}</span>
       </div>
     );
   }
@@ -145,7 +154,7 @@ export function TrackHeader({ track }: TrackHeaderProps) {
           className={`flex-1 min-w-0 text-[11px] truncate cursor-default ${nameColor || 'text-[var(--editor-text-secondary)]'}`}
           onDoubleClick={handleDoubleClick}
         >
-          {track.name}
+          {displayName}
         </span>
       )}
 
