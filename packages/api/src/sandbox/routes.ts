@@ -9,9 +9,10 @@ import { touchActivity } from './health.js';
 import { redis } from '../services/redis.js';
 import { dbToManifest } from '@viona/shared';
 import { emitWorkspaceReady, emitBundleReady, emitManifestUpdated } from '../workspace/workspace-ws.js';
-import { sandboxSessions } from '../db/schema.js';
+import { sandboxSessions, jobs } from '../db/schema.js';
 import type { SandboxManager, InitData } from './manager.js';
 import { syncManifestToDb } from './sync.js';
+import { getObjectStream } from '../services/minio.js';
 
 // ---------------------------------------------------------------------------
 // Factory: createSandboxRoutes(manager)
@@ -92,6 +93,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
         agentProgress,
         agentActivity,
         agentPlan: status.plan,
+        agentWidget: status.widget,
       };
     });
 
@@ -406,6 +408,10 @@ export function createSandboxRoutes(manager: SandboxManager) {
             await redis.set(`sandbox:plan:${projectId}`, JSON.stringify(data), 'EX', TASK_TTL);
             break;
           }
+          case 'widget': {
+            await redis.set(`sandbox:widget:${projectId}`, JSON.stringify(data), 'EX', TASK_TTL);
+            break;
+          }
           case 'done': {
             await redis.del(tasksKey, busyKey);
             break;
@@ -426,6 +432,142 @@ export function createSandboxRoutes(manager: SandboxManager) {
       }
 
       return { ok: true };
+    });
+
+    // === Segmentation Endpoints ===
+
+    // POST /internal/sandbox/:id/segment — Queue background segmentation jobs
+    fastify.post('/internal/sandbox/:id/segment', async (request, reply) => {
+      const projectId = await validateInternalCallback(request, reply);
+      if (!projectId) return;
+
+      const { ranges } = request.body as {
+        ranges: Array<{ startMs: number; endMs: number; sceneId: string }>;
+      };
+
+      if (!Array.isArray(ranges) || ranges.length === 0) {
+        return reply.status(400).send({ error: 'ranges array is required' });
+      }
+
+      // Look up project's videoKey
+      const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+      if (!project?.videoKey) {
+        return reply.status(400).send({ error: 'Project has no video file' });
+      }
+
+      const { queueSegmentationJob } = await import('../services/queue.js');
+
+      const jobIds: string[] = [];
+      let estimatedDurationMs = 0;
+
+      for (const range of ranges) {
+        const outputKey = `mattes/${projectId}/${range.sceneId}.mp4`;
+
+        // Create DB job record
+        const [job] = await db.insert(jobs).values({
+          projectId,
+          type: 'segmentation',
+          status: 'pending',
+          progressMeta: {
+            sceneId: range.sceneId,
+            outputKey,
+          },
+        }).returning();
+
+        // Queue the worker job
+        await queueSegmentationJob({
+          projectId,
+          jobId: job.id,
+          videoKey: project.videoKey,
+          startMs: range.startMs,
+          endMs: range.endMs,
+          sceneId: range.sceneId,
+          outputKey,
+        });
+
+        jobIds.push(job.id);
+        estimatedDurationMs += Math.ceil((range.endMs - range.startMs) * 0.5); // ~0.5x realtime estimate
+      }
+
+      logger.info({ projectId, jobIds, rangeCount: ranges.length }, 'Segmentation jobs queued');
+      return { jobIds, estimatedDurationMs };
+    });
+
+    // GET /internal/sandbox/:id/segment/status — Poll segmentation job statuses
+    fastify.get('/internal/sandbox/:id/segment/status', async (request, reply) => {
+      const projectId = await validateInternalCallback(request, reply);
+      if (!projectId) return;
+
+      const { jobIds } = request.query as { jobIds?: string };
+      if (!jobIds) {
+        return reply.status(400).send({ error: 'jobIds query parameter is required' });
+      }
+
+      const ids = jobIds.split(',').filter(Boolean);
+      if (ids.length === 0) {
+        return reply.status(400).send({ error: 'No valid jobIds provided' });
+      }
+
+      const jobRecords = await db.select().from(jobs)
+        .where(and(
+          eq(jobs.projectId, projectId),
+          inArray(jobs.id, ids),
+        ));
+
+      const jobStatuses = jobRecords.map(j => ({
+        jobId: j.id,
+        status: j.status,
+        progress: j.progress,
+        sceneId: (j.progressMeta as any)?.sceneId ?? null,
+        outputKey: (j.progressMeta as any)?.outputKey ?? null,
+        error: j.error,
+      }));
+
+      const allComplete = jobStatuses.length > 0 && jobStatuses.every(j => j.status === 'completed');
+      const anyFailed = jobStatuses.some(j => j.status === 'failed');
+
+      return { jobs: jobStatuses, allComplete, anyFailed };
+    });
+
+    // GET /internal/sandbox/:id/segment/:jobId/matte — Download matte video
+    fastify.get('/internal/sandbox/:id/segment/:jobId/matte', async (request, reply) => {
+      const projectId = await validateInternalCallback(request, reply);
+      if (!projectId) return;
+
+      const { jobId } = request.params as { jobId: string };
+
+      const [job] = await db.select().from(jobs)
+        .where(and(
+          eq(jobs.id, jobId),
+          eq(jobs.projectId, projectId),
+        ))
+        .limit(1);
+
+      if (!job) {
+        return reply.status(404).send({ error: 'Job not found' });
+      }
+
+      if (job.status !== 'completed') {
+        return reply.status(409).send({ error: `Job status is ${job.status}, not completed` });
+      }
+
+      const meta = job.progressMeta as { sceneId?: string; outputKey?: string } | null;
+      const outputKey = meta?.outputKey;
+      const sceneId = meta?.sceneId;
+
+      if (!outputKey) {
+        return reply.status(500).send({ error: 'No outputKey in job metadata' });
+      }
+
+      try {
+        const stream = await getObjectStream('outputs', outputKey);
+        reply.header('Content-Type', 'video/mp4');
+        if (sceneId) reply.header('X-Scene-Id', sceneId);
+        return reply.send(stream);
+      } catch (err) {
+        logger.error({ err, projectId, jobId, outputKey }, 'Failed to stream matte');
+        return reply.status(500).send({ error: 'Failed to stream matte file' });
+      }
     });
   };
 }

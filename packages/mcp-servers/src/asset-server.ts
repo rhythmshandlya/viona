@@ -4,13 +4,16 @@
  * Asset Download MCP Server for the Animator agent.
  *
  * Provides tools:
- *   download_file        - fetch any URL -> save to public/assets/{filename}
- *   search_unsplash      - search Unsplash API, return results
- *   search_pexels        - search Pexels API, return results
- *   download_stock_photo - download from Unsplash/Pexels with attribution headers
- *   auto_center_speaker  - adjust video crop to center the speaker's face
- *   get_speaker_position - canvas-space speaker coordinates for overlay placement
- *   get_shot_boundaries  - detected camera cuts aligned with transcript
+ *   download_file             - fetch any URL -> save to public/assets/{filename}
+ *   search_unsplash           - search Unsplash API, return results
+ *   search_pexels             - search Pexels API, return results
+ *   download_stock_photo      - download from Unsplash/Pexels with attribution headers
+ *   auto_center_speaker       - adjust video crop to center the speaker's face
+ *   get_speaker_position      - canvas-space speaker coordinates for overlay placement
+ *   get_shot_boundaries       - detected camera cuts aligned with transcript
+ *   request_segmentation      - queue person matte extraction for time ranges
+ *   check_segmentation_status - poll segmentation job status + download mattes
+ *   get_depth_compositing_info - check matte availability + compositing instructions
  *
  * Usage:
  *   node asset-server.js --workspace /path/to/remotion-project
@@ -19,7 +22,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { writeFile, mkdir, readFile } from "node:fs/promises";
+import { writeFile, mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { URL } from "node:url";
 import { Open as unzipOpen } from "unzipper";
@@ -90,6 +93,12 @@ const FETCH_TIMEOUT = 30_000; // 30 s
 
 const UNSPLASH_ACCESS_KEY: string = process.env.UNSPLASH_ACCESS_KEY || "";
 const PEXELS_API_KEY: string = process.env.PEXELS_API_KEY || "";
+
+// Segmentation / depth compositing env vars (set by sandbox orchestrator)
+const API_INTERNAL_URL: string = process.env.API_INTERNAL_URL || "";
+const SANDBOX_SECRET: string = process.env.SANDBOX_SECRET || "";
+const PROJECT_ID: string = process.env.PROJECT_ID || "";
+const MATTE_DIR: string = path.join(WORKSPACE, "public", "matte");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1050,6 +1059,18 @@ server.registerTool(
 // Shot boundaries tool
 // ---------------------------------------------------------------------------
 
+function formatMs(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const frac = ms % 1000;
+  return `${min}:${String(sec).padStart(2, "0")}.${String(frac).padStart(3, "0")}`;
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.slice(0, max - 3) + "..." : str;
+}
+
 server.registerTool(
   "get_shot_boundaries",
   {
@@ -1080,7 +1101,6 @@ server.registerTool(
         };
       }
 
-      // Build human-readable summary
       const summary = shotData.summary || {};
       const lines: string[] = [];
       if (summary.totalShots === 0) {
@@ -1122,17 +1142,284 @@ server.registerTool(
   }
 );
 
-function formatMs(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  const frac = ms % 1000;
-  return `${min}:${String(sec).padStart(2, "0")}.${String(frac).padStart(3, "0")}`;
-}
+// ---------------------------------------------------------------------------
+// Segmentation tools — request/poll person matte extraction from worker
+// ---------------------------------------------------------------------------
 
-function truncate(str: string, max: number): string {
-  return str.length > max ? str.slice(0, max - 3) + "..." : str;
-}
+server.registerTool(
+  "request_segmentation",
+  {
+    description:
+      "Request background segmentation (person alpha matte extraction) for one or more " +
+      "time ranges. Each range produces a separate matte video saved to public/matte/{sceneId}.mp4. " +
+      "Returns jobIds for polling with check_segmentation_status. Requires API_INTERNAL_URL " +
+      "and PROJECT_ID env vars (set by sandbox orchestrator).",
+    inputSchema: {
+      ranges: z.array(z.object({
+        startMs: z.number().describe("Start of time range in milliseconds"),
+        endMs: z.number().describe("End of time range in milliseconds"),
+        sceneId: z.string().describe("Scene identifier (e.g. 'scene-1'). Used as output filename."),
+      })).min(1).describe("Time ranges to segment"),
+    },
+  },
+  async ({ ranges }: { ranges: Array<{ startMs: number; endMs: number; sceneId: string }> }) => {
+    try {
+      if (!API_INTERNAL_URL || !PROJECT_ID) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: "Segmentation not available: API_INTERNAL_URL or PROJECT_ID env vars not set.",
+          }],
+          isError: true,
+        };
+      }
+
+      const res = await fetch(`${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SANDBOX_SECRET}`,
+        },
+        body: JSON.stringify({ ranges }),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(`API returned ${res.status}: ${(err as any).error || res.statusText}`);
+      }
+
+      const data = await res.json() as { jobIds: string[]; estimatedDurationMs: number };
+
+      // Build expected matte paths for the caller
+      const mattePaths = ranges.map(r => ({
+        sceneId: r.sceneId,
+        mattePath: `public/matte/${r.sceneId}.mp4`,
+        staticFile: `matte/${r.sceneId}.mp4`,
+      }));
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            jobIds: data.jobIds,
+            estimatedDurationMs: data.estimatedDurationMs,
+            mattePaths,
+            nextStep: "Poll with check_segmentation_status({ jobIds }) until allComplete is true.",
+          }),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error requesting segmentation: ${errorMessage(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "check_segmentation_status",
+  {
+    description:
+      "Check the status of previously requested segmentation jobs. When a job completes, " +
+      "the matte video is automatically downloaded to public/matte/{sceneId}.mp4. " +
+      "Returns per-job status, allComplete flag, and anyFailed flag.",
+    inputSchema: {
+      jobIds: z.array(z.string()).min(1).describe("Job IDs returned by request_segmentation"),
+    },
+  },
+  async ({ jobIds }: { jobIds: string[] }) => {
+    try {
+      if (!API_INTERNAL_URL || !PROJECT_ID) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: "Segmentation not available: API_INTERNAL_URL or PROJECT_ID env vars not set.",
+          }],
+          isError: true,
+        };
+      }
+
+      const params = new URLSearchParams({ jobIds: jobIds.join(",") });
+      const res = await fetch(
+        `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/status?${params}`,
+        {
+          headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+          signal: AbortSignal.timeout(15_000),
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(`API returned ${res.status}: ${(err as any).error || res.statusText}`);
+      }
+
+      const data = await res.json() as {
+        jobs: Array<{
+          jobId: string;
+          status: string;
+          progress: number;
+          sceneId: string | null;
+          outputKey: string | null;
+          error: string | null;
+        }>;
+        allComplete: boolean;
+        anyFailed: boolean;
+      };
+
+      // Download completed mattes to local workspace
+      await mkdir(MATTE_DIR, { recursive: true });
+      const downloaded: string[] = [];
+
+      for (const job of data.jobs) {
+        if (job.status === "completed" && job.sceneId) {
+          const localPath = path.join(MATTE_DIR, `${job.sceneId}.mp4`);
+          // Check if already downloaded
+          try {
+            await readFile(localPath);
+            downloaded.push(job.sceneId);
+            continue;
+          } catch {
+            // Not yet downloaded — fetch from API
+          }
+
+          try {
+            const matteRes = await fetch(
+              `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/matte`,
+              {
+                headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+                signal: AbortSignal.timeout(60_000),
+              }
+            );
+            if (matteRes.ok) {
+              const buf = Buffer.from(await matteRes.arrayBuffer());
+              await writeFile(localPath, buf);
+              downloaded.push(job.sceneId);
+            }
+          } catch (dlErr) {
+            console.error(`[asset-server] Failed to download matte for ${job.sceneId}:`, dlErr);
+          }
+        }
+      }
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            ...data,
+            downloaded,
+            mattePaths: downloaded.map(id => ({
+              sceneId: id,
+              mattePath: `public/matte/${id}.mp4`,
+              staticFile: `matte/${id}.mp4`,
+            })),
+          }),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error checking segmentation status: ${errorMessage(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_depth_compositing_info",
+  {
+    description:
+      "Check if person segmentation mattes are available and get compositing instructions. " +
+      "Returns which scenes have mattes, the file paths, and usage instructions for " +
+      "depth-aware compositing (placing graphics behind the speaker). " +
+      "Call this before implementing scenes that need depth layering.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      // Check if matte directory exists and list available mattes
+      let matteFiles: string[] = [];
+      try {
+        const entries = await readdir(MATTE_DIR);
+        matteFiles = entries.filter(f => f.endsWith(".mp4"));
+      } catch {
+        // Directory doesn't exist — no mattes available
+      }
+
+      // Check workspace flag for segmentation capability
+      let segmentationEnabled = false;
+      try {
+        const flagPath = path.join(WORKSPACE, "docs", "segmentation-available.json");
+        const flagData = JSON.parse(await readFile(flagPath, "utf-8"));
+        segmentationEnabled = flagData.enabled === true;
+      } catch {
+        // Flag file doesn't exist — check env vars as fallback
+        segmentationEnabled = !!(API_INTERNAL_URL && PROJECT_ID);
+      }
+
+      const scenes = matteFiles.map(f => {
+        const sceneId = f.replace(".mp4", "");
+        return {
+          sceneId,
+          mattePath: `public/matte/${f}`,
+          staticFile: `matte/${f}`,
+        };
+      });
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            available: matteFiles.length > 0,
+            segmentationEnabled,
+            scenes,
+            totalMattes: matteFiles.length,
+            techniques: matteFiles.length > 0 ? {
+              behindSpeaker: {
+                description: "Place graphics behind the speaker using alpha matte compositing.",
+                usage: [
+                  "1. Import the matte video: const matteUrl = staticFile('matte/{sceneId}.mp4');",
+                  "2. Use <OffthreadVideo> with the matte as an alpha mask on a container.",
+                  "3. Layer order: background graphic → masked video (speaker) on top.",
+                  "4. The matte is white (person) on black (background). Use it as a luma matte.",
+                ],
+              },
+              depthParallax: {
+                description: "Create depth-of-field parallax with foreground/background separation.",
+                usage: [
+                  "1. Render background layer with graphics at slower parallax speed.",
+                  "2. Overlay speaker layer using matte as mask at normal speed.",
+                  "3. Optionally add foreground particles or blur effects.",
+                ],
+              },
+            } : null,
+            hint: matteFiles.length === 0 && segmentationEnabled
+              ? "No mattes yet. Use request_segmentation to generate them for specific scenes."
+              : matteFiles.length === 0
+              ? "Segmentation not available in this workspace."
+              : undefined,
+          }),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error getting depth compositing info: ${errorMessage(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Start

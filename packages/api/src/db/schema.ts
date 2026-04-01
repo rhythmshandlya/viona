@@ -79,6 +79,8 @@ export const jobs = pgTable('jobs', {
     maxIterations?: number;
     score?: number;
     detail?: string;
+    sceneId?: string;
+    outputKey?: string;
   }>(),
   error: text('error'),
   metrics: jsonb('metrics').$type<{
@@ -206,6 +208,7 @@ export const templates = pgTable('templates', {
   screenshotUrl: varchar('screenshot_url', { length: 1024 }),
   bundleKey: varchar('bundle_key', { length: 1024 }),
   sourceKey: varchar('source_key', { length: 1024 }),
+  dependencies: jsonb('dependencies').$type<Record<string, string>>(),
   version: integer('version').notNull().default(1),
   isPublished: boolean('is_published').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
