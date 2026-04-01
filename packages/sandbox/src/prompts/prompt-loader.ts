@@ -13,7 +13,7 @@ const PROMPTS_DIR = process.env.NODE_ENV === 'production'
 
 // --- Shared modules (cacheable prefix) ---
 
-const SHARED_FILES = ['identity.xml', 'tool-usage.xml', 'manifest-tools.xml', 'quality-rules.xml'];
+const SHARED_FILES = ['identity.xml', 'tool-usage.xml', 'manifest-tools.xml', 'quality-rules.xml', 'motion-design.xml', 'layer-compositing.xml'];
 
 async function loadFile(path: string): Promise<string> {
   return readFile(path, 'utf-8');

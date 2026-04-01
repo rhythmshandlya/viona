@@ -18,10 +18,17 @@
 
 ## Scene Items
 - Type `'scene'` (NOT `'shape'`).
-- Must have `data.sceneFile` (with `.tsx`), `data.displayMode`, `data.sceneName`, `data.sceneType`.
+- Must have `data.sceneFile` (with `.tsx`), `data.displayMode`, `data.sceneName`.
 - `displayMode` API value for Stacked = `"split-screen"`.
-- All scenes go on ONE overlay track, sequential, no overlap.
+- Depth scenes (brief mentions "behind", "emerge-behind", etc.) go on `trk-scene-bg`. All other scenes go on `trk-scene-fg`. Sequential within each track, no overlap.
 - Scene keyframes must ONLY animate `opacity` (fade in/out). NEVER include x, y, width, height, or rotation — those override the base transform and break positioning.
+
+## Speaker Spatial Data
+- Every scene item MUST have `data.speakerBbox`, `data.speakerCenter`, `data.visibleZones`.
+- Call `get_speaker_position` per scene time range to get speaker coordinates.
+- Normalize to 0-1 range (divide by canvas width/height).
+- Depth scenes (brief mentions "behind", "emerge-behind", etc.) go on `trk-scene-bg`.
+- All other scenes go on `trk-scene-fg`.
 
 ## Video fill
 - Handled by the renderer via `objectFit: 'cover'`. Do NOT apply any crop or zoom transforms.

@@ -6,6 +6,7 @@
 - **Source video:** 1080x1920
 - **Total duration:** 68000ms
 - **Total scenes:** 6
+- **Theme:** blackboard
 
 ---
 
@@ -14,14 +15,14 @@
 **Time:** 0 – 10000
 **Transcript:** "seventy-three percent of people who start a fitness routine quit within the first three months and it's not because they're lazy it's because they're making three critical mistakes"
 **Display mode:** Overlay
-**Scene type:** data-viz
-**Layout pattern:** center-dominant
+**Template:** explainer-stats
+**Fork reason:** big number count-up (73%) with visual emphasis — adapt thermometer metaphor using stats layout and count-up animation
 
 ### Speaker layout
 - Speaker: "full size"
 
 ### Scene dimensions
-- Width: 800 Height: 640
+- Width: 1000 Height: 960
 
 ### Scene placement
 - Placement: center-card
@@ -45,14 +46,8 @@ A thermometer that rises from empty to the 73% mark, then cracks and leaks — v
 ### Must show
 - the number 73%, the phrase "quit within 3 months"
 
-### Animation timeline
-| Phase | Frames | What happens |
-|-------|--------|-------------|
-| Entrance | 0–30 | Thermometer outline draws itself with strokeDashoffset from bottom to top, opacity fading in |
-| Build | 30–120 | Red fill rises inside the thermometer from 0% to 73%, counter ticks up in sync; tick marks appear at 25/50/75 |
-| Develop | 120–200 | At 73% the glass cracks — jagged SVG path animates across the bulb, red tint pulses outward as a radial gradient shift |
-| Payoff | 200–260 | "73% quit" text scales in with spring beside the thermometer; the "3 months" label fades in below |
-| Exit | 260–300 | Entire composition scales down to 0.9 and fades to opacity 0 over 300ms |
+### Animation brief
+Large "73%" counter EMERGES BEHIND the speaker from center, scaling up as the speaker begins "seventy-three percent of people." The number is wide enough to PEEK from both sides of the speaker's shoulders. Red fill rises from 0% to 73% while the speaker says "who start a fitness routine quit" — counter ticks up in sync behind the speaker's body. As the speaker says "it's not because they're lazy," the glass cracks at the 73% mark and red tint pulses outward behind the speaker. "73% quit" text slides in IN FRONT of the speaker at the bottom third when the speaker hits "three critical mistakes." The depth contrast — massive stat behind, label in front — creates emphasis. Everything scales down and fades before the cut.
 
 ---
 
@@ -61,8 +56,8 @@ A thermometer that rises from empty to the 73% mark, then cracks and leaks — v
 **Time:** 10000 – 24000
 **Transcript:** "mistake number one is ignoring progressive overload your body adapts fast if you're doing the same weight the same reps week after week your muscles have zero reason to grow you need to increase weight or reps by just two to five percent every single week"
 **Display mode:** Stacked [50/50]
-**Scene type:** cause-effect
-**Layout pattern:** diagonal-flow
+**Template:** explainer-cause-effect
+**Fork reason:** plateau vs growth is a cause-effect relationship — adapt two-panel layout for staircase metaphor
 
 ### Speaker layout
 - Speaker: "bottom 50%"
@@ -92,14 +87,8 @@ A staircase that should be climbing but flatlines — each step represents a wee
 ### Must show
 - "Progressive Overload" as a title, "2-5% per week", the contrast between plateau and growth
 
-### Animation timeline
-| Phase | Frames | What happens |
-|-------|--------|-------------|
-| Entrance | 0–50 | "Mistake #1" badge slides in from left; staircase outline begins drawing step-by-step along diagonal axis using strokeDashoffset |
-| Build | 50–180 | First 4 steps rise normally, then steps 5-8 flatten to the same height — a red "PLATEAU" label fades in with a horizontal flatline drawn across the top |
-| Develop | 180–320 | Flatlined steps crumble downward (translateY + opacity), then new steps rebuild from the base, each 5% taller than the previous, colored in a green gradient that intensifies per step |
-| Payoff | 320–380 | "2-5% / week" text appears at the top of the rising staircase with spring scale; an upward arrow draws itself along the staircase edge |
-| Exit | 380–420 | All elements slide out diagonally toward bottom-right with staggered 4-frame delays |
+### Animation brief
+"Mistake #1" badge slides in as the speaker says "mistake number one." Staircase steps build up as the speaker explains "your body adapts fast" — first 4 steps rise normally. When the speaker says "same weight the same reps week after week," steps 5-8 flatten to the same height with a red "PLATEAU" bar. As the speaker shifts to "you need to increase weight," the flatlined steps crumble and new steps rebuild, each 5% taller in an intensifying green gradient. "2-5% / week" text lands when the speaker says "two to five percent every single week." Elements slide out before the cut.
 
 ---
 
@@ -108,8 +97,8 @@ A staircase that should be climbing but flatlines — each step represents a wee
 **Time:** 24000 – 38000
 **Transcript:** "mistake number two is skipping recovery most people think more gym time equals more results but your muscles don't grow in the gym they grow while you rest if you're training seven days a week you're actually breaking down faster than you can rebuild and that leads to injury burnout and zero progress"
 **Display mode:** Fullscreen
-**Scene type:** comparison
-**Layout pattern:** asymmetric
+**Template:** explainer-comparison
+**Fork reason:** two-state battery comparison (overtraining vs recovery) maps to side-by-side comparison columns
 
 ### Speaker layout
 - Speaker: "opacity: 0"
@@ -139,14 +128,8 @@ A battery that charges and drains — the left side shows a battery icon hammere
 ### Must show
 - "Recovery" as the title, "7 days/week" on the overtraining side, "injury", "burnout", "zero progress" as outcomes
 
-### Animation timeline
-| Phase | Frames | What happens |
-|-------|--------|-------------|
-| Entrance | 0–45 | "Mistake #2" badge fades in top-left; a large battery outline draws itself center-screen using strokeDashoffset |
-| Build | 45–200 | Battery splits into two copies that slide apart (translateX ±200px). Left battery: 7 bolt icons strike it sequentially, each draining the fill level lower via clip-path reveal. Charge bar color shifts from green → yellow → red |
-| Develop | 200–340 | Right battery: 5 bolts strike but 2 rest-day moon icons insert between them, and the fill level stays above 60%. Left battery hits 0% — cracks appear (SVG path draw). Three consequence labels ("Injury", "Burnout", "Zero Progress") cascade downward below the left battery with staggered fade-in |
-| Payoff | 340–390 | Right battery pulses with a green glow; "Recovery = Growth" text scales in with spring between the two batteries |
-| Exit | 390–420 | Both batteries and all labels scale to 0 from their centers with easeIn timing |
+### Animation brief
+Battery scales in as the speaker says "skipping recovery." It splits into two when the speaker contrasts "more gym time equals more results" — left battery starts draining. As "training seven days a week" plays, 7 bolt icons strike the left battery sequentially, each draining the fill (green → yellow → red). Right battery shows the alternative with rest-day moon icons keeping fill above 60%. When the speaker says "injury burnout and zero progress," those three labels cascade below the drained battery. Right battery pulses green; "Recovery = Growth" lands as emphasis. Everything exits before the cut.
 
 ---
 
@@ -155,17 +138,17 @@ A battery that charges and drains — the left side shows a battery icon hammere
 **Time:** 38000 – 50000
 **Transcript:** "and mistake number three is having no nutrition plan you can train perfectly but if you're not eating enough protein your body can't repair the research is clear you need point seven to one gram of protein per pound of body weight every single day that's non-negotiable"
 **Display mode:** Overlay
-**Scene type:** data-viz
-**Layout pattern:** stacked-cascade
+**Template:** explainer-stats
+**Fork reason:** protein target is a big number (0.7-1.0g/lb) — adapt gauge visual using stats count-up animation
 
 ### Speaker layout
 - Speaker: "full size"
 
 ### Scene dimensions
-- Width: 800 Height: 480
+- Width: 900 Height: 760
 
 ### Scene placement
-- Placement: lower-third-center
+- Placement: overlay-medium
 
 ### Transition IN
 - From: Fullscreen (Scene 3)
@@ -186,14 +169,8 @@ A fuel gauge needle swinging from "Empty" to the optimal zone — the gauge repr
 ### Must show
 - "0.7–1.0g / lb", the word "protein", "daily" or "every day"
 
-### Animation timeline
-| Phase | Frames | What happens |
-|-------|--------|-------------|
-| Entrance | 0–30 | Gauge arc draws itself with strokeDashoffset; "Mistake #3" label fades in above the gauge |
-| Build | 30–130 | Needle rotates from far-left "Empty" zone through yellow "Low" zone; zone labels fade in as the needle passes each section; the arc fills with color behind the needle path |
-| Develop | 130–220 | Needle reaches the green "0.7–1.0g/lb" optimal zone and bounces with spring physics; the optimal zone pulses with a glow; "per pound, per day" text types in below the gauge word by word |
-| Payoff | 220–270 | A checkmark stamps onto the optimal zone with scale-bounce; "Non-negotiable" text fades in with slight translateY upward |
-| Exit | 270–300 | Gauge and all labels fade out with opacity transition over 300ms |
+### Animation brief
+Gauge arc scales in as the speaker says "no nutrition plan." Needle starts rotating as "if you're not eating enough protein" plays — sweeping through "Empty" and "Low" zones with labels fading in at each section. When the speaker says "point seven to one gram," the needle reaches the green optimal zone and bounces with spring physics; zone pulses. "per pound, per day" types in word by word synced to "every single day." Checkmark stamps when the speaker hits "that's non-negotiable." Fade out before cut.
 
 ---
 
@@ -202,8 +179,8 @@ A fuel gauge needle swinging from "Empty" to the optimal zone — the gauge repr
 **Time:** 50000 – 60000
 **Transcript:** "here's what actually works train four days recover three days hit your protein target daily and increase your weights by two to five percent each week do that consistently for twelve weeks and you'll see more results than most people get in a year"
 **Display mode:** Stacked [55/45]
-**Scene type:** timeline
-**Layout pattern:** full-bleed
+**Template:** explainer-timeline
+**Fork reason:** 12-week framework is a chronological sequence — adapt timeline nodes for weekly markers
 
 ### Speaker layout
 - Speaker: "bottom 45%"
@@ -234,14 +211,8 @@ A 12-week calendar ribbon that unrolls horizontally, with each week showing the 
 ### Must show
 - "4 days train / 3 days recover", "protein daily", "2-5%/week", "12 weeks"
 
-### Animation timeline
-| Phase | Frames | What happens |
-|-------|--------|-------------|
-| Entrance | 0–40 | A horizontal timeline axis draws from left to right with strokeDashoffset; "Week 1" marker fades in at the left edge |
-| Build | 40–140 | Week blocks unroll along the timeline — each block shows 4 blue segments and 3 green segments staggering in; weeks 1-6 appear with 12-frame intervals between each week; the timeline curves gently upward via translateY |
-| Develop | 140–230 | Weeks 7-12 continue unrolling, each sitting higher on the curve; a protein icon repeats above each week with fade-in; a small "+2-5%" arrow appears beside each new week, slightly larger than the previous one |
-| Payoff | 230–270 | "12 Weeks" text scales in at the end of the ribbon with spring; a results badge appears at the peak of the curve with scale-bounce showing "More than most get in a year" |
-| Exit | 270–300 | Ribbon rolls back up from right to left with translateX and opacity fade |
+### Animation brief
+Timeline bar starts growing as the speaker says "here's what actually works." When "train four days recover three days" plays, week blocks unroll showing 4 blue + 3 green segments. As "hit your protein target daily" plays, protein icons appear above each week. During "increase your weights by two to five percent," "+2-5%" arrows appear beside each week, growing slightly larger each time — the timeline curves upward. "12 Weeks" text scales in when the speaker says "twelve weeks." Results badge appears at the peak on "more results than most people get in a year." Ribbon rolls back at exit.
 
 ---
 
@@ -250,17 +221,17 @@ A 12-week calendar ribbon that unrolls horizontally, with each week showing the 
 **Time:** 60000 – 68000
 **Transcript:** "so stop making these three mistakes start with progressive overload prioritize recovery fix your nutrition and I promise you the results will come faster than you ever expected"
 **Display mode:** Overlay
-**Scene type:** step-cards
-**Layout pattern:** scattered
+**Template:** none
+**Fork reason:** —
 
 ### Speaker layout
 - Speaker: "full size"
 
 ### Scene dimensions
-- Width: 800 Height: 480
+- Width: 900 Height: 760
 
 ### Scene placement
-- Placement: lower-third-center
+- Placement: overlay-medium
 
 ### Transition IN
 - From: Stacked (Scene 5)
@@ -281,14 +252,8 @@ Three remedy icons arranged in an organic triangle that lock together like puzzl
 ### Must show
 - "1. Progressive Overload", "2. Recovery", "3. Nutrition"
 
-### Animation timeline
-| Phase | Frames | What happens |
-|-------|--------|-------------|
-| Entrance | 0–30 | First icon + label ("1. Progressive Overload") springs in from bottom-left with rotation from -15° to 0° |
-| Build | 30–100 | Second icon + label ("2. Recovery") springs in from bottom-center, 20 frames after the first; it slides into position adjacent to icon 1 with a magnetic snap (spring with damping) |
-| Develop | 100–170 | Third icon + label ("3. Nutrition") springs in from bottom-right and snaps into place completing the triangle; a connecting border draws around all three using strokeDashoffset, unifying them |
-| Payoff | 170–210 | The unified triangle shape pulses once with a scale 1.0→1.05→1.0 spring; all three labels brighten simultaneously with an opacity shift from 0.8 to 1.0 |
-| Exit | 210–240 | All three icons scale down to 0 from the triangle's center point with staggered 4-frame delays |
+### Animation brief
+As the speaker says "start with progressive overload," first icon + label springs in from bottom-left. "Prioritize recovery" triggers the second icon snapping into position with a magnetic pull. "Fix your nutrition" brings the third icon, completing the triangle — a background shape scales up behind all three, unifying them. When the speaker hits "the results will come," the unified shape pulses and all labels brighten. Icons scale down at exit before "faster than you ever expected."
 
 ---
 
@@ -305,22 +270,20 @@ Three remedy icons arranged in an organic triangle that lock together like puzzl
 
 - [x] Every moment of the timeline is covered (no speaker-only gaps): 0–10000 (Scene 1 Overlay) → 10000–24000 (Scene 2 Stacked) → 24000–38000 (Scene 3 Fullscreen) → 38000–50000 (Scene 4 Overlay) → 50000–60000 (Scene 5 Stacked) → 60000–68000 (Scene 6 Overlay). Complete coverage.
 - [x] All transitions use names from the 15-transition set: Speaker → Overlay, Overlay → Stacked, Stacked → Fullscreen, Fullscreen → Overlay, Overlay → Stacked, Stacked → Overlay, Overlay → Speaker.
-- [x] No two adjacent scenes use the same layout pattern: center-dominant → diagonal-flow → asymmetric → stacked-cascade → full-bleed → scattered.
-- [x] All scene types are from the 10-type table: data-viz, cause-effect, comparison, data-viz, timeline, step-cards.
 - [x] All display modes are Overlay, Stacked, or Fullscreen (no "split-screen"): Overlay, Stacked, Fullscreen, Overlay, Stacked, Overlay.
 - [x] Transcript segments are copied verbatim — no paraphrasing.
 - [x] Punch-ins only appear during overlay segments: 3500ms (Scene 1 Overlay), 44000ms (Scene 4 Overlay), 64000ms (Scene 6 Overlay).
 - [x] Speaker transitions only at video boundaries: Speaker → Overlay at start (Scene 1), Overlay → Speaker at end (Scene 6).
 - [x] Every field in the per-scene schema is present for every scene.
 - [x] Every scene has a **File** field (Scene{N}.tsx format): Scene1.tsx through Scene6.tsx.
-- [x] Every scene has **Scene dimensions** (Width × Height in pixels): Overlays use preset sizes (800×640, 800×480), Stacked scenes use canvas calculations, Fullscreen uses 1080×1920.
-- [x] Every Overlay scene uses a placement preset name from the preset table: center-card (Scene 1), lower-third-center (Scene 4), lower-third-center (Scene 6).
+- [x] Every scene has **Scene dimensions** (Width × Height in pixels): Overlays use preset sizes (1000×960, 900×760, 800×640), Stacked scenes use canvas calculations, Fullscreen uses 1080×1920.
+- [x] Every Overlay scene uses a placement preset name from the preset table: center-card (Scene 1), overlay-medium (Scene 4), overlay-medium (Scene 6).
 - [x] Stacked dimensions calculated correctly: Scene 2: 1080 × (1920 × 50%) = 1080 × 960. Scene 5: 1080 × (1920 × 55%) = 1080 × 1056.
-- [x] **No more than 30% of scenes use `step-cards`**: 1 out of 6 scenes (16.7%) uses step-cards.
-- [x] **At least 3 different scene types** are used across the plan: data-viz, cause-effect, comparison, timeline, step-cards (5 distinct types).
-- [x] **No two adjacent scenes share the same scene type**: data-viz → cause-effect → comparison → data-viz → timeline → step-cards.
-- [x] Every scene has an **Animation timeline** table with 3-5 phases: all 6 scenes have 5-phase tables (Entrance, Build, Develop, Payoff, Exit).
-- [x] Every scene has a **Build** and **Develop** phase (not just Entrance + Exit): confirmed for all 6 scenes.
-- [x] No single phase spans more than 40% of the scene's total frame count: verified — Build and Develop each span approximately 30-35%, no phase exceeds 40%.
-- [x] Every **Visual concept** describes a creative idea, not a layout: thermometer cracking (Scene 1), staircase plateau vs growth (Scene 2), battery charge/drain (Scene 3), fuel gauge needle (Scene 4), unrolling calendar ribbon (Scene 5), puzzle pieces locking together (Scene 6).
+- [x] Every scene has an **Animation brief** describing entrance, mid-scene evolution, visual climax, and exit.
+- [x] No brief is just "elements enter and exit" — every scene has mid-scene change: thermometer cracks (1), staircase crumbles and rebuilds (2), battery drains vs charges (3), gauge needle travels zones (4), ribbon curves upward (5), puzzle pieces snap together (6).
+- [x] Every **Visual concept** includes a metaphor/anchor, a primary motion, and an emotional beat: thermometer rising + cracking (Scene 1), staircase building + flatlining + rebuilding (Scene 2), battery splitting + draining vs charging (Scene 3), gauge needle swinging (Scene 4), ribbon unrolling + curving upward (Scene 5), puzzle pieces clicking together (Scene 6).
+- [x] **No two adjacent scenes use the same primary motion**: gauge fill → progressive build → split comparison → gauge fill → progressive unroll → assembly. Scene 1 and 4 both use gauge/fill but are separated by 2 scenes.
+- [x] **Visual concepts are genuinely distinct**: each scene has a unique physical metaphor (thermometer, staircase, battery, gauge, ribbon, puzzle).
+- [x] Every scene has a **Template** field: explainer-stats, explainer-cause-effect, explainer-comparison, explainer-stats, explainer-timeline, none (5 of 6 scenes use templates).
+- [x] At least 50% of scenes use templates: 5/6 = 83%.
 </example>

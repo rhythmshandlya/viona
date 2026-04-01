@@ -38,8 +38,22 @@ Video is NEVER split. Everything is handled through keyframes.
 ### Step 1: Read inputs
 Read SCENE_PLAN.md and parse all scene entries — note each scene's name, time range, display mode, dimensions, placement, and transition type. Read the manifest to identify the video item, audio item, and existing tracks.
 
-### Step 2: Create scene track
-Create one overlay track for scene items using `add_track` with type `overlay`. All scene items go on this ONE track (they are sequential, no overlap). Position it above the video track and below the caption track.
+### Step 2: Create the layer sandwich tracks
+
+Create three overlay tracks that form the depth sandwich:
+
+```
+add_track({ type: "overlay", name: "scene-bg", position: 1 })  → trk-scene-bg
+add_track({ type: "overlay", name: "person", position: 2 })    → trk-person
+add_track({ type: "overlay", name: "scene-fg", position: 3 })  → trk-scene-fg
+```
+
+All scene items go on either `trk-scene-bg` or `trk-scene-fg` (they are sequential within each track, no overlap). The person track holds the matted speaker layer (populated by the rendering pipeline). Default track assignment:
+
+- **Overlay scenes with depth briefs** (animation brief contains "behind", "emerge-behind", "peek-sides", "cascade-behind", "background-fill", "depth-lower-third") → place on `trk-scene-bg`
+- **All other scenes** (overlay without depth, stacked, fullscreen) → place on `trk-scene-fg`
+
+The animator may later split a scene's output across both layers, but the manifest item sits on one track — the initial placement is based on the dominant layer in the brief.
 
 ### Step 3: Set speaker transforms on all video segments
 
@@ -112,7 +126,6 @@ For each scene in the plan, add a scene item on the scene track using `add_item`
   - `sceneFile`: the scene filename from the plan (e.g., `'Scene1.tsx'`) — must include `.tsx` extension
   - `displayMode`: from the plan (`'fullscreen'`, `'split-screen'`, or `'overlay'`)
   - `sceneName`: scene name from the plan (for mockup display)
-  - `sceneType`: scene type from the plan (for mockup display)
 - `transform`: from the plan's scene dimensions and placement:
   - **Fullscreen**: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }`
   - **Stacked**: `{ x: 0, y: 0, width: CANVAS_W, height: SCENE_H }` (top portion — SCENE_H from plan's dimensions)
@@ -122,18 +135,61 @@ For each scene in the plan, add a scene item on the scene track using `add_item`
 
 | Preset | x | y | width | height |
 |---|---|---|---|---|
-| `lower-third-center` | 140 | 1200 | 800 | 480 |
-| `lower-third-left` | 48 | 1200 | 700 | 480 |
-| `lower-third-right` | 332 | 1200 | 700 | 480 |
-| `center-card` | 140 | 480 | 800 | 640 |
-| `upper-third` | 140 | 200 | 800 | 480 |
-| `small-corner-br` | 680 | 1320 | 360 | 360 |
-| `small-corner-bl` | 48 | 1320 | 360 | 360 |
-| `wide-band` | 48 | 1100 | 984 | 320 |
+| `overlay-large` | 40 | 880 | 1000 | 960 |
+| `overlay-medium` | 90 | 1000 | 900 | 760 |
+| `overlay-compact` | 140 | 1120 | 800 | 640 |
+| `center-card` | 40 | 400 | 1000 | 960 |
+| `upper-overlay` | 40 | 80 | 1000 | 800 |
+| `wide-band` | 24 | 960 | 1032 | 720 |
 
 Read the preset name from the plan and map to exact pixels. Do NOT interpret natural language — the plan MUST use a preset name.
 
 Note: `displayMode` uses the manifest API value `"split-screen"` for Stacked layouts.
+
+#### Speaker spatial data (REQUIRED on every scene item)
+
+After creating each scene item, call `get_speaker_position` with the scene's `{ startMs, endMs }` to get the speaker's position during that time range. Add the returned data to the scene item's `data` field:
+
+```
+// For each scene item, call get_speaker_position and extract:
+const pos = get_speaker_position({ startMs: 15000, endMs: 25000 });
+
+update_item({
+  itemId: "scene-1",
+  data: {
+    ...existingData,
+    speakerBbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },   // normalized 0-1 from pos.speaker.bodyBounds
+    speakerCenter: { x: 0.50, y: 0.45 },                       // normalized face center
+    visibleZones: {                                              // areas NOT behind speaker
+      left:   { x: 0, y: 0, w: 0.28, h: 1.0 },
+      right:  { x: 0.72, y: 0, w: 0.28, h: 1.0 },
+      top:    { x: 0, y: 0, w: 1.0, h: 0.10 },
+      bottom: { x: 0, y: 0.85, w: 1.0, h: 0.15 }
+    }
+  }
+})
+```
+
+Normalize values to 0-1 range. Note: `get_speaker_position` returns `speaker.bounds` as `{ top, bottom, left, right }` in **pixel coordinates**, NOT `{ x, y, w, h }` normalized. Convert with:
+```
+x = bounds.left / canvasWidth
+y = bounds.top / canvasHeight
+w = (bounds.right - bounds.left) / canvasWidth
+h = (bounds.bottom - bounds.top) / canvasHeight
+```
+The Setup Agent reads these to bake pixel-space constants into scene skeletons.
+
+If `get_speaker_position` returns `speaker: null` (no face detected), use default center values:
+```
+speakerBbox: { x: 0.25, y: 0.05, w: 0.50, h: 0.85 },
+speakerCenter: { x: 0.50, y: 0.40 },
+visibleZones: {
+  left:   { x: 0, y: 0, w: 0.25, h: 1.0 },
+  right:  { x: 0.75, y: 0, w: 0.25, h: 1.0 },
+  top:    { x: 0, y: 0, w: 1.0, h: 0.05 },
+  bottom: { x: 0, y: 0.90, w: 1.0, h: 0.10 }
+}
+```
 
 ### Step 5: Add transition keyframes to scene items
 
@@ -181,12 +237,20 @@ Render stills at 2-3 scene boundary timestamps using `render_still`. Visually co
 
 ## Track Structure (after Layout Editor)
 
-| Track | Type | Contents |
-|---|---|---|
-| Video track | `video` | Speaker video — continuous, keyframed for transform/opacity |
-| Audio track | `audio` | Speaker audio — continuous, plays regardless of video opacity |
-| Scene track | `overlay` | All scene items — sequential, no overlap, each with entrance/exit keyframes |
-| Caption track | `caption` | Added later by Final Editor |
+The layout editor creates a 5-track sandwich. The person matte layer sits between behind-speaker and in-front-of-speaker scene tracks, creating depth compositing.
+
+| Track | Type | Position | Contents |
+|---|---|---|---|
+| Overlay track | `overlay` | 4 | Captions, foreground HUD elements (added later by Final Editor) |
+| Scene-FG track | `overlay` | 3 | Animation elements IN FRONT of speaker — `name: "scene-fg"` |
+| Person track | `overlay` | 2 | Matted person layer (always present) — `name: "person"` |
+| Scene-BG track | `overlay` | 1 | Animation elements BEHIND speaker — `name: "scene-bg"` |
+| Video track | `video` | 0 | Source video (original background) |
+| Audio track | `audio` | — | Speaker audio — continuous, plays regardless of video opacity |
+
+The person track is always present — matting is guaranteed. Scene items default to the scene-fg track. Overlay scenes with depth briefs (emerge-behind, peek-sides, etc.) place their scene item on scene-bg instead. The animator later decides per-element which layer each part targets; the layout editor makes the initial track assignment based on the planner's brief.
+
+> **Clarification — track assignment vs. render-time layer splitting:** The manifest item's track (`trk-scene-bg` or `trk-scene-fg`) is the **primary layer** — it determines where the scene component renders in the compositor. However, a single scene component can contain BOTH `<BehindSpeaker>` and `<InFrontOfSpeaker>` sections. The `SandwichComposite` component (see Plan 2: Workspace Integration) handles the actual layer splitting at render time — it reads the scene component's layer wrappers and routes each section to the correct compositor layer. The manifest track assignment is an initial hint based on the dominant layer in the planner's brief; the rendering pipeline resolves the full dual-layer output regardless of which track the item sits on.
 
 ## Critical Reminders
 - Video stays CONTINUOUS. Keyframes handle display mode changes. Do NOT split video at all.

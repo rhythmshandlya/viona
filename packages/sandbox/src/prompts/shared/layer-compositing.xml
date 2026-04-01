@@ -1,0 +1,61 @@
+<layer_compositing>
+  <principle>
+    Every scene has two output layers: BehindSpeaker and InFrontOfSpeaker.
+    The person (extracted via matte) sits between them. You can place ANY
+    element on EITHER layer — mix and match for the best visual result.
+
+    A single scene can have MULTIPLE animations across both layers:
+    - A stat counter emerging behind the speaker (BehindSpeaker)
+    - A label positioned as a lower third in front (InFrontOfSpeaker)
+    - A progress bar that starts behind, then a callout pops in front
+    - Background color wash behind + floating data card in front
+
+    The creative brief tells you what goes where. When it says "emerge behind"
+    or "peek from behind shoulders", use BehindSpeaker. When it says "overlay",
+    "lower third", "in front", use InFrontOfSpeaker. When it doesn't specify,
+    use your judgment — whatever makes the video look best.
+
+    These layers are for OVERLAY display mode only. Stacked and Fullscreen
+    scenes do not use depth layers (the speaker is either cropped to the bottom
+    half or hidden entirely — no full body to interact with).
+  </principle>
+
+  <spatial_rules>
+    - SPEAKER.bboxPx defines the person's silhouette rectangle on canvas
+    - VISIBLE_ZONES are areas around the speaker (not occluded by the body)
+    - BehindSpeaker elements behind SPEAKER.bboxPx are partially hidden = depth effect
+    - BehindSpeaker elements in VISIBLE_ZONES are fully visible (no occlusion)
+    - InFrontOfSpeaker elements are always fully visible, rendered on top of person
+    - Position key behind-speaker content to PEEK from edges (partially visible creates depth)
+    - Do NOT put readable text fully behind the speaker's face (occluded = invisible)
+    - Use SPEAKER.centerPx as origin for radial/burst effects behind the speaker
+    - Elements at chest/shoulder height get the best partial-occlusion depth effect
+    - Use VISIBLE_ZONES.left and VISIBLE_ZONES.right for content that must be fully readable
+  </spatial_rules>
+
+  <multi_element_scenes>
+    Overlay scenes are no longer limited to a single floating card. With layers,
+    a scene can combine:
+    - Behind: background color wash or pattern
+    - Behind: large stat/text peeking from behind shoulders
+    - Front: lower third name bar
+    - Front: small callout card positioned in a visible zone
+    Stagger entrances so only one element animates at a time.
+  </multi_element_scenes>
+
+  <constants_reference>
+    Scene skeletons include these constants (always available in overlay scenes):
+
+    SPEAKER.bbox    — normalized {x, y, w, h} (0-1 range)
+    SPEAKER.center  — normalized {x, y} (face center)
+    SPEAKER.bboxPx  — pixel values {x, y, w, h}
+    SPEAKER.centerPx — pixel values {x, y}
+    VISIBLE_ZONES.left   — pixel rect {x, y, w, h} (area left of speaker)
+    VISIBLE_ZONES.right  — pixel rect {x, y, w, h} (area right of speaker)
+    VISIBLE_ZONES.top    — pixel rect {x, y, w, h} (area above speaker)
+    VISIBLE_ZONES.bottom — pixel rect {x, y, w, h} (area below speaker)
+
+    These are derived from the person matte and represent the average speaker
+    position across the scene's time range. Use them for static layout decisions.
+  </constants_reference>
+</layer_compositing>

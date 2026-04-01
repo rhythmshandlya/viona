@@ -34,10 +34,11 @@ Read SCENE_PLAN.md → 4 scenes parsed
 get_speaker_position → face centered at x:50%, y:30%
 ```
 
-### Step 2: Create scene track
+### Step 2: Create layer sandwich tracks
 ```
-add_track({ type: "overlay", name: "Scenes" })
-→ trk-scenes
+add_track({ type: "overlay", name: "scene-bg", position: 1 }) → trk-scene-bg
+add_track({ type: "overlay", name: "person", position: 2 })   → trk-person
+add_track({ type: "overlay", name: "scene-fg", position: 3 }) → trk-scene-fg
 ```
 
 ### Step 3: Set speaker transforms on video segments
@@ -89,33 +90,73 @@ update_item({
 
 ```
 add_item({
-  type: "scene", trackId: "trk-scenes",
+  type: "scene", trackId: "trk-scene-fg",
   startMs: 8000, endMs: 22000,
-  data: { sceneFile: "Scene1.tsx", displayMode: "split-screen", sceneName: "Key Metrics", sceneType: "data-viz" },
+  data: {
+    sceneFile: "Scene1.tsx", displayMode: "split-screen", sceneName: "Key Metrics",
+    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
+    speakerCenter: { x: 0.50, y: 0.42 },
+    visibleZones: {
+      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
+      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
+      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
+      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
+    }
+  },
   transform: { x: 0, y: 0, width: 1080, height: 960 }
 })
 → scene-1
 
 add_item({
-  type: "scene", trackId: "trk-scenes",
+  type: "scene", trackId: "trk-scene-fg",
   startMs: 22000, endMs: 38000,
-  data: { sceneFile: "Scene2.tsx", displayMode: "fullscreen", sceneName: "Growth Chart", sceneType: "data-viz" },
+  data: {
+    sceneFile: "Scene2.tsx", displayMode: "fullscreen", sceneName: "Growth Chart",
+    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
+    speakerCenter: { x: 0.50, y: 0.42 },
+    visibleZones: {
+      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
+      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
+      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
+      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
+    }
+  },
   transform: { x: 0, y: 0, width: 1080, height: 1920 }
 })
 → scene-2
 
 add_item({
-  type: "scene", trackId: "trk-scenes",
+  type: "scene", trackId: "trk-scene-fg",
   startMs: 38000, endMs: 51000,
-  data: { sceneFile: "Scene3.tsx", displayMode: "overlay", sceneName: "Stat Callout", sceneType: "data-viz" },
+  data: {
+    sceneFile: "Scene3.tsx", displayMode: "overlay", sceneName: "Stat Callout",
+    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
+    speakerCenter: { x: 0.50, y: 0.42 },
+    visibleZones: {
+      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
+      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
+      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
+      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
+    }
+  },
   transform: { x: 140, y: 1200, width: 800, height: 480 }
 })
 → scene-3
 
 add_item({
-  type: "scene", trackId: "trk-scenes",
+  type: "scene", trackId: "trk-scene-fg",
   startMs: 51000, endMs: 64000,
-  data: { sceneFile: "Scene4.tsx", displayMode: "split-screen", sceneName: "Revenue Breakdown", sceneType: "data-viz" },
+  data: {
+    sceneFile: "Scene4.tsx", displayMode: "split-screen", sceneName: "Revenue Breakdown",
+    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
+    speakerCenter: { x: 0.50, y: 0.42 },
+    visibleZones: {
+      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
+      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
+      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
+      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
+    }
+  },
   transform: { x: 0, y: 0, width: 1080, height: 960 }
 })
 → scene-4
@@ -184,10 +225,10 @@ render_still({ atMs: 57000 })  → Scene 4: speaker bottom half, scene top half
 ```
 
 ### Final manifest state
-- **Tracks:** trk-video, trk-audio, trk-scenes
+- **Tracks:** trk-video, trk-audio, trk-scene-bg, trk-person, trk-scene-fg
 - **Video items:** 8 on trk-video (from trimming)
 - **Audio items:** 8 on trk-audio (matching)
-- **Scene items:** 4 on trk-scenes (type 'scene', one per scene)
+- **Scene items:** 4 total — stacked/fullscreen on trk-scene-fg, depth overlays on trk-scene-bg
+- **Speaker data:** Every scene item has speakerBbox, speakerCenter, visibleZones in data
 - **No splits at scene boundaries** — all display mode changes via transforms + keyframes
-- **Key observation:** Scene boundaries mostly fall in gaps between video segments (where fillers were). Segments within one scene get static transforms. Only segments spanning boundaries get keyframes.
 </example>
