@@ -256,7 +256,7 @@ async function main() {
     },
     {
       connection,
-      concurrency: 2, // Multiple time ranges can be matted in parallel
+      concurrency: 1, // GPU can only run one RVM inference at a time
       lockDuration: 5 * 60 * 1000, // 5 minutes
       stalledInterval: 2 * 60 * 1000,
       maxStalledCount: 2,
