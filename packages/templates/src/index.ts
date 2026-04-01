@@ -20,6 +20,22 @@ export {
 // Scaling
 export { useScale } from './use-scale';
 
+// Depth compositing
+export {
+  computeSpeakerPx,
+  computeVisibleZones,
+  SpeakerAwareLayout,
+  DepthEntrance,
+  DepthParallax,
+} from './depth';
+export type {
+  SpeakerBbox,
+  SpeakerData,
+  VisibleZones,
+  LayoutMode,
+  DepthTier,
+} from './depth';
+
 // Fonts
 export {
   FONTS,
@@ -72,3 +88,12 @@ import './templates/explainer-barchart/register';
 import './templates/explainer-comparison/register';
 import './templates/explainer-ranking/register';
 import './templates/explainer-timeline/register';
+import './templates/explainer-tree/register';
+import './templates/explainer-flow/register';
+import './templates/explainer-network/register';
+import './templates/explainer-cycle/register';
+import './templates/explainer-funnel/register';
+import './templates/explainer-venn/register';
+import './templates/explainer-orbit/register';
+import './templates/explainer-layers/register';
+import './templates/explainer-matrix/register';
