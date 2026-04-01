@@ -42,6 +42,7 @@ export interface SandboxStatus {
   busy: boolean;
   activeTasks: unknown[];
   plan: unknown | null;
+  widget: unknown | null;
   startedAt: number | null;
 }
 
@@ -59,6 +60,7 @@ export interface InitData {
     durationMs: number;
   };
   theme?: string;
+  segmentationAvailable?: boolean;
   [key: string]: unknown;
 }
 
@@ -203,15 +205,83 @@ export class SandboxManager {
       // 1. Check for existing healthy session — return early
       const existing = await this.getActiveSession(projectId);
       if (existing && existing.status === 'ready') {
-        const healthy = existing.internalUrl
-          ? await provider.isReady(existing.internalUrl)
-          : false;
+        // Two-level check: is the container alive? is the workspace initialized?
+        // isReady() conflates both — check container liveness separately so we
+        // don't destroy alive-but-uninitialized containers.
+        let containerAlive = false;
+        let workspaceInitialized = false;
 
-        if (healthy) {
+        if (existing.internalUrl) {
+          try {
+            const healthRes = await fetch(`${existing.internalUrl}/health`, {
+              signal: AbortSignal.timeout(3000),
+            });
+            if (healthRes.ok) {
+              containerAlive = true;
+              const body = await healthRes.json() as { initialized?: boolean };
+              workspaceInitialized = body.initialized === true;
+            }
+          } catch {
+            // Container not reachable
+          }
+        }
+
+        if (containerAlive && workspaceInitialized) {
           touchActivity(projectId);
           return {
             sandbox: this.sessionToSandbox(existing),
             initRequired: false,
+            recovery: undefined,
+          };
+        }
+
+        if (containerAlive && !workspaceInitialized) {
+          // Container is alive but init hasn't completed yet (or failed).
+          // Return with initRequired: true — the caller will re-send init data.
+          // DON'T destroy the container.
+          logger.info({ projectId }, 'Container alive but not initialized — returning for re-init');
+          touchActivity(projectId);
+          const sandbox = this.sessionToSandbox(existing);
+
+          // If initData provided, fire init again (with retry)
+          if (opts?.initData) {
+            const initUrl = `${sandbox.agentUrl}/init`;
+            const initHeaders = {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sandbox.secret}`,
+            };
+            const initBody = JSON.stringify(opts.initData);
+
+            (async () => {
+              const MAX_RETRIES = 5;
+              const RETRY_DELAY = 3000;
+              for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                try {
+                  const res = await fetch(initUrl, {
+                    method: 'POST',
+                    headers: initHeaders,
+                    body: initBody,
+                    signal: AbortSignal.timeout(120_000),
+                  });
+                  if (res.ok || res.status === 409) {
+                    logger.info({ projectId, attempt }, 'Re-init completed');
+                    return;
+                  }
+                  logger.warn({ projectId, status: res.status, attempt }, 'Re-init failed');
+                } catch (err: any) {
+                  logger.warn({ projectId, err: err.message, attempt }, 'Re-init POST failed');
+                }
+                if (attempt < MAX_RETRIES - 1) {
+                  await new Promise(r => setTimeout(r, RETRY_DELAY));
+                }
+              }
+              logger.error({ projectId }, 'Re-init failed after all retries');
+            })();
+          }
+
+          return {
+            sandbox,
+            initRequired: true,
             recovery: undefined,
           };
         }
@@ -325,20 +395,29 @@ export class SandboxManager {
         throw err;
       }
 
-      // 8. Check if workspace initialized (isReady) — works for both bundle and volume restore
+      // 8. Wait for container to be reachable, then check if workspace initialized
       let workspaceReady = false;
       let recovery: AcquireResult['recovery'];
 
-      try {
-        const checkRes = await fetch(`${sandbox.agentUrl}/health`, {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (checkRes.ok) {
-          const body = await checkRes.json() as { initialized?: boolean };
-          workspaceReady = body.initialized === true;
+      // Retry health check — container needs time to start its HTTP server
+      const MAX_HEALTH_RETRIES = 15;
+      const HEALTH_RETRY_DELAY_MS = 1000;
+      for (let attempt = 0; attempt < MAX_HEALTH_RETRIES; attempt++) {
+        try {
+          const checkRes = await fetch(`${sandbox.agentUrl}/health`, {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (checkRes.ok) {
+            const body = await checkRes.json() as { initialized?: boolean };
+            workspaceReady = body.initialized === true;
+            break; // Container is reachable
+          }
+        } catch {
+          // Container not ready yet — wait and retry
         }
-      } catch {
-        // Sandbox not reachable yet or workspace broken
+        if (attempt < MAX_HEALTH_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, HEALTH_RETRY_DELAY_MS));
+        }
       }
 
       if (workspaceReady) {
@@ -359,46 +438,64 @@ export class SandboxManager {
         logger.warn({ projectId, recovery }, 'Restore did not produce initialized workspace');
       }
 
-      // 9. If not initialized and initData provided: POST to agentUrl/init
+      // 9. If not initialized and initData provided: fire-and-forget POST to agentUrl/init
+      // The init endpoint downloads media, generates proxies, etc. which can take minutes.
+      // We don't block on it — the container is already reachable and the frontend
+      // navigates to the editor immediately. The sandbox /init runs in the background
+      // and the orchestrator starts after it completes.
       const initRequired = !workspaceReady;
       if (initRequired && opts?.initData) {
-        try {
-          const initRes = await fetch(`${sandbox.agentUrl}/init`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sandbox.secret}`,
-            },
-            body: JSON.stringify(opts.initData),
-          });
+        const initUrl = `${sandbox.agentUrl}/init`;
+        const initHeaders = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sandbox.secret}`,
+        };
+        const initBody = JSON.stringify(opts.initData);
 
-          if (!initRes.ok) {
-            const errText = await initRes.text().catch(() => 'unknown');
-            logger.error({ status: initRes.status, body: errText, projectId }, 'Sandbox init failed');
-            // Init failure: destroy container and mark suspended
-            try { await provider.destroy(sandbox); } catch {}
-            await db.update(sandboxSessions)
-              .set({
-                status: 'suspended',
-                suspendedAt: new Date(),
-                suspendReason: 'health_failure',
-              })
-              .where(eq(sandboxSessions.id, sessionId));
-            throw new Error(`Sandbox init failed with status ${initRes.status}: ${errText}`);
+        // Fire-and-forget with retry: the container may need a moment after health check
+        // passes before it can accept large POST bodies. Retry up to 5 times with backoff.
+        const MAX_INIT_RETRIES = 5;
+        const INIT_RETRY_DELAY_MS = 3000;
+
+        (async () => {
+          for (let attempt = 0; attempt < MAX_INIT_RETRIES; attempt++) {
+            try {
+              const initRes = await fetch(initUrl, {
+                method: 'POST',
+                headers: initHeaders,
+                body: initBody,
+                signal: AbortSignal.timeout(120_000), // 2min timeout for large payloads
+              });
+
+              if (initRes.ok) {
+                logger.info({ projectId, attempt }, 'Sandbox init completed (async)');
+                return; // Success
+              }
+
+              // HTTP error — check if retryable
+              const errText = await initRes.text().catch(() => 'unknown');
+              if (initRes.status === 409) {
+                // Already initialized (race with volume restore) — not an error
+                logger.info({ projectId }, 'Sandbox already initialized (409)');
+                return;
+              }
+
+              logger.warn({ status: initRes.status, body: errText, projectId, attempt }, 'Sandbox init failed, will retry');
+            } catch (err: any) {
+              logger.warn({ err: err.message, projectId, attempt }, 'Init POST failed (network), will retry');
+            }
+
+            // Wait before retry (skip wait on last attempt)
+            if (attempt < MAX_INIT_RETRIES - 1) {
+              await new Promise(r => setTimeout(r, INIT_RETRY_DELAY_MS));
+            }
           }
-        } catch (err: any) {
-          if (err.message?.startsWith('Sandbox init failed')) throw err;
-          logger.error({ err, projectId }, 'Failed to send init data to sandbox');
-          try { await provider.destroy(sandbox); } catch {}
-          await db.update(sandboxSessions)
-            .set({
-              status: 'suspended',
-              suspendedAt: new Date(),
-              suspendReason: 'health_failure',
-            })
-            .where(eq(sandboxSessions.id, sessionId));
-          throw err;
-        }
+
+          // All retries exhausted — log error but DON'T destroy the container.
+          // The container is still alive and the user can retry via page refresh.
+          // Destroying creates a worse UX (full container recreate cycle).
+          logger.error({ projectId, retries: MAX_INIT_RETRIES }, 'Sandbox init failed after all retries — container left alive for manual retry');
+        })();
       }
 
       // 10. Update DB with sandbox info
@@ -651,6 +748,7 @@ export class SandboxManager {
         busy: false,
         activeTasks: [],
         plan: null,
+        widget: null,
         startedAt: null,
       };
     }
@@ -666,6 +764,7 @@ export class SandboxManager {
           busy: false,
           activeTasks: [],
           plan: null,
+          widget: null,
           startedAt: null,
         };
       }
@@ -675,12 +774,14 @@ export class SandboxManager {
     let busy = false;
     let startedAt: number | null = null;
     let plan: unknown | null = null;
+    let widget: unknown | null = null;
 
     if (session.status === 'ready') {
-      const [tasksRaw, busyRaw, planRaw] = await Promise.all([
+      const [tasksRaw, busyRaw, planRaw, widgetRaw] = await Promise.all([
         redis.get(`sandbox:tasks:${projectId}`).catch(() => null),
         redis.get(`sandbox:busy:${projectId}`).catch(() => null),
         redis.get(`sandbox:plan:${projectId}`).catch(() => null),
+        redis.get(`sandbox:widget:${projectId}`).catch(() => null),
       ]);
 
       if (tasksRaw) try { activeTasks = JSON.parse(tasksRaw); } catch {}
@@ -690,6 +791,7 @@ export class SandboxManager {
         startedAt = b.startedAt;
       } catch {}
       if (planRaw) try { plan = JSON.parse(planRaw); } catch {}
+      if (widgetRaw) try { widget = JSON.parse(widgetRaw); } catch {}
 
       // Fallback: poll sandbox directly if Redis has no busy state
       if (!busy) {
@@ -704,12 +806,14 @@ export class SandboxManager {
               activeTasks?: unknown[];
               startedAt?: number;
               plan?: unknown;
+              widget?: unknown;
             };
             if (sbStatus.busy) {
               busy = true;
               activeTasks = sbStatus.activeTasks ?? [];
               startedAt = sbStatus.startedAt ?? null;
               plan = sbStatus.plan ?? plan;
+              widget = sbStatus.widget ?? widget;
             }
           } catch { /* sandbox unreachable — ignore */ }
         }
@@ -724,6 +828,7 @@ export class SandboxManager {
       busy,
       activeTasks,
       plan,
+      widget,
       startedAt,
     };
   }

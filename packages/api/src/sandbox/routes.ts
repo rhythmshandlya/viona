@@ -37,6 +37,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
         const env: Record<string, string> = {};
         if (process.env.ANTHROPIC_API_KEY) env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
         if (process.env.CLAUDE_CODE_OAUTH_TOKEN) env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+        env.PROJECT_ID = projectId;
 
         const result = await manager.acquire(projectId, userId, { initData, env });
 
@@ -665,6 +666,10 @@ async function buildInitData(projectId: string): Promise<InitData | null> {
   if (project.headTrackingData) {
     initBody.headTracking = project.headTrackingData;
   }
+
+  // Flag whether background segmentation is possible (speaker face detected)
+  const htData = project.headTrackingData as { metadata?: { frames_with_face?: number } } | null;
+  initBody.segmentationAvailable = !!(htData?.metadata?.frames_with_face && htData.metadata.frames_with_face > 0);
 
   // Add project metadata
   initBody.projectMeta = {

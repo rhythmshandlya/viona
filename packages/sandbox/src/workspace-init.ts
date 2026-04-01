@@ -65,6 +65,7 @@ export interface InitPayload {
     durationMs: number;
   };
   theme?: string;  // Active theme preset slug (e.g. 'blackboard', 'magazine')
+  segmentationAvailable?: boolean;  // Whether background segmentation is possible
 }
 
 function getMinioClient(): MinioClient {
@@ -326,6 +327,7 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   await mkdir(join(baseDir, 'src', 'components'), { recursive: true });
   await mkdir(join(baseDir, 'src', 'scenes'), { recursive: true });
   await mkdir(join(baseDir, 'public'), { recursive: true });
+  await mkdir(join(baseDir, 'public', 'matte'), { recursive: true });
   await mkdir(join(baseDir, '.build'), { recursive: true });
   await mkdir(join(baseDir, '.claude'), { recursive: true });
   await mkdir(join(baseDir, 'docs'), { recursive: true });
@@ -401,10 +403,12 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   // It's created after staging promotion in initWorkspace() to avoid EEXIST errors
   // when cpSync copies a symlink over an existing file (e.g., from git bundle restore).
 
-  // Copy template files (composition infra, .claude/, configs)
+  // Copy template files (composition infra, .claude/, configs).
+  // Exclude node_modules — the workspace uses a symlink to /app/template/node_modules instead.
   await cp(TEMPLATE, baseDir, {
     recursive: true,
     force: false,  // Don't overwrite existing files
+    filter: (src) => !src.includes('node_modules'),
   });
 
   // Copy shared prompt modules into workspace for orchestrator access
@@ -428,28 +432,38 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     logger.warn('Theme files not found — skipping');
   }
 
-  // Write the active theme's design-system.md to the standard guidelines path
+  // Pre-generate filled design-system.md for ALL themes so the orchestrator
+  // can switch themes at runtime with a simple file copy (no placeholder logic needed).
+  const guidelinesDir = join(baseDir, 'docs', 'guidelines');
+  await mkdir(guidelinesDir, { recursive: true });
   const activeTheme = payload.theme || 'blackboard';
   try {
     const manifest = JSON.parse(await readFile(join(themesDst, 'themes.json'), 'utf-8'));
-    const themeConfig = manifest.themes?.[activeTheme];
-    if (themeConfig) {
-      const designSystemPath = join(themesDst, themeConfig.family, 'design-system.md');
-      let designSystem = await readFile(designSystemPath, 'utf-8');
-      const replacements: Record<string, string> = {
-        ...themeConfig.colors,
-        family: themeConfig.family,
-        label: themeConfig.label,
-      };
-      for (const [key, value] of Object.entries(replacements)) {
-        designSystem = designSystem.replaceAll(`{${key}}`, value);
+    for (const [themeSlug, themeConfig] of Object.entries(manifest.themes || {})) {
+      const config = themeConfig as { family: string; label: string; colors: Record<string, string> };
+      const designSystemPath = join(themesDst, config.family, 'design-system.md');
+      try {
+        let designSystem = await readFile(designSystemPath, 'utf-8');
+        const replacements: Record<string, string> = {
+          ...config.colors,
+          family: config.family,
+          label: config.label,
+        };
+        for (const [key, value] of Object.entries(replacements)) {
+          designSystem = designSystem.replaceAll(`{${key}}`, value);
+        }
+        // Write filled design system to docs/themes/{slug}-filled.md (ready to copy)
+        await writeFile(join(themesDst, `${themeSlug}-filled.md`), designSystem);
+        // Write the active theme as the default guidelines/theme.md
+        if (themeSlug === activeTheme) {
+          await writeFile(join(guidelinesDir, 'theme.md'), designSystem);
+        }
+      } catch {
+        logger.warn({ themeSlug }, 'Design system file not found for theme — skipping');
       }
-      const guidelinesDir = join(baseDir, 'docs', 'guidelines');
-      await mkdir(guidelinesDir, { recursive: true });
-      await writeFile(join(guidelinesDir, 'theme.md'), designSystem);
     }
   } catch (err) {
-    logger.warn({ err }, 'Failed to write active theme design system — skipping');
+    logger.warn({ err }, 'Failed to write theme design systems — skipping');
   }
 
   // Write transcript if provided
@@ -479,6 +493,14 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     await writeFile(
       join(baseDir, 'docs', 'speaker-grid.json'),
       JSON.stringify(payload.headTracking, null, 2),
+    );
+  }
+
+  // Write segmentation availability flag
+  if ((payload as any).segmentationAvailable !== undefined) {
+    await writeFile(
+      join(baseDir, 'docs', 'segmentation-available.json'),
+      JSON.stringify({ available: !!(payload as any).segmentationAvailable }),
     );
   }
 
