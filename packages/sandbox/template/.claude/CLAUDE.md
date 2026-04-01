@@ -7,7 +7,6 @@ docs/
   transcript-original.json       # Immutable backup
   SCENE_PLAN.md                  # Scene plan (written by Planner, read by downstream agents)
   user-brief.md                  # User's creative brief (if provided)
-  speaker-grid.json              # Head-tracking data (access via get_speaker_position tool, not directly)
   shot-boundaries.json           # Camera cut points with transcript context (use get_shot_boundaries tool)
   guidelines/
     editing-style.md             # Editing style guide
@@ -56,10 +55,6 @@ import { Background } from '../components/Background';
 Scene files use `export default` for the component.
 Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 
-## interpolate() Rules — CRITICAL
-- `inputRange` MUST be strictly monotonically increasing: `[0, 100]` is valid, `[400, 100]` CRASHES.
-- If you need "higher input = lower output", swap both ranges: `interpolate(x, [100, 400], [0.4, 0])` not `interpolate(x, [400, 100], [0, 0.4])`.
-- ALWAYS include `extrapolateLeft: 'clamp', extrapolateRight: 'clamp'` to prevent runaway values.
 
 ## Surface & Motion Rules
 - Every container/surface needs at least TWO animated treatments (gradient shift, depth shadow, shimmer, blur). Static flat rectangles are forbidden.
@@ -79,4 +74,3 @@ Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 - Video uses `objectFit: 'cover'` with optional `crop` settings (`objectPosition` + `scale`).
 - `auto_center_speaker` sets optimal crop values to center the speaker's face (called by Layout Editor).
 - `get_speaker_position` returns the speaker's exact canvas-space coordinates for a time range. Use this when placing overlay elements — it accounts for the cover crop transform and returns concrete `safePlacements` rects.
-- Do NOT read `speaker-grid.json` directly — use the tool instead.

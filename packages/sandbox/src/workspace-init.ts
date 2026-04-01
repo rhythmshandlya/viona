@@ -65,7 +65,6 @@ export interface InitPayload {
     durationMs: number;
   };
   theme?: string;  // Active theme preset slug (e.g. 'blackboard', 'magazine')
-  segmentationAvailable?: boolean;  // Whether background segmentation is possible
 }
 
 function getMinioClient(): MinioClient {
@@ -485,22 +484,6 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     await writeFile(
       join(baseDir, 'docs', 'user-brief.md'),
       payload.userBrief,
-    );
-  }
-
-  // Write head-tracking data if provided
-  if (payload.headTracking) {
-    await writeFile(
-      join(baseDir, 'docs', 'speaker-grid.json'),
-      JSON.stringify(payload.headTracking, null, 2),
-    );
-  }
-
-  // Write segmentation availability flag
-  if (payload.segmentationAvailable !== undefined) {
-    await writeFile(
-      join(baseDir, 'docs', 'segmentation-available.json'),
-      JSON.stringify({ available: !!payload.segmentationAvailable }),
     );
   }
 
