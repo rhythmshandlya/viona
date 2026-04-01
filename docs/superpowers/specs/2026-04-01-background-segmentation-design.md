@@ -26,43 +26,56 @@ The original video background stays visible. The mid-layer sits between the back
 
 ---
 
-## Pipeline: Matting Happens on the Final Cut
+## Pipeline: Deferred Preprocessing
 
-The user uploads a 5-10 minute video. The trim editor cuts sections, arranges the storyline, produces a final cut. **Only the final cut gets matted** — not the raw upload.
+Matting runs in the **worker** (GPU) as a deferred job after head tracking — same pattern as reframe generation. The matte covers the full raw upload. Trim points in the NLE editor apply identically to both source and matte videos (Remotion uses the same `startFrom` offset on both).
 
 ```
 Upload → Transcribe → Head Tracking → Reframe
-                                        ↓
+                            ↓ (lower priority, deferred)
+                      Segmentation (RVM)
+                            ↓
+                      Matte video → MinIO
+                            ↓
 User edits in NLE editor (trim, arrange, storyline)
-                                        ↓
-Final cut assembled (manifest with trimmed video items)
-                                        ↓
-Worker: segmentation job on final cut (GPU)
-                                        ↓
-Matte video → MinIO
-                                        ↓
-Sandbox starts → downloads matte from MinIO
-                                        ↓
+  (matte already available — no latency at generation time)
+                            ↓
+User triggers AI generation → Sandbox starts
+  ├── Downloads source.mp4 → public/source.mp4
+  └── Downloads matte.mp4 → public/matte.mp4
+                            ↓
 Planner decides which scenes use depth compositing
-                                        ↓
-Layout Editor creates layer structure
-                                        ↓
-Animators write mid-layer animations for depth scenes
 ```
 
-### When matting runs
+### Why mat the full upload, not just the final cut
 
-Matting runs in the **worker** (which has GPU access), NOT in the sandbox (Docker, no GPU). The trigger is when the user finalizes their edit and launches AI generation:
+The matte video has the same duration and frame alignment as the source video. When the manifest says "play source.mp4 from 15s to 30s", the exact same range applies to matte.mp4 via Remotion's `startFrom` prop:
 
-1. User finishes trimming/arranging in the NLE editor
-2. User triggers AI generation → API assembles the final cut from the manifest
-3. **Worker job**: `segmentation` — renders the trimmed video sections into a continuous file, runs RVM, produces matte MP4
-4. Matte uploaded to MinIO at `projects/{projectId}/matte.mp4`
-5. Sandbox starts → workspace init downloads matte from MinIO into `public/matte.mp4`
-6. Orchestrator writes `docs/segmentation-info.json` with matte metadata
-7. Planner reads segmentation info and decides which scenes use depth compositing
+```
+Source:  [============================] 5 min
+Matte:   [============================] 5 min (same duration, same frames)
 
-This keeps GPU work in the worker where it belongs, and the sandbox receives the pre-computed matte as an asset.
+Trim 1:       [====]                    → startFrom applies to both
+Trim 2:                  [=======]      → startFrom applies to both
+```
+
+Benefits:
+- **Zero latency** at generation time — matte is pre-computed and ready in MinIO
+- **No final cut assembly** — trim points work identically on source and matte
+- **Simple worker job** — same pattern as head tracking, no manifest parsing needed
+- Tradeoff: we mat sections the user might not use, but for a 5-min video at our config (~2-3 min GPU time), this is acceptable
+
+### Worker processor: `packages/worker/src/processors/segmentation.ts`
+
+Same pattern as `head-tracking.ts`:
+
+1. Download source video from MinIO to temp directory
+2. Run `segment_person.py` as subprocess with GPU
+3. Upload matte MP4 to MinIO at `projects/{projectId}/matte.mp4`
+4. Update project record: `videoSettings.segmentationMatte = { videoKey, width, height, fps, durationMs, status: 'ready' }`
+5. Clean up temp directory
+
+**Queue**: job type `segmentation`, auto-queued after head tracking completes, lower priority than transcribe/head-tracking/reframe. Retries: 2 with backoff.
 
 ---
 
@@ -258,19 +271,27 @@ Available to planner, layout editor, and animator via the asset server:
 
 ---
 
-## Orchestrator Changes
+## Sandbox Integration
 
-### Workspace init: download matte
+### Init data (`packages/api/src/sandbox/routes.ts`)
 
-In `workspace-init.ts`, after downloading source video, check if the matte is available in init data and download it:
+`buildInitData()` includes matte info when available:
 
 ```typescript
-// After source video download
+segmentationMatte: project.videoSettings?.segmentationMatte?.status === 'ready'
+  ? { videoKey, width, height, fps, durationMs }
+  : undefined
+```
+
+### Workspace init (`packages/sandbox/src/workspace-init.ts`)
+
+After downloading source video, download matte if available:
+
+```typescript
 if (payload.segmentationMatte) {
   const matteStream = await minio.getObject(bucket, payload.segmentationMatte.videoKey);
   await pipeline(matteStream, createWriteStream(join(baseDir, 'public', 'matte.mp4')));
 
-  // Write metadata for planner/agents
   await writeFile(join(baseDir, 'docs', 'segmentation-info.json'), JSON.stringify({
     available: true,
     mattePath: 'matte.mp4',
@@ -282,9 +303,9 @@ if (payload.segmentationMatte) {
 }
 ```
 
-### SandwichComposite component
+### Orchestrator pipeline
 
-Copied into the workspace during setup phase (alongside other shared components):
+No new phase needed — matte is pre-computed and downloaded during init:
 
 ```
 Phase 1: Init (download video, audio, matte, extract, proxy)
@@ -302,17 +323,18 @@ Phase 7: Final assembly
 
 ```
 1. User uploads video (5-10 min)
-2. Worker: transcribe, head-track, reframe (parallel, high priority)
-3. User opens editor, trims video, arranges storyline
-4. User triggers AI generation
-5. Worker: segmentation job on final cut (GPU)
-   ├── Concatenate trimmed segments if needed
-   ├── Run segment_person.py (RVM)
+2. Worker: transcribe, head-track, reframe (high priority)
+3. Worker: segmentation (lower priority, deferred after head tracking)
+   ├── Download source from MinIO
+   ├── Run segment_person.py (RVM on GPU)
    ├── Upload matte.mp4 to MinIO
-   └── Update project with matte metadata
-6. Sandbox starts → workspace init:
+   └── Update videoSettings.segmentationMatte
+4. User opens editor, trims video, arranges storyline
+   (matte already computed and waiting in MinIO)
+5. User triggers AI generation → sandbox starts
+6. Workspace init:
    ├── Download source.mp4 → public/source.mp4
-   ├── Download matte.mp4 → public/matte.mp4
+   ├── Download matte.mp4 → public/matte.mp4 (same duration as source)
    └── Write docs/segmentation-info.json
 7. Planner reads segmentation-info.json
    ├── Scene 1: displayMode "Overlay" (no matte needed)
