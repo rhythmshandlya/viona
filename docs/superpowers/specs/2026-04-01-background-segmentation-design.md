@@ -416,38 +416,23 @@ New shared prompt module loaded for ALL scenes (not just depth):
 </layer-compositing>
 ```
 
-### Pre-built depth templates
+### Depth via track placement (no separate depth templates)
 
-Depth variants of existing content templates, registered in the template registry with `-depth` suffix. These render at full canvas (1080x1920) on the midlayer, designed to look good when partially occluded by the speaker's silhouette.
+Templates stay unchanged — depth is a **track-level feature**, not a template mode. Templates are isolated animations; the depth effect comes from which track (`scene-bg` vs `scene-fg`) the layout editor places the scene on. There are no `-depth` template variants.
 
-**Magazine theme depth templates:**
+The animator positions elements relative to `SPEAKER` and `VISIBLE_ZONES` constants written into each scene skeleton by the setup agent. These constants describe the speaker's bounding box and the unoccluded regions around them in pixel coordinates, so the animator can place behind-speaker content at peek positions without needing a specialized template.
 
-| Template | Base | What it does behind the speaker |
-|----------|------|--------------------------------|
-| `magazine-stats-depth` | `magazine-stats` | Oversized stat cards scatter across full canvas with torn paper edges. Cards behind speaker are partially hidden, cards at speaker's sides are fully visible. The speaker becomes a natural divider between data points. |
-| `magazine-timeline-depth` | `magazine-timeline` | Timeline thread runs vertically behind speaker. Event cards emerge from behind speaker's shoulders, staggering left and right. Speaker stands "in front of history." |
-| `magazine-quote-depth` | `magazine-quote` | Large serif quote text fills the background behind speaker. Speaker partially occludes the quote, creating a "words behind the person" editorial magazine feel. |
-| `magazine-comparison-depth` | `magazine-comparison` | Left subject appears behind speaker's left side, right subject behind the right. Speaker stands between the two options being compared. |
-| `magazine-checklist-depth` | `magazine-checklist` | Checklist items stack vertically behind speaker, ticking off as narrated. Items peek from behind the speaker's torso. |
+**Shared depth utilities (available for custom scene code):**
 
-**Explainer/blackboard theme depth templates:**
-
-| Template | Base | What it does behind the speaker |
-|----------|------|--------------------------------|
-| `explainer-process-depth` | `explainer-process` | Process steps emerge from behind speaker one-by-one, flowing from speaker center outward. Glow effects radiate from behind the silhouette. |
-| `explainer-layers-depth` | `explainer-layers` | System layers stack in depth behind speaker — back layers are smaller/dimmer, front layers are larger/brighter. Speaker stands "in front of the architecture." |
-| `explainer-stats-depth` | `explainer-stats` | CountUp numbers scale up from behind speaker's center mass. Numbers grow large enough to peek past the speaker's edges. Clean dark background with glow emphasis. |
-| `explainer-comparison-depth` | `explainer-comparison` | Two sides of the comparison split behind the speaker, one on each side. Glow highlights the winning side. Speaker is the neutral center. |
-
-**Shared depth utilities (not templates, used by all depth templates):**
-
-| Component | Purpose |
-|-----------|---------|
+| Utility | Purpose |
+|---------|---------|
+| `computeSpeakerPx(bbox, width, height)` | Converts normalized speaker bbox to pixel coords |
+| `computeVisibleZones(bboxPx, width, height)` | Derives left/right/top/bottom unoccluded zones from speaker bbox |
 | `SpeakerAwareLayout.tsx` | Positions children relative to speaker bbox — methods: `peekLeft()`, `peekRight()`, `behindCenter()`, `flanking()` |
 | `DepthEntrance.tsx` | Animated entrance that originates from behind speaker center and expands outward |
 | `DepthParallax.tsx` | True depth parallax — near elements move more than far elements relative to speaker position |
 
-**Design rules for depth templates:**
+**Design rules for depth scenes:**
 - Full canvas (1080x1920) — the entire background is your canvas
 - Speaker bbox is available as constants — position key content to PEEK from behind edges
 - Don't center important content directly behind speaker's face (fully occluded = invisible)
