@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
-import { Track } from '../../store/types';
+import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles, ArrowDownFromLine, ArrowUpFromLine, User } from 'lucide-react';
+import { Track, VideoItemData } from '../../store/types';
 import { useTrackActions, useEditorStore } from '../../store/use-editor-store';
+import { SegmentationStatus } from '../../components/SegmentationStatus';
 
 interface TrackHeaderProps {
   track: Track;
@@ -17,6 +18,18 @@ const TRACK_ICONS: Record<string, React.ComponentType<any>> = {
   text: Type,
   overlay: Image,
   visual: Sparkles,
+};
+
+const TRACK_NAME_ICONS: Record<string, React.ComponentType<any>> = {
+  'scene-bg': ArrowDownFromLine,
+  'person': User,
+  'scene-fg': ArrowUpFromLine,
+};
+
+const TRACK_NAME_COLORS: Record<string, string> = {
+  'scene-bg': 'text-blue-400',
+  'person': 'text-emerald-400',
+  'scene-fg': 'text-amber-400',
 };
 
 export function TrackHeader({ track }: TrackHeaderProps) {
@@ -33,7 +46,17 @@ export function TrackHeader({ track }: TrackHeaderProps) {
     }
   };
 
-  const Icon = TRACK_ICONS[track.type] || Type;
+  const segmentation = useEditorStore((state) => {
+    if (track.type !== 'video') return undefined;
+    const videoItem = state.itemIds
+      .map(id => state.items[id])
+      .find(item => item?.trackId === track.id && item.type === 'video');
+    if (!videoItem) return undefined;
+    return (videoItem.data as VideoItemData).segmentation;
+  });
+
+  const Icon = TRACK_NAME_ICONS[track.name] || TRACK_ICONS[track.type] || Type;
+  const nameColor = TRACK_NAME_COLORS[track.name];
 
   const handleDoubleClick = () => {
     setIsEditing(true);
@@ -81,8 +104,8 @@ export function TrackHeader({ track }: TrackHeaderProps) {
         onClick={toggleCollapsed}
       >
         <ChevronRight size={12} className="text-[var(--editor-text-muted)]" />
-        <Icon size={12} className="text-[var(--editor-text-secondary)]" />
-        <span className="text-[10px] text-[var(--editor-text-muted)] truncate">{track.name}</span>
+        <Icon size={12} className={nameColor || 'text-[var(--editor-text-secondary)]'} />
+        <span className={`text-[10px] truncate ${nameColor || 'text-[var(--editor-text-muted)]'}`}>{track.name}</span>
       </div>
     );
   }
@@ -104,7 +127,7 @@ export function TrackHeader({ track }: TrackHeaderProps) {
       </button>
 
       {/* Track type icon */}
-      <Icon size={14} className="text-[var(--editor-text-secondary)] flex-shrink-0" />
+      <Icon size={14} className={`${nameColor || 'text-[var(--editor-text-secondary)]'} flex-shrink-0`} />
 
       {/* Track name */}
       {isEditing ? (
@@ -119,11 +142,15 @@ export function TrackHeader({ track }: TrackHeaderProps) {
         />
       ) : (
         <span
-          className="flex-1 min-w-0 text-[11px] text-[var(--editor-text-secondary)] truncate cursor-default"
+          className={`flex-1 min-w-0 text-[11px] truncate cursor-default ${nameColor || 'text-[var(--editor-text-secondary)]'}`}
           onDoubleClick={handleDoubleClick}
         >
           {track.name}
         </span>
+      )}
+
+      {segmentation !== undefined && (
+        <SegmentationStatus segmentation={segmentation} className="ml-auto mr-1" />
       )}
 
       {/* Controls - visible on hover */}
