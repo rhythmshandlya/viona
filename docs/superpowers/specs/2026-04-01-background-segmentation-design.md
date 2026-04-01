@@ -611,7 +611,7 @@ USE_FP16 = True              # 2x throughput
 JIT = "script+freeze"        # Fused ops
 ```
 
-**Output**: Grayscale H.264 MP4 at 0.5x source resolution, 30fps. Small file (~2-5 MB/min).
+**Output**: RGB H.264 MP4 (white-on-black, 3-channel) at 0.5x source resolution, 30fps. Small file (~2-5 MB/min).
 
 ---
 

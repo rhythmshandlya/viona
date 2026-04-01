@@ -1254,6 +1254,184 @@ git commit -m "feat(sandbox): planner writes scene-templates.json sidecar for ma
 
 ---
 
+### Task 15b: Planner template study — deep browse before planning
+
+**Problem:** The planner calls `browse_templates` once but doesn't study what each template actually offers. For example, `magazine-inkmap` has real map tiles, radar pulses, pin drops — perfect for a video about countries — but the planner recommends a custom "concentric rectangles" concept instead because it doesn't understand the template's capabilities.
+
+**Files:**
+- Modify: `packages/sandbox/src/prompts/planner/system.md:256-270` (task section)
+- Modify: `packages/sandbox/src/prompts/planner/system.md:304-338` (template registry section)
+
+- [ ] **Step 1: Add template study phase to planner task list**
+
+In `planner/system.md`, between steps 6 and 7 of the `<task>` section (~line 263), insert a template study phase:
+
+```markdown
+7. **Template study** — call `browse_templates` with the active theme. For EACH template returned:
+   - Read the `description`, `useCase`, `bestFor` fields
+   - Consider whether ANY scene in the transcript could use this template
+   - Pay special attention to geographic/location templates (inkmap, country, globe-spin) when the content mentions countries, cities, or places
+   - Pay special attention to data templates (stats, chart, barchart) when the content mentions numbers or statistics
+   - Pay special attention to comparison templates (versus, proscons, beforeafter) when the content contrasts two or more things
+   - **Think creatively:** a "definition" template isn't just for dictionary words — it works for any term the speaker explains. A "map" template isn't just for travel — it works for any content mentioning a specific place or country.
+8. For each scene, check the template list and assign a template if one fits. Scenes without a matching template use `template: none`.
+```
+
+Renumber subsequent steps accordingly (current steps 7-11 become 9-13).
+
+- [ ] **Step 2: Strengthen the Template Registry section**
+
+Replace the current Template Registry section (lines 304-338) with:
+
+```markdown
+## Template Registry — MANDATORY
+
+You MUST call `browse_templates` with the active theme before writing ANY scene plans. Templates are production-quality, pre-tested components that save animation time and ensure visual consistency.
+
+### Template Study Protocol
+1. Call `browse_templates(theme: "{{THEME}}")` — ONE call returns all templates
+2. Read EVERY template's description, useCase, and bestFor fields carefully
+3. For EACH scene you're planning, check if a template matches the content — not just the scene type
+4. **Default is to USE a template.** Only set `template: none` when no template is even close to the scene's content.
+
+### Template Selection Criteria
+- Match by **content**, not just scene type. A video mentioning "Algeria" should use `magazine-country` or `magazine-inkmap`, even if the scene type is "custom"
+- Match by **visual need**. If the scene needs a big number, use `magazine-stats` or `explainer-stats` regardless of scene type
+- Match by **structure**. If the scene compares things, check `magazine-versus`, `magazine-comparison`, `magazine-proscons`, `magazine-beforeafter`
+- When multiple templates could work, pick the one whose `bestFor` most closely matches the scene content
+
+### Theme → Template Quick Reference
+
+| Scene type | Blackboard theme | Magazine theme |
+|---|---|---|
+| `definition` | `explainer-definition` | `magazine-definition` |
+| `step-cards` | `explainer-process`, `explainer-howitworks` | `magazine-steps`, `magazine-checklist` |
+| `comparison` | `explainer-comparison`, `explainer-venn` | `magazine-comparison`, `magazine-proscons`, `magazine-versus`, `magazine-beforeafter` |
+| `flowchart` | `explainer-flow`, `explainer-cycle` | — |
+| `data-viz` | `explainer-stats`, `explainer-barchart`, `explainer-funnel` | `magazine-stats`, `magazine-chart`, `magazine-pricetag` |
+| `timeline` | `explainer-timeline` | `magazine-timeline` |
+| `hierarchy` | `explainer-tree`, `explainer-layers` | — |
+| `cause-effect` | `explainer-cause-effect` | — |
+| `custom` | `explainer-network`, `explainer-orbit`, `explainer-matrix` | `magazine-quote`, `magazine-profile`, `magazine-trivia`, `magazine-didyouknow` |
+| `progress` | `explainer-ranking` | `magazine-ranking` |
+| **geographic** | `globe-spin`, `country-highlight` | `magazine-inkmap`, `magazine-country`, `magazine-location` |
+| **alert/warning** | — | `magazine-alert`, `magazine-warning` |
+| **verdict/review** | — | `magazine-verdict`, `magazine-mythfact` |
+
+**NOTE:** The "geographic" row is NOT a scene type — it's a content signal. If the transcript mentions countries, cities, or locations, consider geographic templates regardless of scene type.
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/sandbox/src/prompts/planner/system.md
+git commit -m "feat(sandbox): planner deeply studies templates before planning scenes"
+```
+
+---
+
+### Task 15c: Add `template:` to per-scene schema and update good-plan example
+
+**Problem:** The per-scene schema (lines 93-140) lists every required field but omits `template:`. The good-plan example (`good-plan.md`) has 6 scenes with zero template fields. LLMs follow examples over instructions — this is the #1 reason planners skip templates.
+
+**Files:**
+- Modify: `packages/sandbox/src/prompts/planner/system.md:93-140` (per-scene schema)
+- Modify: `packages/sandbox/src/prompts/planner/system.md:204-225` (self-verification checklist)
+- Modify: `packages/sandbox/src/prompts/planner/examples/good-plan.md`
+
+- [ ] **Step 1: Add template fields to per-scene schema**
+
+In `planner/system.md`, after line 100 (`**Layout pattern:**`), add:
+
+```markdown
+**Template:** [slug from registry] | none
+**Fork reason:** [why this template fits — only if template is not "none"]
+```
+
+So the schema block becomes:
+```
+## Scene N: [Name]
+**File:** Scene{N}.tsx
+**Time:** startMs – endMs
+**Transcript:** "exact words from this segment — copied verbatim, no paraphrasing"
+**Display mode:** Fullscreen | Stacked [top%/bottom%] | Overlay
+**Scene type:** step-cards | comparison | flowchart | data-viz | definition | timeline | hierarchy | cause-effect | progress | custom
+**Layout pattern:** center-dominant | asymmetric | diagonal-flow | stacked-cascade | full-bleed | scattered
+**Template:** [slug from registry] | none
+**Fork reason:** [why this template fits — only if template is not "none"]
+```
+
+- [ ] **Step 2: Add template checks to self-verification checklist**
+
+In `planner/system.md`, add these items to the self-verification checklist (~line 225):
+
+```markdown
+- [ ] Every scene has a **Template** field (either a slug or "none")
+- [ ] At least 50% of scenes with a matching template in the registry use one (not all "none")
+- [ ] Geographic content (countries, cities, locations) uses a geographic template (inkmap, country, location, globe-spin)
+- [ ] Data content (numbers, statistics, percentages) uses a data template (stats, chart, barchart, pricetag)
+```
+
+- [ ] **Step 3: Update good-plan example with template fields**
+
+In `packages/sandbox/src/prompts/planner/examples/good-plan.md`, add template fields to existing scenes. The example uses the blackboard theme (based on its style tokens). Update each scene:
+
+**Scene 1** (data-viz, thermometer):
+```markdown
+**Template:** explainer-stats
+**Fork reason:** big number count-up (73%) with visual emphasis — adapt thermometer metaphor using stats layout and count-up animation
+```
+
+**Scene 2** (cause-effect, staircase):
+```markdown
+**Template:** explainer-cause-effect
+**Fork reason:** plateau vs growth is a cause-effect relationship — adapt two-panel layout for staircase metaphor
+```
+
+**Scene 3** (comparison, battery):
+```markdown
+**Template:** explainer-comparison
+**Fork reason:** two-state battery comparison (overtraining vs recovery) maps to side-by-side comparison columns
+```
+
+**Scene 4** (data-viz, fuel gauge):
+```markdown
+**Template:** explainer-stats
+**Fork reason:** protein target is a big number (0.7-1.0g/lb) — adapt gauge visual using stats count-up animation
+```
+
+**Scene 5** (timeline, calendar ribbon):
+```markdown
+**Template:** explainer-timeline
+**Fork reason:** 12-week framework is a chronological sequence — adapt timeline nodes for weekly markers
+```
+
+**Scene 6** (step-cards, puzzle pieces):
+```markdown
+**Template:** none
+**Fork reason:** —
+```
+
+Also add to the Global section at the top:
+```markdown
+- **Theme:** blackboard
+```
+
+And update the self-verification checklist at the bottom to include:
+```markdown
+- [x] Every scene has a **Template** field: explainer-stats, explainer-cause-effect, explainer-comparison, explainer-stats, explainer-timeline, none (5 of 6 scenes use templates).
+- [x] At least 50% of scenes use templates: 5/6 = 83%.
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/sandbox/src/prompts/planner/system.md packages/sandbox/src/prompts/planner/examples/good-plan.md
+git commit -m "feat(sandbox): template field required in scene schema, good-plan example updated with templates"
+```
+
+---
+
 ### Task 16: Add orchestrator template validation gate
 
 **Files:**
