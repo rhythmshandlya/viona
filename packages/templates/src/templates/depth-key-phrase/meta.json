@@ -1,0 +1,14 @@
+{
+  "slug": "depth-key-phrase",
+  "name": "Depth Key Phrase",
+  "description": "Large editorial text fills the background behind the speaker — words partially occluded by the person for magazine-cover depth",
+  "category": "depth",
+  "tags": ["depth", "quote", "text", "editorial", "phrase", "emphasis"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "depth",
+  "themes": ["magazine", "blackboard"]
+}

@@ -97,3 +97,6 @@ import './templates/explainer-venn/register';
 import './templates/explainer-orbit/register';
 import './templates/explainer-layers/register';
 import './templates/explainer-matrix/register';
+import './templates/depth-big-number/register';
+import './templates/depth-key-phrase/register';
+import './templates/depth-energy-burst/register';

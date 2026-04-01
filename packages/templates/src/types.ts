@@ -19,15 +19,17 @@ export interface TemplateMeta {
     | 'social'
     | 'corporate'
     | 'entertainment'
-    | 'overlay';
+    | 'overlay'
+    | 'depth';
   tags: string[];
   stylePreset: string;
   aspectRatio: '16:9' | '9:16' | '1:1';
   sceneCount: number;
   estimatedDuration: string;
   thumbnail: string;
-  type?: 'scene' | 'overlay';
+  type?: 'scene' | 'overlay' | 'depth';
   themes?: string[];
+  dependencies?: Record<string, string>;
 }
 
 export interface CompositionMeta {

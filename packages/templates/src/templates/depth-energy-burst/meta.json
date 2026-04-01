@@ -1,0 +1,14 @@
+{
+  "slug": "depth-energy-burst",
+  "name": "Depth Energy Burst",
+  "description": "Geometric rays radiate outward from behind the speaker — clean lines with staggered timing for emotional peaks",
+  "category": "depth",
+  "tags": ["depth", "energy", "burst", "rays", "emphasis", "highlight"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "depth",
+  "themes": ["magazine", "blackboard"]
+}
