@@ -1,207 +1,353 @@
-# Background Segmentation Design Spec
+# Background Segmentation & Depth Compositing Design Spec
 
 **Date:** 2026-04-01
-**Status:** Draft
-**Goal:** Separate talking head person from background via video matting, enabling per-scene compositing techniques (animated backgrounds, PiP, person effects).
+**Status:** Draft (v2)
+**Goal:** Create a layered depth compositing system where animations can appear *behind* the speaker but *on top of* the original video background, using person matting.
 
 ---
 
-## Overview
+## Core Concept
 
-Add a Robust Video Matting (RVM) pipeline step to the worker that produces a grayscale alpha matte video for every uploaded talking head video. The matte is stored in MinIO, downloaded into the Remotion workspace's `public/` folder during sandbox init, and used selectively by the agent/templates on scenes that require person/background separation.
-
-**Key constraint:** The matte is NOT applied globally. It's an asset the agent pulls in only for scenes/frames where the creative direction requires compositing (e.g., animated backgrounds, picture-in-picture, glow effects on the person).
-
----
-
-## Architecture
-
-### Pipeline Position
+Matting does NOT remove the background. It creates a **sandwich composite** — three layers that the planner, layout editor, and animator use to place graphics between the person and their background:
 
 ```
-Upload → Transcribe → Head Tracking → Reframe Generation
-                            ↓ (lower priority, deferred)
-                      Segmentation (RVM)
-                            ↓
-                      Matte video → MinIO
+┌─────────────────────────────┐
+│  Layer 3: Foreground        │  Captions, overlays ON TOP of person
+├─────────────────────────────┤
+│  Layer 2: Person (matte)    │  Extracted speaker via alpha matte
+├─────────────────────────────┤
+│  Layer 1: Mid-layer         │  Animations, text, graphics BEHIND speaker
+├─────────────────────────────┤
+│  Layer 0: Background        │  Original video (visible through gaps)
+└─────────────────────────────┘
 ```
 
-- **Trigger:** Auto-queued after head tracking completes, at lower BullMQ priority
-- **Non-blocking:** Does not delay transcription, head tracking, or reframe — the critical path is untouched
-- **Result:** Ready by the time the user enters the editor/sandbox
-
-### Output Format
-
-- **Grayscale H.264 MP4** — white pixels = person, black pixels = background
-- Same resolution and FPS as source video
-- Small file size (~1-2 MB/min of video)
-- No transparent video codecs (no VP9 alpha / ProRes 4444) — keeps storage lean
-- The matte + original video together yield both person and background layers at render time
+The original video background stays visible. The mid-layer sits between the background and the person, creating depth. This is the "text-behind-subject" technique used across TikTok, YouTube, and professional motion design.
 
 ---
 
-## Components
+## Pipeline: Matting Happens on the Final Cut
 
-### 1. Python Script: `packages/worker/scripts/segment_person.py`
+The user uploads a 5-10 minute video. The trim editor cuts sections, arranges the storyline, produces a final cut. **Only the final cut gets matted** — not the raw upload.
 
-Follows the same pattern as `detect_head.py`:
+```
+Upload → Transcribe → Head Tracking → Reframe
+                                        ↓
+User edits in NLE editor (trim, arrange, storyline)
+                                        ↓
+Final cut assembled (manifest with trimmed video items)
+                                        ↓
+Worker: segmentation job on final cut (GPU)
+                                        ↓
+Matte video → MinIO
+                                        ↓
+Sandbox starts → downloads matte from MinIO
+                                        ↓
+Planner decides which scenes use depth compositing
+                                        ↓
+Layout Editor creates layer structure
+                                        ↓
+Animators write mid-layer animations for depth scenes
+```
 
-- **Input:** Source video path, output matte path
-- **Model:** Robust Video Matting (RVM) via PyTorch
-  - Temporal-consistent alpha mattes (recurrent architecture — no inter-frame flickering)
-  - Works on CPU (slower) or GPU (faster) — no hard GPU requirement
-  - Model weights auto-downloaded on first run (same pattern as MediaPipe in `detect_head.py`)
-- **Processing:** Frame-by-frame through RVM, writes grayscale matte to H.264 MP4 via OpenCV
-- **Progress:** JSON lines to stdout (`{"progress": 0.45}`) — same protocol as `detect_head.py`
-- **Error handling:** Non-zero exit code + JSON error on stderr
+### When matting runs
 
-### 2. Worker Processor: `packages/worker/src/processors/segmentation.ts`
+Matting runs in the **worker** (which has GPU access), NOT in the sandbox (Docker, no GPU). The trigger is when the user finalizes their edit and launches AI generation:
 
-Same structure as `head-tracking.ts`:
+1. User finishes trimming/arranging in the NLE editor
+2. User triggers AI generation → API assembles the final cut from the manifest
+3. **Worker job**: `segmentation` — renders the trimmed video sections into a continuous file, runs RVM, produces matte MP4
+4. Matte uploaded to MinIO at `projects/{projectId}/matte.mp4`
+5. Sandbox starts → workspace init downloads matte from MinIO into `public/matte.mp4`
+6. Orchestrator writes `docs/segmentation-info.json` with matte metadata
+7. Planner reads segmentation info and decides which scenes use depth compositing
 
-1. Download source video from MinIO to temp directory
-2. Run `segment_person.py` as subprocess with timeout (longer than head tracking — ~10min for a 5min video on CPU)
-3. Upload resulting matte MP4 to MinIO at `projects/{projectId}/matte.mp4`
-4. Update project DB record: `videoSettings.segmentationMatte = { videoKey, width, height, status: 'ready' }`
-5. Clean up temp directory
+This keeps GPU work in the worker where it belongs, and the sandbox receives the pre-computed matte as an asset.
 
-**Queue configuration:**
-- Job type: `segmentation`
-- Priority: Lower than `transcribe`, `head-tracking`, `generate-reframe`
-- Auto-queued from head tracking completion handler
-- Retries: 2 (with backoff)
+---
 
-### 3. Database Schema
+## RVM Processing (Tested Configuration)
 
-No new tables. Extend the existing `videoSettings` JSONB field on the `projects` table:
+Based on local testing with RTX 4050:
 
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| **Model** | RVM resnet50 | Better edge quality than mobilenetv3 |
+| **Scale** | 0.5x source resolution | Clean edges, manageable data size |
+| **Matte FPS** | 30fps | No jitter at playback; 15fps causes visible stutter |
+| **downsample_ratio** | 0.8 | High internal resolution for fine hair/finger detail |
+| **seq_chunk** | 4 | Fits in 6GB VRAM at 0.5x scale |
+| **Precision** | fp16 | 2x throughput on RTX tensor cores |
+| **JIT** | script + freeze | Fused ops, no Python overhead |
+| **Decode** | FFmpeg NVDEC + scale filter | GPU-assisted decode at reduced resolution |
+| **Encode** | NVENC (h264_nvenc) with libx264 fallback | Dedicated ASIC for encoding |
+
+**Performance**: ~10 fps at 1080x1920 input (0.5x of 2160x3840). A 2-minute final cut processes in ~6-12 seconds at 30fps matte.
+
+### Script: `packages/worker/scripts/segment_person.py`
+
+Lives alongside `detect_head.py` in the worker. Runs as a subprocess during the segmentation job. Same progress protocol as `detect_head.py` (JSON lines to stdout).
+
+### Worker Processor: `packages/worker/src/processors/segmentation.ts`
+
+Same pattern as `head-tracking.ts`:
+
+1. Receive final cut info (trimmed video segments from manifest)
+2. FFmpeg: concatenate trimmed segments into a continuous video (if needed)
+3. Run `segment_person.py` on the continuous video
+4. Upload matte MP4 to MinIO at `projects/{projectId}/matte.mp4`
+5. Update project record with matte metadata (videoKey, width, height, fps, status)
+6. Clean up temp directory
+
+**Queue**: job type `segmentation`, triggered when user launches AI generation (before sandbox creation).
+
+---
+
+## NLE Editor: Track-Based Layer System
+
+The editor already has track-based z-ordering via `Track.position`. When matting is available, the manifest gains additional tracks:
+
+### Current track structure
+```
+position 3: overlay    — Scenes/graphics (on top of everything)
+position 2: caption    — Subtitles
+position 1: audio      — Speaker audio
+position 0: video      — Source video (background)
+```
+
+### With depth compositing enabled
+```
+position 5: overlay    — Foreground overlays (captions, etc.)
+position 4: scene      — Templates/animations ON TOP of person
+position 3: person     — Matted person layer (extracted speaker)
+position 2: midlayer   — Animations/graphics BEHIND speaker
+position 1: audio      — Speaker audio
+position 0: video      — Source video (background)
+```
+
+The key insight: anything on tracks between `video` (0) and `person` (3) appears **behind the speaker**. Anything above `person` appears **in front**.
+
+### SegmentationData (already exists in types.ts)
+
+The editor store already defines:
 ```typescript
-// Within videoSettings
-segmentationMatte?: {
-  videoKey: string;   // MinIO key: "projects/{id}/matte.mp4"
-  width: number;      // Matches source resolution
-  height: number;
-  status: 'processing' | 'ready' | 'failed';
+interface SegmentationData {
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  progress?: number;
+  maskPath?: string;     // Path to matte video
+  maskFps?: number;      // Matte frame rate
+  error?: string;
 }
 ```
 
-### 4. Sandbox Init: Asset Delivery
+This lives on `VideoItemData.segmentation` — when `status === 'ready'`, the editor knows a matte is available and can show the layer controls.
 
-**In `packages/api/src/sandbox/routes.ts` → `buildInitData()`:**
-- If `videoSettings.segmentationMatte.status === 'ready'`, include the matte key in init data:
-  ```typescript
-  segmentationMatte: {
-    videoKey: "projects/{id}/matte.mp4",
-    width: 1920,
-    height: 1080
-  }
-  ```
+### Editor UI Changes
 
-**In `packages/sandbox/src/workspace-init.ts` → `initWorkspaceInDir()`:**
-- If `payload.segmentationMatte` exists, download the matte from MinIO into `public/matte/source-matte.mp4`
-- Same pattern as the source video download (stream from MinIO → write to file)
-- The file lives at: `/workspace/public/matte/source-matte.mp4`
+1. **Layer panel**: When matte is available, show a toggle "Enable depth compositing" that creates the person + midlayer tracks
+2. **Track reordering**: User (or AI agent) can drag tracks to change layer order
+3. **Preview**: The Remotion player renders the sandwich composite in real-time using the matte
+4. **Per-item depth**: Each overlay item can be set to render "in front of" or "behind" the speaker by moving it between tracks
 
-### 5. MCP Tool: `get_segmentation_info`
+---
 
-**In `packages/mcp-servers/src/asset-server.ts`:**
+## Planner Integration
 
-New tool added to the existing asset server:
+### New display mode: "Depth"
 
-**Returns:**
-```json
-{
-  "available": true,
-  "mattePath": "matte/source-matte.mp4",
-  "staticFileRef": "staticFile('matte/source-matte.mp4')",
-  "sourceWidth": 1920,
-  "sourceHeight": 1080,
-  "compositingGuide": "... Remotion compositing pattern ..."
-}
-```
+Extend the planner's display mode vocabulary:
 
-**Compositing guide** provides the agent with a ready-to-use Remotion pattern for masking:
-- Canvas-based approach: draw source video, use matte as globalCompositeOperation mask
-- The agent includes this pattern only in scenes that need person/bg separation
-- Guide includes both "person only" and "background only" extraction patterns
+| Mode | Description | When to use |
+|------|-------------|-------------|
+| **Overlay** | Speaker full-screen, graphic floats on top | Simple callouts, stats |
+| **Stacked** | Speaker bottom, animation top | Charts, diagrams |
+| **Fullscreen** | Speaker hidden, animation fills canvas | Immersive visuals |
+| **Depth** | Speaker matted, animation plays BEHIND speaker | Impact moments, reveals, depth effects |
 
-### 6. Remotion Compositing Pattern
+The planner writes `"displayMode": "Depth"` in SCENE_PLAN.md for scenes that should use the sandwich composite.
 
-When the agent/template decides a scene needs person/background separation, it writes code following this pattern:
+### Planner vocabulary: Depth techniques
+
+The planner can specify depth techniques in the animation brief:
+
+**Simple (planner can use freely):**
+- `behind-text-slide` — Large text slides in behind the speaker
+- `background-color-wash` — Solid color/gradient fills behind speaker
+- `radial-burst` — Rays/lines expand outward from behind speaker
+- `rising-elements` — Icons/emojis rise from bottom behind speaker
+- `stat-counter-behind` — Large numbers animate behind speaker
+- `background-progress-bar` — Meter fills across behind speaker
+- `depth-lower-third` — Name bar that passes behind the speaker's body
+- `bokeh-depth` — Soft out-of-focus light circles between layers
+
+**Medium (planner should pair with specific scenes):**
+- `background-b-roll` — Image/photo composited behind person
+- `split-background-panels` — Multiple images arranged around person
+- `carousel-behind` — Image slideshow behind speaker
+- `parallax-depth` — Person and background move at different speeds
+- `silhouette-edge-glow` — Colored glow traces the person's outline
+- `animated-pattern-fill` — Geometric patterns tile behind speaker
+- `floating-data-cards` — Info cards float at various positions behind speaker
+
+**What NOT to do (anti-patterns for planner):**
+- Never use depth mode for every scene — reserve for 30-40% of scenes max
+- Never combine multiple mid-layer animations simultaneously (one motion per moment)
+- Never use depth mode when the speaker is moving rapidly (matte edges degrade)
+- Never fully replace the background — keep original visible through gaps
+
+---
+
+## Remotion Compositing: Sandwich Component
+
+The workspace template includes a `SandwichComposite` component that the layout editor places for depth scenes:
 
 ```tsx
-import { OffthreadVideo, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
-
-const PersonLayer: React.FC<{ opacity?: number }> = ({ opacity = 1 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
-
-  // Two hidden videos: source + matte
-  // Canvas composites them: matte alpha determines visibility
-  // White in matte = person visible, black = transparent
-
-  return (
-    <AbsoluteFill>
-      {/* Hidden source video */}
-      <OffthreadVideo
-        src={staticFile('source.mp4')}
-        style={{ display: 'none' }}
-        ref={videoRef}
-      />
-      {/* Hidden matte video */}
-      <OffthreadVideo
-        src={staticFile('matte/source-matte.mp4')}
-        style={{ display: 'none' }}
-        ref={matteRef}
-      />
-      {/* Canvas composites them */}
-      <canvas ref={canvasRef} width={width} height={height} style={{ opacity }} />
-    </AbsoluteFill>
-  );
+// Template component provided in workspace
+const SandwichComposite: React.FC<{
+  videoSrc: string;       // source.mp4
+  matteSrc: string;       // matte.mp4
+  startFrom: number;      // frame offset into source
+  children: React.ReactNode; // mid-layer content (animations)
+}> = ({ videoSrc, matteSrc, startFrom, children }) => {
+  // Layer 0: Original video (background)
+  // Layer 1: {children} — mid-layer animations
+  // Layer 2: Person extracted via canvas matte compositing
+  //
+  // Canvas approach:
+  //   1. Draw source video frame
+  //   2. Use matte as alpha: globalCompositeOperation 'destination-in'
+  //   3. Result: person-only pixels on transparent background
+  //   4. Render over children (which sit over the background video)
 };
 ```
 
-**Note:** The exact compositing implementation may use Remotion's `<Series>` or custom canvas operations. The MCP tool's compositing guide will provide the tested, working pattern that agents copy.
+The animator writes the mid-layer content as children:
+
+```tsx
+// Example: text sliding behind speaker
+<SandwichComposite videoSrc={src} matteSrc={matteSrc} startFrom={0}>
+  <AbsoluteFill>
+    <h1 style={{ fontSize: 120, ... }}>
+      KEY INSIGHT
+    </h1>
+  </AbsoluteFill>
+</SandwichComposite>
+```
 
 ---
 
-## Data Flow
+## MCP Tool: `get_depth_compositing_info`
+
+Available to planner, layout editor, and animator via the asset server:
+
+```json
+{
+  "available": true,
+  "mattePath": "matte.mp4",
+  "matteWidth": 1080,
+  "matteHeight": 1920,
+  "matteFps": 30,
+  "matteDurationMs": 42000,
+  "sourceVideoDurationMs": 42000,
+  "techniques": ["behind-text-slide", "radial-burst", "background-color-wash", ...],
+  "compositingComponent": "SandwichComposite",
+  "usage": "Import SandwichComposite from '../components/SandwichComposite'. Pass videoSrc, matteSrc, startFrom. Place mid-layer animations as children.",
+  "antiPatterns": ["Don't use for every scene", "One motion per moment", "Keep original background visible"]
+}
+```
+
+---
+
+## Orchestrator Changes
+
+### Workspace init: download matte
+
+In `workspace-init.ts`, after downloading source video, check if the matte is available in init data and download it:
+
+```typescript
+// After source video download
+if (payload.segmentationMatte) {
+  const matteStream = await minio.getObject(bucket, payload.segmentationMatte.videoKey);
+  await pipeline(matteStream, createWriteStream(join(baseDir, 'public', 'matte.mp4')));
+
+  // Write metadata for planner/agents
+  await writeFile(join(baseDir, 'docs', 'segmentation-info.json'), JSON.stringify({
+    available: true,
+    mattePath: 'matte.mp4',
+    width: payload.segmentationMatte.width,
+    height: payload.segmentationMatte.height,
+    fps: payload.segmentationMatte.fps,
+    durationMs: payload.segmentationMatte.durationMs,
+  }));
+}
+```
+
+### SandwichComposite component
+
+Copied into the workspace during setup phase (alongside other shared components):
 
 ```
-1. Upload video
-2. Worker: transcribe (high priority)
-3. Worker: head-tracking (high priority)
-4. Worker: reframe (high priority)
-5. Worker: segmentation (low priority, deferred)
-   ├── Download source from MinIO
+Phase 1: Init (download video, audio, matte, extract, proxy)
+Phase 2: Plan (planner reads docs/segmentation-info.json, decides depth scenes)
+Phase 3: Setup (constants, shared components including SandwichComposite)
+Phase 4: Layout (creates track structure with person/midlayer tracks for depth scenes)
+Phase 5: Animate (animators write mid-layer content for depth scenes)
+Phase 6: Review (render stills, verify depth compositing looks correct)
+Phase 7: Final assembly
+```
+
+---
+
+## Data Flow (Complete)
+
+```
+1. User uploads video (5-10 min)
+2. Worker: transcribe, head-track, reframe (parallel, high priority)
+3. User opens editor, trims video, arranges storyline
+4. User triggers AI generation
+5. Worker: segmentation job on final cut (GPU)
+   ├── Concatenate trimmed segments if needed
    ├── Run segment_person.py (RVM)
    ├── Upload matte.mp4 to MinIO
-   └── Update videoSettings.segmentationMatte
-6. User opens editor → sandbox created
-7. Sandbox init:
-   ├── Download source.mp4 → public/source.mp4 (existing)
-   └── Download matte.mp4 → public/matte/source-matte.mp4 (new)
-8. Agent plans scenes:
-   ├── Scene A: normal talking head → uses source.mp4 directly
-   ├── Scene B: animated background → calls get_segmentation_info
-   │   └── Writes PersonLayer + custom background composition
-   └── Scene C: PiP over B-roll → uses matte for person extraction
-9. Render: Remotion bundles everything, matte compositing happens per-scene
+   └── Update project with matte metadata
+6. Sandbox starts → workspace init:
+   ├── Download source.mp4 → public/source.mp4
+   ├── Download matte.mp4 → public/matte.mp4
+   └── Write docs/segmentation-info.json
+7. Planner reads segmentation-info.json
+   ├── Scene 1: displayMode "Overlay" (no matte needed)
+   ├── Scene 2: displayMode "Depth" — behind-text-slide
+   ├── Scene 3: displayMode "Stacked" (no matte needed)
+   └── Scene 4: displayMode "Depth" — radial-burst + stat-counter
+8. Layout Editor:
+   ├── Creates person track (position 3) for depth scenes
+   ├── Creates midlayer track (position 2) for depth scenes
+   ├── Places SandwichComposite items at depth scene timecodes
+   └── Non-depth scenes use normal track structure
+9. Animators:
+   ├── Depth scenes: write mid-layer content inside SandwichComposite
+   └── Normal scenes: write overlays as usual
+10. Review: render stills at depth scenes, verify compositing
+11. Final render: Remotion renders full sandwich composite
 ```
 
 ---
 
-## New Dependencies
+## Processing Configuration
 
-Added to `packages/worker/requirements.txt`:
+Based on test results (RTX 4050 Laptop GPU):
 
+```python
+BACKBONE = "resnet50"        # Quality over speed for edge detail
+SCALE_FACTOR = 0.5           # Half source resolution
+MATTE_FPS = 30               # Smooth playback, no jitter
+DOWNSAMPLE_RATIO = 0.8       # Fine internal resolution for hair/fingers
+SEQ_CHUNK = 4                # Fits 6GB VRAM at 0.5x scale
+USE_FP16 = True              # 2x throughput
+JIT = "script+freeze"        # Fused ops
 ```
-torch>=2.0.0
-torchvision>=0.15.0
-```
 
-RVM model weights are downloaded at runtime (cached after first use), no additional package needed — the model is loaded directly via PyTorch.
+**Output**: Grayscale H.264 MP4 at 0.5x source resolution, 30fps. Small file (~2-5 MB/min).
 
 ---
 
@@ -209,29 +355,32 @@ RVM model weights are downloaded at runtime (cached after first use), no additio
 
 | Case | Handling |
 |------|----------|
-| No person detected in video | RVM outputs near-black matte; status still `ready` — agent sees low-confidence matte via MCP tool and avoids using it |
-| Multiple people in frame | RVM segments all people as foreground (single combined matte) — acceptable for V1 |
-| Segmentation not ready when sandbox starts | `segmentationMatte` absent from init data; agent works without it; no matte in `public/` |
-| Segmentation fails | `status: 'failed'`; not included in init data; agent proceeds without compositing |
-| Very long video (>10min) | Longer processing time on CPU; timeout set generously (20min); consider chunked processing in V2 |
-| Audio-only upload | No segmentation job queued (no video to segment) |
+| Matte not ready when planner starts | Planner skips depth mode, uses Overlay/Stacked/Fullscreen only |
+| No person detected | Near-black matte; segmentation-info.json marks `available: false` |
+| Multiple people | RVM segments all as foreground (single matte) — acceptable for V1 |
+| Speaker moves rapidly | Planner avoids depth mode for fast-motion sections (matte edges degrade) |
+| Very long final cut (>5min) | Processing at 0.5x/30fps takes ~1-3 min; acceptable within sandbox timeout |
+| Matte/video duration mismatch | SandwichComposite clamps matte to video duration |
+| Audio-only | No segmentation phase; planner sees `available: false` |
 
 ---
 
 ## Out of Scope (V1)
 
-- **Per-person segmentation** — V1 produces a single matte for all people; individual person mattes are a V2 feature
-- **Real-time browser preview** — segmentation is batch only; editor shows the composited result after render
-- **Background inpainting** — filling the background behind the person (e.g., for clean plate) is not included
-- **GPU requirement** — CPU-only for now; GPU acceleration is a deployment optimization
-- **Matte refinement UI** — no user-facing controls for adjusting matte edges/threshold
+- **Full background removal** — V1 keeps original background visible; "clean plate" is V2
+- **Per-person mattes** — single combined matte for all people
+- **Real-time browser preview** of depth compositing — batch render only
+- **User-facing matte controls** — no threshold/feather sliders
+- **Background inpainting** — filling behind the person for clean replacement
 
 ---
 
 ## Success Criteria
 
-1. `segment_person.py` produces temporally-stable matte videos with clean edges on hair/fingers
-2. Matte is available in workspace `public/matte/` by the time the agent starts planning scenes
-3. Agent can selectively use the matte for specific scenes without affecting scenes that don't need it
-4. Composited render output shows clean person extraction over custom backgrounds with no visible artifacts (halos, flickering edges)
-5. Pipeline adds <30s overhead to the critical path (segmentation runs in parallel, deferred)
+1. Matte quality: clean edges on hair/fingers, no temporal flickering between frames
+2. Planner correctly identifies scenes that benefit from depth compositing (30-40% of scenes)
+3. Animations behind speaker look natural — no halos, no competing motion
+4. Non-depth scenes are unaffected by the matting pipeline
+5. Segmentation adds <2 min to sandbox processing for a typical 2-min final cut
+6. Editor shows layered track structure when depth compositing is active
+7. The AI agent can control layer ordering (move items between midlayer and overlay tracks)
