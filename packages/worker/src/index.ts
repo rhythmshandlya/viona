@@ -9,6 +9,7 @@ import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from '.
 import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
 import { processRenderTemplateJob, RenderTemplateJobData } from './processors/render-template.js';
 import { processAnalyzeCaptions, AnalyzeCaptionsJobData } from './processors/analyze-captions.js';
+import { processSegmentationJob, SegmentationJobData } from './processors/segmentation.js';
 import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
 import { eq, or, and, lt } from 'drizzle-orm';
@@ -246,6 +247,30 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Render-template job failed');
   });
 
+  // Segmentation worker — RVM person matting (GPU)
+  const segmentationWorker = new Worker<SegmentationJobData>(
+    'segmentation',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId, sceneId: job.data.sceneId }, 'Processing segmentation job');
+      await processSegmentationJob(job);
+    },
+    {
+      connection,
+      concurrency: 2, // Multiple time ranges can be matted in parallel
+      lockDuration: 5 * 60 * 1000, // 5 minutes
+      stalledInterval: 2 * 60 * 1000,
+      maxStalledCount: 2,
+    }
+  );
+
+  segmentationWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Segmentation job completed');
+  });
+
+  segmentationWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Segmentation job failed');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown — close all workers in parallel, waiting for in-progress
@@ -255,6 +280,7 @@ async function main() {
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
     youtubeClipWorker, renderTemplateWorker, analyzeCaptionsWorker,
+    segmentationWorker,
   ];
 
   let shuttingDown = false;

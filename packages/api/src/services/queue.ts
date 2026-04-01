@@ -266,6 +266,39 @@ export async function queueRenderTemplateJob(data: RenderTemplateJobData) {
   });
 }
 
+// Person segmentation queue — RVM alpha matte extraction
+export interface SegmentationJobData {
+  projectId: string;
+  jobId: string;
+  videoKey: string;
+  startMs: number;
+  endMs: number;
+  sceneId: string;
+  outputKey: string;
+  /** Callback URL for the sandbox to be notified when matte is ready */
+  callbackUrl?: string;
+  callbackSecret?: string;
+}
+
+export const segmentationQueue = new Queue('segmentation', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export async function queueSegmentationJob(data: SegmentationJobData) {
+  return segmentationQueue.add('segmentation', data, {
+    jobId: `${data.projectId}:segment:${data.sceneId}:${Date.now()}`,
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  });
+}
+
 // Redis publisher for job cancellation
 const redisPublisher = new Redis(config.redis.url);
 
