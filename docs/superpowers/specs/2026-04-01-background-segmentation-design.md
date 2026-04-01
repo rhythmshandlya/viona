@@ -318,8 +318,7 @@ Code writing doesn't need the matte — only rendering does. The key rendering c
 | 4 | Setup Agent | `render_still` max 1 cycle | Possible (skeleton scenes) |
 | 5 | Layout Editor | `render_still` multiple times | **Yes** — verifies depth layouts |
 | 6 | Animators (parallel) | **Forbidden** by prompt | No |
-| 7 | Viona Review | `render_still` extensively | **Yes** — main visual review |
-| 8 | Final Editor | `validate_workspace` (1 still/scene) | **Yes** |
+| 7 | Final Editor | `validate_workspace` (1 still/scene) | **Yes** |
 
 ```
 Phase 1: Init (download video, audio, extract, proxy)
@@ -331,11 +330,10 @@ Phase 5: Layout Editor (builds timeline, keyframes, track structure)
            ↳ Matte should be ready by now (short clips: 3-10s on GPU)
            ↳ If not ready: SandwichComposite falls back to normal video render
 Phase 6: Animators in parallel (write all scene animations — rendering forbidden)
-Phase 7: Viona Review (render_still per scene — matte MUST be available)
-Phase 8: Final Editor (validate_workspace renders 1 still/scene)
+Phase 7: Final Editor (validate_workspace renders 1 still/scene — matte MUST be available)
 ```
 
-**Matte request fires in Phase 3 (Planner).** Short clips (5-30s) process in ~3-10s on GPU. By Phase 5 (Layout Editor), mattes are typically ready. Phase 7 is the hard deadline — `SandwichComposite` must have the matte files for correct compositing. If matte is late, Phase 5 renders gracefully degrade (show normal video).
+**Matte request fires in Phase 3 (Planner).** Short clips (5-30s) process in ~3-10s on GPU. By Phase 5 (Layout Editor), mattes are typically ready. Phase 7 (Final Editor) is the hard deadline — `validate_workspace` renders stills and `SandwichComposite` must have the matte files. If matte is late, Phase 5 renders gracefully degrade (show normal video).
 
 ### Matte delivery to workspace
 
