@@ -26,56 +26,80 @@ The original video background stays visible. The mid-layer sits between the back
 
 ---
 
-## Pipeline: Deferred Preprocessing
+## Pipeline: On-Demand Async Matting
 
-Matting runs in the **worker** (GPU) as a deferred job after head tracking — same pattern as reframe generation. The matte covers the full raw upload. Trim points in the NLE editor apply identically to both source and matte videos (Remotion uses the same `startFrom` offset on both).
+Matting is **not** a preprocessing step. The agent decides which sections need depth compositing, requests matting of only those time ranges from the worker (async, GPU), continues working on other scenes, and stitches the results when ready.
 
 ```
 Upload → Transcribe → Head Tracking → Reframe
-                            ↓ (lower priority, deferred)
-                      Segmentation (RVM)
-                            ↓
-                      Matte video → MinIO
-                            ↓
+                                        ↓
 User edits in NLE editor (trim, arrange, storyline)
-  (matte already available — no latency at generation time)
-                            ↓
+                                        ↓
 User triggers AI generation → Sandbox starts
-  ├── Downloads source.mp4 → public/source.mp4
-  └── Downloads matte.mp4 → public/matte.mp4
-                            ↓
-Planner decides which scenes use depth compositing
+                                        ↓
+Planner decides which scenes use Depth display mode
+  e.g., Scene 2 (15s-30s), Scene 5 (45s-55s)
+                                        ↓
+Agent requests matting of ONLY those ranges (async)
+  ├── Worker: mat 15s-30s → matte-scene2.mp4
+  └── Worker: mat 45s-55s → matte-scene5.mp4
+                                        ↓
+Agent continues with non-depth scenes (no blocking)
+                                        ↓
+Matte sections ready → agent downloads and stitches into composition
 ```
 
-### Why mat the full upload, not just the final cut
+### Why on-demand, not full-video preprocessing
 
-The matte video has the same duration and frame alignment as the source video. When the manifest says "play source.mp4 from 15s to 30s", the exact same range applies to matte.mp4 via Remotion's `startFrom` prop:
-
-```
-Source:  [============================] 5 min
-Matte:   [============================] 5 min (same duration, same frames)
-
-Trim 1:       [====]                    → startFrom applies to both
-Trim 2:                  [=======]      → startFrom applies to both
-```
-
-Benefits:
-- **Zero latency** at generation time — matte is pre-computed and ready in MinIO
-- **No final cut assembly** — trim points work identically on source and matte
-- **Simple worker job** — same pattern as head tracking, no manifest parsing needed
-- Tradeoff: we mat sections the user might not use, but for a 5-min video at our config (~2-3 min GPU time), this is acceptable
+- **No wasted compute** — a 5-min video might only need 20s of matting
+- **No waiting** — nobody blocks on matting; agent works on other scenes in parallel
+- **Fast** — matting 15s of video at our config takes ~3-5 seconds on GPU
+- **Scalable** — only pays GPU cost proportional to depth scenes used
 
 ### Worker processor: `packages/worker/src/processors/segmentation.ts`
 
-Same pattern as `head-tracking.ts`:
+Accepts a **time range** (not full video):
 
-1. Download source video from MinIO to temp directory
-2. Run `segment_person.py` as subprocess with GPU
-3. Upload matte MP4 to MinIO at `projects/{projectId}/matte.mp4`
-4. Update project record: `videoSettings.segmentationMatte = { videoKey, width, height, fps, durationMs, status: 'ready' }`
-5. Clean up temp directory
+1. Receive job: `{ projectId, videoKey, startMs, endMs, outputKey }`
+2. FFmpeg: extract the time range from source video
+3. Run `segment_person.py` on the extracted clip
+4. Upload matte clip to MinIO at `outputKey`
+5. Notify sandbox (via callback or polling) that matte is ready
 
-**Queue**: job type `segmentation`, auto-queued after head tracking completes, lower priority than transcribe/head-tracking/reframe. Retries: 2 with backoff.
+**Queue**: job type `segmentation`, triggered by sandbox agent via API call. Multiple jobs can run in parallel for different time ranges.
+
+### API endpoint: `POST /api/sandbox/:sandboxId/segment`
+
+Called by the sandbox agent to request matting:
+
+```typescript
+// Request
+{
+  ranges: [
+    { startMs: 15000, endMs: 30000, sceneId: "scene-2" },
+    { startMs: 45000, endMs: 55000, sceneId: "scene-5" },
+  ]
+}
+
+// Response
+{
+  jobIds: ["job-abc", "job-def"],
+  estimatedDurationMs: 8000
+}
+```
+
+The sandbox polls for completion or receives a callback when each matte clip is ready. Completed mattes are downloaded into `public/matte/scene-2.mp4`, `public/matte/scene-5.mp4`, etc.
+
+### MCP tool: `request_segmentation`
+
+Available to the planner/layout editor agent:
+
+```
+request_segmentation({ ranges: [{ startMs, endMs, sceneId }] })
+→ Queues worker jobs, returns job IDs
+→ Agent continues with other work
+→ check_segmentation_status({ jobIds }) to poll readiness
+```
 
 ---
 
@@ -273,48 +297,42 @@ Available to planner, layout editor, and animator via the asset server:
 
 ## Sandbox Integration
 
-### Init data (`packages/api/src/sandbox/routes.ts`)
+### Init data
 
-`buildInitData()` includes matte info when available:
-
-```typescript
-segmentationMatte: project.videoSettings?.segmentationMatte?.status === 'ready'
-  ? { videoKey, width, height, fps, durationMs }
-  : undefined
-```
-
-### Workspace init (`packages/sandbox/src/workspace-init.ts`)
-
-After downloading source video, download matte if available:
+`buildInitData()` includes a flag that segmentation is available as a capability (head tracking data confirms a person is in the video):
 
 ```typescript
-if (payload.segmentationMatte) {
-  const matteStream = await minio.getObject(bucket, payload.segmentationMatte.videoKey);
-  await pipeline(matteStream, createWriteStream(join(baseDir, 'public', 'matte.mp4')));
-
-  await writeFile(join(baseDir, 'docs', 'segmentation-info.json'), JSON.stringify({
-    available: true,
-    mattePath: 'matte.mp4',
-    width: payload.segmentationMatte.width,
-    height: payload.segmentationMatte.height,
-    fps: payload.segmentationMatte.fps,
-    durationMs: payload.segmentationMatte.durationMs,
-  }));
-}
+segmentationAvailable: !!project.headTrackingData?.faces?.length
 ```
+
+No matte is downloaded during init — it doesn't exist yet.
 
 ### Orchestrator pipeline
 
-No new phase needed — matte is pre-computed and downloaded during init:
+```
+Phase 1: Init (download video, audio, extract, proxy)
+Phase 2: Plan (planner knows segmentation is available, decides depth scenes)
+Phase 3: Request matting (agent calls request_segmentation for depth scene ranges)
+Phase 4: Setup (constants, shared components including SandwichComposite)
+         ↳ non-depth scenes can proceed in parallel
+Phase 5: Layout (creates track structure; depth scenes wait for matte)
+Phase 6: Animate
+         ├── Non-depth scenes: animate immediately
+         └── Depth scenes: animate when matte clips arrive in public/matte/
+Phase 7: Review (render stills, verify depth compositing)
+Phase 8: Final assembly
+```
+
+### Matte delivery to workspace
+
+When the worker completes a segmentation job, the API proxies the matte clip from MinIO into the sandbox workspace:
 
 ```
-Phase 1: Init (download video, audio, matte, extract, proxy)
-Phase 2: Plan (planner reads docs/segmentation-info.json, decides depth scenes)
-Phase 3: Setup (constants, shared components including SandwichComposite)
-Phase 4: Layout (creates track structure with person/midlayer tracks for depth scenes)
-Phase 5: Animate (animators write mid-layer content for depth scenes)
-Phase 6: Review (render stills, verify depth compositing looks correct)
-Phase 7: Final assembly
+Worker completes → MinIO: projects/{id}/matte-scene-2.mp4
+                        ↓
+API callback to sandbox → downloads to public/matte/scene-2.mp4
+                        ↓
+Agent picks up and uses in SandwichComposite
 ```
 
 ---
@@ -323,34 +341,23 @@ Phase 7: Final assembly
 
 ```
 1. User uploads video (5-10 min)
-2. Worker: transcribe, head-track, reframe (high priority)
-3. Worker: segmentation (lower priority, deferred after head tracking)
-   ├── Download source from MinIO
-   ├── Run segment_person.py (RVM on GPU)
-   ├── Upload matte.mp4 to MinIO
-   └── Update videoSettings.segmentationMatte
-4. User opens editor, trims video, arranges storyline
-   (matte already computed and waiting in MinIO)
-5. User triggers AI generation → sandbox starts
-6. Workspace init:
-   ├── Download source.mp4 → public/source.mp4
-   ├── Download matte.mp4 → public/matte.mp4 (same duration as source)
-   └── Write docs/segmentation-info.json
-7. Planner reads segmentation-info.json
+2. Worker: transcribe, head-track, reframe
+3. User opens editor, trims video, arranges storyline
+4. User triggers AI generation → sandbox starts
+5. Workspace init: download source.mp4, audio, etc.
+6. Planner knows segmentation is available (head tracking detected faces)
    ├── Scene 1: displayMode "Overlay" (no matte needed)
-   ├── Scene 2: displayMode "Depth" — behind-text-slide
+   ├── Scene 2: displayMode "Depth" — behind-text-slide (15s-30s)
    ├── Scene 3: displayMode "Stacked" (no matte needed)
-   └── Scene 4: displayMode "Depth" — radial-burst + stat-counter
-8. Layout Editor:
-   ├── Creates person track (position 3) for depth scenes
-   ├── Creates midlayer track (position 2) for depth scenes
-   ├── Places SandwichComposite items at depth scene timecodes
-   └── Non-depth scenes use normal track structure
-9. Animators:
-   ├── Depth scenes: write mid-layer content inside SandwichComposite
-   └── Normal scenes: write overlays as usual
-10. Review: render stills at depth scenes, verify compositing
-11. Final render: Remotion renders full sandwich composite
+   └── Scene 4: displayMode "Depth" — radial-burst (45s-55s)
+7. Agent calls request_segmentation for depth ranges:
+   ├── Worker: extract 15s-30s → RVM → matte-scene-2.mp4 → MinIO
+   └── Worker: extract 45s-55s → RVM → matte-scene-5.mp4 → MinIO
+8. Agent continues with non-depth scenes (setup, layout, animation)
+9. Matte clips ready → downloaded to public/matte/scene-2.mp4, scene-5.mp4
+10. Depth scene animators use SandwichComposite with matte clips
+11. Review: render stills at depth scenes, verify compositing
+12. Final render: Remotion renders full sandwich composite
 ```
 
 ---
@@ -377,13 +384,13 @@ JIT = "script+freeze"        # Fused ops
 
 | Case | Handling |
 |------|----------|
-| Matte not ready when planner starts | Planner skips depth mode, uses Overlay/Stacked/Fullscreen only |
-| No person detected | Near-black matte; segmentation-info.json marks `available: false` |
+| No person detected (no head tracking) | `segmentationAvailable: false`; planner skips depth mode entirely |
+| Worker segmentation job fails | Agent falls back to non-depth display mode for that scene |
+| Worker segmentation slow | Agent animates non-depth scenes first; depth scenes wait for matte |
 | Multiple people | RVM segments all as foreground (single matte) — acceptable for V1 |
 | Speaker moves rapidly | Planner avoids depth mode for fast-motion sections (matte edges degrade) |
-| Very long final cut (>5min) | Processing at 0.5x/30fps takes ~1-3 min; acceptable within sandbox timeout |
-| Matte/video duration mismatch | SandwichComposite clamps matte to video duration |
-| Audio-only | No segmentation phase; planner sees `available: false` |
+| Many depth scenes requested | Worker processes ranges in parallel; each is short (5-30s) |
+| Audio-only | No head tracking → `segmentationAvailable: false` |
 
 ---
 
