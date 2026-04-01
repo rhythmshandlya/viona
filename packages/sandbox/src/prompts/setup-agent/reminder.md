@@ -9,7 +9,7 @@ Files you MUST write:
 - Any shared components referenced in SCENE_PLAN.md (but NOT generic card wrappers like GlassCard)
 - **Scene skeletons** — one per scene in `src/scenes/`, each with:
   - All imports wired (React, Remotion, constants, shared components)
-  - Metadata comments (display mode, scene type, layout pattern)
+  - Metadata comments (display mode)
   - SCENE_WIDTH / SCENE_HEIGHT constants from the plan
   - DATA object pre-filled with scene content (items, labels, stats)
   - Background component for Stacked/Fullscreen (NOT for Overlay)
@@ -20,6 +20,9 @@ Skeleton rules:
 - Stacked/Fullscreen scenes = Background included
 - DATA must contain ALL content so Animators never re-read the plan
 - Do NOT implement animation logic — just structure + data
+- Overlay scene skeletons MUST include `SPEAKER` and `VISIBLE_ZONES` constants (read from manifest scene items).
+- Stacked/Fullscreen skeletons do NOT include speaker constants.
+- Overlay skeletons include BehindSpeaker/InFrontOfSpeaker layer comments in the JSX.
 
 After writing all files: run `npx tsc --noEmit --pretty false` to verify compilation. Fix errors if any (max 2 attempts). Then call `trigger_rebuild`.
 
