@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-stats-depth",
+  "name": "Magazine Stats (Depth)",
+  "description": "Oversized stat cards scattered across full canvas behind the speaker — cards peek from behind shoulders creating editorial depth",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "stats", "numbers", "data", "metrics", "depth"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-checklist-depth",
+  "name": "Magazine Checklist (Depth)",
+  "description": "Checklist items stack behind the speaker's torso — text peeks from both sides as items tick off",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "checklist", "tasks", "progress", "depth"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

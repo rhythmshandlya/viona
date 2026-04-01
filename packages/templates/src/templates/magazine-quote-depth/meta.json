@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-quote-depth",
+  "name": "Magazine Quote (Depth)",
+  "description": "Large serif quote fills the background behind the speaker — words partially occluded by the person for dramatic editorial depth",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "quote", "citation", "text", "editorial", "depth"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

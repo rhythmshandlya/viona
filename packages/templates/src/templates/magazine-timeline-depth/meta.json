@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-timeline-depth",
+  "name": "Magazine Timeline (Depth)",
+  "description": "Timeline thread runs behind the speaker with event cards emerging from behind shoulders, creating editorial depth",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "timeline", "history", "dates", "chronology", "depth"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

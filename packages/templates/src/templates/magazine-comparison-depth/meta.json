@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-comparison-depth",
+  "name": "Magazine Comparison (Depth)",
+  "description": "Left and right comparison cards peek from behind the speaker's shoulders — speaker becomes the natural divider",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "comparison", "versus", "split", "depth"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}
