@@ -234,6 +234,182 @@ The planner can specify depth techniques in the animation brief:
 
 ---
 
+## Layout Editor → Animator Handoff for Depth Scenes
+
+The existing handoff pattern is: Planner writes SCENE_PLAN.md → Layout Editor creates manifest items with transforms → Setup Agent bakes dimensions into skeleton → Animator fills the canvas. Depth scenes extend this with layer awareness, speaker spatial data, and technique metadata.
+
+### What the Planner writes (SCENE_PLAN.md)
+
+```markdown
+## Scene 3: The Key Insight
+**File:** Scene3.tsx
+**Time:** 15000 – 25000ms
+**Display mode:** Depth
+**Depth technique:** behind-text-slide
+
+### Scene dimensions
+- Width: 1080 Height: 1920 (full canvas — mid-layer fills behind speaker)
+
+### Scene placement
+- Layer: midlayer (behind speaker, on top of background video)
+
+### Animation brief
+Large bold text "THE KEY INSIGHT" slides in from the right behind the speaker,
+settling center-frame. Speaker's body partially occludes the text, creating
+natural depth. Text should be oversized (120px+) and positioned at speaker's
+chest height so the head and shoulders mask the top portion.
+```
+
+### What the Layout Editor writes (manifest)
+
+For depth scenes, the Layout Editor creates items on the **midlayer track** (not the scene track):
+
+```typescript
+// 1. Create midlayer track if it doesn't exist
+add_track({ type: "overlay", name: "Midlayer", position: 2 })
+
+// 2. Place scene item on midlayer with full-canvas dimensions
+add_item({
+  type: "scene",
+  trackId: "trk-midlayer",
+  startMs: 15000,
+  endMs: 25000,
+  data: {
+    sceneFile: "Scene3.tsx",
+    displayMode: "depth",
+    depthTechnique: "behind-text-slide",
+    speakerBbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },  // normalized 0-1
+    speakerCenter: { x: 0.50, y: 0.45 },                     // face center
+    visibleZones: {                                            // areas NOT behind speaker
+      left:   { x: 0, y: 0, w: 0.28, h: 1.0 },
+      right:  { x: 0.72, y: 0, w: 0.28, h: 1.0 },
+      top:    { x: 0, y: 0, w: 1.0, h: 0.10 },
+      bottom: { x: 0, y: 0.85, w: 1.0, h: 0.15 }
+    }
+  },
+  transform: { x: 0, y: 0, width: 1080, height: 1920 }  // full canvas
+})
+```
+
+**Key fields the Layout Editor adds for depth:**
+- `depthTechnique` — which technique the animator should implement
+- `speakerBbox` — normalized bounding box of the speaker (from head tracking)
+- `speakerCenter` — face center point (for radial effects, glow origin, etc.)
+- `visibleZones` — areas not occluded by the speaker (for placing elements that need to be fully visible)
+
+**Speaker position sources (progressive refinement):**
+- **Initial (Phase 3-5):** Head tracking data (face bbox from `get_speaker_position` MCP tool, already available from upload). Less accurate — face only, no body contour.
+- **Refined (when matte arrives):** Derive exact silhouette bounding box from the matte video — full body outline including shoulders, arms, hair. Tighter and more accurate than face-only head tracking. The matte-derived bbox can replace the head tracking estimate in the skeleton before animators run.
+
+The Layout Editor uses head tracking as the initial estimate. If the matte clip arrives before Setup Agent writes skeletons (likely for short clips), the Setup Agent uses matte-derived bounds instead. This means `speakerBbox` and `visibleZones` progressively improve as data becomes available.
+
+### What the Setup Agent writes (skeleton)
+
+```tsx
+// src/scenes/Scene3.tsx — skeleton for depth scene
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+
+export const SCENE_WIDTH = 1080;
+export const SCENE_HEIGHT = 1920;
+export const DISPLAY_MODE = 'depth';
+export const DEPTH_TECHNIQUE = 'behind-text-slide';
+
+// Speaker position (normalized 0-1, from head tracking)
+export const SPEAKER = {
+  bbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },
+  center: { x: 0.50, y: 0.45 },
+  // Pixel helpers
+  bboxPx: { x: 302, y: 192, w: 475, h: 1440 },
+  centerPx: { x: 540, y: 864 },
+};
+
+// Areas visible around the speaker (not occluded by person layer)
+export const VISIBLE_ZONES = {
+  left:   { x: 0, y: 0, w: 302, h: 1920 },
+  right:  { x: 778, y: 0, w: 302, h: 1920 },
+  top:    { x: 0, y: 0, w: 1080, h: 192 },
+  bottom: { x: 0, y: 1632, w: 1080, h: 288 },
+};
+
+const s = (px: number) => Math.round((px / 1080) * SCENE_WIDTH);
+
+export default function Scene3() {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+
+  // TODO: Animator implements behind-text-slide here
+  // Your animation renders on the MIDLAYER — behind the speaker.
+  // The person layer (matte) will be composited ON TOP of your output.
+  // Elements behind SPEAKER.bboxPx will be partially hidden by the speaker.
+  // Elements in VISIBLE_ZONES will be fully visible.
+
+  return (
+    <AbsoluteFill>
+      {/* Depth animation goes here */}
+    </AbsoluteFill>
+  );
+}
+```
+
+### What the Animator knows
+
+The animator's skeleton tells it everything:
+
+1. **Layer position**: `DISPLAY_MODE = 'depth'` → "my code renders behind the speaker"
+2. **Technique**: `DEPTH_TECHNIQUE = 'behind-text-slide'` → look up reference implementation
+3. **Speaker position**: `SPEAKER.bboxPx` → the person occupies this rectangle
+4. **Visible zones**: `VISIBLE_ZONES` → elements here are fully visible, not behind speaker
+5. **Design intent**: elements placed behind `SPEAKER.bboxPx` create the depth effect (partially occluded by person layer)
+
+### Animator prompt additions (`depth-compositing.xml`)
+
+New shared prompt module loaded for depth scenes:
+
+```xml
+<depth-compositing>
+  <principle>
+    Your scene renders on the MIDLAYER — between the background video and the
+    person layer. The person (extracted via matte) is composited ON TOP of your
+    output. This means:
+    - Elements behind SPEAKER.bboxPx → partially hidden by speaker = DEPTH EFFECT
+    - Elements in VISIBLE_ZONES → fully visible around the speaker
+    - Elements crossing the speaker edge → natural occlusion at the matte boundary
+  </principle>
+
+  <spatial-rules>
+    - Position key content so it PEEKS from behind the speaker (partially visible)
+    - Don't center animations directly behind the speaker's face (fully hidden = wasted)
+    - Use SPEAKER.centerPx as the origin for radial/burst effects
+    - Text should be at SPEAKER chest/shoulder height for natural partial occlusion
+    - Animate FROM visible zones INTO the speaker area (slide-in creates reveal)
+  </spatial-rules>
+
+  <technique-refs>
+    Each DEPTH_TECHNIQUE has a reference implementation in
+    src/components/depth-templates/. Use as starting point, adapt to scene brief.
+  </technique-refs>
+</depth-compositing>
+```
+
+### Pre-built depth templates
+
+Common techniques ship as reference implementations in `src/components/depth-templates/`:
+
+| Template | What it does | Animator adapts |
+|----------|-------------|-----------------|
+| `BehindTextSlide.tsx` | Large text slides in from side, settles behind speaker | Text content, direction, timing |
+| `RadialBurst.tsx` | Lines/rays expand from speaker center outward | Color, ray count, timing |
+| `BackgroundColorWash.tsx` | Gradient fills behind speaker | Colors, direction, easing |
+| `RisingElements.tsx` | Icons/shapes rise from bottom behind speaker | Element type, count, speed |
+| `StatCounterBehind.tsx` | Large number animates behind speaker | Value, font size, position |
+| `BokehDepth.tsx` | Soft light circles float between layers | Color palette, density, speed |
+| `DepthLowerThird.tsx` | Name bar that passes behind speaker's body | Text content, bar style |
+| `SilhouetteEdgeGlow.tsx` | Colored glow traces person outline | Color, pulse speed, intensity |
+
+These are NOT full templates (not in the template registry). They're reference Remotion components the animator imports or copies code from.
+
+---
+
 ## Remotion Compositing: Sandwich Component
 
 The workspace template includes a `SandwichComposite` component that the layout editor places for depth scenes:
