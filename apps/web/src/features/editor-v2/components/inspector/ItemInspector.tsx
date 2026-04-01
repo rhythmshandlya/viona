@@ -13,6 +13,8 @@ import { EffectsSection } from './sections/EffectsSection';
 import { AdjustSection } from './sections/AdjustSection';
 import { CropSection } from './sections/CropSection';
 import { ShapeSection } from './sections/ShapeSection';
+import { SegmentationStatus } from '../SegmentationStatus';
+import type { VideoItemData } from '../../store/types';
 
 export function ItemInspector() {
   const item = useSingleSelectedItem();
@@ -109,6 +111,11 @@ function renderSections(item: NonNullable<ReturnType<typeof useSingleSelectedIte
           <InspectorSection label="Filters" defaultOpen={false}>
             <FiltersSection item={item} />
           </InspectorSection>
+          {(item.data as VideoItemData).segmentation && (
+            <InspectorSection label="Speaker Extraction">
+              <SegmentationStatus segmentation={(item.data as VideoItemData).segmentation} />
+            </InspectorSection>
+          )}
         </>
       );
 
