@@ -146,20 +146,20 @@ Read the preset name from the plan and map to exact pixels. Do NOT interpret nat
 
 Note: `displayMode` uses the manifest API value `"split-screen"` for Stacked layouts.
 
-#### Speaker spatial data (REQUIRED on every scene item)
+#### Speaker spatial data (REQUIRED on every overlay scene item)
 
-After creating each scene item, call `get_speaker_position` with the scene's `{ startMs, endMs }` to get the speaker's position during that time range. Add the returned data to the scene item's `data` field:
+After creating each **overlay** scene item, call `get_speaker_position` with the scene's `{ startMs, endMs }` to get the speaker's full-body position during that time range. Segmentation mattes are already available in the workspace (the orchestrator requested them before dispatching you). Add the returned data to the scene item's `data` field:
 
 ```
-// For each scene item, call get_speaker_position and extract:
+// For each OVERLAY scene item:
 const pos = get_speaker_position({ startMs: 15000, endMs: 25000 });
 
 update_item({
   itemId: "scene-1",
   data: {
     ...existingData,
-    speakerBbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },   // normalized 0-1 from pos.speaker.bodyBounds
-    speakerCenter: { x: 0.50, y: 0.45 },                       // normalized face center
+    speakerBbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },   // normalized 0-1 from pos.speaker.bounds
+    speakerCenter: { x: 0.50, y: 0.45 },                       // normalized center
     visibleZones: {                                              // areas NOT behind speaker
       left:   { x: 0, y: 0, w: 0.28, h: 1.0 },
       right:  { x: 0.72, y: 0, w: 0.28, h: 1.0 },
@@ -170,26 +170,21 @@ update_item({
 })
 ```
 
-Normalize values to 0-1 range. Note: `get_speaker_position` returns `speaker.bounds` as `{ top, bottom, left, right }` in **pixel coordinates**, NOT `{ x, y, w, h }` normalized. Convert with:
+Normalize values to 0-1 range. `get_speaker_position` returns `speaker.bounds` as `{ top, bottom, left, right }` in **pixel coordinates**. Convert with:
 ```
 x = bounds.left / canvasWidth
 y = bounds.top / canvasHeight
 w = (bounds.right - bounds.left) / canvasWidth
 h = (bounds.bottom - bounds.top) / canvasHeight
+center.x = speaker.center.x / canvasWidth
+center.y = speaker.center.y / canvasHeight
 ```
-The Setup Agent reads these to bake pixel-space constants into scene skeletons.
 
-If `get_speaker_position` returns `speaker: null` (no face detected), use default center values:
-```
-speakerBbox: { x: 0.25, y: 0.05, w: 0.50, h: 0.85 },
-speakerCenter: { x: 0.50, y: 0.40 },
-visibleZones: {
-  left:   { x: 0, y: 0, w: 0.25, h: 1.0 },
-  right:  { x: 0.75, y: 0, w: 0.25, h: 1.0 },
-  top:    { x: 0, y: 0, w: 1.0, h: 0.05 },
-  bottom: { x: 0, y: 0.90, w: 1.0, h: 0.10 }
-}
-```
+If `get_speaker_position` returns `source: "defaults"` (no matte data), the bounds are approximate. Use them as-is — they default to a generous center-screen speaker region.
+
+**Stacked and Fullscreen scenes:** Do NOT call `get_speaker_position` or add speaker data. These modes don't use overlay positioning.
+
+The Setup Agent reads these to bake pixel-space constants into scene skeletons.
 
 ### Step 5: Add transition keyframes to scene items
 
