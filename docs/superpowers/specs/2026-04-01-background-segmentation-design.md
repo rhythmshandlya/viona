@@ -309,21 +309,33 @@ No matte is downloaded during init — it doesn't exist yet.
 
 ### Orchestrator pipeline
 
-Animations are Remotion components — they don't reference the matte file at write time. The matte is only needed when Remotion actually renders frames (review stills / final render). So ALL creative work proceeds without waiting.
+Code writing doesn't need the matte — only rendering does. The key rendering checkpoints:
+
+| Phase | Sub-agent | Renders? | Needs matte? |
+|-------|-----------|----------|-------------|
+| 2 | Trim Editor | No | No |
+| 3 | Planner | 1-2 stills max | No |
+| 4 | Setup Agent | `render_still` max 1 cycle | Possible (skeleton scenes) |
+| 5 | Layout Editor | `render_still` multiple times | **Yes** — verifies depth layouts |
+| 6 | Animators (parallel) | **Forbidden** by prompt | No |
+| 7 | Viona Review | `render_still` extensively | **Yes** — main visual review |
+| 8 | Final Editor | `validate_workspace` (1 still/scene) | **Yes** |
 
 ```
 Phase 1: Init (download video, audio, extract, proxy)
-Phase 2: Plan (decides depth scenes, calls request_segmentation → worker starts async)
-Phase 3: Setup (constants, shared components including SandwichComposite)
-Phase 4: Layout (creates track structure for all scenes, including depth scenes)
-Phase 5: Animate ALL scenes (depth and non-depth — no matte needed to write code)
-         ↳ Matte processing runs in background on worker GPU
-Phase 6: Await matte delivery (matte clips arrive in public/matte/ before render)
-Phase 7: Review (render stills — matte now available for compositing)
-Phase 8: Final assembly + render
+Phase 2: Trim Editor (trim fillers, silences)
+Phase 3: Planner (decides depth scenes → calls request_segmentation async)
+           ↳ Worker starts matting depth ranges on GPU in background
+Phase 4: Setup Agent (writes scene skeletons, shared components incl. SandwichComposite)
+Phase 5: Layout Editor (builds timeline, keyframes, track structure)
+           ↳ Matte should be ready by now (short clips: 3-10s on GPU)
+           ↳ If not ready: SandwichComposite falls back to normal video render
+Phase 6: Animators in parallel (write all scene animations — rendering forbidden)
+Phase 7: Viona Review (render_still per scene — matte MUST be available)
+Phase 8: Final Editor (validate_workspace renders 1 still/scene)
 ```
 
-**Nothing blocks on the matte until Phase 7 (review).** The agent requests matting early (Phase 2) and it completes in the background while all animation work proceeds.
+**Matte request fires in Phase 3 (Planner).** Short clips (5-30s) process in ~3-10s on GPU. By Phase 5 (Layout Editor), mattes are typically ready. Phase 7 is the hard deadline — `SandwichComposite` must have the matte files for correct compositing. If matte is late, Phase 5 renders gracefully degrade (show normal video).
 
 ### Matte delivery to workspace
 
