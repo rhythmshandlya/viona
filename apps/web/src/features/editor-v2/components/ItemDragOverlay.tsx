@@ -1,16 +1,19 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { User } from 'lucide-react';
 import {
   useSingleSelectedItem,
   useEditorStore,
+  useCurrentTimeMs,
 } from '../store/use-editor-store';
 import type { Transform } from '../store/types';
+import { resolveTransformAtTime } from '../utils/transform';
 
 // --- Types ---
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
-type DragMode = 'move' | 'resize';
+type DragMode = 'move' | 'resize' | 'crop-pan';
 
 interface DragState {
   mode: DragMode;
@@ -22,6 +25,10 @@ interface DragState {
   startW: number;
   startH: number;
   scale: number;
+  // Crop pan state (video items only)
+  startCropX?: number;
+  startCropY?: number;
+  cropScale?: number;
 }
 
 // --- Constants ---
@@ -88,6 +95,8 @@ interface ItemDragOverlayProps {
 export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: ItemDragOverlayProps) {
   const selectedItem = useSingleSelectedItem();
   const updateTransform = useEditorStore((s) => s.updateTransform);
+  const updateItemData = useEditorStore((s) => s.updateItemData);
+  const currentTimeMs = useCurrentTimeMs();
 
   const dragRef = useRef<DragState | null>(null);
   const [offset, setOffset] = useState<{ dx: number; dy: number; dw: number; dh: number }>({ dx: 0, dy: 0, dw: 0, dh: 0 });
@@ -98,17 +107,24 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
     return null;
   }
 
-  const transform = selectedItem.transform ?? DEFAULT_TRANSFORM;
+  const isVideo = selectedItem.type === 'video';
+  const itemType = selectedItem.type;
+
+  // Resolve keyframed transform at current time (fixes stacked mode selection outline)
+  const baseTransform = selectedItem.transform ?? DEFAULT_TRANSFORM;
+  const relativeTimeMs = currentTimeMs - selectedItem.startMs;
+  const transform = resolveTransformAtTime(baseTransform, selectedItem.keyframes, relativeTimeMs);
+
   const itemX = resolveValue(transform.x, canvasWidth);
   const itemY = resolveValue(transform.y, canvasHeight);
   const itemW = resolveValue(transform.width, canvasWidth);
   const itemH = resolveValue(transform.height, canvasHeight);
 
-  // Final displayed rect (with optimistic drag offset)
-  const displayX = itemX + offset.dx;
-  const displayY = itemY + offset.dy;
-  const displayW = Math.max(10, itemW + offset.dw);
-  const displayH = Math.max(10, itemH + offset.dh);
+  // For video items, offset is always 0 (crop pan doesn't move the selection rect)
+  const displayX = itemX + (isVideo ? 0 : offset.dx);
+  const displayY = itemY + (isVideo ? 0 : offset.dy);
+  const displayW = Math.max(10, itemW + (isVideo ? 0 : offset.dw));
+  const displayH = Math.max(10, itemH + (isVideo ? 0 : offset.dh));
 
   const getScale = (): number => {
     const container = containerRef.current;
@@ -120,8 +136,14 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
     e.preventDefault();
     e.stopPropagation();
 
+    // For video items, always use crop-pan mode instead of move
+    const effectiveMode = isVideo && mode === 'move' ? 'crop-pan' : mode;
+    const cropData = (selectedItem.data as any)?.crop;
+    // Auto-zoom to 1.15 minimum so both axes have overflow for panning
+    const cropScale = Math.max(cropData?.scale ?? 1, 1.15);
+
     dragRef.current = {
-      mode,
+      mode: effectiveMode,
       handle,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
@@ -130,6 +152,9 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
       startW: itemW,
       startH: itemH,
       scale: getScale(),
+      startCropX: cropData?.x ?? 50,
+      startCropY: cropData?.y ?? 50,
+      cropScale,
     };
     setIsDragging(true);
     setOffset({ dx: 0, dy: 0, dw: 0, dh: 0 });
@@ -141,6 +166,8 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
       canvasWidth={canvasWidth}
       canvasHeight={canvasHeight}
       selectedItemId={selectedItem.id}
+      isVideo={isVideo}
+      itemType={itemType}
       displayX={displayX}
       displayY={displayY}
       displayW={displayW}
@@ -151,6 +178,7 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
       setIsDragging={setIsDragging}
       handleMouseDown={handleMouseDown}
       updateTransform={updateTransform}
+      updateItemData={updateItemData}
     />
   );
 }
@@ -161,6 +189,8 @@ interface ItemDragOverlayInnerProps {
   canvasWidth: number;
   canvasHeight: number;
   selectedItemId: string;
+  isVideo: boolean;
+  itemType: string;
   displayX: number;
   displayY: number;
   displayW: number;
@@ -171,12 +201,16 @@ interface ItemDragOverlayInnerProps {
   setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
   handleMouseDown: (e: React.MouseEvent, mode: DragMode, handle?: HandlePosition) => void;
   updateTransform: (itemId: string, updates: Record<string, number | string>) => void;
+  updateItemData: (id: string, dataUpdates: Record<string, unknown>) => void;
 }
 
 function ItemDragOverlayInner({
+  containerRef,
   canvasWidth,
   canvasHeight,
   selectedItemId,
+  isVideo,
+  itemType,
   displayX,
   displayY,
   displayW,
@@ -187,21 +221,38 @@ function ItemDragOverlayInner({
   setIsDragging,
   handleMouseDown,
   updateTransform,
+  updateItemData,
 }: ItemDragOverlayInnerProps) {
-  // Ref to hold pending transform updates (applied after render, not inside setOffset)
+  // Ref to hold pending updates (applied after render, not inside setOffset)
   const pendingUpdate = useRef<Record<string, number> | null>(null);
+  const pendingCrop = useRef<{ x: number; y: number; scale: number } | null>(null);
+  // Direct DOM refs for crop-pan live preview (bypasses React/manifest entirely)
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
+  const lastCropRef = useRef<{ x: number; y: number }>({ x: 50, y: 50 });
 
-  // Apply pending transform update after render
+  // Apply pending updates after render
   useEffect(() => {
     if (pendingUpdate.current) {
       updateTransform(selectedItemId, pendingUpdate.current);
       pendingUpdate.current = null;
+    }
+    if (pendingCrop.current) {
+      updateItemData(selectedItemId, { crop: pendingCrop.current });
+      pendingCrop.current = null;
     }
   });
 
   // Window-level mousemove/mouseup during drag
   useEffect(() => {
     if (!isDragging) return;
+
+    // For crop-pan: grab the <video> DOM element for direct manipulation
+    if (dragRef.current?.mode === 'crop-pan' && containerRef.current) {
+      const videoEl = containerRef.current.querySelector('video');
+      videoElRef.current = videoEl ?? null;
+    }
+
+    const CROP_SENSITIVITY = 80;
 
     const handleMouseMove = (e: MouseEvent) => {
       const drag = dragRef.current;
@@ -211,7 +262,17 @@ function ItemDragOverlayInner({
       const dx = (e.clientX - drag.startMouseX) / scale;
       const dy = (e.clientY - drag.startMouseY) / scale;
 
-      if (drag.mode === 'move') {
+      if (drag.mode === 'crop-pan') {
+        // Compute live crop position
+        const newCropX = Math.max(0, Math.min(100, (drag.startCropX ?? 50) - (dx / drag.startW) * CROP_SENSITIVITY));
+        const newCropY = Math.max(0, Math.min(100, (drag.startCropY ?? 50) - (dy / drag.startH) * CROP_SENSITIVITY));
+        lastCropRef.current = { x: newCropX, y: newCropY };
+        // Direct DOM manipulation — zero React overhead, no manifest sync
+        if (videoElRef.current) {
+          videoElRef.current.style.objectPosition = `${newCropX}% ${newCropY}%`;
+          videoElRef.current.style.transform = `scale(${drag.cropScale ?? 1.15})`;
+        }
+      } else if (drag.mode === 'move') {
         setOffset({ dx, dy, dw: 0, dh: 0 });
       } else if (drag.mode === 'resize' && drag.handle) {
         let ddx = 0, ddy = 0, ddw = 0, ddh = 0;
@@ -231,6 +292,20 @@ function ItemDragOverlayInner({
     const handleMouseUp = () => {
       const drag = dragRef.current;
       if (!drag) return;
+
+      if (drag.mode === 'crop-pan') {
+        const finalCrop = lastCropRef.current;
+        const newCropX = Math.round(finalCrop.x);
+        const newCropY = Math.round(finalCrop.y);
+        // Clean up DOM ref (React will take over on next render from store update)
+        videoElRef.current = null;
+        // Defer crop update to after render via ref — use the effective scale (includes auto-zoom)
+        pendingCrop.current = { x: newCropX, y: newCropY, scale: drag.cropScale ?? 1.15 };
+        lastCropRef.current = { x: 50, y: 50 };
+        dragRef.current = null;
+        setIsDragging(false);
+        return;
+      }
 
       // Read current offset from the ref-backed state
       setOffset((currentOffset) => {
@@ -263,14 +338,14 @@ function ItemDragOverlayInner({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragRef, setOffset, setIsDragging, updateTransform, selectedItemId, canvasWidth, canvasHeight]);
+  }, [isDragging, containerRef, dragRef, setOffset, setIsDragging, updateTransform, updateItemData, selectedItemId, canvasWidth, canvasHeight]);
 
   return (
     <div
       className="absolute inset-0 z-20"
       style={{ pointerEvents: isDragging ? 'auto' : 'none' }}
     >
-      {/* Selection border + move area */}
+      {/* Selection border + move/pan area */}
       <div
         style={{
           position: 'absolute',
@@ -280,7 +355,7 @@ function ItemDragOverlayInner({
           height: displayH,
           border: isDragging ? `2px solid ${ACCENT}` : `1px solid ${ACCENT}`,
           boxShadow: isDragging ? '0 0 12px rgba(168, 85, 247, 0.4)' : 'none',
-          cursor: 'move',
+          cursor: isVideo ? 'grab' : 'move',
           pointerEvents: 'auto',
           boxSizing: 'border-box',
         }}
@@ -307,8 +382,45 @@ function ItemDragOverlayInner({
         </div>
       )}
 
-      {/* 8 resize handles */}
-      {HANDLE_POSITIONS.map((handle) => {
+      {/* Crop pan indicator */}
+      {isDragging && dragRef.current?.mode === 'crop-pan' && (
+        <div style={{
+          position: 'absolute',
+          left: displayX + displayW / 2,
+          top: displayY - 24,
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          color: ACCENT,
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 4,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          zIndex: 10,
+        }}>
+          Pan Video
+        </div>
+      )}
+
+      {/* Person item badge */}
+      {itemType === 'person' && (
+        <div style={{
+          position: 'absolute',
+          left: displayX + displayW / 2,
+          top: displayY - 24,
+          transform: 'translateX(-50%)',
+          pointerEvents: 'none',
+          zIndex: 10,
+        }}>
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded text-xs text-emerald-300">
+            <User size={12} />
+            Speaker Layer
+          </div>
+        </div>
+      )}
+
+      {/* 8 resize handles (hidden for video items — video fills its keyframed bounds) */}
+      {!isVideo && HANDLE_POSITIONS.map((handle) => {
         const pos = getHandleOffset(handle, displayW, displayH);
         return (
           <div
