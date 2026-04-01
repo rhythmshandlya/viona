@@ -104,6 +104,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       hasTranscript: !!transcript,
       theme: (videoSettings.theme as string) || 'blackboard',
       projectType: project.projectType || 'video',
+      hasSegmentation: !!(videoSettings.segmentationAvailable),
     };
 
     // 3. Get or create conversation
@@ -355,10 +356,11 @@ export async function agentRoutes(fastify: FastifyInstance) {
       : null;
 
     // Read active task state from Redis (populated by sandbox HTTP callbacks)
-    const [tasksRaw, busyRaw, planRaw] = await Promise.all([
+    const [tasksRaw, busyRaw, planRaw, widgetRaw] = await Promise.all([
       redis.get(`sandbox:tasks:${projectId}`).catch(() => null),
       redis.get(`sandbox:busy:${projectId}`).catch(() => null),
       redis.get(`sandbox:plan:${projectId}`).catch(() => null),
+      redis.get(`sandbox:widget:${projectId}`).catch(() => null),
     ]);
 
     let activeTasks: unknown[] = [];
@@ -368,6 +370,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     let sandboxPlan: Record<string, unknown> | null = null;
     if (planRaw) try { sandboxPlan = JSON.parse(planRaw); } catch { /* ignore */ }
+
+    let sandboxWidget: unknown | null = null;
+    if (widgetRaw) try { sandboxWidget = JSON.parse(widgetRaw); } catch { /* ignore */ }
 
     // Backward compat: keep sandboxProgress/sandboxActivity as null
     const sandboxProgress = null;
@@ -381,6 +386,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         activeTasks,
         busy,
         sandboxPlan: sandboxPlan ?? undefined,
+        sandboxWidget: sandboxWidget ?? undefined,
         sandboxProgress: sandboxProgress ?? undefined,
         sandboxActivity: sandboxActivity ?? undefined,
       });
@@ -392,6 +398,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       activeTasks,
       busy,
       sandboxPlan: sandboxPlan ?? undefined,
+      sandboxWidget: sandboxWidget ?? undefined,
       sandboxProgress: sandboxProgress ?? undefined,
       sandboxActivity: sandboxActivity ?? undefined,
     });

@@ -35,10 +35,16 @@ export class DockerSandboxProvider implements SandboxProvider {
     const workspacePath = join(WORKSPACES_ROOT, projectId);
     const secret = randomUUID();
 
-    // Kill existing container for THIS project only (not all sandboxes)
+    // Stop + remove existing container for THIS project only (not all sandboxes)
+    // Graceful stop (SIGTERM + 10s) allows the sandbox to run a final checkpoint
     try {
       const docker = await getDocker();
       const existing = docker.getContainer(containerName);
+      try {
+        await existing.stop({ t: 10 });
+      } catch {
+        // Container may not be running — that's fine
+      }
       await existing.remove({ force: true });
       logger.info({ containerName }, 'Removed existing container for project');
     } catch {
@@ -69,6 +75,7 @@ export class DockerSandboxProvider implements SandboxProvider {
         SANDBOX_SECRET: secret,
         SANDBOX_ID: projectId,
         API_CALLBACK_URL: `http://host.docker.internal:${config.port}/api`,
+        API_INTERNAL_URL: `http://host.docker.internal:${config.port}/api`,
         CHECKPOINT_INTERVAL_MS: String(config.sandbox.checkpointIntervalMs),
         MINIO_ENDPOINT: 'host.docker.internal',
         MINIO_PORT: String(config.storage.port),
@@ -254,13 +261,18 @@ export class DockerSandboxProvider implements SandboxProvider {
     // Remove old backup volume if exists
     try { await execFileAsync('docker', ['volume', 'rm', backupVolume]); } catch {}
 
-    // Create backup volume and copy local workspace contents into it
+    // Create backup volume and copy local workspace contents into it.
+    // Exclude .staging (transient init dir) and node_modules (symlink to /app/).
+    // Use sh -c with find+cp to handle symlinks safely — busybox cp -a fails
+    // on symlinks whose targets don't exist in the backup context.
     await execFileAsync('docker', ['volume', 'create', backupVolume]);
     await execFileAsync('docker', [
       'run', '--rm',
       '-v', `${workspacePath}:/workspace`,
       '-v', `${backupVolume}:/backup`,
-      'busybox', 'cp', '-a', '/workspace/.', '/backup/',
+      'busybox', 'sh', '-c',
+      // Remove transient dirs, then copy remaining contents
+      'rm -rf /workspace/.staging && cp -a /workspace/. /backup/',
     ], { timeout: 120_000 });
 
     return backupVolume;

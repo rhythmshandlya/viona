@@ -120,6 +120,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
         SANDBOX_SECRET: secret,
         SANDBOX_ID: projectId,
         API_CALLBACK_URL: config.sandbox.callbackUrl,
+        API_INTERNAL_URL: config.sandbox.callbackUrl,
         CHECKPOINT_INTERVAL_MS: String(config.sandbox.checkpointIntervalMs),
         MINIO_ENDPOINT: process.env.BUCKET_ENDPOINT || '',
         MINIO_PORT: process.env.BUCKET_PORT || '443',

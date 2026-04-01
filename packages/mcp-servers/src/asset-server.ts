@@ -82,6 +82,20 @@ interface HeadTrackingData {
   }>;
 }
 
+/** Matte-derived bounding box data (per-frame, normalized 0-1 coords from alpha channel analysis). */
+interface MatteBboxFrame {
+  frame: number;
+  x: number;  // normalized left edge (0-1)
+  y: number;  // normalized top edge (0-1)
+  w: number;  // normalized width (0-1)
+  h: number;  // normalized height (0-1)
+}
+
+interface MatteBboxData {
+  fps: number;
+  frames: MatteBboxFrame[];
+}
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -733,6 +747,7 @@ interface SpeakerPositionResult {
   };
   safePlacements: Array<{ name: string; rect: { x: number; y: number; width: number; height: number } }>;
   confidence: number;
+  source: 'matte' | 'head-tracking';
 }
 
 server.registerTool(
@@ -752,6 +767,32 @@ server.registerTool(
   },
   async ({ startMs, endMs }: { startMs: number; endMs: number }) => {
     try {
+      // Prefer matte-derived bbox over head tracking when available.
+      // check_segmentation_status downloads bbox files to public/matte/scene-{id}-bbox.json.
+      // We scan the matte dir for any bbox files and pick the one matching the time range.
+      const matteDir = path.join(WORKSPACE, "public", "matte");
+      let matteBbox: MatteBboxData | null = null;
+      try {
+        const matteFiles = await readdir(matteDir);
+        const bboxFiles = matteFiles.filter(f => f.endsWith('-bbox.json'));
+        // Try each bbox file — find one whose frames overlap with [startMs, endMs]
+        for (const bboxFile of bboxFiles) {
+          const data: MatteBboxData = JSON.parse(await readFile(path.join(matteDir, bboxFile), "utf-8"));
+          if (data.frames && data.frames.length > 0) {
+            const fps = data.fps || 30;
+            // Convert frame numbers to ms and check overlap
+            const firstMs = (data.frames[0].frame / fps) * 1000;
+            const lastMs = (data.frames[data.frames.length - 1].frame / fps) * 1000;
+            if (firstMs <= endMs && lastMs >= startMs) {
+              matteBbox = data;
+              break;
+            }
+          }
+        }
+      } catch {
+        // Matte bbox not available — fall through to head tracking
+      }
+
       // 1. Read head tracking data
       const trackingPath = path.join(WORKSPACE, "docs", "speaker-grid.json");
       let trackingData: HeadTrackingData;
@@ -840,6 +881,7 @@ server.registerTool(
           },
           safePlacements: [{ name: "entire-canvas", rect: { x: 0, y: 0, width: canvas.width, height: canvas.height } }],
           confidence: 0,
+          source: 'head-tracking',
         };
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       }
@@ -916,6 +958,43 @@ server.registerTool(
       boundsBottom = Math.min(canvas.height, Math.round(boundsBottom));
       boundsLeft = Math.max(0, Math.round(boundsLeft));
       boundsRight = Math.min(canvas.width, Math.round(boundsRight));
+
+      // Override bounds with matte-derived bbox when available (more accurate full-body)
+      if (matteBbox && matteBbox.frames.length > 0) {
+        const mFps = matteBbox.fps || 30;
+        // Filter matte frames to time range (frame number → ms)
+        const matteFrames = matteBbox.frames.filter(mf => {
+          const ms = (mf.frame / mFps) * 1000;
+          return ms >= startMs && ms <= endMs;
+        });
+
+        if (matteFrames.length > 0) {
+          // Matte bbox uses normalized 0-1 coords — scale to source resolution
+          let mLeft = 0, mTop = 0, mRight = 0, mBottom = 0;
+          for (const mf of matteFrames) {
+            mLeft += mf.x * srcW;
+            mTop += mf.y * srcH;
+            mRight += (mf.x + mf.w) * srcW;
+            mBottom += (mf.y + mf.h) * srcH;
+          }
+          mLeft /= matteFrames.length;
+          mTop /= matteFrames.length;
+          mRight /= matteFrames.length;
+          mBottom /= matteFrames.length;
+
+          // Transform to canvas space
+          const topLeftMatte = sourceToCanvas(mLeft, mTop, transform, itemX, itemY);
+          const bottomRightMatte = sourceToCanvas(mRight, mBottom, transform, itemX, itemY);
+
+          // Override body bounds with matte-derived values
+          boundsLeft = Math.max(0, Math.round(Math.min(topLeftMatte.x, bottomRightMatte.x)));
+          boundsTop = Math.max(0, Math.round(Math.min(topLeftMatte.y, bottomRightMatte.y)));
+          boundsRight = Math.min(canvas.width, Math.round(Math.max(topLeftMatte.x, bottomRightMatte.x)));
+          boundsBottom = Math.min(canvas.height, Math.round(Math.max(topLeftMatte.y, bottomRightMatte.y)));
+
+          console.error(`[asset-server] Using matte-derived speaker bounds (${matteFrames.length} frames)`);
+        }
+      }
 
       const n = withFace.length;
       const face = {
@@ -1019,6 +1098,7 @@ server.registerTool(
         availableSpace,
         safePlacements,
         confidence,
+        source: matteBbox ? 'matte' : 'head-tracking',
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };

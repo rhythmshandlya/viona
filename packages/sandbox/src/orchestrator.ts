@@ -107,6 +107,11 @@ const ASSET_TOOL_NAMES = [
   'mcp__assets__search_pexels',
   'mcp__assets__download_stock_photo',
   'mcp__assets__get_speaker_position',
+  'mcp__assets__auto_center_speaker',
+  'mcp__assets__get_shot_boundaries',
+  'mcp__assets__request_segmentation',
+  'mcp__assets__check_segmentation_status',
+  'mcp__assets__get_depth_compositing_info',
 ];
 
 const VIEWPORT_TOOL_NAMES = [
@@ -126,6 +131,7 @@ const FREEPIK_TOOL_NAMES = [
 const ANALYSIS_TOOL_NAMES = [
   'mcp__analysis__analyze_transcript',
   'mcp__analysis__validate_timeline',
+  'mcp__analysis__validate_animation_quality',
 ];
 
 const TEMPLATE_BROWSE_TOOL_NAMES = templateBrowseTools.map(t => `mcp__templates__${t.name}`);
@@ -190,6 +196,9 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   search_pexels: 'Searching stock footage',
   download_stock_photo: 'Downloading photo',
   get_speaker_position: 'Analyzing speaker position',
+  request_segmentation: 'Requesting speaker segmentation',
+  check_segmentation_status: 'Checking segmentation status',
+  get_depth_compositing_info: 'Checking depth compositing info',
   // Viewport tools
   get_scene_dimensions: 'Checking dimensions',
   validate_scene_code: 'Validating animation',
@@ -245,6 +254,23 @@ export async function buildOrchestratorOptions(
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
 
+  // ---- Orchestrator tool whitelist ----
+  // These are the ONLY tools the orchestrator (main agent) may call.
+  // Subagents are unrestricted (bypassPermissions) — their tool lists
+  // in the AgentDefinition control availability; the PreToolUse hook
+  // below enforces the orchestrator boundary.
+  // Tools the orchestrator is DENIED — these cause it to do subagent work.
+  // Everything else is allowed (bypassPermissions). The hook below enforces this.
+  const ORCHESTRATOR_DENIED = new Set([
+    // Template tools — Planner's job (Issue: orchestrator spends 2+ min browsing)
+    // TEMPLATE_TOOL_NAMES is a superset of TEMPLATE_BROWSE_TOOL_NAMES
+    ...TEMPLATE_TOOL_NAMES,
+    // Scene file tools — Animator's job
+    ...SCENE_TOOL_NAMES,
+    // Manifest WRITE tools — Layout Editor's job (read-only tools are fine)
+    ...MANIFEST_TOOL_NAMES.filter(t => !MANIFEST_READ_TOOL_NAMES.includes(t)),
+  ]);
+
   return {
     model: 'opus',
     systemPrompt: {
@@ -254,23 +280,53 @@ export async function buildOrchestratorOptions(
     },
     cwd: '/workspace',
     settingSources: ['project'],
-    // NOTE: disallowedTools applies to the ENTIRE session including subagents,
-    // so we cannot use it to restrict the orchestrator while allowing subagents.
-    // Tool access control is enforced via the system prompt (orchestrator is told
-    // to delegate, not write directly) and subagent tool whitelists.
-    allowedTools: [
-      'Read', 'Glob', 'Grep',
-      'WebSearch', 'WebFetch', 'Task',
-      ...MANIFEST_READ_TOOL_NAMES,
-      ...RENDER_TOOL_NAMES,
-      ...WIDGET_TOOL_NAMES,
-      ...ASSET_TOOL_NAMES,
-      ...VIEWPORT_TOOL_NAMES,
-      ...ANALYSIS_TOOL_NAMES,
-      ...TEMPLATE_BROWSE_TOOL_NAMES,
-    ],
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
+    // ---- Enforce orchestrator tool boundary via PreToolUse hook ----
+    // SDK permission flow: hooks → deny → permissionMode → allow → canUseTool.
+    // bypassPermissions approves everything at step 3, so allowedTools and
+    // canUseTool are never reached. Hooks (step 1) are the ONLY way to block
+    // tools under bypassPermissions without affecting subagents globally.
+    //
+    // Strategy: DENY-LIST instead of allow-list. The orchestrator can use most
+    // tools (Read, Write, Bash, Glob, Grep, widgets, assets, analysis, render).
+    // It is BLOCKED from template tools, scene file tools, and manifest write
+    // tools — those are subagent responsibilities.
+    //
+    // The hook checks `agent_id` on the input: present = subagent (allow all),
+    // absent = orchestrator (enforce deny list).
+    hooks: {
+      PreToolUse: [{
+        hooks: [async (
+          input: Record<string, unknown>,
+          _toolUseID: string | undefined,
+          _options: { signal: AbortSignal },
+        ) => {
+          const toolName = (input as any).tool_name as string | undefined;
+          const agentId = (input as any).agent_id as string | undefined;
+
+          // Subagent calls — unrestricted (AgentDefinition.tools controls availability)
+          if (agentId) return {};
+
+          // Orchestrator call — enforce deny list
+          if (toolName && ORCHESTRATOR_DENIED.has(toolName)) {
+            logger.warn({ tool: toolName }, 'Orchestrator tool blocked — must delegate to subagent');
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse' as const,
+                permissionDecision: 'deny',
+                permissionDecisionReason:
+                  `The orchestrator cannot use ${toolName} directly. ` +
+                  'Delegate this work to the appropriate subagent ' +
+                  '(planner, setup_agent, animator, layout_editor, trim_editor, or final_editor).',
+              },
+            };
+          }
+
+          return {};
+        }],
+      }],
+    },
     agents: {
       // ---- Trim Editor (Phase 2) ----
       trim_editor: {
@@ -328,15 +384,14 @@ export async function buildOrchestratorOptions(
           ...RENDER_TOOL_NAMES,
           ...TEMPLATE_TOOL_NAMES,
         ],
+        skills: ['remotion-best-practices'],
         model: 'opus',
         maxTurns: 40,
         criticalSystemReminder_EXPERIMENTAL:
           'CRITICAL RULES:\n' +
           '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
-          '- Every interpolate() call MUST have BOTH extrapolateLeft: "clamp" AND extrapolateRight: "clamp".\n' +
-          '- NEVER subtract scene start from useCurrentFrame() — frames are already 0-relative inside Sequence.\n' +
           '- After writing .tsx files, ALWAYS call trigger_rebuild to verify compilation.\n' +
-          '- Use render_still to verify visual output after code changes.',
+          '- Use render_still once to verify visual output after code changes. Max 1 render-fix cycle, then move on.',
       },
 
       // ---- Layout Editor (Phase 5) ----
@@ -347,6 +402,7 @@ export async function buildOrchestratorOptions(
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
@@ -358,7 +414,7 @@ export async function buildOrchestratorOptions(
           '- NEVER split video items. Display mode changes are handled ENTIRELY through keyframes.\n' +
           '- Keyframe format: { timeMs, props: {...} } — NEVER flat { timeMs, opacity }.\n' +
           '- timeMs is RELATIVE to the item\'s own startMs, not the absolute timeline.\n' +
-          '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName, data.sceneType.\n' +
+          '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName.\n' +
           '- ALWAYS read_manifest before and after major operations to verify state.',
       },
 
@@ -369,21 +425,21 @@ export async function buildOrchestratorOptions(
         description: 'Motion design engineer. Edits scene skeleton files (created by Setup Agent) to add dense, choreographed Remotion animations. Self-heals compilation errors.',
         prompt: animatorPrompt,
         tools: ANIMATOR_TOOL_NAMES,
+        skills: ['remotion-best-practices'],
         model: 'opus',
         maxTurns: 60,
         criticalSystemReminder_EXPERIMENTAL:
           'CRITICAL RULES:\n' +
           '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
-          '- Every interpolate() call MUST have BOTH extrapolateLeft: "clamp" AND extrapolateRight: "clamp".\n' +
-          '- NEVER subtract scene start from useCurrentFrame() — frames are already 0-relative inside Sequence.\n' +
+          '- Templates are ALREADY FORKED by Setup Agent to src/components/templates/<slug>/. Do NOT call fork_template. Read the template\'s index.tsx and magazine/ shared library, then ADAPT its patterns (animations, textures, typography, effects) for your scene\'s unique concept and dimensions. Templates are starting points to manipulate, not finished layouts.\n' +
           '- After editing .tsx files, ALWAYS call trigger_rebuild. If compilation fails, read the error, fix it, rebuild again (max 2 retries).\n' +
-          '- Use render_still to verify visual output. Every settled element needs idle motion.\n' +
-          '- Glass surfaces: gradient + specular + shadow + grain. No static flat rectangles.',
+          '- Do NOT call render_still — visual verification is handled by the orchestrator after all animators finish.\n' +
+          '- ONE hero animation per scene — everything else supports it. Max 5 animated content elements.',
       },
 
-      // ---- Final Editor (Phase 8) ----
+      // ---- Final Editor (Phase 7) ----
       final_editor: {
-        description: 'Verifies scene files are complete (not skeletons), applies caption styling, validates all tracks (overlaps, z-order, gaps), verifies overlay placements, final quality pass.',
+        description: 'Applies caption styling, validates timeline and workspace (tsc + render). Does NOT re-read all scene files — Animators already verified them.',
         prompt: finalEditorPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
@@ -393,18 +449,17 @@ export async function buildOrchestratorOptions(
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
-        maxTurns: 50,
+        maxTurns: 25,
         criticalSystemReminder_EXPERIMENTAL:
           'CRITICAL RULES:\n' +
-          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
-          '- Every interpolate() call MUST have BOTH extrapolateLeft: "clamp" AND extrapolateRight: "clamp".\n' +
-          '- NEVER subtract scene start from useCurrentFrame() — frames are already 0-relative inside Sequence.\n' +
-          '- Verify scene files are COMPLETE implementations (not skeletons with TODO placeholders).\n' +
-          '- After any code edits, call trigger_rebuild then render_still to verify.\n' +
-          '- Use validate_timeline for final manifest integrity check.',
+          '- Do NOT read individual scene files — Animators already verified them.\n' +
+          '- Do NOT edit scene files or enter fix loops. Note issues in summary, then finish.\n' +
+          '- Do NOT render stills manually — validate_workspace renders one per scene.\n' +
+          '- Apply caption styling, run validate_timeline, run validate_workspace, report results. That is ALL.\n' +
+          '- Keep this phase FAST. Max 6 tool calls: read_manifest, read SCENE_PLAN.md, update_caption_preset, validate_timeline, validate_workspace, done.',
       },
     },
-    maxTurns: 100,
+    maxTurns: 60,
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
     effort: 'max' as const,
@@ -573,11 +628,12 @@ export async function runOrchestrator(
                   : toolName ?? 'working';
                 const friendlyTool = TOOL_DISPLAY_NAMES[rawTool] ?? rawTool;
 
-                if (toolName === 'Task') {
+                if (toolName === 'Agent') {
                   // Orchestrator dispatching a subagent
                   const input = block.input as Record<string, unknown> | undefined;
                   const agentKey = (input?.subagent_type ?? input?.description ?? '') as string;
                   const label = SUBAGENT_LABELS[agentKey.toLowerCase()] ?? (agentKey || 'subagent');
+                  logger.info({ subagentType: agentKey, label, toolUseId: block.id, prompt: (input?.prompt as string)?.substring(0, 200) }, 'Subagent dispatched');
 
                   // Mark this subagent as actively running (supports parallel dispatches)
                   activeSubagents.set(block.id, label);

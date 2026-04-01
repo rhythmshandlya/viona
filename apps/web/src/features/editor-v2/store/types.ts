@@ -7,7 +7,7 @@
 // Timeline Item Types
 // ============================================
 
-export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll' | 'scene' | 'shape';
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll' | 'scene' | 'shape' | 'person';
 
 export interface TimelineItem {
   id: string;
@@ -451,6 +451,28 @@ export interface SegmentationData {
   error?: string;
 }
 
+/** Normalized speaker bounding box (0-1 range, relative to canvas). */
+export interface SpeakerBbox {
+  x: number;  // left edge (0-1)
+  y: number;  // top edge (0-1)
+  w: number;  // width (0-1)
+  h: number;  // height (0-1)
+}
+
+/** Normalized speaker center point (0-1 range, relative to canvas). */
+export interface SpeakerCenter {
+  x: number;  // horizontal center (0-1)
+  y: number;  // vertical center (0-1)
+}
+
+/** Visible zones around the speaker (areas not occluded by the body). */
+export interface VisibleZones {
+  left:   { x: number; y: number; w: number; h: number };
+  right:  { x: number; y: number; w: number; h: number };
+  top:    { x: number; y: number; w: number; h: number };
+  bottom: { x: number; y: number; w: number; h: number };
+}
+
 export interface VisualItemData {
   visualId: string;
   compositionId: string;
@@ -470,7 +492,16 @@ export interface VisualItemData {
     exit: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
   };
   /** Speaker face bounding box for overlay masking (0-1 fractions of canvas). */
-  speakerBbox?: { x: number; y: number; w: number; h: number };
+  speakerBbox?: SpeakerBbox;
+  /** Display mode for the visual (set by layout editor). */
+  displayMode?: 'fullscreen' | 'split-screen' | 'overlay';
+  /** Scene file path (e.g., 'src/scenes/Scene1.tsx'). */
+  sceneFile?: string;
+  /** Human-readable scene name from the plan. */
+  sceneName?: string;
+  // Speaker spatial data (matte-derived, populated by layout editor)
+  speakerCenter?: SpeakerCenter;
+  visibleZones?: VisibleZones;
 
   // Template-based visual support (alternative to bundleUrl for registered templates)
   /** Template slug from packages/templates registry (e.g., 'youtube-clip', 'watercolor-map') */
@@ -513,6 +544,15 @@ export interface Track {
   height: number;   // Track height in pixels
   collapsed: boolean;
 }
+
+/** Well-known track names for the 5-track sandwich. */
+export const SANDWICH_TRACK_NAMES = {
+  video: 'video',
+  sceneBg: 'scene-bg',
+  person: 'person',
+  sceneFg: 'scene-fg',
+  overlay: 'overlay',
+} as const;
 
 // ============================================
 // Video Settings Types (for 9:16 crop/pan)
@@ -623,6 +663,7 @@ export interface EditorState {
   // Project
   project: Project | null;
   isLoading: boolean;
+  loadingMessage: string | null;
   error: string | null;
 
   // Timeline data

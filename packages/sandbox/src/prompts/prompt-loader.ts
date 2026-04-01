@@ -100,6 +100,7 @@ export interface PromptContext {
   hasHeadTracking?: boolean;
   totalScenes?: number;
   currentPhase?: string;
+  hasSegmentation?: boolean;
 }
 
 /** Split ratio for stacked layout: visuals get this percentage of canvas height. */
@@ -119,7 +120,8 @@ export function injectContext(prompt: string, ctx: PromptContext): string {
     .replaceAll('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
     .replaceAll('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))
     .replaceAll('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))
-    .replaceAll('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown');
+    .replaceAll('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown')
+    .replaceAll('{{HAS_SEGMENTATION}}', String(ctx.hasSegmentation ?? false));
 }
 
 // --- Legacy compat (remove after migration) ---
