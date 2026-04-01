@@ -11,6 +11,16 @@ export const schema = z.object({
     { year: '2024', text: 'Peace negotiations resume' },
   ]),
   title: z.string().default('Timeline of the Conflict'),
+  speakerBbox: z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().min(0).max(1),
+    h: z.number().min(0).max(1),
+  }).optional(),
+  speakerCenter: z.object({
+    x: z.number(),
+    y: z.number(),
+  }).optional(),
 });
 
 export type MagazineTimelineProps = z.infer<typeof schema>;

@@ -4,12 +4,15 @@ import { MAGAZINE_COLORS } from '../../../magazine/constants';
 import { magazineEasing } from '../../../magazine/animations';
 
 export function TimelineThread({
-  startY, endY, nodeYPositions, nodeLandFrames,
+  startY, endY, nodeYPositions, nodeLandFrames, centerX,
 }: {
   startY: number; endY: number; nodeYPositions: number[]; nodeLandFrames: number[];
+  /** Override the horizontal center of the thread (defaults to 540) */
+  centerX?: number;
 }) {
   const frame = useCurrentFrame();
   const totalHeight = endY - startY;
+  const cx = centerX ?? 540;
 
   const drawProgress = interpolate(frame, [10, 30], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
@@ -19,7 +22,7 @@ export function TimelineThread({
   return (
     <>
       <div style={{
-        position: 'absolute', left: 540 - 1.5, top: startY,
+        position: 'absolute', left: cx - 1.5, top: startY,
         width: 3, height: currentHeight,
         backgroundColor: MAGAZINE_COLORS.accent, borderRadius: 1.5,
       }} />
@@ -31,7 +34,7 @@ export function TimelineThread({
         if (frame < landFrame) return null;
         return (
           <div key={i} style={{
-            position: 'absolute', left: 540 - 5, top: nodeY - 5,
+            position: 'absolute', left: cx - 5, top: nodeY - 5,
             width: 10, height: 10, borderRadius: '50%',
             backgroundColor: MAGAZINE_COLORS.accent,
             transform: `scale(${nodeScale})`,

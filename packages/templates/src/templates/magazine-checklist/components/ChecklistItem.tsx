@@ -5,7 +5,7 @@ import { PaperTexture } from '../../../magazine/textures';
 import { TornEdge } from '../../../magazine/effects';
 import { CheckMark } from './CheckMark';
 
-const ITEM_W = 900;
+const DEFAULT_ITEM_W = 900;
 const ITEM_H = 140;
 
 export function ChecklistItem({
@@ -14,26 +14,30 @@ export function ChecklistItem({
   index,
   appearFrame,
   checkFrame,
+  width,
 }: {
   text: string;
   checked: boolean;
   index: number;
   appearFrame: number;
   checkFrame: number;
+  /** Override width (defaults to 900) */
+  width?: number;
 }) {
+  const itemW = width ?? DEFAULT_ITEM_W;
   const rotation = (random(`check-rot-${index}`) - 0.5) * 4;
 
   return (
     <div
       style={{
-        width: ITEM_W,
+        width: itemW,
         height: ITEM_H,
         transform: `rotate(${rotation}deg)`,
         filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
         position: 'relative',
       }}
     >
-      <TornEdge edges={['top', 'bottom', 'left', 'right']} roughness={0.4} seed={index * 11 + 7} width={ITEM_W} height={ITEM_H}>
+      <TornEdge edges={['top', 'bottom', 'left', 'right']} roughness={0.4} seed={index * 11 + 7} width={itemW} height={ITEM_H}>
         <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
           <PaperTexture age={0.2 + random(`check-age-${index}`) * 0.3} seed={`check-${index}`} />
           <div style={{

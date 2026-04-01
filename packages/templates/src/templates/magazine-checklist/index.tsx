@@ -6,9 +6,11 @@ import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SerifHeadline } from '../../magazine/typography';
 import { TapeMark, PinMark } from '../../magazine/decorations';
+import { computeSpeakerPx } from '../../depth';
 import { ChecklistItem } from './components/ChecklistItem';
 
 const CANVAS_W = 1080;
+const CANVAS_H = 1920;
 const TITLE_Y = 200;
 const TITLE_W = 900;
 const TITLE_H = 160;
@@ -23,19 +25,42 @@ const TAPE_CORNERS: Array<'top-left' | 'top-right' | 'bottom-left' | 'bottom-rig
   'top-right', 'top-left', 'bottom-right', 'bottom-left',
 ];
 
-const MagazineChecklist: React.FC<MagazineChecklistProps> = ({ items, title }) => {
+const MagazineChecklist: React.FC<MagazineChecklistProps> = ({ items, title, speakerBbox, speakerCenter }) => {
   const frame = useCurrentFrame();
+
+  const isDepthMode = !!speakerBbox && !!speakerCenter;
+  const depthData = isDepthMode
+    ? computeSpeakerPx(speakerBbox, speakerCenter, CANVAS_W, CANVAS_H)
+    : null;
+
+  // In depth mode, center items on speaker X at chest height, wider than speaker so text peeks from both sides
+  const effectiveItemW = isDepthMode && depthData
+    ? Math.max(ITEM_W, depthData.bboxPx.w + 300)
+    : ITEM_W;
+  const effectiveItemStartY = isDepthMode && depthData
+    ? depthData.bboxPx.y + depthData.bboxPx.h * 0.25
+    : ITEM_START_Y;
+  const effectiveItemSpacing = isDepthMode && depthData
+    ? Math.min(ITEM_SPACING, (CANVAS_H - effectiveItemStartY - 80) / Math.max(items.length, 1))
+    : ITEM_SPACING;
 
   // Phase 1: Title entrance
   const titleSlide = paperSlide(frame, 0, 20, 'down');
+
+  const titleLeft = isDepthMode && depthData
+    ? depthData.centerPx.x - TITLE_W / 2
+    : (CANVAS_W - TITLE_W) / 2;
+  const titleTop = isDepthMode && depthData
+    ? Math.max(40, depthData.bboxPx.y - 200)
+    : TITLE_Y;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
       {/* Title scrap */}
       <div style={{
         position: 'absolute',
-        left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
-        top: TITLE_Y + titleSlide.translateY,
+        left: titleLeft + titleSlide.translateX,
+        top: titleTop + titleSlide.translateY,
         opacity: titleSlide.opacity,
         filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
       }}>
@@ -71,8 +96,16 @@ const MagazineChecklist: React.FC<MagazineChecklistProps> = ({ items, title }) =
         const isEntering = frame < landFrame;
 
         const offsetX = (random(`check-ox-${i}`) - 0.5) * 60;
-        const baseX = (CANVAS_W - ITEM_W) / 2 + offsetX;
-        const baseY = ITEM_START_Y + i * ITEM_SPACING;
+        let baseX: number;
+        let baseY: number;
+        if (isDepthMode && depthData) {
+          // Center on speaker X, wider than speaker
+          baseX = depthData.centerPx.x - effectiveItemW / 2 + offsetX;
+          baseY = effectiveItemStartY + i * effectiveItemSpacing;
+        } else {
+          baseX = (CANVAS_W - ITEM_W) / 2 + offsetX;
+          baseY = ITEM_START_Y + i * ITEM_SPACING;
+        }
 
         let x = baseX + parallaxX;
         let y = baseY + parallaxY;
@@ -80,14 +113,16 @@ const MagazineChecklist: React.FC<MagazineChecklistProps> = ({ items, title }) =
 
         if (isEntering) { x += slide.translateX; y += slide.translateY; opacity = slide.opacity; }
 
+        const currentItemW = isDepthMode ? effectiveItemW : ITEM_W;
+
         return (
           <div key={i} style={{ position: 'absolute', left: x, top: y, opacity, zIndex: depth }}>
             <div style={{ position: 'relative' }}>
-              <ChecklistItem text={item.text} checked={item.checked ?? true} index={i} appearFrame={enterStart} checkFrame={checkFrame} />
+              <ChecklistItem text={item.text} checked={item.checked ?? true} index={i} appearFrame={enterStart} checkFrame={checkFrame} width={currentItemW} />
               {random(`check-deco-${i}`) > 0.5 ? (
                 <TapeMark corner={TAPE_CORNERS[i % 4]} seed={i} />
               ) : (
-                <PinMark x={ITEM_W / 2} y={4} seed={i} />
+                <PinMark x={currentItemW / 2} y={4} seed={i} />
               )}
             </div>
           </div>
