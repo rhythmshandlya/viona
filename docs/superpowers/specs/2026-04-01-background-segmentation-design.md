@@ -152,91 +152,93 @@ position 1: audio      — Speaker audio
 position 0: video      — Source video (background)
 ```
 
-### With depth compositing enabled
+### Default track structure (matting always available)
+
 ```
-position 5: overlay    — Foreground overlays (captions, etc.)
-position 4: scene      — Templates/animations ON TOP of person
-position 3: person     — Matted person layer (extracted speaker)
-position 2: midlayer   — Animations/graphics BEHIND speaker
-position 1: audio      — Speaker audio
-position 0: video      — Source video (background)
-```
-
-The key insight: anything on tracks between `video` (0) and `person` (3) appears **behind the speaker**. Anything above `person` appears **in front**.
-
-### SegmentationData (already exists in types.ts)
-
-The editor store already defines:
-```typescript
-interface SegmentationData {
-  status: 'pending' | 'processing' | 'ready' | 'failed';
-  progress?: number;
-  maskPath?: string;     // Path to matte video
-  maskFps?: number;      // Matte frame rate
-  error?: string;
-}
+position 4: overlay    — Captions, foreground HUD elements
+position 3: scene-fg   — Animation elements IN FRONT of speaker
+position 2: person     — Matted person layer (always present)
+position 1: scene-bg   — Animation elements BEHIND speaker
+position 0: video      — Source video (original background)
 ```
 
-This lives on `VideoItemData.segmentation` — when `status === 'ready'`, the editor knows a matte is available and can show the layer controls.
+The person track is **always present** — matting is guaranteed. Every scene can place elements on `scene-fg` (in front) or `scene-bg` (behind) or both. This is the default, not an opt-in feature.
 
-### Editor UI Changes
+### How scenes use layers
 
-1. **Layer panel**: When matte is available, show a toggle "Enable depth compositing" that creates the person + midlayer tracks
-2. **Track reordering**: User (or AI agent) can drag tracks to change layer order
-3. **Preview**: The Remotion player renders the sandwich composite in real-time using the matte
-4. **Per-item depth**: Each overlay item can be set to render "in front of" or "behind" the speaker by moving it between tracks
+A single scene's animation can span both `scene-bg` and `scene-fg` tracks. For example, an overlay stat card could:
+- Slide in from the right on `scene-bg` (behind speaker)
+- Cross behind the speaker's body
+- The number portion pops up on `scene-fg` (in front of speaker)
+
+The animator decides per-element which layer it belongs to. The layout editor sets up the track structure.
+
+### Editor UI
+
+1. **Layer panel**: Always shows the 5-track sandwich. User can drag items between fg/bg tracks.
+2. **Track reordering**: User (or AI agent) can move any animation element between in-front and behind.
+3. **Preview**: Remotion player always renders the sandwich composite with person layer.
+4. **Per-element depth**: Each item in a scene can target `scene-fg` or `scene-bg` — not a binary scene-level decision.
 
 ---
 
 ## Planner Integration
 
-### New display mode: "Depth"
+### Display modes (updated with depth awareness)
 
-Extend the planner's display mode vocabulary:
+Matting is always available. Every display mode now supports depth — elements can go behind or in front of the speaker. "Depth" is not a separate mode; it's a capability of all modes.
 
-| Mode | Description | When to use |
-|------|-------------|-------------|
-| **Overlay** | Speaker full-screen, graphic floats on top | Simple callouts, stats |
-| **Stacked** | Speaker bottom, animation top | Charts, diagrams |
-| **Fullscreen** | Speaker hidden, animation fills canvas | Immersive visuals |
-| **Depth** | Speaker matted, animation plays BEHIND speaker | Impact moments, reveals, depth effects |
+| Mode | Description | Depth capability |
+|------|-------------|-----------------|
+| **Overlay** | Speaker full-screen, graphic interacts with speaker | Elements can slide behind speaker's body, weave between layers, pass behind shoulders. A stat card enters from the right, passes behind the speaker, settles to the left. Lower thirds pass behind the speaker's torso. |
+| **Stacked** | Speaker in bottom portion, animation in top portion | Top animation is above speaker. But elements can extend downward into the speaker zone, passing behind the person. Timeline items can cascade down behind the speaker. |
+| **Fullscreen** | Speaker hidden, animation fills canvas | Speaker is faded out — no depth interaction. Pure animation canvas. |
 
-The planner writes `"displayMode": "Depth"` in SCENE_PLAN.md for scenes that should use the sandwich composite.
+The planner's animation brief now describes **which elements go behind vs in front** of the speaker, not just what the animation does:
 
-### Planner vocabulary: Depth techniques
+```markdown
+## Scene 2: The Key Metric
+**Display mode:** Overlay
+**Animation brief:**
+Large "73%" counter scales up BEHIND the speaker from center,
+settling at chest height. The number peeks from behind both shoulders.
+A label "of users" slides in from the right IN FRONT of the speaker,
+positioned at the bottom third. The depth creates emphasis — the
+stat feels massive, the speaker presents it.
+```
 
-The planner can specify depth techniques in the animation brief:
+### Planner vocabulary: Depth interactions
 
-**Simple (planner can use freely):**
-- `behind-text-slide` — Large text slides in behind the speaker
-- `background-color-wash` — Solid color/gradient fills behind speaker
-- `radial-burst` — Rays/lines expand outward from behind speaker
-- `rising-elements` — Icons/emojis rise from bottom behind speaker
-- `stat-counter-behind` — Large numbers animate behind speaker
-- `background-progress-bar` — Meter fills across behind speaker
-- `depth-lower-third` — Name bar that passes behind the speaker's body
-- `bokeh-depth` — Soft out-of-focus light circles between layers
+The planner uses these terms in animation briefs to describe layer behavior:
 
-**Medium (planner should pair with specific scenes):**
-- `background-b-roll` — Image/photo composited behind person
-- `split-background-panels` — Multiple images arranged around person
-- `carousel-behind` — Image slideshow behind speaker
-- `parallax-depth` — Person and background move at different speeds
-- `silhouette-edge-glow` — Colored glow traces the person's outline
-- `animated-pattern-fill` — Geometric patterns tile behind speaker
-- `floating-data-cards` — Info cards float at various positions behind speaker
+**Behind-speaker interactions:**
+- `emerge-behind` — Element scales up or slides in behind the speaker
+- `peek-sides` — Element is wide enough to be visible on both sides of the speaker
+- `cascade-behind` — Multiple elements stack or flow behind the speaker
+- `background-fill` — Color/gradient/pattern fills behind speaker (original bg still visible at edges)
+- `depth-lower-third` — Bar/label passes behind speaker's body
 
-**What NOT to do (anti-patterns for planner):**
-- Never use depth mode for every scene — reserve for 30-40% of scenes max
-- Never combine multiple mid-layer animations simultaneously (one motion per moment)
-- Never use depth mode when the speaker is moving rapidly (matte edges degrade)
-- Never fully replace the background — keep original visible through gaps
+**Front-to-back interactions (elements that cross layers):**
+- `weave-through` — Element enters in front, passes behind speaker, exits in front (or vice versa)
+- `split-depth` — Part of the element is behind speaker, part is in front (e.g., a bar chart where bars go behind but labels stay in front)
+- `depth-reveal` — Element starts fully behind speaker, then the speaker moves/scales to reveal it
+
+**Around-speaker interactions:**
+- `flank` — Elements appear on both sides of the speaker, framing them
+- `radial-from-speaker` — Elements emanate outward from behind the speaker's center
+- `parallax-offset` — Elements at different depths move at different rates relative to speaker
+
+**Anti-patterns (planner must avoid):**
+- Don't put every element behind the speaker — mix front and back for contrast
+- Don't animate multiple behind-speaker elements simultaneously (one motion per moment)
+- Don't place readable text fully behind the speaker's face (occluded = invisible)
+- Don't use depth interactions in Fullscreen mode (speaker is hidden, no depth to interact with)
 
 ---
 
-## Layout Editor → Animator Handoff for Depth Scenes
+## Layout Editor → Animator Handoff (Layer-Aware)
 
-The existing handoff pattern is: Planner writes SCENE_PLAN.md → Layout Editor creates manifest items with transforms → Setup Agent bakes dimensions into skeleton → Animator fills the canvas. Depth scenes extend this with layer awareness, speaker spatial data, and technique metadata.
+The existing handoff (Planner → Layout Editor → Setup Agent → Animator) is extended with layer awareness and speaker spatial data. Since matting is always available, every scene skeleton includes speaker position data and the animator always knows which layer each element targets.
 
 ### What the Planner writes (SCENE_PLAN.md)
 
@@ -244,40 +246,35 @@ The existing handoff pattern is: Planner writes SCENE_PLAN.md → Layout Editor 
 ## Scene 3: The Key Insight
 **File:** Scene3.tsx
 **Time:** 15000 – 25000ms
-**Display mode:** Depth
-**Depth technique:** behind-text-slide
+**Display mode:** Overlay
 
 ### Scene dimensions
-- Width: 1080 Height: 1920 (full canvas — mid-layer fills behind speaker)
+- Width: 1080 Height: 1920
 
 ### Scene placement
-- Layer: midlayer (behind speaker, on top of background video)
+- Placement: overlay-large
 
 ### Animation brief
-Large bold text "THE KEY INSIGHT" slides in from the right behind the speaker,
-settling center-frame. Speaker's body partially occludes the text, creating
-natural depth. Text should be oversized (120px+) and positioned at speaker's
-chest height so the head and shoulders mask the top portion.
+Large "THE KEY INSIGHT" text EMERGES BEHIND the speaker from the right,
+settling at chest height — speaker's shoulders partially occlude it,
+creating depth. A supporting label "everything changes here" slides in
+IN FRONT of the speaker at the bottom third. The contrast between
+behind and in-front elements creates the emphasis beat.
 ```
 
 ### What the Layout Editor writes (manifest)
 
-For depth scenes, the Layout Editor creates items on the **midlayer track** (not the scene track):
+Since matting is always available, **every scene item** gets speaker spatial data — not just depth-specific scenes:
 
 ```typescript
-// 1. Create midlayer track if it doesn't exist
-add_track({ type: "overlay", name: "Midlayer", position: 2 })
-
-// 2. Place scene item on midlayer with full-canvas dimensions
 add_item({
   type: "scene",
-  trackId: "trk-midlayer",
+  trackId: "trk-scenes",
   startMs: 15000,
   endMs: 25000,
   data: {
     sceneFile: "Scene3.tsx",
-    displayMode: "depth",
-    depthTechnique: "behind-text-slide",
+    displayMode: "overlay",
     speakerBbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },  // normalized 0-1
     speakerCenter: { x: 0.50, y: 0.45 },                     // face center
     visibleZones: {                                            // areas NOT behind speaker
@@ -287,15 +284,16 @@ add_item({
       bottom: { x: 0, y: 0.85, w: 1.0, h: 0.15 }
     }
   },
-  transform: { x: 0, y: 0, width: 1080, height: 1920 }  // full canvas
+  transform: { x: 0, y: 0, width: 1080, height: 1920 }
 })
 ```
 
-**Key fields the Layout Editor adds for depth:**
-- `depthTechnique` — which technique the animator should implement
-- `speakerBbox` — normalized bounding box of the speaker (from head tracking)
-- `speakerCenter` — face center point (for radial effects, glow origin, etc.)
-- `visibleZones` — areas not occluded by the speaker (for placing elements that need to be fully visible)
+**Every scene item includes:**
+- `speakerBbox` — normalized bounding box of the speaker (matte-derived)
+- `speakerCenter` — center point (for radial effects, glow origin, etc.)
+- `visibleZones` — areas not occluded by the speaker (for fully-readable content)
+
+The animator reads these to decide where to place behind-speaker vs in-front elements.
 
 **Speaker position source: matte-derived bbox (replaces head tracking).**
 
@@ -308,24 +306,21 @@ The `get_speaker_position` MCP tool will be updated to read from matte-derived d
 ### What the Setup Agent writes (skeleton)
 
 ```tsx
-// src/scenes/Scene3.tsx — skeleton for depth scene
+// src/scenes/Scene3.tsx — skeleton (every scene gets speaker data)
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 
 export const SCENE_WIDTH = 1080;
 export const SCENE_HEIGHT = 1920;
-export const DISPLAY_MODE = 'depth';
-export const DEPTH_TECHNIQUE = 'behind-text-slide';
+export const DISPLAY_MODE = 'overlay';
 
-// Speaker position (normalized 0-1, from head tracking)
+// Speaker position (matte-derived, always available)
 export const SPEAKER = {
   bbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },
   center: { x: 0.50, y: 0.45 },
-  // Pixel helpers
   bboxPx: { x: 302, y: 192, w: 475, h: 1440 },
   centerPx: { x: 540, y: 864 },
 };
 
-// Areas visible around the speaker (not occluded by person layer)
 export const VISIBLE_ZONES = {
   left:   { x: 0, y: 0, w: 302, h: 1920 },
   right:  { x: 778, y: 0, w: 302, h: 1920 },
@@ -339,16 +334,27 @@ export default function Scene3() {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
-  // TODO: Animator implements behind-text-slide here
-  // Your animation renders on the MIDLAYER — behind the speaker.
-  // The person layer (matte) will be composited ON TOP of your output.
-  // Elements behind SPEAKER.bboxPx will be partially hidden by the speaker.
-  // Elements in VISIBLE_ZONES will be fully visible.
+  // Scene has two output layers:
+  // - Elements returned in <BehindSpeaker> render on scene-bg (behind person)
+  // - Elements returned in <InFrontOfSpeaker> render on scene-fg (in front of person)
+  // - Elements behind SPEAKER.bboxPx are partially occluded by the person
+  // - Elements in VISIBLE_ZONES are fully visible
+  //
+  // A single scene can have MULTIPLE animations across both layers:
+  //   - A stat counter emerging behind the speaker
+  //   - A label sliding in front at the bottom
+  //   - A lower third weaving behind the speaker's body
+  // Mix and match layers per element for the best visual result.
 
   return (
-    <AbsoluteFill>
-      {/* Depth animation goes here */}
-    </AbsoluteFill>
+    <>
+      <BehindSpeaker>
+        {/* Elements that render behind the person */}
+      </BehindSpeaker>
+      <InFrontOfSpeaker>
+        {/* Elements that render in front of the person */}
+      </InFrontOfSpeaker>
+    </>
   );
 }
 ```
@@ -363,34 +369,50 @@ The animator's skeleton tells it everything:
 4. **Visible zones**: `VISIBLE_ZONES` → elements here are fully visible, not behind speaker
 5. **Design intent**: elements placed behind `SPEAKER.bboxPx` create the depth effect (partially occluded by person layer)
 
-### Animator prompt additions (`depth-compositing.xml`)
+### Animator prompt additions (`layer-compositing.xml`)
 
-New shared prompt module loaded for depth scenes:
+New shared prompt module loaded for ALL scenes (not just depth):
 
 ```xml
-<depth-compositing>
+<layer-compositing>
   <principle>
-    Your scene renders on the MIDLAYER — between the background video and the
-    person layer. The person (extracted via matte) is composited ON TOP of your
-    output. This means:
-    - Elements behind SPEAKER.bboxPx → partially hidden by speaker = DEPTH EFFECT
-    - Elements in VISIBLE_ZONES → fully visible around the speaker
-    - Elements crossing the speaker edge → natural occlusion at the matte boundary
+    Every scene has two output layers: BehindSpeaker and InFrontOfSpeaker.
+    The person (extracted via matte) sits between them. You can place ANY
+    element on EITHER layer — mix and match for the best visual result.
+
+    A single scene can have MULTIPLE animations across both layers:
+    - A stat counter emerging behind the speaker (BehindSpeaker)
+    - A label positioned as a lower third in front (InFrontOfSpeaker)
+    - A progress bar that starts behind, then a callout pops in front
+    - Background color wash behind + floating data card in front
+
+    The creative brief tells you what goes where. When it says "emerge behind"
+    or "peek from behind shoulders", use BehindSpeaker. When it says "overlay",
+    "lower third", "in front", use InFrontOfSpeaker. When it doesn't specify,
+    use your judgment — whatever makes the video look best.
   </principle>
 
   <spatial-rules>
-    - Position key content so it PEEKS from behind the speaker (partially visible)
-    - Don't center animations directly behind the speaker's face (fully hidden = wasted)
-    - Use SPEAKER.centerPx as the origin for radial/burst effects
-    - Text should be at SPEAKER chest/shoulder height for natural partial occlusion
-    - Animate FROM visible zones INTO the speaker area (slide-in creates reveal)
+    - SPEAKER.bboxPx defines the person's silhouette on canvas
+    - VISIBLE_ZONES are areas around the speaker (not occluded)
+    - BehindSpeaker elements behind SPEAKER.bboxPx → partially hidden = depth effect
+    - BehindSpeaker elements in VISIBLE_ZONES → fully visible
+    - InFrontOfSpeaker elements → always fully visible, on top of person
+    - Position key behind-speaker content to PEEK from edges (partially visible)
+    - Don't put readable text fully behind the speaker's face
+    - Use SPEAKER.centerPx as origin for radial/burst effects
   </spatial-rules>
 
-  <technique-refs>
-    Each DEPTH_TECHNIQUE has a reference implementation in
-    src/components/depth-templates/. Use as starting point, adapt to scene brief.
-  </technique-refs>
-</depth-compositing>
+  <multi-element-scenes>
+    Overlay scenes are no longer limited to a single floating card. With layers,
+    a scene can combine:
+    - Behind: background color wash or pattern
+    - Behind: large stat/text peeking from behind shoulders
+    - Front: lower third name bar
+    - Front: small callout card positioned in a visible zone
+    Stagger entrances so only one element animates at a time.
+  </multi-element-scenes>
+</layer-compositing>
 ```
 
 ### Pre-built depth templates
