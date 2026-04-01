@@ -718,48 +718,20 @@ server.registerTool(
 );
 
 // ---------------------------------------------------------------------------
-// Speaker position tool — canvas-space coordinates with cover-crop transform
+// Speaker position tool — canvas-space coordinates from matte-derived bbox
 // ---------------------------------------------------------------------------
-
-interface SpeakerPositionResult {
-  canvas: { width: number; height: number };
-  videoTransform: {
-    sourceSize: { width: number; height: number };
-    coverScale: number;
-    crop: { x: number; y: number; scale: number };
-    visibleRegion: { x: number; y: number; width: number; height: number };
-  };
-  speaker: {
-    bounds: { top: number; bottom: number; left: number; right: number };
-    face: { x: number; y: number; width: number; height: number };
-    shoulderLine: number;
-    hands: {
-      left: { x: number; y: number; active: boolean };
-      right: { x: number; y: number; active: boolean };
-    };
-    movement: "minimal" | "moderate" | "large";
-  } | null;
-  availableSpace: {
-    above: { from: number; to: number; height: number };
-    below: { from: number; to: number; height: number };
-    left: { from: number; to: number; width: number };
-    right: { from: number; to: number; width: number };
-  };
-  safePlacements: Array<{ name: string; rect: { x: number; y: number; width: number; height: number } }>;
-  confidence: number;
-  source: 'matte' | 'head-tracking';
-}
 
 server.registerTool(
   "get_speaker_position",
   {
     description:
-      "Get the speaker's exact position on the canvas for a given time range. " +
-      "Returns pixel coordinates in canvas space, accounting for objectFit:cover " +
-      "and crop transforms. Includes face bbox, body bounds, shoulder line, hand " +
-      "positions, available space in each direction, and concrete safe placement " +
-      "rects for overlay elements. Use this when implementing overlay scenes to " +
-      "avoid placing visuals on top of the speaker.",
+      "Get the speaker's full-body position on the canvas for a given time range, " +
+      "derived from segmentation matte bounding boxes. Returns pixel coordinates in " +
+      "canvas space, accounting for objectFit:cover and crop transforms. Includes " +
+      "speaker bounds, center point, available space in each direction, and concrete " +
+      "safe placement rects for overlay elements. IMPORTANT: call request_segmentation " +
+      "first for overlay scenes — this tool reads matte bbox data produced by " +
+      "segmentation. If no matte is available, returns generous default bounds.",
     inputSchema: {
       startMs: z.number().describe("Start of time range in milliseconds"),
       endMs: z.number().describe("End of time range in milliseconds"),
@@ -767,60 +739,16 @@ server.registerTool(
   },
   async ({ startMs, endMs }: { startMs: number; endMs: number }) => {
     try {
-      // Prefer matte-derived bbox over head tracking when available.
-      // check_segmentation_status downloads bbox files to public/matte/scene-{id}-bbox.json.
-      // We scan the matte dir for any bbox files and pick the one matching the time range.
-      const matteDir = path.join(WORKSPACE, "public", "matte");
-      let matteBbox: MatteBboxData | null = null;
-      try {
-        const matteFiles = await readdir(matteDir);
-        const bboxFiles = matteFiles.filter(f => f.endsWith('-bbox.json'));
-        // Try each bbox file — find one whose frames overlap with [startMs, endMs]
-        for (const bboxFile of bboxFiles) {
-          const data: MatteBboxData = JSON.parse(await readFile(path.join(matteDir, bboxFile), "utf-8"));
-          if (data.frames && data.frames.length > 0) {
-            const fps = data.fps || 30;
-            // Convert frame numbers to ms and check overlap
-            const firstMs = (data.frames[0].frame / fps) * 1000;
-            const lastMs = (data.frames[data.frames.length - 1].frame / fps) * 1000;
-            if (firstMs <= endMs && lastMs >= startMs) {
-              matteBbox = data;
-              break;
-            }
-          }
-        }
-      } catch {
-        // Matte bbox not available — fall through to head tracking
-      }
-
-      // 1. Read head tracking data
-      const trackingPath = path.join(WORKSPACE, "docs", "speaker-grid.json");
-      let trackingData: HeadTrackingData;
-      try {
-        trackingData = JSON.parse(await readFile(trackingPath, "utf-8"));
-      } catch {
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              error: "Head tracking data not available.",
-              hint: "Design overlay with generous margins on all sides.",
-            }),
-          }],
-          isError: true,
-        };
-      }
-
-      const srcW = trackingData.video?.width || 1920;
-      const srcH = trackingData.video?.height || 1080;
-
-      // 2. Read manifest for video item geometry and canvas
+      // 1. Read manifest for video item geometry and canvas size
       const manifestPath = path.join(WORKSPACE, "manifest.json");
       const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
       const canvas = manifest.canvas || { width: 1080, height: 1920 };
 
+      // Source video dimensions — check manifest sourceWidth/sourceHeight, fall back to canvas
+      const srcW: number = manifest.canvas?.sourceWidth ?? canvas.width;
+      const srcH: number = manifest.canvas?.sourceHeight ?? canvas.height;
+
       // Find video item active during [startMs, endMs]
-      // Manifest uses flat items[] array with trackId references
       let videoItem: any = null;
       let bestOverlap = 0;
       for (const item of manifest.items || []) {
@@ -836,7 +764,7 @@ server.registerTool(
         }
       }
 
-      // Video item dimensions from item.transform (not item.width/height)
+      // Video item dimensions from item.transform
       const vt = videoItem?.transform || {};
       const itemW = typeof vt.width === 'number' ? vt.width : canvas.width;
       const itemH = typeof vt.height === 'number' ? vt.height : canvas.height;
@@ -846,204 +774,87 @@ server.registerTool(
       const cropY = videoItem?.data?.crop?.y ?? 50;
       const cropScale = videoItem?.data?.crop?.scale ?? 1;
 
-      // 3. Compute cover transform
+      // 2. Compute cover transform
       const transform = computeCoverTransform(srcW, srcH, itemW, itemH, cropX, cropY, cropScale);
 
-      // Visible region in source pixels
-      const visOffsetX = transform.offsetX / transform.baseCoverScale;
-      const visOffsetY = transform.offsetY / transform.baseCoverScale;
-      const visW = itemW / (transform.baseCoverScale * cropScale);
-      const visH = itemH / (transform.baseCoverScale * cropScale);
-
-      // 4. Filter tracking frames to time range
-      const frames = (trackingData.frames || []).filter(
-        (f) => f.timestamp_ms >= startMs && f.timestamp_ms <= endMs
-      );
-      const withFace = frames.filter((f) => f.face?.bbox);
-      const confidence = frames.length > 0 ? withFace.length / frames.length : 0;
-
-      if (withFace.length === 0) {
-        // No detections — entire canvas is safe
-        const result: SpeakerPositionResult = {
-          canvas,
-          videoTransform: {
-            sourceSize: { width: srcW, height: srcH },
-            coverScale: transform.baseCoverScale,
-            crop: { x: cropX, y: cropY, scale: cropScale },
-            visibleRegion: { x: Math.round(visOffsetX), y: Math.round(visOffsetY), width: Math.round(visW), height: Math.round(visH) },
-          },
-          speaker: null,
-          availableSpace: {
-            above: { from: 0, to: canvas.height, height: canvas.height },
-            below: { from: 0, to: canvas.height, height: canvas.height },
-            left: { from: 0, to: canvas.width, width: canvas.width },
-            right: { from: 0, to: canvas.width, width: canvas.width },
-          },
-          safePlacements: [{ name: "entire-canvas", rect: { x: 0, y: 0, width: canvas.width, height: canvas.height } }],
-          confidence: 0,
-          source: 'head-tracking',
-        };
-        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-      }
-
-      // 5. Transform all detections to canvas space and aggregate
-      let boundsTop = Infinity, boundsBottom = -Infinity;
-      let boundsLeft = Infinity, boundsRight = -Infinity;
-      let faceSumX = 0, faceSumY = 0, faceSumW = 0, faceSumH = 0;
-      let shoulderSumY = 0, shoulderCount = 0;
-      let handLSumX = 0, handLSumY = 0, handLCount = 0;
-      let handRSumX = 0, handRSumY = 0, handRCount = 0;
-      const handLPositions: { x: number; y: number }[] = [];
-      const handRPositions: { x: number; y: number }[] = [];
-      const faceCenters: { x: number; y: number }[] = [];
-
-      for (const f of withFace) {
-        const bbox = f.face!.bbox;
-
-        // Transform face bbox corners
-        const topLeft = sourceToCanvas(bbox.x, bbox.y, transform, itemX, itemY);
-        const bottomRight = sourceToCanvas(bbox.x + bbox.width, bbox.y + bbox.height, transform, itemX, itemY);
-
-        const fX = Math.min(topLeft.x, bottomRight.x);
-        const fY = Math.min(topLeft.y, bottomRight.y);
-        const fW = Math.abs(bottomRight.x - topLeft.x);
-        const fH = Math.abs(bottomRight.y - topLeft.y);
-
-        faceSumX += fX; faceSumY += fY; faceSumW += fW; faceSumH += fH;
-        faceCenters.push({ x: fX + fW / 2, y: fY + fH / 2 });
-
-        // Update body bounds with face
-        boundsTop = Math.min(boundsTop, fY);
-        boundsBottom = Math.max(boundsBottom, fY + fH);
-        boundsLeft = Math.min(boundsLeft, fX);
-        boundsRight = Math.max(boundsRight, fX + fW);
-
-        // Body landmarks
-        if (f.body) {
-          if (f.body.left_shoulder && f.body.left_shoulder.visible !== false) {
-            const ls = sourceToCanvas(f.body.left_shoulder.x, f.body.left_shoulder.y, transform, itemX, itemY);
-            shoulderSumY += ls.y; shoulderCount++;
-            boundsBottom = Math.max(boundsBottom, ls.y);
-            boundsLeft = Math.min(boundsLeft, ls.x);
-            boundsRight = Math.max(boundsRight, ls.x);
-          }
-          if (f.body.right_shoulder && f.body.right_shoulder.visible !== false) {
-            const rs = sourceToCanvas(f.body.right_shoulder.x, f.body.right_shoulder.y, transform, itemX, itemY);
-            shoulderSumY += rs.y; shoulderCount++;
-            boundsBottom = Math.max(boundsBottom, rs.y);
-            boundsLeft = Math.min(boundsLeft, rs.x);
-            boundsRight = Math.max(boundsRight, rs.x);
-          }
-          if (f.body.left_hand?.visible) {
-            const lh = sourceToCanvas(f.body.left_hand.x, f.body.left_hand.y, transform, itemX, itemY);
-            handLSumX += lh.x; handLSumY += lh.y; handLCount++;
-            handLPositions.push(lh);
-            boundsBottom = Math.max(boundsBottom, lh.y);
-            boundsLeft = Math.min(boundsLeft, lh.x);
-            boundsRight = Math.max(boundsRight, lh.x);
-          }
-          if (f.body.right_hand?.visible) {
-            const rh = sourceToCanvas(f.body.right_hand.x, f.body.right_hand.y, transform, itemX, itemY);
-            handRSumX += rh.x; handRSumY += rh.y; handRCount++;
-            handRPositions.push(rh);
-            boundsBottom = Math.max(boundsBottom, rh.y);
-            boundsLeft = Math.min(boundsLeft, rh.x);
-            boundsRight = Math.max(boundsRight, rh.x);
+      // 3. Scan public/matte/ for bbox JSON files matching the time range
+      const matteDir = path.join(WORKSPACE, "public", "matte");
+      let matteBbox: MatteBboxData | null = null;
+      try {
+        const matteFiles = await readdir(matteDir);
+        const bboxFiles = matteFiles.filter(f => f.endsWith('-bbox.json'));
+        for (const bboxFile of bboxFiles) {
+          const data: MatteBboxData = JSON.parse(await readFile(path.join(matteDir, bboxFile), "utf-8"));
+          if (data.frames && data.frames.length > 0) {
+            const fps = data.fps || 30;
+            const firstMs = (data.frames[0].frame / fps) * 1000;
+            const lastMs = (data.frames[data.frames.length - 1].frame / fps) * 1000;
+            if (firstMs <= endMs && lastMs >= startMs) {
+              matteBbox = data;
+              break;
+            }
           }
         }
+      } catch {
+        // Matte dir not available — will use defaults
       }
 
-      // Clamp bounds to canvas
-      boundsTop = Math.max(0, Math.round(boundsTop));
-      boundsBottom = Math.min(canvas.height, Math.round(boundsBottom));
-      boundsLeft = Math.max(0, Math.round(boundsLeft));
-      boundsRight = Math.min(canvas.width, Math.round(boundsRight));
+      let boundsTop: number;
+      let boundsBottom: number;
+      let boundsLeft: number;
+      let boundsRight: number;
+      let source: 'matte' | 'defaults';
 
-      // Override bounds with matte-derived bbox when available (more accurate full-body)
       if (matteBbox && matteBbox.frames.length > 0) {
+        // 4. Matte bbox found — compute speaker bounds from averaged frames in the time range
         const mFps = matteBbox.fps || 30;
-        // Filter matte frames to time range (frame number → ms)
         const matteFrames = matteBbox.frames.filter(mf => {
           const ms = (mf.frame / mFps) * 1000;
           return ms >= startMs && ms <= endMs;
         });
 
-        if (matteFrames.length > 0) {
-          // Matte bbox uses normalized 0-1 coords — scale to source resolution
-          let mLeft = 0, mTop = 0, mRight = 0, mBottom = 0;
-          for (const mf of matteFrames) {
-            mLeft += mf.x * srcW;
-            mTop += mf.y * srcH;
-            mRight += (mf.x + mf.w) * srcW;
-            mBottom += (mf.y + mf.h) * srcH;
-          }
-          mLeft /= matteFrames.length;
-          mTop /= matteFrames.length;
-          mRight /= matteFrames.length;
-          mBottom /= matteFrames.length;
+        // Fall back to all frames if none match the exact range
+        const framesToUse = matteFrames.length > 0 ? matteFrames : matteBbox.frames;
 
-          // Transform to canvas space
-          const topLeftMatte = sourceToCanvas(mLeft, mTop, transform, itemX, itemY);
-          const bottomRightMatte = sourceToCanvas(mRight, mBottom, transform, itemX, itemY);
-
-          // Override body bounds with matte-derived values
-          boundsLeft = Math.max(0, Math.round(Math.min(topLeftMatte.x, bottomRightMatte.x)));
-          boundsTop = Math.max(0, Math.round(Math.min(topLeftMatte.y, bottomRightMatte.y)));
-          boundsRight = Math.min(canvas.width, Math.round(Math.max(topLeftMatte.x, bottomRightMatte.x)));
-          boundsBottom = Math.min(canvas.height, Math.round(Math.max(topLeftMatte.y, bottomRightMatte.y)));
-
-          console.error(`[asset-server] Using matte-derived speaker bounds (${matteFrames.length} frames)`);
+        let mLeft = 0, mTop = 0, mRight = 0, mBottom = 0;
+        for (const mf of framesToUse) {
+          mLeft += mf.x * srcW;
+          mTop += mf.y * srcH;
+          mRight += (mf.x + mf.w) * srcW;
+          mBottom += (mf.y + mf.h) * srcH;
         }
+        mLeft /= framesToUse.length;
+        mTop /= framesToUse.length;
+        mRight /= framesToUse.length;
+        mBottom /= framesToUse.length;
+
+        // Transform to canvas space
+        const topLeftMatte = sourceToCanvas(mLeft, mTop, transform, itemX, itemY);
+        const bottomRightMatte = sourceToCanvas(mRight, mBottom, transform, itemX, itemY);
+
+        boundsLeft = Math.max(0, Math.round(Math.min(topLeftMatte.x, bottomRightMatte.x)));
+        boundsTop = Math.max(0, Math.round(Math.min(topLeftMatte.y, bottomRightMatte.y)));
+        boundsRight = Math.min(canvas.width, Math.round(Math.max(topLeftMatte.x, bottomRightMatte.x)));
+        boundsBottom = Math.min(canvas.height, Math.round(Math.max(topLeftMatte.y, bottomRightMatte.y)));
+        source = 'matte';
+
+        console.error(`[asset-server] Using matte-derived speaker bounds (${framesToUse.length} frames)`);
+      } else {
+        // 5. No matte bbox — return generous default center-screen bounds
+        boundsLeft = Math.round(canvas.width * 0.25);
+        boundsTop = Math.round(canvas.height * 0.05);
+        boundsRight = Math.round(canvas.width * 0.75);
+        boundsBottom = Math.round(canvas.height * 0.90);
+        source = 'defaults';
+
+        console.error(`[asset-server] No matte bbox available — using default speaker bounds`);
       }
 
-      const n = withFace.length;
-      const face = {
-        x: Math.round(faceSumX / n),
-        y: Math.round(faceSumY / n),
-        width: Math.round(faceSumW / n),
-        height: Math.round(faceSumH / n),
-      };
+      const centerX = Math.round((boundsLeft + boundsRight) / 2);
+      const centerY = Math.round((boundsTop + boundsBottom) / 2);
 
-      const shoulderLine = shoulderCount > 0 ? Math.round(shoulderSumY / shoulderCount) : face.y + face.height;
-
-      // Hand activity — active if hand moves >15% of canvas height
-      const handThreshold = canvas.height * 0.15;
-
-      function isHandActive(positions: { x: number; y: number }[]): boolean {
-        if (positions.length < 2) return false;
-        let minY = Infinity, maxY = -Infinity;
-        for (const p of positions) { minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
-        return (maxY - minY) > handThreshold;
-      }
-
-      const hands = {
-        left: {
-          x: handLCount > 0 ? Math.round(handLSumX / handLCount) : boundsLeft,
-          y: handLCount > 0 ? Math.round(handLSumY / handLCount) : boundsBottom,
-          active: isHandActive(handLPositions),
-        },
-        right: {
-          x: handRCount > 0 ? Math.round(handRSumX / handRCount) : boundsRight,
-          y: handRCount > 0 ? Math.round(handRSumY / handRCount) : boundsBottom,
-          active: isHandActive(handRPositions),
-        },
-      };
-
-      // Movement classification
-      const canvasDiag = Math.sqrt(canvas.width ** 2 + canvas.height ** 2);
-      let movement: "minimal" | "moderate" | "large" = "minimal";
-      if (faceCenters.length > 1) {
-        const avgX = faceCenters.reduce((s, p) => s + p.x, 0) / faceCenters.length;
-        const avgY = faceCenters.reduce((s, p) => s + p.y, 0) / faceCenters.length;
-        const variance = faceCenters.reduce((s, p) => s + (p.x - avgX) ** 2 + (p.y - avgY) ** 2, 0) / faceCenters.length;
-        const stddev = Math.sqrt(variance);
-        const pct = stddev / canvasDiag * 100;
-        if (pct >= 8) movement = "large";
-        else if (pct >= 2) movement = "moderate";
-      }
-
-      // 6. Compute available space
-      const margin = movement === "large" ? 80 : movement === "moderate" ? 40 : 20;
+      // 6. Compute available space (20px margin)
+      const margin = 20;
       const availableSpace = {
         above: { from: 0, to: Math.max(0, boundsTop - margin), height: Math.max(0, boundsTop - margin) },
         below: { from: Math.min(canvas.height, boundsBottom + margin), to: canvas.height, height: Math.max(0, canvas.height - boundsBottom - margin) },
@@ -1052,7 +863,7 @@ server.registerTool(
       };
 
       // 7. Generate safe placements
-      const safePlacements: SpeakerPositionResult["safePlacements"] = [];
+      const safePlacements: Array<{ name: string; rect: { x: number; y: number; width: number; height: number } }> = [];
       const minDimPct = 0.10;
 
       if (availableSpace.above.height > canvas.height * minDimPct) {
@@ -1086,19 +897,15 @@ server.registerTool(
         });
       }
 
-      const result: SpeakerPositionResult = {
-        canvas,
-        videoTransform: {
-          sourceSize: { width: srcW, height: srcH },
-          coverScale: transform.baseCoverScale,
-          crop: { x: cropX, y: cropY, scale: cropScale },
-          visibleRegion: { x: Math.round(visOffsetX), y: Math.round(visOffsetY), width: Math.round(visW), height: Math.round(visH) },
+      const result = {
+        canvas: { width: canvas.width, height: canvas.height },
+        speaker: {
+          bounds: { top: boundsTop, bottom: boundsBottom, left: boundsLeft, right: boundsRight },
+          center: { x: centerX, y: centerY },
         },
-        speaker: { bounds: { top: boundsTop, bottom: boundsBottom, left: boundsLeft, right: boundsRight }, face, shoulderLine, hands, movement },
         availableSpace,
         safePlacements,
-        confidence,
-        source: matteBbox ? 'matte' : 'head-tracking',
+        source,
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
@@ -1454,16 +1261,8 @@ server.registerTool(
         // Directory doesn't exist — no mattes available
       }
 
-      // Check workspace flag for segmentation capability
-      let segmentationEnabled = false;
-      try {
-        const flagPath = path.join(WORKSPACE, "docs", "segmentation-available.json");
-        const flagData = JSON.parse(await readFile(flagPath, "utf-8"));
-        segmentationEnabled = flagData.available === true;
-      } catch {
-        // Flag file doesn't exist — check env vars as fallback
-        segmentationEnabled = !!(API_INTERNAL_URL && PROJECT_ID);
-      }
+      // Segmentation is available whenever the sandbox has API access
+      const segmentationEnabled = !!(API_INTERNAL_URL && PROJECT_ID);
 
       const scenes = matteFiles.map(f => {
         const sceneId = f.replace(".mp4", "");
