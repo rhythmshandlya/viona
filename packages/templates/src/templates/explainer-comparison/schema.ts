@@ -14,6 +14,16 @@ export const schema = z.object({
     'One-time cost',
     'Data stays local',
   ]),
+  speakerBbox: z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().min(0).max(1),
+    h: z.number().min(0).max(1),
+  }).optional(),
+  speakerCenter: z.object({
+    x: z.number(),
+    y: z.number(),
+  }).optional(),
 });
 
 export type ExplainerComparisonProps = z.infer<typeof schema>;
