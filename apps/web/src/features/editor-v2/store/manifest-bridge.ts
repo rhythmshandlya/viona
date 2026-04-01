@@ -120,10 +120,10 @@ export function manifestToStore(
     type: t.type === 'overlay' ? 'overlay' : t.type as Track['type'],
     name: t.name,
     position: t.position,
-    locked: false,
+    locked: t.name === 'person' ? true : false,
     visible: true,
     height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'overlay' ? 48 : 28,
-    collapsed: false,
+    collapsed: t.name === 'person' ? true : false,
   }));
 
   const rawPreset = (manifest as any).captionPreset ?? (manifest as any).captionStyle;
