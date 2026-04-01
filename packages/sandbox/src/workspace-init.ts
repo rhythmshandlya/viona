@@ -497,10 +497,10 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   }
 
   // Write segmentation availability flag
-  if ((payload as any).segmentationAvailable !== undefined) {
+  if (payload.segmentationAvailable !== undefined) {
     await writeFile(
       join(baseDir, 'docs', 'segmentation-available.json'),
-      JSON.stringify({ available: !!(payload as any).segmentationAvailable }),
+      JSON.stringify({ available: !!payload.segmentationAvailable }),
     );
   }
 
