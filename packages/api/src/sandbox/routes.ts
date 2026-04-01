@@ -570,6 +570,45 @@ export function createSandboxRoutes(manager: SandboxManager) {
         return reply.status(500).send({ error: 'Failed to stream matte file' });
       }
     });
+
+    // GET /internal/sandbox/:id/segment/:jobId/bbox — Download matte bbox JSON
+    fastify.get('/internal/sandbox/:id/segment/:jobId/bbox', async (request, reply) => {
+      const projectId = await validateInternalCallback(request, reply);
+      if (!projectId) return;
+
+      const { jobId } = request.params as { jobId: string };
+
+      const [job] = await db.select().from(jobs)
+        .where(and(
+          eq(jobs.id, jobId),
+          eq(jobs.projectId, projectId),
+        ))
+        .limit(1);
+
+      if (!job) {
+        return reply.status(404).send({ error: 'Job not found' });
+      }
+
+      if (job.status !== 'complete') {
+        return reply.status(409).send({ error: `Job status is ${job.status}, not complete` });
+      }
+
+      const meta = job.progressMeta as { sceneId?: string; outputKey?: string } | null;
+      const outputKey = meta?.outputKey;
+      if (!outputKey) {
+        return reply.status(500).send({ error: 'No outputKey in job metadata' });
+      }
+
+      const bboxKey = outputKey.replace(/\.mp4$/, '-bbox.json');
+
+      try {
+        const stream = await getObjectStream('outputs', bboxKey);
+        reply.header('Content-Type', 'application/json');
+        return reply.send(stream);
+      } catch (err) {
+        return reply.status(404).send({ error: 'Bbox file not found' });
+      }
+    });
   };
 }
 

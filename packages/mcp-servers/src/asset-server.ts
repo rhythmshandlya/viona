@@ -22,7 +22,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { writeFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { writeFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { URL } from "node:url";
 import { Open as unzipOpen } from "unzipper";
@@ -1358,31 +1358,51 @@ server.registerTool(
 
       for (const job of data.jobs) {
         if (job.status === "complete" && job.sceneId) {
-          const localPath = path.join(MATTE_DIR, `${job.sceneId}.mp4`);
-          // Check if already downloaded
+          const localMattePath = path.join(MATTE_DIR, `${job.sceneId}.mp4`);
+          const localBboxPath = path.join(MATTE_DIR, `${job.sceneId}-bbox.json`);
+
+          // Download matte video (skip if already exists)
           try {
-            await readFile(localPath);
+            await stat(localMattePath);
             downloaded.push(job.sceneId);
-            continue;
           } catch {
-            // Not yet downloaded — fetch from API
+            try {
+              const matteRes = await fetch(
+                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/matte`,
+                {
+                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+                  signal: AbortSignal.timeout(60_000),
+                }
+              );
+              if (matteRes.ok) {
+                const buf = Buffer.from(await matteRes.arrayBuffer());
+                await writeFile(localMattePath, buf);
+                downloaded.push(job.sceneId);
+              }
+            } catch (dlErr) {
+              console.error(`[asset-server] Failed to download matte for ${job.sceneId}:`, dlErr);
+            }
           }
 
+          // Download bbox JSON (skip if already exists)
           try {
-            const matteRes = await fetch(
-              `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/matte`,
-              {
-                headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-                signal: AbortSignal.timeout(60_000),
+            await stat(localBboxPath);
+          } catch {
+            try {
+              const bboxRes = await fetch(
+                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/bbox`,
+                {
+                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+                  signal: AbortSignal.timeout(15_000),
+                }
+              );
+              if (bboxRes.ok) {
+                const text = await bboxRes.text();
+                await writeFile(localBboxPath, text);
               }
-            );
-            if (matteRes.ok) {
-              const buf = Buffer.from(await matteRes.arrayBuffer());
-              await writeFile(localPath, buf);
-              downloaded.push(job.sceneId);
+            } catch {
+              // Bbox download is best-effort — speaker position falls back to head tracking
             }
-          } catch (dlErr) {
-            console.error(`[asset-server] Failed to download matte for ${job.sceneId}:`, dlErr);
           }
         }
       }
