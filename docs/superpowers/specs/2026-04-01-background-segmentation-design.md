@@ -309,19 +309,21 @@ No matte is downloaded during init — it doesn't exist yet.
 
 ### Orchestrator pipeline
 
+Animations are Remotion components — they don't reference the matte file at write time. The matte is only needed when Remotion actually renders frames (review stills / final render). So ALL creative work proceeds without waiting.
+
 ```
 Phase 1: Init (download video, audio, extract, proxy)
-Phase 2: Plan (planner knows segmentation is available, decides depth scenes)
-Phase 3: Request matting (agent calls request_segmentation for depth scene ranges)
-Phase 4: Setup (constants, shared components including SandwichComposite)
-         ↳ non-depth scenes can proceed in parallel
-Phase 5: Layout (creates track structure; depth scenes wait for matte)
-Phase 6: Animate
-         ├── Non-depth scenes: animate immediately
-         └── Depth scenes: animate when matte clips arrive in public/matte/
-Phase 7: Review (render stills, verify depth compositing)
-Phase 8: Final assembly
+Phase 2: Plan (decides depth scenes, calls request_segmentation → worker starts async)
+Phase 3: Setup (constants, shared components including SandwichComposite)
+Phase 4: Layout (creates track structure for all scenes, including depth scenes)
+Phase 5: Animate ALL scenes (depth and non-depth — no matte needed to write code)
+         ↳ Matte processing runs in background on worker GPU
+Phase 6: Await matte delivery (matte clips arrive in public/matte/ before render)
+Phase 7: Review (render stills — matte now available for compositing)
+Phase 8: Final assembly + render
 ```
+
+**Nothing blocks on the matte until Phase 7 (review).** The agent requests matting early (Phase 2) and it completes in the background while all animation work proceeds.
 
 ### Matte delivery to workspace
 
@@ -386,7 +388,7 @@ JIT = "script+freeze"        # Fused ops
 |------|----------|
 | No person detected (no head tracking) | `segmentationAvailable: false`; planner skips depth mode entirely |
 | Worker segmentation job fails | Agent falls back to non-depth display mode for that scene |
-| Worker segmentation slow | Agent animates non-depth scenes first; depth scenes wait for matte |
+| Worker segmentation slow | No impact — all animations are written without matte; only review/render waits |
 | Multiple people | RVM segments all as foreground (single matte) — acceptable for V1 |
 | Speaker moves rapidly | Planner avoids depth mode for fast-motion sections (matte edges degrade) |
 | Many depth scenes requested | Worker processes ranges in parallel; each is short (5-30s) |
