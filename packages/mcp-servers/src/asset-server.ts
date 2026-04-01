@@ -41,47 +41,6 @@ import {
 /** Headers passed to fetch requests. */
 type FetchHeaders = Record<string, string>;
 
-/** Bounding box for a detected face in pixel coordinates. */
-interface FaceBbox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/** A single frame of head tracking data. */
-interface HeadTrackingFrame {
-  frame?: number;
-  timestamp_ms: number;
-  face?: {
-    bbox: FaceBbox;
-    landmarks?: Record<string, { x: number; y: number }>;
-  } | null;
-  body?: {
-    left_shoulder?: { x: number; y: number; visible?: boolean };
-    right_shoulder?: { x: number; y: number; visible?: boolean };
-    left_hand?: { x: number; y: number; visible?: boolean };
-    right_hand?: { x: number; y: number; visible?: boolean };
-  } | null;
-  confidence?: number;
-  detection_failed?: boolean;
-}
-
-/** Full head tracking data file structure. */
-interface HeadTrackingData {
-  video?: {
-    width?: number;
-    height?: number;
-  };
-  frames: HeadTrackingFrame[];
-  shots?: Array<{
-    frame: number;
-    timestamp_ms: number;
-    score: number;
-    signals: string[];
-  }>;
-}
-
 /** Matte-derived bounding box data (per-frame, normalized 0-1 coords from alpha channel analysis). */
 interface MatteBboxFrame {
   frame: number;
@@ -596,57 +555,53 @@ server.registerTool(
   },
   async () => {
     try {
-      // 1. Read head tracking data
-      const trackingPath = path.join(WORKSPACE, "docs", "speaker-grid.json");
-      let trackingData: HeadTrackingData;
+      // 1. Read matte bbox data to find speaker center
+      const matteDir = path.join(WORKSPACE, "public", "matte");
+      let allBboxFrames: MatteBboxFrame[] = [];
+      let srcW = 0, srcH = 0;
       try {
-        trackingData = JSON.parse(await readFile(trackingPath, "utf-8"));
+        const matteFiles = await readdir(matteDir);
+        const bboxFiles = matteFiles.filter(f => f.endsWith('-bbox.json'));
+        for (const bboxFile of bboxFiles) {
+          const data: MatteBboxData = JSON.parse(await readFile(path.join(matteDir, bboxFile), "utf-8"));
+          if (data.frames && data.frames.length > 0) {
+            allBboxFrames.push(...data.frames);
+          }
+        }
       } catch {
+        // No matte data available
+      }
+
+      if (allBboxFrames.length === 0) {
         return {
           content: [{
             type: "text" as const,
             text: JSON.stringify({
               adjusted: false,
-              reason: "No head tracking data available at docs/speaker-grid.json",
+              reason: "No matte bbox data available. Call request_segmentation first. Keeping default crop.",
             }),
           }],
         };
       }
 
-      const frames = trackingData.frames || [];
-      const videoW = trackingData.video?.width || 1;
-      const videoH = trackingData.video?.height || 1;
-
-      // Filter to frames with face detections
-      const withFace = frames.filter((f) => f.face?.bbox);
-      if (withFace.length === 0) {
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              adjusted: false,
-              reason: "No face detections found in tracking data. Keeping default crop.",
-            }),
-          }],
-        };
-      }
-
-      // 2. Compute average face center in source pixels
-      let sumX = 0, sumY = 0;
-      for (const f of withFace) {
-        const b = f.face!.bbox;
-        sumX += b.x + b.width / 2;
-        sumY += b.y + b.height / 2;
-      }
-      const faceCenterX = sumX / withFace.length;
-      const faceCenterY = sumY / withFace.length;
-
-      // 3. Read manifest to find video items and canvas dimensions
+      // 2. Read manifest to get source video dimensions
       const manifestPath = path.join(WORKSPACE, "manifest.json");
       const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
       const canvas = manifest.canvas || { width: 1080, height: 1920 };
+      const videoW = canvas.sourceWidth || canvas.width;
+      const videoH = canvas.sourceHeight || canvas.height;
 
-      // Find all video items (manifest uses flat items[] array with trackId references)
+      // 3. Compute average body center in source pixels from matte bbox
+      let sumX = 0, sumY = 0;
+      for (const mf of allBboxFrames) {
+        // Matte bbox is normalized 0-1 — convert to source pixels
+        sumX += (mf.x + mf.w / 2) * videoW;
+        sumY += (mf.y + mf.h / 2) * videoH;
+      }
+      const faceCenterX = sumX / allBboxFrames.length;
+      const faceCenterY = sumY / allBboxFrames.length;
+
+      // 4. Find all video items and update crop
       const updated: Array<{ itemId: string; trackId: string; cropX: number; cropY: number }> = [];
 
       for (const item of manifest.items || []) {

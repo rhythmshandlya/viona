@@ -70,7 +70,13 @@ Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 - If your scene could be a static PowerPoint slide, redesign it. The viewer should feel motion and visual relationships, not layout.
 - No generic card wrapper components (GlassCard, DataCard). Build scene-specific visuals.
 
+## interpolate() Rules — CRITICAL
+- `inputRange` MUST be strictly monotonically increasing: `[0, 100]` is valid, `[400, 100]` CRASHES.
+- If you need "higher input = lower output", swap both ranges: `interpolate(x, [100, 400], [0.4, 0])` not `interpolate(x, [400, 100], [0, 0.4])`.
+- ALWAYS include `extrapolateLeft: 'clamp', extrapolateRight: 'clamp'` to prevent runaway values.
+
 ## Video Positioning
 - Video uses `objectFit: 'cover'` with optional `crop` settings (`objectPosition` + `scale`).
 - `auto_center_speaker` sets optimal crop values to center the speaker's face (called by Layout Editor).
-- `get_speaker_position` returns the speaker's exact canvas-space coordinates for a time range. Use this when placing overlay elements — it accounts for the cover crop transform and returns concrete `safePlacements` rects.
+- `get_speaker_position` returns the speaker's full-body canvas-space coordinates for a time range, derived from segmentation matte data. Use this when placing overlay elements — it accounts for the cover crop transform and returns concrete `safePlacements` rects.
+- Speaker position data comes from segmentation mattes in `public/matte/` — do NOT read these files directly, use the tool.
