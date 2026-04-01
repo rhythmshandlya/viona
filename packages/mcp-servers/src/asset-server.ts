@@ -95,7 +95,7 @@ const UNSPLASH_ACCESS_KEY: string = process.env.UNSPLASH_ACCESS_KEY || "";
 const PEXELS_API_KEY: string = process.env.PEXELS_API_KEY || "";
 
 // Segmentation / depth compositing env vars (set by sandbox orchestrator)
-const API_INTERNAL_URL: string = process.env.API_INTERNAL_URL || "";
+const API_INTERNAL_URL: string = process.env.API_CALLBACK_URL || "";
 const SANDBOX_SECRET: string = process.env.SANDBOX_SECRET || "";
 const PROJECT_ID: string = process.env.PROJECT_ID || "";
 const MATTE_DIR: string = path.join(WORKSPACE, "public", "matte");
@@ -1277,7 +1277,7 @@ server.registerTool(
       const downloaded: string[] = [];
 
       for (const job of data.jobs) {
-        if (job.status === "completed" && job.sceneId) {
+        if (job.status === "complete" && job.sceneId) {
           const localPath = path.join(MATTE_DIR, `${job.sceneId}.mp4`);
           // Check if already downloaded
           try {
@@ -1359,7 +1359,7 @@ server.registerTool(
       try {
         const flagPath = path.join(WORKSPACE, "docs", "segmentation-available.json");
         const flagData = JSON.parse(await readFile(flagPath, "utf-8"));
-        segmentationEnabled = flagData.enabled === true;
+        segmentationEnabled = flagData.available === true;
       } catch {
         // Flag file doesn't exist — check env vars as fallback
         segmentationEnabled = !!(API_INTERNAL_URL && PROJECT_ID);

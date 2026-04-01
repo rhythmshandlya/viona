@@ -524,7 +524,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
         error: j.error,
       }));
 
-      const allComplete = jobStatuses.length > 0 && jobStatuses.every(j => j.status === 'completed');
+      const allComplete = jobStatuses.length > 0 && jobStatuses.every(j => j.status === 'complete');
       const anyFailed = jobStatuses.some(j => j.status === 'failed');
 
       return { jobs: jobStatuses, allComplete, anyFailed };
@@ -548,8 +548,8 @@ export function createSandboxRoutes(manager: SandboxManager) {
         return reply.status(404).send({ error: 'Job not found' });
       }
 
-      if (job.status !== 'completed') {
-        return reply.status(409).send({ error: `Job status is ${job.status}, not completed` });
+      if (job.status !== 'complete') {
+        return reply.status(409).send({ error: `Job status is ${job.status}, not complete` });
       }
 
       const meta = job.progressMeta as { sceneId?: string; outputKey?: string } | null;
