@@ -303,6 +303,28 @@ export class CanvasRenderer {
         zoom: viewport.zoom,
       };
       renderer.draw(ctx, item, rect, renderState);
+      // Draw BG/FG depth badge for scene items on depth tracks
+      if (width > 28) {
+        const badge = track.name === 'scene-bg' ? 'BG' : track.name === 'scene-fg' ? 'FG' : null;
+        if (badge) {
+          const badgeColor = track.name === 'scene-bg' ? '#60a5fa' : '#fbbf24';
+          const badgeBg = track.name === 'scene-bg' ? 'rgba(59,130,246,0.3)' : 'rgba(251,191,36,0.3)';
+          const badgeW = 20;
+          const badgeH = 12;
+          const bx = x + width - badgeW - 4;
+          const by = y + 4;
+          ctx.save();
+          ctx.fillStyle = badgeBg;
+          this.roundRect(bx, by, badgeW, badgeH, 3);
+          ctx.fill();
+          ctx.fillStyle = badgeColor;
+          ctx.font = 'bold 8px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(badge, bx + badgeW / 2, by + badgeH / 2);
+          ctx.restore();
+        }
+      }
       return; // Skip fallback
     }
 
