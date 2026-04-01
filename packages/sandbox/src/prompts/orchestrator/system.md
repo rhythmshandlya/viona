@@ -158,22 +158,25 @@ After Planner returns:
 
 Your only job between Planner and plan approval is: read the plan, check diversity, show the widget.
 
-#### After plan approval: Request segmentation (if needed)
+#### After plan approval: Request segmentation for overlay scenes
 
 After the user approves the scene plan and BEFORE dispatching the Setup Agent:
 
-1. Read `docs/SCENE_PLAN.md` and identify overlay scenes whose animation brief uses depth vocabulary (emerge-behind, peek-sides, cascade-behind, weave-through, split-depth, background-fill, depth-lower-third, flank, radial-from-speaker, parallax-offset, depth-reveal).
-2. If any depth scenes exist, call `request_segmentation` with the time ranges of those scenes:
+1. Read `docs/SCENE_PLAN.md` and collect ALL overlay scenes (display mode: Overlay).
+2. Call `request_segmentation` with the time ranges of every overlay scene:
    ```
    request_segmentation({
      ranges: [
-       { startMs: 15000, endMs: 25000, sceneId: "scene-2" },
-       { startMs: 45000, endMs: 55000, sceneId: "scene-5" },
+       { startMs: 0, endMs: 6300, sceneId: "scene-1" },
+       { startMs: 21020, endMs: 28760, sceneId: "scene-4" },
+       { startMs: 35200, endMs: 41260, sceneId: "scene-6" },
      ]
    })
    ```
 3. This is non-blocking — the worker starts GPU matting in the background. Continue immediately to Phase 4.
-4. If NO overlay scenes use depth vocabulary, skip this step entirely.
+4. If the video has NO overlay scenes (all stacked/fullscreen), skip this step.
+
+**Why every overlay:** The segmentation matte provides accurate full-body speaker bounds (shoulders, arms, hair, torso) for overlay positioning. Without it, animations misalign with the speaker. Depth-vocabulary scenes also need the matte for compositing — but ALL overlays need the bbox for positioning.
 
 ### Phase 4: Setup → dispatch **Setup Agent**
 
@@ -184,6 +187,8 @@ Dispatch Setup Agent to scaffold the workspace: constants.ts, Background.tsx, an
 **Include theme in dispatch:** "Theme: {theme_slug}. Read /workspace/docs/guidelines/theme.md for design tokens."
 
 ### Phase 5: Layout → dispatch **Layout Editor**
+
+**Before dispatching Layout Editor:** If segmentation was requested after plan approval, call `check_segmentation_status` to verify mattes and bbox data are ready. If any are still processing, wait up to 60 seconds (poll every 10 seconds). The Layout Editor needs matte-derived speaker bounds for accurate overlay positioning. If segmentation fails, the Layout Editor will use default center-screen speaker bounds (less accurate but functional).
 
 Report progress: `{ phase: "layout", message: "Building layout..." }`
 
@@ -216,7 +221,7 @@ Progress after each scene: `{ phase: "generating", message: "Scene N of M: <name
 
 Report progress: `{ phase: "assembling", message: "Final assembly..." }`
 
-**Before dispatching Final Editor:** If segmentation was requested in Phase 3, call `check_segmentation_status` to verify mattes are ready. If any are still processing, wait up to 30 seconds (poll every 5 seconds). If they fail, note the failure — the Final Editor will render those scenes without depth compositing (graceful degradation).
+**Before dispatching Final Editor:** Proceed directly — segmentation was already verified before the Layout Editor.
 
 Dispatch Final Editor to:
 1. Apply caption styling
