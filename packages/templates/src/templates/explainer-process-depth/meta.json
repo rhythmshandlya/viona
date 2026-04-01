@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-process-depth",
+  "name": "Explainer Process (Depth)",
+  "description": "Process steps emerge from behind the speaker, flowing outward from center with glowing connecting line",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "explainer", "process", "steps", "depth"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-comparison-depth",
+  "name": "Explainer Comparison (Depth)",
+  "description": "Two comparison columns split behind the speaker — left vs right panels peek from behind shoulders",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "explainer", "comparison", "versus", "depth"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}
