@@ -27,9 +27,9 @@ export interface TemplateMeta {
   sceneCount: number;
   estimatedDuration: string;
   thumbnail: string;
-  type?: 'scene' | 'overlay' | 'depth';
+  type?: 'scene' | 'overlay'
+    | 'depth';
   themes?: string[];
-  dependencies?: Record<string, string>;
 }
 
 export interface CompositionMeta {

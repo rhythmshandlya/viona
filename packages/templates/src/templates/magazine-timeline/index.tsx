@@ -6,12 +6,10 @@ import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SerifHeadline } from '../../magazine/typography';
 import { TapeMark } from '../../magazine/decorations';
-import { computeSpeakerPx } from '../../depth';
 import { TimelineThread } from './components/TimelineThread';
 import { EventCard } from './components/EventCard';
 
 const CANVAS_W = 1080;
-const CANVAS_H = 1920;
 const TITLE_Y = 120;
 const TITLE_W = 800;
 const TITLE_H = 140;
@@ -22,25 +20,11 @@ const STAGGER = 14;
 const ENTER_DURATION = 25;
 const CARD_W = 440;
 
-const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title, speakerBbox, speakerCenter }) => {
+const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) => {
   const frame = useCurrentFrame();
 
-  const isDepthMode = !!speakerBbox && !!speakerCenter;
-  const depthData = isDepthMode
-    ? computeSpeakerPx(speakerBbox, speakerCenter, CANVAS_W, CANVAS_H)
-    : null;
-
-  // In depth mode, center the thread on the speaker X and adjust vertical positioning
-  const threadCenterX = isDepthMode && depthData ? depthData.centerPx.x : CANVAS_W / 2;
-  const effectiveFirstEventY = isDepthMode && depthData
-    ? Math.max(FIRST_EVENT_Y, depthData.bboxPx.y + 60)
-    : FIRST_EVENT_Y;
-  const effectiveEventSpacing = isDepthMode && depthData
-    ? Math.min(EVENT_SPACING, (CANVAS_H - effectiveFirstEventY - 100) / Math.max(events.length, 1))
-    : EVENT_SPACING;
-
-  const eventYPositions = events.map((_, i) => effectiveFirstEventY + i * effectiveEventSpacing);
-  const threadStartY = effectiveFirstEventY - 40;
+  const eventYPositions = events.map((_, i) => FIRST_EVENT_Y + i * EVENT_SPACING);
+  const threadStartY = FIRST_EVENT_Y - 40;
   const threadEndY = eventYPositions[events.length - 1] + CARD_H + 40;
 
   const titleSlide = paperSlide(frame, 0, 15, 'down');
@@ -48,19 +32,12 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title, spea
   const nodeLandFrames = events.map((_, i) => 20 + i * STAGGER + ENTER_DURATION);
   const nodeYPositions = eventYPositions.map((y) => y + CARD_H / 2);
 
-  const titleLeft = isDepthMode && depthData
-    ? depthData.centerPx.x - TITLE_W / 2
-    : (CANVAS_W - TITLE_W) / 2;
-  const titleTop = isDepthMode && depthData
-    ? Math.max(40, depthData.bboxPx.y - 180)
-    : TITLE_Y;
-
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
       <div style={{
         position: 'absolute',
-        left: titleLeft + titleSlide.translateX,
-        top: titleTop + titleSlide.translateY,
+        left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
+        top: TITLE_Y + titleSlide.translateY,
         opacity: titleSlide.opacity,
         filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
       }}>
@@ -81,7 +58,7 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title, spea
         </div>
       </div>
 
-      <TimelineThread startY={threadStartY} endY={threadEndY} nodeYPositions={nodeYPositions} nodeLandFrames={nodeLandFrames} centerX={isDepthMode ? threadCenterX : undefined} />
+      <TimelineThread startY={threadStartY} endY={threadEndY} nodeYPositions={nodeYPositions} nodeLandFrames={nodeLandFrames} />
 
       {events.map((event, i) => {
         const isLeft = i % 2 === 0;
@@ -95,15 +72,7 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title, spea
         const parallaxY = frame >= 70 ? Math.sin(frame * 0.025 + i * 2.0) * depthMul * 0.5 : 0;
 
         const isEntering = frame < landFrame;
-        let baseX: number;
-        if (isDepthMode && depthData) {
-          // Alternate cards from speaker's shoulders
-          const shoulderLeft = depthData.bboxPx.x - CARD_W + 40;
-          const shoulderRight = depthData.bboxPx.x + depthData.bboxPx.w - 40;
-          baseX = isLeft ? shoulderLeft : shoulderRight;
-        } else {
-          baseX = isLeft ? 540 - CARD_W - 30 : 540 + 30;
-        }
+        const baseX = isLeft ? 540 - CARD_W - 30 : 540 + 30;
         const baseY = eventYPositions[i];
 
         let x = baseX + parallaxX;

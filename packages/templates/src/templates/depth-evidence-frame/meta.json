@@ -1,0 +1,24 @@
+{
+  "slug": "depth-evidence-frame",
+  "name": "Depth Evidence Frame",
+  "description": "Icon/label evidence cards slide in around the speaker with staggered timing and parallax drift",
+  "category": "depth",
+  "tags": [
+    "depth",
+    "evidence",
+    "cards",
+    "icons",
+    "reference",
+    "proof"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "depth",
+  "themes": [
+    "magazine",
+    "blackboard"
+  ]
+}

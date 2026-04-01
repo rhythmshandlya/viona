@@ -6,7 +6,6 @@ import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SerifHeadline } from '../../magazine/typography';
 import { TapeMark, PinMark } from '../../magazine/decorations';
-import { computeSpeakerPx } from '../../depth';
 import { StatCard } from './components/StatCard';
 
 const CANVAS_W = 1080;
@@ -44,66 +43,17 @@ function getStatPosition(index: number, w: number, h: number): { x: number; y: n
   return { x: baseX + offsetX, y: baseY + offsetY };
 }
 
-/**
- * Depth-mode positioning: scatter cards across full canvas so some overlap
- * with the speaker bbox edges (the person matte composited on top creates
- * the "peeking from behind" effect).
- */
-function getDepthStatPosition(
-  index: number,
-  w: number,
-  h: number,
-  bboxPx: { x: number; y: number; w: number; h: number },
-  total: number,
-): { x: number; y: number } {
-  const speakerLeft = bboxPx.x;
-  const speakerRight = bboxPx.x + bboxPx.w;
-  const speakerTop = bboxPx.y;
-  const verticalSpread = bboxPx.h * 0.8;
-  const verticalOffset = speakerTop + (bboxPx.h * 0.1) + (index / Math.max(total - 1, 1)) * verticalSpread;
-
-  const isLeft = index % 2 === 0;
-  let baseX: number;
-  if (isLeft) {
-    // Position so the right portion of the card overlaps the speaker's left edge
-    baseX = speakerLeft - w * 0.6;
-  } else {
-    // Position so the left portion of the card overlaps the speaker's right edge
-    baseX = speakerRight - w * 0.4;
-  }
-
-  const offsetX = (random(`depth-stat-ox-${index}`) - 0.5) * 40;
-  const offsetY = (random(`depth-stat-oy-${index}`) - 0.5) * 40;
-
-  const x = Math.max(-w * 0.3, Math.min(CANVAS_W - w * 0.7, baseX + offsetX));
-  const y = Math.max(100, Math.min(CANVAS_H - h - 60, verticalOffset - h / 2 + offsetY));
-
-  return { x, y };
-}
-
-const MagazineStats: React.FC<MagazineStatsProps> = ({ stats, title, speakerBbox, speakerCenter }) => {
+const MagazineStats: React.FC<MagazineStatsProps> = ({ stats, title }) => {
   const frame = useCurrentFrame();
 
-  const isDepthMode = !!speakerBbox && !!speakerCenter;
-  const depthData = isDepthMode
-    ? computeSpeakerPx(speakerBbox, speakerCenter, CANVAS_W, CANVAS_H)
-    : null;
-
   const titleSlide = paperSlide(frame, 0, 15, 'up');
-
-  const titleLeft = isDepthMode && depthData
-    ? depthData.centerPx.x - TITLE_W / 2
-    : (CANVAS_W - TITLE_W) / 2;
-  const titleTop = isDepthMode && depthData
-    ? Math.max(40, depthData.bboxPx.y - 180)
-    : TITLE_Y;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
       <div style={{
         position: 'absolute',
-        left: titleLeft + titleSlide.translateX,
-        top: titleTop + titleSlide.translateY,
+        left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
+        top: TITLE_Y + titleSlide.translateY,
         opacity: titleSlide.opacity,
         filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
       }}>
@@ -128,9 +78,7 @@ const MagazineStats: React.FC<MagazineStatsProps> = ({ stats, title, speakerBbox
         const isFirst = i === 0;
         const w = isFirst ? FIRST_STAT_W : STAT_W;
         const h = isFirst ? FIRST_STAT_H : STAT_H;
-        const pos = isDepthMode && depthData
-          ? getDepthStatPosition(i, w, h, depthData.bboxPx, stats.length)
-          : getStatPosition(i, w, h);
+        const pos = getStatPosition(i, w, h);
         const depth = i % 3;
         const depthMul = (depth + 1) * 8;
 
