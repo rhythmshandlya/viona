@@ -450,6 +450,15 @@ export function createSandboxRoutes(manager: SandboxManager) {
         return reply.status(400).send({ error: 'ranges array is required' });
       }
 
+      for (const range of ranges) {
+        if (typeof range.startMs !== 'number' || typeof range.endMs !== 'number' || !range.sceneId) {
+          return reply.status(400).send({ error: 'Each range must have startMs (number), endMs (number), sceneId (string)' });
+        }
+        if (range.startMs < 0 || range.endMs <= range.startMs) {
+          return reply.status(400).send({ error: `Invalid range for ${range.sceneId}: startMs=${range.startMs}, endMs=${range.endMs}` });
+        }
+      }
+
       // Look up project's videoKey
       const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
       if (!project?.videoKey) {
