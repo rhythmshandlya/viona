@@ -6,4 +6,4 @@ export { SceneItem } from './SceneItem';
 export { ShapeItem } from './ShapeItem';
 export { CaptionItem } from './CaptionItem';
 export { CinematicSubtitle } from './CinematicSubtitle';
-export { PersonItem } from './PersonItem';
+export { MatteItem } from './MatteItem';

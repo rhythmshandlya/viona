@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
 import { TransformWrapper } from './composition/TransformWrapper';
-import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, PersonItem } from './items';
+import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, MatteItem } from './items';
 import { sceneRegistry } from './scene-registry';
 
 /** Load Google Fonts via <link> tags for preset fonts */
@@ -146,7 +146,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               // - video/image: browser needs time for container parse + decoder init + seek
               // - scene: React needs time to mount the component tree + initial render
               // - text/shape/caption: lightweight, small premount is enough
-              const premountFrames = (item.type === 'video' || item.type === 'image' || item.type === 'person')
+              const premountFrames = (item.type === 'video' || item.type === 'image' || item.type === 'matte')
                 ? fps * 2   // 2s — video decode needs seek time
                 : (item.type === 'scene')
                   ? fps * 1 // 1s — scene component mount + initial React render
@@ -238,8 +238,8 @@ const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, duration
       }
       return <CaptionItem data={item.data} captionStyle={captionPreset || {}} fps={fps} itemStartMs={item.startMs} />;
     }
-    case 'person':
-      return <PersonItem data={item.data} assets={assets} fps={fps} />;
+    case 'matte':
+      return <MatteItem data={item.data} assets={assets} fps={fps} />;
     default:
       return null;
   }

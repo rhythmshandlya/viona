@@ -77,21 +77,25 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
     // Collect unique media URLs
     const currentMedia = new Set<string>();
+    const resolveMedia = (src: string) => {
+      if (/^https?:\/\/|^blob:/.test(src)) return src;
+      // Already a resolved absolute path — don't double-resolve
+      if (src.startsWith('/api/')) return src;
+      const cleanPath = src.startsWith('/') ? src.slice(1) : src;
+      return resolveDirectMediaUrl(bundleUrl, cleanPath) ?? `${publicBase}/${cleanPath}`;
+    };
     for (const item of m.items) {
       if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
-        const src = item.data.src as string;
-        let resolved: string;
-        if (/^https?:\/\/|^blob:/.test(src)) {
-          resolved = src;
-        } else if (src.startsWith('/api/') || src.startsWith('/media-proxy/')) {
-          // Already an absolute same-origin path (e.g. from store → storeToManifest round-trip)
-          resolved = src;
-        } else {
-          const cleanPath = src.startsWith('/') ? src.slice(1) : src;
-          const directUrl = resolveDirectMediaUrl(bundleUrl, cleanPath);
-          resolved = directUrl ?? `${publicBase}/${cleanPath}`;
-        }
-        currentMedia.add(resolved);
+        currentMedia.add(resolveMedia(item.data.src as string));
+      }
+      // Prefetch matte item videos for depth compositing
+      if (item.type === 'matte') {
+        if (item.data?.fgrSrc) currentMedia.add(resolveMedia(item.data.fgrSrc as string));
+        if (item.data?.matteSrc) currentMedia.add(resolveMedia(item.data.matteSrc as string));
+      }
+      // Prefetch image sources (background plates)
+      if (item.type === 'image' && item.data?.src) {
+        currentMedia.add(resolveMedia(item.data.src as string));
       }
     }
 
