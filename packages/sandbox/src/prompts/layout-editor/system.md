@@ -48,12 +48,32 @@ add_track({ type: "overlay", name: "person", position: 2 })    → trk-person
 add_track({ type: "overlay", name: "scene-fg", position: 3 })  → trk-scene-fg
 ```
 
-All scene items go on either `trk-scene-bg` or `trk-scene-fg` (they are sequential within each track, no overlap). The person track holds the matted speaker layer (populated by the rendering pipeline). Default track assignment:
+All scene items go on either `trk-scene-bg` or `trk-scene-fg` (they are sequential within each track, no overlap). Default track assignment:
 
 - **Overlay scenes with depth briefs** (animation brief contains "behind", "emerge-behind", "peek-sides", "cascade-behind", "background-fill", "depth-lower-third") → place on `trk-scene-bg`
 - **All other scenes** (overlay without depth, stacked, fullscreen) → place on `trk-scene-fg`
 
 The animator may later split a scene's output across both layers, but the manifest item sits on one track — the initial placement is based on the dominant layer in the brief.
+
+**Person items (REQUIRED for each overlay scene):** For every overlay scene, add a person item on `trk-person` covering the same time range. This renders the speaker matte composite between the scene-bg and scene-fg layers.
+
+```
+// For each overlay scene:
+add_item({
+  trackId: "trk-person",
+  type: "person",
+  startMs: 0,        // same as the overlay scene item
+  endMs: 5720,       // same as the overlay scene item
+  transform: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0, opacity: 1 },
+  data: {
+    videoSrc: "source.mp4",
+    matteSrc: "matte/scene-1.mp4",    // matches the sceneId from segmentation
+    startFrom: 0                       // same as the scene's startMs
+  }
+})
+```
+
+The `matteSrc` path uses the scene ID from segmentation: `matte/{sceneId}.mp4`. These files are already in `public/matte/` (downloaded by the orchestrator via `check_segmentation_status`). Only add person items for overlay scenes that have mattes available — skip if segmentation failed for a scene.
 
 ### Step 3: Set speaker transforms on all video segments
 
@@ -259,13 +279,15 @@ The person track is always present — matting is guaranteed. Scene items defaul
 ## Your Workflow
 
 1. Read `/workspace/docs/SCENE_PLAN.md` — parse global section and all per-scene entries.
-2. Call `auto_center_speaker` after placing video items — centers the speaker in the video crop.
-3. Read the manifest (`read_manifest`) — identify video item, audio item, existing tracks.
-4. Create scene track (`add_track` type `overlay`).
-5. For each video segment, determine which scene(s) it overlaps and apply the correct transform/opacity (static for single-scene segments, keyframes at boundaries for multi-scene segments).
-6. Place scene items for every scene on the scene track (`add_item` type `scene`).
-7. Add entrance/exit keyframes to each scene item matching the plan's transition types.
-8. Read manifest to verify — check item count, track structure, keyframes.
-9. Render 2-3 stills at scene boundaries to visually verify layout.
-10. Report completion: number of scenes placed, transitions applied.
+2. Read the manifest (`read_manifest`) — identify video item, audio item, existing tracks.
+3. Create sandwich tracks (`add_track` — scene-bg, person, scene-fg).
+4. For each video segment, determine which scene(s) it overlaps and apply the correct transform/opacity (static for single-scene segments, keyframes at boundaries for multi-scene segments).
+5. Call `auto_center_speaker` — centers the speaker in the video crop using matte data.
+6. Place scene items for every scene on scene-bg or scene-fg (`add_item` type `scene`).
+7. For each overlay scene, add a person item on the person track (`add_item` type `person`) with `matteSrc` pointing to the matte file.
+8. Call `get_speaker_position` for each overlay scene and update the scene item with speaker spatial data.
+9. Add entrance/exit keyframes to each scene item matching the plan's transition types.
+10. Read manifest to verify — check item count, track structure, person items, keyframes.
+11. Render 2-3 stills at scene boundaries to visually verify layout.
+12. Report completion: number of scenes placed, person items added, transitions applied.
 </task>
