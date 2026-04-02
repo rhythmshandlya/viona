@@ -1081,6 +1081,50 @@ server.registerTool(
               // Bbox download is best-effort — speaker position falls back to head tracking
             }
           }
+
+          // Download foreground video (skip if already exists)
+          const localFgrPath = path.join(MATTE_DIR, `${job.sceneId}-fgr.mp4`);
+          try {
+            await stat(localFgrPath);
+          } catch {
+            try {
+              const fgrRes = await fetch(
+                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/fgr`,
+                {
+                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+                  signal: AbortSignal.timeout(60_000),
+                }
+              );
+              if (fgrRes.ok) {
+                const buf = Buffer.from(await fgrRes.arrayBuffer());
+                await writeFile(localFgrPath, buf);
+              }
+            } catch {
+              // Foreground download is best-effort
+            }
+          }
+
+          // Download background image (skip if already exists)
+          const localBgPath = path.join(WORKSPACE, "public", `bg-${job.sceneId}.png`);
+          try {
+            await stat(localBgPath);
+          } catch {
+            try {
+              const bgRes = await fetch(
+                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/bg`,
+                {
+                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+                  signal: AbortSignal.timeout(30_000),
+                }
+              );
+              if (bgRes.ok) {
+                const buf = Buffer.from(await bgRes.arrayBuffer());
+                await writeFile(localBgPath, buf);
+              }
+            } catch {
+              // Background download is best-effort
+            }
+          }
         }
       }
 
@@ -1093,7 +1137,11 @@ server.registerTool(
             mattePaths: downloaded.map(id => ({
               sceneId: id,
               mattePath: `public/matte/${id}.mp4`,
+              fgrPath: `public/matte/${id}-fgr.mp4`,
+              bgPath: `public/bg-${id}.png`,
               staticFile: `matte/${id}.mp4`,
+              fgrStaticFile: `matte/${id}-fgr.mp4`,
+              bgStaticFile: `bg-${id}.png`,
             })),
           }),
         }],

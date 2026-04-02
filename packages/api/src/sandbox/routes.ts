@@ -618,6 +618,68 @@ export function createSandboxRoutes(manager: SandboxManager) {
         return reply.status(404).send({ error: 'Bbox file not found' });
       }
     });
+
+    // GET /internal/sandbox/:id/segment/:jobId/fgr — Download foreground video
+    fastify.get('/internal/sandbox/:id/segment/:jobId/fgr', async (request, reply) => {
+      const projectId = await validateInternalCallback(request, reply);
+      if (!projectId) return;
+
+      const { jobId } = request.params as { jobId: string };
+
+      const [job] = await db.select().from(jobs)
+        .where(and(
+          eq(jobs.id, jobId),
+          eq(jobs.projectId, projectId),
+        ))
+        .limit(1);
+
+      if (!job) return reply.status(404).send({ error: 'Job not found' });
+      if (job.status !== 'complete') return reply.status(409).send({ error: `Job status is ${job.status}` });
+
+      const meta = job.progressMeta as { outputKey?: string } | null;
+      const outputKey = meta?.outputKey;
+      if (!outputKey) return reply.status(500).send({ error: 'No outputKey in job metadata' });
+
+      const fgrKey = outputKey.replace(/\.mp4$/, '-fgr.mp4');
+      try {
+        const stream = await getObjectStream('outputs', fgrKey);
+        reply.header('Content-Type', 'video/mp4');
+        return reply.send(stream);
+      } catch (err) {
+        return reply.status(404).send({ error: 'Foreground video not found' });
+      }
+    });
+
+    // GET /internal/sandbox/:id/segment/:jobId/bg — Download background image
+    fastify.get('/internal/sandbox/:id/segment/:jobId/bg', async (request, reply) => {
+      const projectId = await validateInternalCallback(request, reply);
+      if (!projectId) return;
+
+      const { jobId } = request.params as { jobId: string };
+
+      const [job] = await db.select().from(jobs)
+        .where(and(
+          eq(jobs.id, jobId),
+          eq(jobs.projectId, projectId),
+        ))
+        .limit(1);
+
+      if (!job) return reply.status(404).send({ error: 'Job not found' });
+      if (job.status !== 'complete') return reply.status(409).send({ error: `Job status is ${job.status}` });
+
+      const meta = job.progressMeta as { sceneId?: string } | null;
+      const sceneId = meta?.sceneId;
+      if (!sceneId) return reply.status(500).send({ error: 'No sceneId in job metadata' });
+
+      const bgKey = `projects/${projectId}/bg-${sceneId}.png`;
+      try {
+        const stream = await getObjectStream('outputs', bgKey);
+        reply.header('Content-Type', 'image/png');
+        return reply.send(stream);
+      } catch (err) {
+        return reply.status(404).send({ error: 'Background image not found' });
+      }
+    });
   };
 }
 
@@ -714,10 +776,6 @@ async function buildInitData(projectId: string): Promise<InitData | null> {
   if (project.headTrackingData) {
     initBody.headTracking = project.headTrackingData;
   }
-
-  // Flag whether background segmentation is possible (speaker face detected)
-  const htData = project.headTrackingData as { metadata?: { frames_with_face?: number } } | null;
-  initBody.segmentationAvailable = !!(htData?.metadata?.frames_with_face && htData.metadata.frames_with_face > 0);
 
   // Add project metadata
   initBody.projectMeta = {
