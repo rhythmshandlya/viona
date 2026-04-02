@@ -405,13 +405,14 @@ def generate_background(input_path: str, matte_path: str, output_path: str, star
         # Call OpenAI
         print("Generating clean background via OpenAI...")
         t0 = time.time()
-        result = client.images.edit(
-            model="gpt-image-1",
-            image=open(src_api_tmp.name, "rb"),
-            mask=open(mask_api_tmp.name, "rb"),
-            prompt="Remove the person completely. Fill the area with a natural continuation of the background environment. Match the exact lighting, colors, textures, and camera perspective. Empty scene, no person.",
-            size=f"{api_w}x{api_h}",
-        )
+        with open(src_api_tmp.name, "rb") as img_f, open(mask_api_tmp.name, "rb") as mask_f:
+            result = client.images.edit(
+                model="gpt-image-1",
+                image=img_f,
+                mask=mask_f,
+                prompt="Remove the person completely. Fill the area with a natural continuation of the background environment. Match the exact lighting, colors, textures, and camera perspective. Empty scene, no person.",
+                size=f"{api_w}x{api_h}",
+            )
         elapsed = time.time() - t0
 
         image_bytes = base64.b64decode(result.data[0].b64_json)

@@ -11,13 +11,13 @@ aiohttp>=3.9.0
 # Type hints
 typing-extensions>=4.0.0
 
-# Head tracking (MediaPipe Holistic for face + body detection)
-mediapipe>=0.10.0
+# Image processing (used by segmentation + background generation)
 opencv-python>=4.8.0
 numpy>=1.24.0
+Pillow>=10.0.0
 
-# Shot boundary detection
-scenedetect[opencv]>=0.6.4
+# OpenAI (background generation via image inpainting)
+openai>=1.0.0
 
 # Person segmentation (RVM — Robust Video Matting)
 torch>=2.0.0

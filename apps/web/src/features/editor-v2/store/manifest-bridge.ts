@@ -122,8 +122,8 @@ export function manifestToStore(
     position: t.position,
     locked: t.name === 'person' ? true : false,
     visible: true,
-    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'overlay' ? 48 : 28,
-    collapsed: t.name === 'person' ? true : false,
+    height: t.type === 'video' ? 56 : 36,
+    collapsed: false,
   }));
 
   const rawPreset = (manifest as any).captionPreset ?? (manifest as any).captionStyle;
@@ -153,6 +153,7 @@ export function manifestToStore(
     items[storeItem.id] = storeItem;
     itemIds.push(storeItem.id);
   }
+
 
   const videoSettings: VideoSettings = {
     canvasWidth: manifest.canvas.width,
@@ -353,6 +354,7 @@ function convertManifestItemV2(
 
     case 'scene': {
       // v2 scene type maps to visual-like data in the store
+      // Preserve ALL manifest data fields so storeToManifest round-trip is lossless
       const meta = context.visualMeta?.[item.id];
       const sceneId = extractSceneId(d.sceneFile || '');
       const data: VisualItemData = {
@@ -368,6 +370,12 @@ function convertManifestItemV2(
         sourceSceneId: sceneId,
         transition: d.transition,
         speakerBbox: d.speakerBbox,
+        // Preserve original manifest fields for lossless round-trip
+        _sceneFile: d.sceneFile,
+        _displayMode: d.displayMode,
+        _sceneName: d.sceneName,
+        _speakerCenter: d.speakerCenter,
+        _visibleZones: d.visibleZones,
       };
       // Keep type as 'scene' in the store
       return { ...base, type: 'scene', data } as TimelineItem;
@@ -417,6 +425,15 @@ function convertManifestItemV2(
           y: typeof item.transform?.y === 'number' ? item.transform.y : 0,
         },
         opacity: item.transform?.opacity ?? 1,
+      };
+      return { ...base, data } as TimelineItem;
+    }
+
+    case 'matte': {
+      const data = {
+        ...d,
+        fgrSrc: d.fgrSrc ? resolvedSrc(d.fgrSrc) : '',
+        matteSrc: d.matteSrc ? resolvedSrc(d.matteSrc) : '',
       };
       return { ...base, data } as TimelineItem;
     }
@@ -481,10 +498,16 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
     case 'visual':
     case 'scene': {
       const result: Record<string, unknown> = {
-        sceneFile: d.sourceSceneId != null ? `scenes/Scene${d.sourceSceneId}.tsx` : '',
+        // Use preserved original sceneFile if available, otherwise reconstruct
+        sceneFile: d._sceneFile || (d.sourceSceneId != null ? `Scene${d.sourceSceneId}.tsx` : ''),
       };
       if (d.transition) result.transition = d.transition;
       if (d.speakerBbox) result.speakerBbox = d.speakerBbox;
+      // Restore preserved manifest fields
+      if (d._displayMode) result.displayMode = d._displayMode;
+      if (d._sceneName) result.sceneName = d._sceneName;
+      if (d._speakerCenter) result.speakerCenter = d._speakerCenter;
+      if (d._visibleZones) result.visibleZones = d._visibleZones;
       return result;
     }
 
