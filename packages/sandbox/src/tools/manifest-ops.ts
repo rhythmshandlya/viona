@@ -70,6 +70,11 @@ const itemDataSchemas: Record<string, z.ZodTypeAny> = {
     sceneFile: z.string().optional(),
     displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
   }),
+  matte: z.object({
+    fgrSrc: z.string().describe('Path to foreground video (extracted speaker pixels, transparent where no speaker)'),
+    matteSrc: z.string().describe('Path to matte video (grayscale alpha mask)'),
+    startFrom: z.number().min(0).default(0).describe('Start offset in milliseconds'),
+  }),
 };
 
 // ---- Normalization helpers ----
@@ -367,7 +372,7 @@ export const addItemTool = {
     properties: {
       type: {
         type: 'string',
-        enum: ['video', 'audio', 'text', 'image', 'scene', 'caption', 'shape'],
+        enum: ['video', 'audio', 'text', 'image', 'scene', 'caption', 'shape', 'matte'],
         description: 'Item type',
       },
       trackId: { type: 'string', description: 'Track ID to place the item on' },
