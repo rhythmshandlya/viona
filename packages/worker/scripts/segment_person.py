@@ -83,6 +83,9 @@ def parse_arguments() -> argparse.Namespace:
         default=DOWNSAMPLE_RATIO,
         help=f"RVM internal downsample ratio (default: {DOWNSAMPLE_RATIO})",
     )
+    parser.add_argument("--start-ms", type=int, default=0, help="Scene start time in ms (for bg frame extraction)")
+    parser.add_argument("--end-ms", type=int, default=0, help="Scene end time in ms (for bg frame extraction)")
+    parser.add_argument("--bg-output", type=str, default="", help="Output path for clean background PNG. Empty = skip bg generation.")
     return parser.parse_args()
 
 
@@ -319,6 +322,118 @@ def process_video(
     }
 
 
+def generate_background(input_path: str, matte_path: str, output_path: str, start_ms: int, end_ms: int) -> str:
+    """Generate clean background by inpainting speaker out of a mid-scene frame using OpenAI."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("Warning: OPENAI_API_KEY not set, skipping background generation", file=sys.stderr)
+        return ""
+
+    try:
+        import base64
+        import tempfile
+        from io import BytesIO
+        from PIL import Image
+        from openai import OpenAI
+    except ImportError as e:
+        print(f"Warning: Missing dependency for background generation ({e}), skipping", file=sys.stderr)
+        return ""
+
+    try:
+        client = OpenAI(api_key=api_key)
+
+        # Probe source dimensions
+        info = probe_video(input_path)
+        src_w, src_h = info["width"], info["height"]
+
+        # Extract midpoint frame from source video
+        mid_sec = ((start_ms + end_ms) / 2) / 1000 if end_ms > start_ms else 1.0
+        frame_tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        frame_tmp.close()
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-ss", f"{mid_sec:.3f}", "-i", input_path,
+            "-frames:v", "1", "-q:v", "2", frame_tmp.name,
+        ], check=True, timeout=30)
+
+        # Extract matte frame at relative midpoint (matte is full-length)
+        matte_frame_tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        matte_frame_tmp.close()
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-ss", f"{mid_sec:.3f}", "-i", matte_path,
+            "-frames:v", "1", "-q:v", "2", matte_frame_tmp.name,
+        ], check=True, timeout=30)
+
+        # Load images
+        import cv2
+        source = cv2.imread(frame_tmp.name)
+        matte_gray = cv2.imread(matte_frame_tmp.name, cv2.IMREAD_GRAYSCALE)
+
+        if source is None or matte_gray is None:
+            print("Warning: Failed to read frame/matte for background generation", file=sys.stderr)
+            return ""
+
+        h, w = source.shape[:2]
+
+        # API-supported portrait size
+        api_w, api_h = 1024, 1536
+
+        # Resize source to API dimensions
+        source_rgb = cv2.cvtColor(source, cv2.COLOR_BGR2RGB)
+        source_pil = Image.fromarray(source_rgb).resize((api_w, api_h), Image.LANCZOS)
+
+        # Create mask: dilate matte, then make RGBA where speaker = transparent (to inpaint)
+        _, mask_bin = cv2.threshold(matte_gray, 100, 255, cv2.THRESH_BINARY)
+        kernel = np.ones((25, 25), np.uint8)
+        mask_dilated = cv2.dilate(mask_bin, kernel, iterations=2)
+        mask_resized = cv2.resize(mask_dilated, (api_w, api_h))
+
+        mask_rgba = np.zeros((api_h, api_w, 4), dtype=np.uint8)
+        mask_rgba[:, :, 3] = 255 - mask_resized  # transparent where speaker is
+        mask_pil = Image.fromarray(mask_rgba)
+
+        # Save temp files for API upload
+        src_api_tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        source_pil.convert("RGBA").save(src_api_tmp.name, format="PNG")
+        src_api_tmp.close()
+
+        mask_api_tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        mask_pil.save(mask_api_tmp.name, format="PNG")
+        mask_api_tmp.close()
+
+        # Call OpenAI
+        print("Generating clean background via OpenAI...")
+        t0 = time.time()
+        result = client.images.edit(
+            model="gpt-image-1",
+            image=open(src_api_tmp.name, "rb"),
+            mask=open(mask_api_tmp.name, "rb"),
+            prompt="Remove the person completely. Fill the area with a natural continuation of the background environment. Match the exact lighting, colors, textures, and camera perspective. Empty scene, no person.",
+            size=f"{api_w}x{api_h}",
+        )
+        elapsed = time.time() - t0
+
+        image_bytes = base64.b64decode(result.data[0].b64_json)
+        result_img = Image.open(BytesIO(image_bytes))
+        result_img = result_img.resize((w, h), Image.LANCZOS)
+        result_img.save(output_path)
+
+        # Cleanup temp files
+        for f in [frame_tmp.name, matte_frame_tmp.name, src_api_tmp.name, mask_api_tmp.name]:
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
+
+        print(f"Background generated in {elapsed:.1f}s: {output_path}")
+        return output_path
+
+    except Exception as e:
+        print(f"Warning: Background generation failed: {e}", file=sys.stderr)
+        return ""
+
+
 def main():
     args = parse_arguments()
 
@@ -338,6 +453,20 @@ def main():
 
     print(f"Matte saved: {args.output}")
     print(f"Bbox saved: {result['bboxPath']}")
+
+    # Generate clean background if requested
+    bg_path = ""
+    if args.bg_output:
+        bg_path = generate_background(
+            str(input_path),
+            args.output,
+            args.bg_output,
+            args.start_ms,
+            args.end_ms,
+        )
+        if bg_path:
+            print(f"Background saved: {bg_path}")
+
     sys.exit(0)
 
 
