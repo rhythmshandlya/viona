@@ -35,7 +35,7 @@ import torch
 # ---------------------------------------------------------------------------
 BACKBONE = "resnet50"
 SCALE_FACTOR = 0.5
-MATTE_FPS = 30
+MATTE_FPS = 0  # 0 = use source native frame rate (recommended for alignment)
 DOWNSAMPLE_RATIO = 0.8
 SEQ_CHUNK = 4
 
@@ -75,7 +75,7 @@ def parse_arguments() -> argparse.Namespace:
         "--fps",
         type=int,
         default=MATTE_FPS,
-        help=f"Output matte FPS (default: {MATTE_FPS})",
+        help=f"Output matte FPS. 0 = use source native rate for perfect alignment (default: {MATTE_FPS})",
     )
     parser.add_argument(
         "--downsample-ratio",
@@ -98,7 +98,8 @@ def probe_video(input_path: str) -> dict:
     lines = probe.stdout.strip().split("\n")
     parts = lines[0].split(",")
     src_w, src_h = int(parts[0]), int(parts[1])
-    fps_num, fps_den = map(int, parts[2].split("/"))
+    fps_frac = parts[2].strip()  # e.g., "30000/1001"
+    fps_num, fps_den = map(int, fps_frac.split("/"))
     fps = fps_num / fps_den
 
     duration_s = 0
@@ -114,7 +115,7 @@ def probe_video(input_path: str) -> dict:
         except (ValueError, IndexError):
             pass
 
-    return {"width": src_w, "height": src_h, "fps": fps, "duration_s": duration_s}
+    return {"width": src_w, "height": src_h, "fps": fps, "fps_frac": fps_frac, "duration_s": duration_s}
 
 
 def load_rvm_model(backbone: str, device: torch.device, dtype: torch.dtype):
@@ -138,7 +139,7 @@ def load_rvm_model(backbone: str, device: torch.device, dtype: torch.dtype):
     return model
 
 
-def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps: int):
+def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps_str: str):
     """Create FFmpeg encoder subprocess for RGB matte output (NVENC with libx264 fallback)."""
     use_nvenc = w <= 4096 and h <= 4096
     if use_nvenc:
@@ -149,46 +150,13 @@ def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps: int):
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-f", "rawvideo", "-pix_fmt", "rgb24",
-        "-s", f"{w}x{h}", "-r", str(fps),
+        "-s", f"{w}x{h}", "-r", fps_str,
         "-i", "pipe:0",
         *codec_args,
         "-pix_fmt", "yuv420p",
         output_path,
     ]
     return subprocess.Popen(cmd, stdin=subprocess.PIPE, bufsize=w * h * 3 * SEQ_CHUNK)
-
-
-def extract_matte_bboxes(matte_frames_u8: list, out_w: int, out_h: int, fps: int) -> dict:
-    """Scan matte frames and extract per-frame speaker bounding boxes.
-
-    Returns normalized 0-1 coordinates for each frame where a person is detected.
-    """
-    bbox_frames = []
-    for idx, matte in enumerate(matte_frames_u8):
-        # matte is [H, W] uint8 (0-255), find white pixel extent
-        rows = np.any(matte > 32, axis=1)
-        cols = np.any(matte > 32, axis=0)
-
-        if not np.any(rows) or not np.any(cols):
-            continue
-
-        y_min = np.argmax(rows)
-        y_max = out_h - np.argmax(rows[::-1])
-        x_min = np.argmax(cols)
-        x_max = out_w - np.argmax(cols[::-1])
-
-        bbox_frames.append({
-            "frame": idx,
-            "x": round(float(x_min) / out_w, 4),
-            "y": round(float(y_min) / out_h, 4),
-            "w": round(float(x_max - x_min) / out_w, 4),
-            "h": round(float(y_max - y_min) / out_h, 4),
-        })
-
-    return {
-        "fps": fps,
-        "frames": bbox_frames,
-    }
 
 
 def process_video(
@@ -211,14 +179,23 @@ def process_video(
     info = probe_video(input_path)
     src_w, src_h = info["width"], info["height"]
     src_fps = info["fps"]
+    src_fps_frac = info["fps_frac"]  # e.g., "30000/1001"
     duration_s = info["duration_s"]
+
+    # fps=0 means use source native rate (recommended for perfect frame alignment)
+    if fps == 0:
+        effective_fps = src_fps
+        effective_fps_str = src_fps_frac  # pass fraction to FFmpeg for exact rate
+    else:
+        effective_fps = float(fps)
+        effective_fps_str = str(fps)
 
     out_w = int(src_w * scale) // 2 * 2
     out_h = int(src_h * scale) // 2 * 2
-    max_frames = int(duration_s * fps)
+    max_frames = int(duration_s * effective_fps)
 
-    print(f"Processing video: {src_w}x{src_h} @ {src_fps:.0f}fps, {max_frames} frames")
-    print(f"Output: {out_w}x{out_h} @ {fps}fps, scale={scale}")
+    print(f"Processing video: {src_w}x{src_h} @ {src_fps:.2f}fps ({src_fps_frac}), {max_frames} frames")
+    print(f"Output: {out_w}x{out_h} @ {effective_fps:.2f}fps, scale={scale}")
 
     if device.type == "cuda":
         rec = [None] * 4
@@ -231,24 +208,32 @@ def process_video(
 
     decode_cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
-        "-hwaccel", "cuda",
+    ]
+    if device.type == "cuda":
+        decode_cmd.extend(["-hwaccel", "cuda"])
+    # When using native fps (fps=0), don't apply fps filter — preserves exact frame correspondence.
+    # When resampling (fps>0), apply fps filter to convert frame rate.
+    vf = f"scale={out_w}:{out_h}" if fps == 0 else f"scale={out_w}:{out_h},fps={fps}"
+    decode_cmd.extend([
         "-i", input_path,
-        "-vf", f"scale={out_w}:{out_h},fps={fps}",
+        "-vf", vf,
         "-f", "rawvideo", "-pix_fmt", "rgb24",
         "pipe:1",
-    ]
+    ])
     decoder = subprocess.Popen(
         decode_cmd, stdout=subprocess.PIPE,
         bufsize=out_w * out_h * 3 * SEQ_CHUNK,
     )
 
-    encoder = make_ffmpeg_encoder(output_path, out_w, out_h, fps)
+    encoder = make_ffmpeg_encoder(output_path, out_w, out_h, effective_fps_str)
+    fgr_output_path = str(Path(output_path).with_suffix('')) + '-fgr.mp4'
+    fgr_encoder = make_ffmpeg_encoder(fgr_output_path, out_w, out_h, effective_fps_str)
 
     frame_size = out_w * out_h * 3
     rec = [None] * 4
     frame_idx = 0
     start_time = time.time()
-    all_matte_frames = []
+    bbox_frames = []
 
     while True:
         frames_rgb = []
@@ -274,37 +259,63 @@ def process_video(
 
         for t in range(T):
             matte_u8 = mattes[t]
-            all_matte_frames.append(matte_u8)
+
+            # Extract bbox inline (avoids storing all frames in memory)
+            rows = np.any(matte_u8 > 32, axis=1)
+            cols = np.any(matte_u8 > 32, axis=0)
+            if np.any(rows) and np.any(cols):
+                rmin, rmax = np.where(rows)[0][[0, -1]]
+                cmin, cmax = np.where(cols)[0][[0, -1]]
+                bbox_frames.append({
+                    "frame": frame_idx,
+                    "x": float(cmin / out_w),
+                    "y": float(rmin / out_h),
+                    "w": float((cmax - cmin + 1) / out_w),
+                    "h": float((rmax - rmin + 1) / out_h),
+                })
 
             matte_rgb = np.stack([matte_u8, matte_u8, matte_u8], axis=-1)
             encoder.stdin.write(matte_rgb.tobytes())
+
+            # Extract foreground frame: fgr is [1, T, 3, H, W], need [H, W, 3] uint8
+            fgr_frame = fgr[0, t].permute(1, 2, 0).float().mul(255).clamp(0, 255).cpu().numpy()
+            # Premultiply by alpha (clean edges, transparent where no speaker)
+            alpha_f = pha[0, t, 0].float().cpu().numpy()  # [H, W] in 0-1 range
+            fgr_premul = (fgr_frame * alpha_f[:, :, np.newaxis]).clip(0, 255).astype(np.uint8)
+            fgr_encoder.stdin.write(fgr_premul.tobytes())
+
             frame_idx += 1
 
-        if frame_idx % 100 < SEQ_CHUNK:
-            print(f"Processed {frame_idx} frames...")
+        if frame_idx >= 100 and (frame_idx - T) // 100 < frame_idx // 100:
+            elapsed_so_far = time.time() - start_time
+            fps_so_far = frame_idx / max(0.1, elapsed_so_far)
+            print(f"Processed {frame_idx} frames ({fps_so_far:.1f} fps)")
 
     decoder.stdout.close()
     decoder.wait()
     encoder.stdin.close()
     encoder.wait()
+    fgr_encoder.stdin.close()
+    fgr_encoder.wait()
 
     elapsed = time.time() - start_time
     print(f"Done! Processed {frame_idx} frames in {elapsed:.1f}s ({frame_idx / max(1, elapsed):.1f} fps)")
+    print(f"Foreground video saved: {fgr_output_path}")
 
-    print("Extracting speaker bounding boxes...")
-    bbox_data = extract_matte_bboxes(all_matte_frames, out_w, out_h, fps)
+    bbox_data = {"fps": effective_fps, "frames": bbox_frames}
     bbox_path = str(Path(output_path).parent / "matte-bbox.json")
     with open(bbox_path, "w") as f:
         json.dump(bbox_data, f)
-    print(f"Bounding boxes saved: {bbox_path} ({len(bbox_data['frames'])} frames)")
+    print(f"Bounding boxes saved: {bbox_path} ({len(bbox_frames)} frames)")
 
     return {
         "framesProcessed": frame_idx,
         "framesWritten": frame_idx,
         "outputWidth": out_w,
         "outputHeight": out_h,
-        "outputFps": fps,
+        "outputFps": effective_fps,
         "bboxPath": bbox_path,
+        "fgrPath": fgr_output_path,
     }
 
 
