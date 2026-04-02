@@ -219,107 +219,6 @@ export async function isInitialized(): Promise<boolean> {
  * All file paths for CREATED content use `baseDir`; paths to pre-existing
  * Docker image files (e.g. /app/template, /app/prompts) stay absolute.
  */
-interface ShotBoundary {
-  timestamp_ms: number;
-  frame: number;
-  score: number;
-  signals: string[];
-  aligned: boolean;
-  snappedTo_ms?: number;
-  segmentBefore?: string;
-  segmentAfter?: string;
-}
-
-interface ShotBoundariesFile {
-  shots: ShotBoundary[];
-  summary: {
-    totalShots: number;
-    averageShotDurationMs: number;
-    alignedCount: number;
-    isMultiCam: boolean;
-  };
-}
-
-function alignShotsWithTranscript(
-  shots: NonNullable<InitPayload['headTracking']>['shots'],
-  transcript: NonNullable<InitPayload['transcript']>,
-  videoDurationMs: number,
-): ShotBoundariesFile {
-  if (!shots || shots.length === 0) {
-    return {
-      shots: [],
-      summary: { totalShots: 0, averageShotDurationMs: 0, alignedCount: 0, isMultiCam: false },
-    };
-  }
-
-  const segments = transcript.segments;
-  const boundaries: Array<{ ms: number; type: 'start' | 'end'; segIdx: number }> = [];
-  for (let i = 0; i < segments.length; i++) {
-    boundaries.push({ ms: segments[i].startMs, type: 'start', segIdx: i });
-    boundaries.push({ ms: segments[i].endMs, type: 'end', segIdx: i });
-  }
-  boundaries.sort((a, b) => a.ms - b.ms);
-
-  const SNAP_WINDOW_MS = 500;
-  let alignedCount = 0;
-
-  const alignedShots: ShotBoundary[] = shots.map((shot) => {
-    let nearest: typeof boundaries[0] | null = null;
-    let nearestDist = Infinity;
-    for (const b of boundaries) {
-      const dist = Math.abs(b.ms - shot.timestamp_ms);
-      if (dist < nearestDist && dist <= SNAP_WINDOW_MS) {
-        nearestDist = dist;
-        nearest = b;
-      } else if (dist === nearestDist && nearest && b.type === 'end') {
-        nearest = b;
-      }
-    }
-
-    let segmentBefore: string | undefined;
-    let segmentAfter: string | undefined;
-    const ts = nearest ? nearest.ms : shot.timestamp_ms;
-    for (let i = 0; i < segments.length; i++) {
-      if (segments[i].endMs <= ts + 100) segmentBefore = segments[i].text;
-      if (segments[i].startMs >= ts - 100 && !segmentAfter) segmentAfter = segments[i].text;
-    }
-
-    if (nearest) {
-      alignedCount++;
-      return {
-        timestamp_ms: shot.timestamp_ms,
-        frame: shot.frame,
-        score: shot.score,
-        signals: shot.signals,
-        aligned: true,
-        snappedTo_ms: nearest.ms,
-        segmentBefore,
-        segmentAfter,
-      };
-    }
-
-    return {
-      timestamp_ms: shot.timestamp_ms,
-      frame: shot.frame,
-      score: shot.score,
-      signals: shot.signals,
-      aligned: false,
-      segmentBefore,
-      segmentAfter,
-    };
-  });
-
-  const totalShots = alignedShots.length;
-  const averageShotDurationMs = videoDurationMs > 0 ? Math.round(videoDurationMs / (totalShots + 1)) : 0;
-  const shotsPerMinute = videoDurationMs > 0 ? totalShots / (videoDurationMs / 60000) : 0;
-  const isMultiCam = totalShots > 2 && shotsPerMinute > 1.0;
-
-  return {
-    shots: alignedShots,
-    summary: { totalShots, averageShotDurationMs, alignedCount, isMultiCam },
-  };
-}
-
 async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promise<void> {
   // Create directory structure
   await mkdir(join(baseDir, 'src', 'segments'), { recursive: true });
@@ -487,31 +386,6 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     );
   }
 
-  // Write shot boundaries (aligned with transcript) if shots data exists
-  if (payload.headTracking?.shots && payload.headTracking.shots.length > 0 && payload.transcript) {
-    const videoDurationMs = payload.headTracking.video?.duration_ms
-      || payload.projectMeta?.durationMs
-      || 0;
-    const shotBoundaries = alignShotsWithTranscript(
-      payload.headTracking.shots,
-      payload.transcript,
-      videoDurationMs,
-    );
-    await writeFile(
-      join(baseDir, 'docs', 'shot-boundaries.json'),
-      JSON.stringify(shotBoundaries, null, 2),
-    );
-    logger.info({ totalShots: shotBoundaries.summary.totalShots, isMultiCam: shotBoundaries.summary.isMultiCam }, 'Shot boundaries written');
-  } else {
-    // Write empty fallback so downstream tools always have a file to read
-    await writeFile(
-      join(baseDir, 'docs', 'shot-boundaries.json'),
-      JSON.stringify({
-        shots: [],
-        summary: { totalShots: 0, averageShotDurationMs: 0, alignedCount: 0, isMultiCam: false },
-      }, null, 2),
-    );
-  }
 }
 
 /**
