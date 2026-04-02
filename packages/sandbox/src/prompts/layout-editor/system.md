@@ -204,7 +204,29 @@ If `get_speaker_position` returns `source: "defaults"` (no matte data), the boun
 
 **Stacked and Fullscreen scenes:** Do NOT call `get_speaker_position` or add speaker data. These modes don't use overlay positioning.
 
-The Setup Agent reads these to bake pixel-space constants into scene skeletons.
+#### Write SPEAKER constants to overlay scene files
+
+After calling `get_speaker_position` for an overlay scene, write the SPEAKER and VISIBLE_ZONES constants directly into the scene skeleton file. The Setup Agent already created the skeleton, but with placeholder/default speaker values. Overwrite them with the real matte-derived data.
+
+Use the Edit tool to replace the existing SPEAKER/VISIBLE_ZONES block in the scene file:
+
+```tsx
+export const SPEAKER = {
+  bbox: { x: 0.00, y: 0.098, w: 1.00, h: 0.857 },
+  center: { x: 0.50, y: 0.526 },
+  bboxPx: { x: 0, y: 188, w: 1080, h: 1645 },
+  centerPx: { x: 540, y: 1010 },
+};
+
+export const VISIBLE_ZONES = {
+  left: { x: 0, y: 0, w: 0, h: 1920 },
+  right: { x: 1080, y: 0, w: 0, h: 1920 },
+  top: { x: 0, y: 0, w: 1080, h: 188 },
+  bottom: { x: 0, y: 1833, w: 1080, h: 87 },
+};
+```
+
+Pixel conversion: `bboxPx.x = Math.round(bbox.x * 1080)`, `bboxPx.y = Math.round(bbox.y * 1920)`, etc. Use the full canvas (1080x1920), NOT the scene's smaller dimensions.
 
 ### Step 5: Add transition keyframes to scene items
 

@@ -152,28 +152,24 @@ Read SCENE_PLAN.md. If it references shared components (e.g., `ProgressBar`, `An
 
 #### Speaker constants in overlay skeletons
 
-The manifest's scene items include speaker spatial data (added by the Layout Editor). For every **overlay** scene, read the scene item's `data.speakerBbox`, `data.speakerCenter`, and `data.visibleZones` from the manifest and bake them into the skeleton as constants.
-
-Read the manifest with `read_manifest`, find the scene item matching the skeleton's time range, and extract the normalized speaker values. Convert to pixel coordinates using the scene's canvas dimensions (1080x1920 for overlay scenes where the speaker is full-screen).
+For every **overlay** scene, include placeholder SPEAKER and VISIBLE_ZONES constants. The Layout Editor will overwrite these with real matte-derived values after you're done — but the Animator needs the structure to exist.
 
 ```tsx
-// Speaker position (matte-derived, always available in overlay mode)
+// Speaker position (placeholder — Layout Editor will update with matte-derived values)
 export const SPEAKER = {
-  bbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },          // normalized 0-1
-  center: { x: 0.50, y: 0.45 },                             // normalized face center
-  bboxPx: { x: 302, y: 192, w: 475, h: 1440 },             // pixel values on 1080x1920
-  centerPx: { x: 540, y: 864 },                              // pixel values
+  bbox: { x: 0.25, y: 0.05, w: 0.50, h: 0.85 },
+  center: { x: 0.50, y: 0.45 },
+  bboxPx: { x: 270, y: 96, w: 540, h: 1632 },
+  centerPx: { x: 540, y: 864 },
 };
 
 export const VISIBLE_ZONES = {
-  left:   { x: 0, y: 0, w: 302, h: 1920 },
-  right:  { x: 778, y: 0, w: 302, h: 1920 },
-  top:    { x: 0, y: 0, w: 1080, h: 192 },
-  bottom: { x: 0, y: 1632, w: 1080, h: 288 },
+  left:   { x: 0, y: 0, w: 270, h: 1920 },
+  right:  { x: 810, y: 0, w: 270, h: 1920 },
+  top:    { x: 0, y: 0, w: 1080, h: 96 },
+  bottom: { x: 0, y: 1728, w: 1080, h: 192 },
 };
 ```
-
-**Pixel conversion:** `bboxPx.x = Math.round(bbox.x * 1080)`, `bboxPx.y = Math.round(bbox.y * 1920)`, etc. Use the canvas dimensions (1080x1920), NOT the scene dimensions (which are the overlay's smaller canvas).
 
 **Stacked and Fullscreen scenes:** Do NOT include SPEAKER or VISIBLE_ZONES constants. These modes don't use depth layers (speaker is cropped to bottom half or hidden).
 
