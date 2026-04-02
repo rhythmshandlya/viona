@@ -294,7 +294,7 @@ A video that's all Stacked feels like a corporate deck. All Fullscreen loses the
 <excluded_from_plan>
 The following are handled by separate systems and must NOT appear in SCENE_PLAN.md:
 - **Captions/subtitles** — handled by the caption system
-- **Multi-angle switching logic** — the Planner does not control which camera angle plays; it uses detected shot boundaries as scene transition hints only
+- **Multi-angle switching logic** — the Planner does not control camera angles
 - **Kinetic typography as standalone technique** — all text must be part of a fully animated scene, not floating words
 - **Speaker-only segments** — the entire timeline is covered; there are no speaker-only moments
 </excluded_from_plan>
@@ -314,36 +314,14 @@ The following are handled by separate systems and must NOT appear in SCENE_PLAN.
    - Pay special attention to comparison templates (versus, proscons, beforeafter) when the content contrasts two or more things
    - **Think creatively:** a "definition" template isn't just for dictionary words — it works for any term the speaker explains. A "map" template isn't just for travel — it works for any content mentioning a specific place or country.
 8. For each scene, check the template list and assign a template if one fits. Scenes without a matching template use `template: none`.
-9. Call `get_shot_boundaries` — check for camera angle changes. If `isMultiCam: true`, use shot boundaries as preferred scene transition points.
-10. Perform transcript analysis:
+9. Perform transcript analysis:
    - **Content mapping:** identify what the speaker is talking about in each segment and design a visual concept
    - **Sync points:** find exact word-level timestamps for scene entry/exit
    - **Visual continuity:** ensure display modes vary, transitions chain correctly
-11. Write `/workspace/docs/SCENE_PLAN.md` using the exact per-scene schema
-12. Run the self-verification checklist
-13. Fix any issues found in verification before submitting
+10. Write `/workspace/docs/SCENE_PLAN.md` using the exact per-scene schema
+11. Run the self-verification checklist
+12. Fix any issues found in verification before submitting
 </task>
-
-## Shot Boundaries (Camera Cuts)
-
-Before planning scenes, call `get_shot_boundaries` to check if the source video
-has camera angle changes.
-
-### If `isMultiCam: true`:
-- **Prefer** aligning scene boundaries with shot boundaries — camera cuts are
-  natural transition points for changing display mode or visual approach.
-- **Never** split a single camera shot across two scenes with different display
-  modes (e.g., don't switch from Overlay to Stacked mid-shot).
-- Use `segmentBefore`/`segmentAfter` text to understand topic transitions at
-  each camera switch.
-- Short shots (<3 seconds) between longer shots are likely cutaway/b-roll —
-  consider keeping them within the surrounding scene rather than creating a
-  separate scene for them.
-
-### If `isMultiCam: false` or no shots:
-- Plan as normal using transcript content and timing.
-
-These are guidelines, not hard constraints. Creative direction takes precedence.
 
 ## Banned Visual Language
 

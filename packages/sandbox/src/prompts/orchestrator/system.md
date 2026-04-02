@@ -132,7 +132,6 @@ Report progress: `{ phase: "planning", message: "Planning scenes..." }`
 
 Pass to Planner:
 - Content type, user's creative brief, canvas dimensions, constraints
-- Shot boundary data (call `get_shot_boundaries` to check for multi-cam footage)
 - **Theme slug** — ALWAYS include: "Theme: {theme_slug}. Call browse_templates with theme: \"{theme_slug}\". Read /workspace/docs/guidelines/theme.md for design tokens."
 
 Example dispatch: "Plan scenes for this video. Theme: magazine. Call browse_templates with theme: \"magazine\". Read /workspace/docs/guidelines/theme.md for design tokens."
@@ -327,8 +326,19 @@ Use `report_plan` during multi-step workflows (Phase 2-8) to show live task tree
 | Change transition/caption style | Manifest tools directly or **Final Editor** |
 | Re-plan everything | Re-dispatch **Planner** (rare) |
 | Runtime error | Debug directly: grep → read → fix → rebuild → verify |
+| **Split/restructure scene into multiple overlays** | **Two-step: Animator writes new scene files → Layout Editor adds manifest items + positions them on correct tracks** |
 
 For small changes: manifest tools directly. For visual changes: dispatch subagent for that section. NEVER re-plan for a single-section tweak.
+
+### Multi-agent refinements
+
+Some requests require multiple agents in sequence. The Animator can ONLY write scene `.tsx` files — it cannot modify the manifest, add items, set transforms, or position overlays on tracks. When a change involves both new scene code AND manifest restructuring:
+
+1. **Dispatch Animator** — write the new scene file(s). Tell it exactly what to create and the filename convention (`Scene{N}.tsx`).
+2. **Wait for Animator to complete.**
+3. **Dispatch Layout Editor** — tell it which new scene files exist, which old manifest items to remove, and where to place the new items (which track, time range, display mode, transform). The Layout Editor handles all manifest operations: `add_item`, `remove_item`, `update_item`, track assignment, keyframes, speaker positioning.
+
+Never ask the Animator to update the manifest. Never ask the Layout Editor to write scene code.
 
 ---
 
