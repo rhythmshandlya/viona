@@ -108,7 +108,6 @@ const ASSET_TOOL_NAMES = [
   'mcp__assets__download_stock_photo',
   'mcp__assets__get_speaker_position',
   'mcp__assets__auto_center_speaker',
-  'mcp__assets__get_shot_boundaries',
   'mcp__assets__request_segmentation',
   'mcp__assets__check_segmentation_status',
   'mcp__assets__get_depth_compositing_info',
