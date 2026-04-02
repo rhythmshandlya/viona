@@ -900,22 +900,6 @@ server.registerTool(
 );
 
 // ---------------------------------------------------------------------------
-// Shot boundaries tool
-// ---------------------------------------------------------------------------
-
-function formatMs(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  const frac = ms % 1000;
-  return `${min}:${String(sec).padStart(2, "0")}.${String(frac).padStart(3, "0")}`;
-}
-
-function truncate(str: string, max: number): string {
-  return str.length > max ? str.slice(0, max - 3) + "..." : str;
-}
-
-// ---------------------------------------------------------------------------
 // Segmentation tools — request/poll person matte extraction from worker
 // ---------------------------------------------------------------------------
 

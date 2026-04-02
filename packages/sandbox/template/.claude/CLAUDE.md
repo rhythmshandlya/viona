@@ -7,7 +7,6 @@ docs/
   transcript-original.json       # Immutable backup
   SCENE_PLAN.md                  # Scene plan (written by Planner, read by downstream agents)
   user-brief.md                  # User's creative brief (if provided)
-  shot-boundaries.json           # Camera cut points with transcript context (use get_shot_boundaries tool)
   guidelines/
     editing-style.md             # Editing style guide
     theme.md                    # Theme design system tokens
