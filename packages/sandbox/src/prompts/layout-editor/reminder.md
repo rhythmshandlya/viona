@@ -34,10 +34,10 @@
 - V2/V4 scene items: cross-fade (outgoing fades out, incoming fades in, 300ms each).
 
 ## Speaker Spatial Data
-- Every OVERLAY scene item MUST have `data.speakerBbox`, `data.speakerCenter`, `data.visibleZones`.
-- Call `get_speaker_position` per overlay scene to get speaker coordinates.
-- Normalize to 0-1 range (divide by canvas width/height).
-- Write SPEAKER/VISIBLE_ZONES constants to overlay scene skeleton files.
+- Every OVERLAY scene item MUST have `data.speakerBbox` and `data.speakerCenter` (normalized 0-1 from `speaker.normalized`).
+- Call `get_speaker_position` per overlay scene. Use `speaker.normalized` values directly.
+- Write SPEAKER/VISIBLE_ZONES constants to overlay scene files in **scene-local** pixels (multiply normalized values by SCENE_WIDTH/SCENE_HEIGHT, NOT canvas dimensions).
+- Do NOT write speaker data for stacked/fullscreen scenes.
 
 ## Keyframes
 - Format: `{ timeMs: T, props: { ... } }` — NEVER flat format.

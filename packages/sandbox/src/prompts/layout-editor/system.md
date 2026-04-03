@@ -177,65 +177,72 @@ Note: `displayMode` uses the manifest API value `"split-screen"` for Stacked lay
 
 #### Speaker spatial data (REQUIRED on every overlay scene item)
 
-After creating each **overlay** scene item, call `get_speaker_position` with the scene's `{ startMs, endMs }` to get the speaker's full-body position during that time range. Segmentation mattes are already available in the workspace (the orchestrator polled for them in Phase 5). Add the returned data to the scene item's `data` field:
+After creating each **overlay** scene item, call `get_speaker_position` with the scene's `{ startMs, endMs }` to get the speaker's full-body position. The tool returns both pixel bounds (canvas space) and `speaker.normalized` (0-1 range). Use the **normalized** values to compute **scene-local** coordinates.
 
 ```
 // For each OVERLAY scene item:
 const pos = get_speaker_position({ startMs: 15000, endMs: 25000 });
+const norm = pos.speaker.normalized;
 
+// Store normalized values on the item (Layout Editor does NOT store pixel values)
 update_item({
   itemId: "scene-1",
   data: {
     ...existingData,
-    speakerBbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },   // normalized 0-1 from pos.speaker.bounds
-    speakerCenter: { x: 0.50, y: 0.45 },                       // normalized center
-    visibleZones: {                                              // areas NOT behind speaker
-      left:   { x: 0, y: 0, w: 0.28, h: 1.0 },
-      right:  { x: 0.72, y: 0, w: 0.28, h: 1.0 },
-      top:    { x: 0, y: 0, w: 1.0, h: 0.10 },
-      bottom: { x: 0, y: 0.85, w: 1.0, h: 0.15 }
-    }
+    speakerBbox: norm.bbox,              // normalized 0-1 (x, y, w, h)
+    speakerCenter: norm.center,           // normalized 0-1 (x, y)
   }
 })
 ```
 
-Normalize values to 0-1 range. `get_speaker_position` returns `speaker.bounds` as `{ top, bottom, left, right }` in **pixel coordinates**. Convert with:
-```
-x = bounds.left / canvasWidth
-y = bounds.top / canvasHeight
-w = (bounds.right - bounds.left) / canvasWidth
-h = (bounds.bottom - bounds.top) / canvasHeight
-center.x = speaker.center.x / canvasWidth
-center.y = speaker.center.y / canvasHeight
-```
+**IMPORTANT:** `get_speaker_position` returns `speaker.normalized.bbox` in 0-1 range. Store these directly on the item data. The Animator converts to scene-local pixels inside the scene code using `SCENE_WIDTH` and `SCENE_HEIGHT`.
 
-If `get_speaker_position` returns `source: "defaults"` (no matte data), the bounds are approximate. Use them as-is — they default to a generous center-screen speaker region.
+If `get_speaker_position` returns `source: "defaults"` (no matte data), the bounds are approximate. Use them as-is.
 
 **Stacked and Fullscreen scenes:** Do NOT call `get_speaker_position` or add speaker data. These modes don't use overlay positioning.
 
 #### Write SPEAKER constants to overlay scene files
 
-After calling `get_speaker_position` for an overlay scene, write the SPEAKER and VISIBLE_ZONES constants directly into the scene skeleton file. The Setup Agent already created the skeleton, but with placeholder/default speaker values. Overwrite them with the real matte-derived data.
+After calling `get_speaker_position` for an overlay scene, write the SPEAKER and VISIBLE_ZONES constants directly into the scene skeleton file. **All values are in scene-local coordinates** — the Animator uses these directly with `position: absolute` inside the scene div.
 
 Use the Edit tool to replace the existing SPEAKER/VISIBLE_ZONES block in the scene file:
 
 ```tsx
+// Speaker position in SCENE-LOCAL coordinates (relative to SCENE_WIDTH × SCENE_HEIGHT)
 export const SPEAKER = {
-  bbox: { x: 0.00, y: 0.098, w: 1.00, h: 0.857 },
-  center: { x: 0.50, y: 0.526 },
-  bboxPx: { x: 0, y: 188, w: 1080, h: 1645 },
-  centerPx: { x: 540, y: 1010 },
+  bbox: { x: 0.28, y: 0.10, w: 0.44, h: 0.75 },     // normalized 0-1
+  center: { x: 0.50, y: 0.45 },                        // normalized 0-1
+  bboxPx: { x: 280, y: 96, w: 440, h: 720 },          // pixels in SCENE_WIDTH × SCENE_HEIGHT
+  centerPx: { x: 500, y: 432 },                        // pixels in SCENE_WIDTH × SCENE_HEIGHT
 };
 
 export const VISIBLE_ZONES = {
-  left: { x: 0, y: 0, w: 0, h: 1920 },
-  right: { x: 1080, y: 0, w: 0, h: 1920 },
-  top: { x: 0, y: 0, w: 1080, h: 188 },
-  bottom: { x: 0, y: 1833, w: 1080, h: 87 },
+  left:   { x: 0, y: 0, w: 280, h: 960 },             // scene-local pixels
+  right:  { x: 720, y: 0, w: 280, h: 960 },
+  top:    { x: 0, y: 0, w: 1000, h: 96 },
+  bottom: { x: 0, y: 816, w: 1000, h: 144 },
 };
 ```
 
-Pixel conversion: `bboxPx.x = Math.round(bbox.x * 1080)`, `bboxPx.y = Math.round(bbox.y * 1920)`, etc. Use the full canvas (1080x1920), NOT the scene's smaller dimensions.
+**Scene-local pixel conversion:**
+```
+bboxPx.x = Math.round(bbox.x * SCENE_WIDTH)
+bboxPx.y = Math.round(bbox.y * SCENE_HEIGHT)
+bboxPx.w = Math.round(bbox.w * SCENE_WIDTH)
+bboxPx.h = Math.round(bbox.h * SCENE_HEIGHT)
+centerPx.x = Math.round(center.x * SCENE_WIDTH)
+centerPx.y = Math.round(center.y * SCENE_HEIGHT)
+```
+
+Use `SCENE_WIDTH` and `SCENE_HEIGHT` from the scene's placement preset — NOT the full canvas 1080×1920. VISIBLE_ZONES pixel values also use scene dimensions:
+```
+VISIBLE_ZONES.left.w  = bboxPx.x
+VISIBLE_ZONES.right.x = bboxPx.x + bboxPx.w
+VISIBLE_ZONES.right.w = SCENE_WIDTH - VISIBLE_ZONES.right.x
+VISIBLE_ZONES.top.h   = bboxPx.y
+VISIBLE_ZONES.bottom.y = bboxPx.y + bboxPx.h
+VISIBLE_ZONES.bottom.h = SCENE_HEIGHT - VISIBLE_ZONES.bottom.y
+```
 
 ### Step 6: Add transition keyframes
 
