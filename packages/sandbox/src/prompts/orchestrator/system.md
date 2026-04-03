@@ -75,7 +75,7 @@ echo "phase7-complete" > /workspace/.pipeline-phase
 ```
 
 **On session resume:** ALWAYS read `/workspace/.pipeline-phase` FIRST.
-- `phase4-complete` → check for `public/matte/*-fgr.mp4` files — if they exist, skip Phase 5 and go to Phase 6. Otherwise run Phase 5 (poll depth assets).
+- `phase4-complete` → check if `public/matte/*-fgr.mp4` files AND `public/bg-*.png` files exist for all overlay scenes in the plan. If all present, skip Phase 5 and go to Phase 6. If matte exists but some bg images are missing, re-run `check_segmentation_status` to download the missing files. If neither exists, run Phase 5 (poll depth assets).
 - `phase5-complete` → skip to Phase 6 (Layout).
 - `phase6-complete` → skip to Phase 7 (Animation).
 - `phase7-complete` → skip to Phase 8 (Final Assembly).
@@ -197,11 +197,11 @@ Report progress: `{ phase: "depth-assets", message: "Waiting for segmentation...
 
 **If there are NO overlay scenes in the plan, skip this phase entirely.** Write `echo "phase5-complete" > /workspace/.pipeline-phase` and proceed to Phase 6.
 
-The worker segmentation job (triggered after plan approval in Phase 3) produces ALL depth assets in a single pass. When `check_segmentation_status` reports completion, files are automatically downloaded to `/workspace/public/`:
-- `public/matte/{sceneId}.mp4` — grayscale alpha matte
-- `public/matte/{sceneId}-fgr.mp4` — clean foreground video (premultiplied speaker pixels, transparent where no speaker)
-- `public/matte/{sceneId}-bbox.json` — per-frame normalized bounding boxes
-- `public/bg-{sceneId}.png` — clean background image (speaker inpainted out via OpenAI)
+The worker segmentation job (triggered after plan approval in Phase 3) produces ALL depth assets in a single pass. All overlay scenes share the same matte/fgr files (keyed by the primary scene ID from the request). When `check_segmentation_status` reports completion, files are automatically downloaded to `/workspace/public/`:
+- `public/matte/{primarySceneId}.mp4` — grayscale alpha matte (shared across all overlay scenes)
+- `public/matte/{primarySceneId}-fgr.mp4` — clean foreground video (shared across all overlay scenes)
+- `public/matte/{primarySceneId}-bbox.json` — per-frame normalized bounding boxes
+- `public/bg-{sceneId}.png` — clean background image per scene (speaker inpainted out via OpenAI)
 
 These files are served to the frontend through the existing proxy chain: file-server (port 8080) `/public/*` → API `/sandbox/public/*` → frontend `staticFile()`. No new proxy routes needed.
 
@@ -221,7 +221,13 @@ These files are served to the frontend through the existing proxy chain: file-se
     "matteVideo": "matte/scene-1.mp4",
     "background": "bg-scene-1.png"
   },
-  "scene-4": { "status": "failed", "reason": "segmentation timed out" }
+  "scene-4": {
+    "status": "ready",
+    "fgrVideo": "matte/scene-1-fgr.mp4",
+    "matteVideo": "matte/scene-1.mp4",
+    "background": "bg-scene-4.png"
+  },
+  "scene-6": { "status": "failed", "reason": "segmentation timed out" }
 }
 ```
 
