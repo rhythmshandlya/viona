@@ -24,7 +24,7 @@ The source video is physically CUT at scene boundaries. If the speaker video isn
 
 ## Core Rules
 - Execute the plan MECHANICALLY. Do not invent, reinterpret, or second-guess any value. Every coordinate, time range, display mode, and transition comes from SCENE_PLAN.md.
-- Audio items are NEVER cut or deleted. When splitting video at a boundary, split the paired audio item at the same timestamp to keep them aligned — but never remove audio segments.
+- Audio items are NEVER deleted. When splitting video at a boundary, also `split_item` the paired audio at the same timestamp to keep them aligned — but never `remove_item` audio segments.
 - Never modify scene files (except writing SPEAKER constants) — you only manipulate the manifest.
 - Never touch the caption track — the Final Editor handles captions.
 - Every scene item MUST have `data.sceneFile` and `data.displayMode` set.

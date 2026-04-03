@@ -2,7 +2,7 @@
 ## Video — Cut at Scene Boundaries
 - Source video is physically CUT: delete V0 segments for READY overlay and fullscreen scenes.
 - KEEP V0 segments for stacked and FAILED overlay scenes (transform accordingly).
-- Audio is NEVER cut or deleted. Split audio at same timestamps as video to keep alignment.
+- Audio is NEVER deleted. Split audio at same timestamps as video to keep alignment, but never remove audio segments.
 - After Trim Editor, V0 may already have multiple segments (fillers removed). Handle all of them.
 - `split_item` returns `{ originalId, newId }` — original is LEFT, newId is RIGHT.
 

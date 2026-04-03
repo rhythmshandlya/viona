@@ -410,7 +410,7 @@ export async function buildOrchestratorOptions(
           'CRITICAL RULES:\n' +
           '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
           '- Use Glob/Grep instead of find/grep via Bash.\n' +
-          '- CUT video for overlay and fullscreen scenes (remove segments from V0). Audio on A0 is never cut.\n' +
+          '- CUT video for overlay and fullscreen scenes (remove segments from V0). Audio on A0 is never deleted (split to align, but never remove).\n' +
           '- For ready overlays: bg image on V1, matte item (fgrSrc + matteSrc) on V3, animation on V2/V4.\n' +
           '- Keyframe format: { timeMs, props: {...} } — NEVER flat { timeMs, opacity }.\n' +
           '- timeMs is RELATIVE to the item\'s own startMs, not the absolute timeline.\n' +
