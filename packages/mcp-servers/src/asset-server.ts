@@ -1029,19 +1029,26 @@ server.registerTool(
         anyFailed: boolean;
       };
 
-      // Download completed mattes to local workspace
+      // Download completed mattes to local workspace.
+      // One job produces ONE matte/fgr/bbox (shared across all overlay scenes)
+      // plus N bg images (one per scene). All scenes reference the same matte.
       await mkdir(MATTE_DIR, { recursive: true });
       const downloaded: string[] = [];
 
       for (const job of data.jobs) {
         if (job.status === "complete" && job.sceneId) {
-          const localMattePath = path.join(MATTE_DIR, `${job.sceneId}.mp4`);
-          const localBboxPath = path.join(MATTE_DIR, `${job.sceneId}-bbox.json`);
+          const primarySceneId = job.sceneId;
+          // allSceneIds from job metadata — all overlay scenes sharing this matte
+          const allSceneIds: string[] = (job as any).allSceneIds ?? [primarySceneId];
+
+          // Download matte/fgr/bbox ONCE using the primary scene ID
+          const localMattePath = path.join(MATTE_DIR, `${primarySceneId}.mp4`);
+          const localBboxPath = path.join(MATTE_DIR, `${primarySceneId}-bbox.json`);
+          const localFgrPath = path.join(MATTE_DIR, `${primarySceneId}-fgr.mp4`);
 
           // Download matte video (skip if already exists)
           try {
             await stat(localMattePath);
-            downloaded.push(job.sceneId);
           } catch {
             try {
               const matteRes = await fetch(
@@ -1054,10 +1061,9 @@ server.registerTool(
               if (matteRes.ok) {
                 const buf = Buffer.from(await matteRes.arrayBuffer());
                 await writeFile(localMattePath, buf);
-                downloaded.push(job.sceneId);
               }
             } catch (dlErr) {
-              console.error(`[asset-server] Failed to download matte for ${job.sceneId}:`, dlErr);
+              console.error(`[asset-server] Failed to download matte for ${primarySceneId}:`, dlErr);
             }
           }
 
@@ -1083,7 +1089,6 @@ server.registerTool(
           }
 
           // Download foreground video (skip if already exists)
-          const localFgrPath = path.join(MATTE_DIR, `${job.sceneId}-fgr.mp4`);
           try {
             await stat(localFgrPath);
           } catch {
@@ -1104,29 +1109,41 @@ server.registerTool(
             }
           }
 
-          // Download background image (skip if already exists)
-          const localBgPath = path.join(WORKSPACE, "public", `bg-${job.sceneId}.png`);
-          try {
-            await stat(localBgPath);
-          } catch {
+          // Download per-scene background images
+          for (const sid of allSceneIds) {
+            const localBgPath = path.join(WORKSPACE, "public", `bg-${sid}.png`);
             try {
-              const bgRes = await fetch(
-                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/bg`,
-                {
-                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-                  signal: AbortSignal.timeout(30_000),
-                }
-              );
-              if (bgRes.ok) {
-                const buf = Buffer.from(await bgRes.arrayBuffer());
-                await writeFile(localBgPath, buf);
-              }
+              await stat(localBgPath);
             } catch {
-              // Background download is best-effort
+              try {
+                const bgRes = await fetch(
+                  `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/bg?sceneId=${sid}`,
+                  {
+                    headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
+                    signal: AbortSignal.timeout(30_000),
+                  }
+                );
+                if (bgRes.ok) {
+                  const buf = Buffer.from(await bgRes.arrayBuffer());
+                  await writeFile(localBgPath, buf);
+                }
+              } catch {
+                // Background download is best-effort
+              }
             }
+          }
+
+          // All scenes share the same matte/fgr/bbox (full-video), only bg differs
+          for (const sid of allSceneIds) {
+            downloaded.push(sid);
           }
         }
       }
+
+      // Build response: all scenes reference the primary matte/fgr, own bg
+      const primarySceneId = downloaded.length > 0
+        ? (data.jobs.find(j => j.status === "complete")?.sceneId ?? downloaded[0])
+        : null;
 
       return {
         content: [{
@@ -1136,11 +1153,12 @@ server.registerTool(
             downloaded,
             mattePaths: downloaded.map(id => ({
               sceneId: id,
-              mattePath: `public/matte/${id}.mp4`,
-              fgrPath: `public/matte/${id}-fgr.mp4`,
+              // All scenes share the primary scene's matte/fgr (full-video coverage)
+              mattePath: `public/matte/${primarySceneId}.mp4`,
+              fgrPath: `public/matte/${primarySceneId}-fgr.mp4`,
               bgPath: `public/bg-${id}.png`,
-              staticFile: `matte/${id}.mp4`,
-              fgrStaticFile: `matte/${id}-fgr.mp4`,
+              staticFile: `matte/${primarySceneId}.mp4`,
+              fgrStaticFile: `matte/${primarySceneId}-fgr.mp4`,
               bgStaticFile: `bg-${id}.png`,
             })),
           }),

@@ -36,7 +36,7 @@ The source video is physically CUT at scene boundaries. If the speaker video isn
 ### Step 1: Read inputs
 Read SCENE_PLAN.md and parse all scene entries — note each scene's name, time range, display mode, dimensions, placement, and transition type. Read the manifest to identify all video items, audio items, and existing tracks.
 
-Parse the **depthAssets** from the orchestrator's dispatch message. This is a JSON object mapping sceneIds to their status and file paths:
+Parse the **depthAssets** from the orchestrator's dispatch message. This is a JSON object mapping sceneIds to their status and file paths. Note: all scenes share the same matte/fgr files (full-video segmentation), only background images differ per scene:
 ```json
 {
   "scene-1": {
@@ -45,18 +45,25 @@ Parse the **depthAssets** from the orchestrator's dispatch message. This is a JS
     "matteVideo": "matte/scene-1.mp4",
     "background": "bg-scene-1.png"
   },
-  "scene-4": { "status": "failed", "reason": "segmentation timed out" }
+  "scene-4": {
+    "status": "ready",
+    "fgrVideo": "matte/scene-1-fgr.mp4",
+    "matteVideo": "matte/scene-1.mp4",
+    "background": "bg-scene-4.png"
+  }
 }
 ```
 
 ### Step 2: Create the layer sandwich tracks
 
 ```
-add_track({ type: "overlay", name: "V1", position: 1 })  → background plates
-add_track({ type: "overlay", name: "V2", position: 2 })  → behind-speaker animations
-add_track({ type: "overlay", name: "V3", position: 3 })  → matted speaker
-add_track({ type: "overlay", name: "V4", position: 4 })  → in-front-of-speaker animations
+const v1 = add_track({ type: "overlay", name: "V1", position: 1 })  → background plates
+const v2 = add_track({ type: "overlay", name: "V2", position: 2 })  → behind-speaker animations
+const v3 = add_track({ type: "overlay", name: "V3", position: 3 })  → matted speaker
+const v4 = add_track({ type: "overlay", name: "V4", position: 4 })  → in-front-of-speaker animations
 ```
+
+**IMPORTANT:** `add_track` returns a JSON object with the generated `id` (UUID). Use the returned `id` for all subsequent `add_item` calls — do NOT assume track IDs like `trk-V1`.
 
 | Track | Position | Contents |
 |---|---|---|
@@ -86,7 +93,7 @@ Split source video at every scene boundary, then delete segments where the video
    - **FAILED overlay**: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` (full canvas, no depth)
 7. Re-read manifest to verify V0 state after cuts
 
-**IMPORTANT:** After the Trim Editor runs, the video track may already contain MULTIPLE video segments (fillers were removed, leaving gaps). You must split all of them that span scene boundaries. `split_item` returns `{ originalId, newId }` — original is LEFT (earlier), newId is RIGHT (later).
+**IMPORTANT:** After the Trim Editor runs, the video track may already contain MULTIPLE video segments (fillers were removed, leaving gaps). You must split all of them that span scene boundaries. `split_item` returns `{ originalId, newId }` — original is LEFT (earlier), newId is RIGHT (later). Note: `split_item` only works on `video` and `audio` items — other types cannot be split.
 
 ### Auto-Center Speaker
 

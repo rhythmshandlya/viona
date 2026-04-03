@@ -467,40 +467,40 @@ export function createSandboxRoutes(manager: SandboxManager) {
 
       const { queueSegmentationJob } = await import('../services/queue.js');
 
-      const jobIds: string[] = [];
-      let estimatedDurationMs = 0;
+      // One segmentation job for the full video (matte + fgr + bbox)
+      // plus N background images (one per overlay scene).
+      // Previously each scene spawned a duplicate full-video job.
+      const primaryScene = ranges[0];
+      const outputKey = `mattes/${projectId}/${primaryScene.sceneId}.mp4`;
+      const allSceneIds = ranges.map(r => r.sceneId);
 
-      for (const range of ranges) {
-        const outputKey = `mattes/${projectId}/${range.sceneId}.mp4`;
-
-        // Create DB job record
-        const [job] = await db.insert(jobs).values({
-          projectId,
-          type: 'segmentation',
-          status: 'pending',
-          progressMeta: {
-            sceneId: range.sceneId,
-            outputKey,
-          },
-        }).returning();
-
-        // Queue the worker job
-        await queueSegmentationJob({
-          projectId,
-          jobId: job.id,
-          videoKey: project.videoKey,
-          startMs: range.startMs,
-          endMs: range.endMs,
-          sceneId: range.sceneId,
+      const [job] = await db.insert(jobs).values({
+        projectId,
+        type: 'segmentation',
+        status: 'pending',
+        progressMeta: {
+          sceneId: primaryScene.sceneId,
+          allSceneIds,
           outputKey,
-        });
+        },
+      }).returning();
 
-        jobIds.push(job.id);
-        estimatedDurationMs += Math.ceil((range.endMs - range.startMs) * 0.5); // ~0.5x realtime estimate
-      }
+      await queueSegmentationJob({
+        projectId,
+        jobId: job.id,
+        videoKey: project.videoKey,
+        startMs: primaryScene.startMs,
+        endMs: primaryScene.endMs,
+        sceneId: primaryScene.sceneId,
+        outputKey,
+        bgRanges: ranges.map(r => ({ sceneId: r.sceneId, startMs: r.startMs, endMs: r.endMs })),
+      });
 
-      logger.info({ projectId, jobIds, rangeCount: ranges.length }, 'Segmentation jobs queued');
-      return { jobIds, estimatedDurationMs };
+      // Estimate: full video segmentation + N bg generations (~30s each)
+      const estimatedDurationMs = 60_000 + ranges.length * 30_000;
+
+      logger.info({ projectId, jobId: job.id, sceneIds: allSceneIds }, 'Segmentation job queued (1 matte, %d bg images)', ranges.length);
+      return { jobIds: [job.id], allSceneIds, estimatedDurationMs };
     });
 
     // GET /internal/sandbox/:id/segment/status — Poll segmentation job statuses
@@ -529,6 +529,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
         status: j.status,
         progress: j.progress,
         sceneId: (j.progressMeta as any)?.sceneId ?? null,
+        allSceneIds: (j.progressMeta as any)?.allSceneIds ?? null,
         outputKey: (j.progressMeta as any)?.outputKey ?? null,
         error: j.error,
       }));
@@ -667,9 +668,11 @@ export function createSandboxRoutes(manager: SandboxManager) {
       if (!job) return reply.status(404).send({ error: 'Job not found' });
       if (job.status !== 'complete') return reply.status(409).send({ error: `Job status is ${job.status}` });
 
-      const meta = job.progressMeta as { sceneId?: string } | null;
-      const sceneId = meta?.sceneId;
-      if (!sceneId) return reply.status(500).send({ error: 'No sceneId in job metadata' });
+      // Accept optional ?sceneId= query param for multi-scene jobs (one matte, N bg images)
+      const querySceneId = (request.query as { sceneId?: string }).sceneId;
+      const meta = job.progressMeta as { sceneId?: string; allSceneIds?: string[] } | null;
+      const sceneId = querySceneId ?? meta?.sceneId;
+      if (!sceneId) return reply.status(500).send({ error: 'No sceneId in job metadata or query' });
 
       const bgKey = `projects/${projectId}/bg-${sceneId}.png`;
       try {

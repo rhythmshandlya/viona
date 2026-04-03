@@ -23,7 +23,6 @@ interface MatteItemData {
 interface MatteItemProps {
   data: MatteItemData;
   assets: Record<string, string>;
-  fps: number;
 }
 
 export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets }) => {

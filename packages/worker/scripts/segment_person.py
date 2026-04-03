@@ -83,9 +83,10 @@ def parse_arguments() -> argparse.Namespace:
         default=DOWNSAMPLE_RATIO,
         help=f"RVM internal downsample ratio (default: {DOWNSAMPLE_RATIO})",
     )
-    parser.add_argument("--start-ms", type=int, default=0, help="Scene start time in ms (for bg frame extraction)")
-    parser.add_argument("--end-ms", type=int, default=0, help="Scene end time in ms (for bg frame extraction)")
-    parser.add_argument("--bg-output", type=str, default="", help="Output path for clean background PNG. Empty = skip bg generation.")
+    parser.add_argument("--start-ms", type=int, default=0, help="(Deprecated) Scene start time in ms — use --bg-ranges instead")
+    parser.add_argument("--end-ms", type=int, default=0, help="(Deprecated) Scene end time in ms — use --bg-ranges instead")
+    parser.add_argument("--bg-output", type=str, default="", help="(Deprecated) Single bg output path — use --bg-ranges instead")
+    parser.add_argument("--bg-ranges", type=str, default="", help="JSON array of {sceneId, startMs, endMs, output} for multiple background images")
     return parser.parse_args()
 
 
@@ -455,9 +456,25 @@ def main():
     print(f"Matte saved: {args.output}")
     print(f"Bbox saved: {result['bboxPath']}")
 
-    # Generate clean background if requested
-    bg_path = ""
-    if args.bg_output:
+    # Generate clean backgrounds
+    if args.bg_ranges:
+        # New: multiple bg images from JSON array
+        ranges = json.loads(args.bg_ranges)
+        for r in ranges:
+            bg_out = r.get("output", "")
+            if not bg_out:
+                continue
+            bg_path = generate_background(
+                str(input_path),
+                args.output,
+                bg_out,
+                r.get("startMs", 0),
+                r.get("endMs", 0),
+            )
+            if bg_path:
+                print(f"Background saved: {bg_path}")
+    elif args.bg_output:
+        # Legacy: single bg image
         bg_path = generate_background(
             str(input_path),
             args.output,

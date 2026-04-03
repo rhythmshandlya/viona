@@ -58,7 +58,7 @@ const itemDataSchemas: Record<string, z.ZodTypeAny> = {
     displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
     sceneName: z.string().optional(),
     sceneType: z.string().optional(),
-  }),
+  }).passthrough(),  // Allow extra fields (speakerBbox, speakerCenter, visibleZones)
   caption: z.object({ words: z.array(captionWordSchema) }),
   shape: z.object({
     shape: z.enum(['rectangle', 'circle', 'line']),
@@ -267,7 +267,7 @@ export const readItemTool = {
 
 export const addTrackTool = {
   name: 'add_track',
-  description: 'Add a new track. Auto-generates an ID and assigns the next position.',
+  description: 'Add a new track. Auto-generates an ID. Position defaults to next available if not specified.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -277,10 +277,11 @@ export const addTrackTool = {
         description: 'Track type',
       },
       name: { type: 'string', description: 'Track display name' },
+      position: { type: 'number', description: 'Track position (higher = renders on top). Auto-assigned if omitted.' },
     },
     required: ['type', 'name'],
   },
-  async execute(input: { type: string; name: string }): Promise<string> {
+  async execute(input: { type: string; name: string; position?: number }): Promise<string> {
     return withManifestLock(async () => {
       try {
         const manifest = await readManifest();
@@ -290,7 +291,7 @@ export const addTrackTool = {
           id: randomUUID(),
           type: input.type,
           name: input.name,
-          position: maxPos + 1,
+          position: input.position ?? (maxPos + 1),
         };
         tracks.push(track);
         manifest.tracks = tracks;

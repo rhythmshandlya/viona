@@ -146,7 +146,9 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               // - video/image: browser needs time for container parse + decoder init + seek
               // - scene: React needs time to mount the component tree + initial render
               // - text/shape/caption: lightweight, small premount is enough
-              const premountFrames = (item.type === 'video' || item.type === 'image' || item.type === 'matte')
+              const premountFrames = (item.type === 'matte')
+                ? fps * 3   // 3s — matte needs both fgr + matte videos decoded
+                : (item.type === 'video' || item.type === 'image')
                 ? fps * 2   // 2s — video decode needs seek time
                 : (item.type === 'scene')
                   ? fps * 1 // 1s — scene component mount + initial React render
