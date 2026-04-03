@@ -173,6 +173,55 @@ export const VISIBLE_ZONES = {
 
 **Stacked and Fullscreen scenes:** Do NOT include SPEAKER or VISIBLE_ZONES constants. These modes don't use depth layers (speaker is cropped to bottom half or hidden).
 
+#### Split overlay scenes
+
+When SCENE_PLAN.md marks a scene for splitting (e.g., "Split: Scene5Behind + Scene5Front"), create TWO skeleton files:
+
+- `src/scenes/Scene5Behind.tsx` — skeleton with only the behind-speaker elements from the brief
+  - SCENE_WIDTH/HEIGHT: same as the overlay preset dimensions (the V2 item covers the same area)
+  - Include SPEAKER and VISIBLE_ZONES constants (same placeholders as regular overlay scenes)
+  - Comment block: only the behind-speaker elements from the animation brief
+  - Import layer: `{/* BehindSpeaker layer only */}`
+
+- `src/scenes/Scene5Front.tsx` — skeleton with only the in-front-of-speaker elements
+  - SCENE_WIDTH/HEIGHT: same as the overlay preset dimensions (the V4 item covers the same area)
+  - Include SPEAKER and VISIBLE_ZONES constants (same values as the behind scene)
+  - Comment block: only the in-front-of-speaker elements from the animation brief
+  - Import layer: `{/* InFrontOfSpeaker layer only */}`
+
+Both files get the same DATA object (shared content from plan). The animator for each file only implements the elements assigned to its layer.
+
+**Example:**
+```tsx
+// Scene: "Revenue Breakdown"
+// Display Mode: overlay (SPLIT — behind-speaker layer)
+// Template: none
+const SCENE_WIDTH = 1000;
+const SCENE_HEIGHT = 960;
+
+// Speaker position in SCENE-LOCAL coordinates (Layout Editor will update)
+export const SPEAKER = { /* ... placeholder ... */ };
+export const VISIBLE_ZONES = { /* ... placeholder ... */ };
+
+const DATA = {
+  headline: '$390 Million',
+  items: ['Hardware', 'Software', 'Services'],
+};
+
+const Scene5Behind: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  return (
+    <div style={{ width: SCENE_WIDTH, height: SCENE_HEIGHT, overflow: 'hidden' }}>
+      {/* BehindSpeaker layer only — large stat emerges above speaker's crown */}
+    </div>
+  );
+};
+
+export default Scene5Behind;
+```
+
 ---
 
 #### Template scenes (Template: `<slug>`, not "none")
