@@ -376,11 +376,11 @@ The speaker video is full-screen behind your animation. Your scene renders on a 
 - **NO `backgroundColor`** on the root div
 - `textShadow` on ALL text elements for readability
 - Surface styling follows the active theme's design system (read `theme.md`)
-- Call `get_speaker_position` with the scene's time range — use the `safePlacements` rects to avoid the speaker
+- Do NOT call `get_speaker_position` yourself — the data is already in your scene skeleton as SPEAKER and VISIBLE_ZONES constants.
 
 **Depth layers (overlay mode):**
 
-Your overlay skeleton includes `SPEAKER` and `VISIBLE_ZONES` constants plus BehindSpeaker/InFrontOfSpeaker layer comments. These tell you where the person's body is on the canvas and how to position elements for depth effects.
+Your overlay skeleton includes `SPEAKER` and `VISIBLE_ZONES` constants in **scene-local** coordinates (relative to `SCENE_WIDTH × SCENE_HEIGHT`). These tell you exactly where the speaker's body is within your scene box and where you have space for content.
 
 **How to use layers:**
 - Elements in the `{/* BehindSpeaker layer */}` section render behind the person's body
@@ -388,12 +388,21 @@ Your overlay skeleton includes `SPEAKER` and `VISIBLE_ZONES` constants plus Behi
 - A single scene can have elements on BOTH layers — mix and match
 - The animation brief tells you which elements go where ("EMERGES BEHIND" = BehindSpeaker, "IN FRONT" = InFrontOfSpeaker)
 
-**Spatial positioning with SPEAKER constants:**
+**Spatial positioning with SPEAKER constants (MANDATORY for overlay scenes):**
+
+`SPEAKER.bboxPx` is in scene-local pixels — use it directly with `position: absolute` inside your scene div. No coordinate conversion needed.
+
+- **SPEAKER.bboxPx** `{x, y, w, h}` — speaker's body rectangle in scene-local pixels
+- **SPEAKER.centerPx** `{x, y}` — speaker's body center in scene-local pixels
+- **VISIBLE_ZONES.left/right/top/bottom** `{x, y, w, h}` — areas NOT occluded by the speaker (scene-local pixels)
+
+**Rules:**
 - Place behind-speaker elements so they PEEK from the edges of `SPEAKER.bboxPx` — partially visible creates the depth illusion
-- Position behind-speaker content at chest/shoulder height (`SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3` to `0.6`) for the best partial-occlusion effect
+- Position behind-speaker content at shoulder height (`SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.2` to `0.4`) for best partial-occlusion
 - Use `VISIBLE_ZONES.left` and `VISIBLE_ZONES.right` for behind-speaker content that must be readable
-- Use `SPEAKER.centerPx` as the origin for radial/burst effects behind the speaker (center of full body silhouette)
-- Never place readable text fully behind the speaker's face area
+- Use `SPEAKER.centerPx` as the origin for radial/burst effects behind the speaker
+- Never place readable text fully behind the speaker's face area (top 30% of bboxPx)
+- **ALWAYS position overlay elements relative to SPEAKER constants** — never hardcode absolute pixel positions without referencing SPEAKER
 
 **Coding pattern:**
 ```tsx
@@ -401,11 +410,11 @@ return (
   <div style={{ width: SCENE_WIDTH, height: SCENE_HEIGHT, overflow: 'hidden' }}>
     {/* BehindSpeaker layer */}
     <div style={{ position: 'absolute', inset: 0 }}>
-      {/* Large stat peeking from behind shoulders */}
+      {/* Large stat peeking from behind shoulders — positioned relative to speaker */}
       <div style={{
         position: 'absolute',
         left: SPEAKER.centerPx.x - s(200),
-        top: SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3,
+        top: SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.25,
         fontSize: s(120),
         transform: `scale(${heroScale})`,
       }}>
@@ -415,11 +424,11 @@ return (
 
     {/* InFrontOfSpeaker layer */}
     <div style={{ position: 'absolute', inset: 0 }}>
-      {/* Lower third label */}
+      {/* Lower third label — positioned in the bottom visible zone */}
       <div style={{
         position: 'absolute',
-        bottom: s(80),
-        left: s(40),
+        left: VISIBLE_ZONES.bottom.x + s(40),
+        top: VISIBLE_ZONES.bottom.y + s(20),
         fontSize: s(28),
       }}>
         of users agree

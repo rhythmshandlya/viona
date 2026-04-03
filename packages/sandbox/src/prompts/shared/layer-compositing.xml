@@ -44,18 +44,20 @@
   </multi_element_scenes>
 
   <constants_reference>
-    Scene skeletons include these constants (always available in overlay scenes):
+    Scene skeletons include these constants (always available in overlay scenes).
+    ALL pixel values are in SCENE-LOCAL coordinates (relative to SCENE_WIDTH × SCENE_HEIGHT):
 
-    SPEAKER.bbox    — normalized {x, y, w, h} (0-1 range)
-    SPEAKER.center  — normalized {x, y} (face center)
-    SPEAKER.bboxPx  — pixel values {x, y, w, h}
-    SPEAKER.centerPx — pixel values {x, y}
-    VISIBLE_ZONES.left   — pixel rect {x, y, w, h} (area left of speaker)
-    VISIBLE_ZONES.right  — pixel rect {x, y, w, h} (area right of speaker)
-    VISIBLE_ZONES.top    — pixel rect {x, y, w, h} (area above speaker)
-    VISIBLE_ZONES.bottom — pixel rect {x, y, w, h} (area below speaker)
+    SPEAKER.bbox     — normalized {x, y, w, h} (0-1 range, relative to scene dimensions)
+    SPEAKER.center   — normalized {x, y} (body center, 0-1 range)
+    SPEAKER.bboxPx   — scene-local pixel {x, y, w, h} (use directly with position: absolute)
+    SPEAKER.centerPx — scene-local pixel {x, y} (use directly with position: absolute)
+    VISIBLE_ZONES.left   — scene-local pixel rect (area left of speaker)
+    VISIBLE_ZONES.right  — scene-local pixel rect (area right of speaker)
+    VISIBLE_ZONES.top    — scene-local pixel rect (area above speaker)
+    VISIBLE_ZONES.bottom — scene-local pixel rect (area below speaker)
 
     These are derived from the person matte and represent the average speaker
-    position across the scene's time range. Use them for static layout decisions.
+    position across the scene's time range. Use them for ALL layout decisions
+    in overlay scenes — do not hardcode positions without referencing SPEAKER.
   </constants_reference>
 </layer_compositing>
