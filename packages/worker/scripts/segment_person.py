@@ -27,6 +27,7 @@ import sys
 import time
 from pathlib import Path
 
+import cv2
 import numpy as np
 import torch
 
@@ -264,12 +265,26 @@ def process_video(
         for t in range(T):
             matte_u8 = mattes[t]
 
-            # Extract bbox inline (avoids storing all frames in memory)
-            rows = np.any(matte_u8 > 32, axis=1)
-            cols = np.any(matte_u8 > 32, axis=0)
+            # Tighter bbox: threshold at 128 (solid body only, not halos),
+            # then erode to shrink edge noise from hair/clothing.
+            mask = (matte_u8 > 128).astype(np.uint8)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+            mask = cv2.erode(mask, kernel, iterations=1)
+
+            rows = np.any(mask > 0, axis=1)
+            cols = np.any(mask > 0, axis=0)
             if np.any(rows) and np.any(cols):
                 rmin, rmax = np.where(rows)[0][[0, -1]]
                 cmin, cmax = np.where(cols)[0][[0, -1]]
+
+                # Pad bbox by 5% of frame dimensions to give breathing room
+                pad_h = int(out_h * 0.05)
+                pad_w = int(out_w * 0.05)
+                rmin = max(0, rmin - pad_h)
+                rmax = min(out_h - 1, rmax + pad_h)
+                cmin = max(0, cmin - pad_w)
+                cmax = min(out_w - 1, cmax + pad_w)
+
                 bbox_frames.append({
                     "frame": frame_idx,
                     "x": float(cmin / out_w),
@@ -306,7 +321,23 @@ def process_video(
     print(f"Done! Processed {frame_idx} frames in {elapsed:.1f}s ({frame_idx / max(1, elapsed):.1f} fps)")
     print(f"Foreground video saved: {fgr_output_path}")
 
-    bbox_data = {"fps": effective_fps, "frames": bbox_frames}
+    # Compute aggregate stats for downstream tools
+    if bbox_frames:
+        avg_y = sum(f["y"] for f in bbox_frames) / len(bbox_frames)
+        avg_h = sum(f["h"] for f in bbox_frames) / len(bbox_frames)
+        avg_x = sum(f["x"] for f in bbox_frames) / len(bbox_frames)
+        avg_w = sum(f["w"] for f in bbox_frames) / len(bbox_frames)
+        face_y = avg_y + avg_h * 0.15  # face is ~15-35% from top of body bbox
+        face_center_y = avg_y + avg_h * 0.25  # approximate face center
+        aggregate = {
+            "avgBbox": {"x": avg_x, "y": avg_y, "w": avg_w, "h": avg_h},
+            "bodyCenter": {"x": avg_x + avg_w / 2, "y": avg_y + avg_h / 2},
+            "faceEstimate": {"y": face_y, "centerY": face_center_y},
+        }
+    else:
+        aggregate = None
+
+    bbox_data = {"fps": effective_fps, "frames": bbox_frames, "aggregate": aggregate}
     bbox_path = str(Path(output_path).parent / "matte-bbox.json")
     with open(bbox_path, "w") as f:
         json.dump(bbox_data, f)
