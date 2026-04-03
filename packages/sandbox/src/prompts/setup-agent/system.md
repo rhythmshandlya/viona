@@ -193,6 +193,10 @@ Both files get the same DATA object (shared content from plan). The animator for
 
 **Example:**
 ```tsx
+import React from 'react';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
+import { COLORS, SPRING_CONFIG, TIMING, FONTS, FONT_SIZES, SPACING } from '../constants';
+
 // Scene: "Revenue Breakdown"
 // Display Mode: overlay (SPLIT — behind-speaker layer)
 // Template: none
