@@ -108,7 +108,7 @@ For each READY overlay scene (from the depthAssets manifest), add TWO items:
 **V1 — Background plate:**
 ```
 add_item({
-  trackId: "trk-V1", type: "image",
+  trackId: v1TrackId, type: "image",   // v1TrackId from add_track Step 2
   startMs: sceneStartMs, endMs: sceneEndMs,
   transform: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, opacity: 1 },
   keyframes: [
@@ -124,7 +124,7 @@ add_item({
 **V3 — Person matte:**
 ```
 add_item({
-  trackId: "trk-V3", type: "matte",
+  trackId: v3TrackId, type: "matte",   // v3TrackId from add_track Step 2
   startMs: sceneStartMs, endMs: sceneEndMs,
   transform: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, opacity: 1 },
   keyframes: [
