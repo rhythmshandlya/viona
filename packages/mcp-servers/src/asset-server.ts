@@ -732,7 +732,14 @@ server.registerTool(
       const cropScale = videoItem?.data?.crop?.scale ?? 1;
 
       // 2. Compute cover transform
+      // When no video item exists (overlay scene — V0 cut), the matte bbox
+      // is still in source-normalized coords. Use canvas as the item frame
+      // with default 50/50 crop — the matte-to-canvas mapping is direct.
       const transform = computeCoverTransform(srcW, srcH, itemW, itemH, cropX, cropY, cropScale);
+
+      if (!videoItem) {
+        console.error(`[asset-server] No video item for range ${startMs}-${endMs}ms — using canvas frame (likely overlay scene with V0 cut)`);
+      }
 
       // 3. Scan public/matte/ for bbox JSON files matching the time range
       const matteDir = path.join(WORKSPACE, "public", "matte");
@@ -856,11 +863,26 @@ server.registerTool(
         });
       }
 
+      // Normalized 0-1 coordinates (for scene-local conversion downstream)
+      const normalized = {
+        bbox: {
+          x: boundsLeft / canvas.width,
+          y: boundsTop / canvas.height,
+          w: (boundsRight - boundsLeft) / canvas.width,
+          h: (boundsBottom - boundsTop) / canvas.height,
+        },
+        center: {
+          x: centerX / canvas.width,
+          y: centerY / canvas.height,
+        },
+      };
+
       const result = {
         canvas: { width: canvas.width, height: canvas.height },
         speaker: {
           bounds: { top: boundsTop, bottom: boundsBottom, left: boundsLeft, right: boundsRight },
           center: { x: centerX, y: centerY },
+          normalized,
         },
         availableSpace,
         safePlacements,
