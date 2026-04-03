@@ -148,6 +148,7 @@ const initialState: EditorState = {
   // Project
   project: null,
   isLoading: false,
+  loadingMessage: null,
   error: null,
 
   // Timeline data
@@ -264,15 +265,15 @@ function migrateAnimationLegacy(legacy: string): AnimationConfig {
 }
 
 /**
- * Track heights per type — taller for video/audio, compact for text-based tracks
+ * Track heights per type — uniform for NLE-style timeline
  */
 const TRACK_HEIGHTS: Record<string, number> = {
-  video: 80,
+  video: 56,
   audio: 36,
-  caption: 28,
-  text: 28,
-  overlay: 28,
-  visual: 48,
+  caption: 36,
+  text: 36,
+  overlay: 36,
+  visual: 36,
 };
 
 /**
@@ -734,6 +735,7 @@ export const useEditorStore = create<EditorStore>()(
     loadProject: async (projectId: string) => {
       set((state) => {
         state.isLoading = true;
+        state.loadingMessage = 'Connecting to workspace...';
         state.error = null;
       });
 
@@ -751,16 +753,32 @@ export const useEditorStore = create<EditorStore>()(
           const sandboxResult = await api.createSandbox(projectId);
 
           if (sandboxResult.status !== 'ready') {
-            // Poll until ready
+            // Poll until ready — check first, then sleep (avoids wasting 2s if already ready)
+            set((state) => { state.loadingMessage = 'Starting workspace...'; });
             for (let i = 0; i < 60; i++) {
-              await new Promise(r => setTimeout(r, 2000));
               const status = await api.getSandboxStatus(projectId);
               if (status.status === 'ready') break;
               if (i === 59) throw new Error('Sandbox failed to start');
+              await new Promise(r => setTimeout(r, 2000));
             }
           }
 
-          return await api.readSandboxManifest(projectId);
+          // Poll for manifest — workspace init runs async and may not be done yet.
+          // The manifest only exists after init completes (video downloaded, proxies generated).
+          set((state) => { state.loadingMessage = 'Preparing workspace...'; });
+          for (let i = 0; i < 90; i++) {
+            try {
+              return await api.readSandboxManifest(projectId);
+            } catch (err: any) {
+              // ENOENT or 500 means init hasn't written the manifest yet — keep waiting
+              if (i < 89) {
+                await new Promise(r => setTimeout(r, 2000));
+              } else {
+                throw err; // Give up after ~3 min
+              }
+            }
+          }
+          throw new Error('Manifest not available after workspace init');
         };
 
         const manifest = await loadFromSandbox();
@@ -810,6 +828,8 @@ export const useEditorStore = create<EditorStore>()(
           },
         };
 
+        // Populate store data while still in loading state — components don't render
+        // until isLoading is set to false after bundle readiness is confirmed below.
         set((state) => {
           state.project = project;
           state.tracks = bridgeResult.tracks;
@@ -818,7 +838,7 @@ export const useEditorStore = create<EditorStore>()(
           state.duration = bridgeResult.duration;
           state.fps = bridgeResult.fps;
           state.captionPreset = bridgeResult.captionPreset;
-          state.isLoading = false;
+          state.loadingMessage = 'Building preview...';
           state.currentTimeMs = 0;
           state.selectedIds = [];
           state.sandboxStatus = 'ready';
@@ -855,31 +875,40 @@ export const useEditorStore = create<EditorStore>()(
           state.isDirty = false;
         });
 
+        // Rebuild workspaceManifest from store so resolved URLs (matte fgrSrc/matteSrc, etc.)
+        // reach the Remotion player instead of raw relative paths from the sandbox
+        syncWorkspaceManifest();
+
         get().pushHistory();
         cancelDebouncedSave();
         set((state) => { state.isDirty = false; });
 
-        // Poll for bundle readiness (handles race where bundle:ready WS event fires
-        // before the frontend WebSocket connects)
-        {
-          const pollBundle = async () => {
-            for (let i = 0; i < 30; i++) {
-              await new Promise(r => setTimeout(r, 2000));
-              if (get().workspaceBundleVersion > 1) return; // WS event arrived
-              try {
-                const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
-                  method: 'HEAD',
-                  credentials: 'include',
-                });
-                if (res.ok) {
-                  set((state) => { state.workspaceBundleVersion = 2; });
-                  return;
-                }
-              } catch { /* retry */ }
+        // Wait for bundle readiness — esbuild compiles after init completes.
+        // Don't show the workspace until the player has a bundle to render.
+        for (let i = 0; i < 60; i++) {
+          try {
+            const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
+              method: 'HEAD',
+              credentials: 'include',
+            });
+            if (res.ok) {
+              set((state) => { state.workspaceBundleVersion = 2; });
+              break;
             }
-          };
-          pollBundle();
+          } catch { /* retry */ }
+          if (i === 59) {
+            // Bundle never appeared — show workspace anyway with a degraded experience
+            console.warn('Bundle not ready after 2 minutes — showing workspace without preview');
+            break;
+          }
+          await new Promise(r => setTimeout(r, 2000));
         }
+
+        // Everything is ready — show the workspace
+        set((state) => {
+          state.isLoading = false;
+          state.loadingMessage = null;
+        });
 
         // Auto-load caption fonts
         const captionFonts = new Set<string>();
@@ -895,6 +924,7 @@ export const useEditorStore = create<EditorStore>()(
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to load project';
           state.isLoading = false;
+          state.loadingMessage = null;
         });
       }
     },

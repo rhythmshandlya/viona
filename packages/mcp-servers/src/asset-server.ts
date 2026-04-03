@@ -1078,7 +1078,7 @@ server.registerTool(
                 await writeFile(localBboxPath, text);
               }
             } catch {
-              // Bbox download is best-effort — speaker position falls back to head tracking
+              // Bbox download is best-effort — speaker position falls back to defaults
             }
           }
 

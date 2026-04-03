@@ -51,12 +51,6 @@ export interface InitPayload {
       confidence?: number;
       detection_failed?: boolean;
     }>;
-    shots?: Array<{
-      frame: number;
-      timestamp_ms: number;
-      score: number;
-      signals: string[];
-    }>;
   };
   projectMeta?: {
     width: number;

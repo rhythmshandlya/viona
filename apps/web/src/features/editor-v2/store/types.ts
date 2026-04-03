@@ -7,7 +7,7 @@
 // Timeline Item Types
 // ============================================
 
-export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll' | 'scene' | 'shape' | 'person';
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll' | 'scene' | 'shape' | 'matte';
 
 export interface TimelineItem {
   id: string;
