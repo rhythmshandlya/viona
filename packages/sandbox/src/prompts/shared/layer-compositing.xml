@@ -43,6 +43,28 @@
     Stagger entrances so only one element animates at a time.
   </multi_element_scenes>
 
+  <face_avoidance>
+    The speaker's face is the viewer's primary visual anchor. NEVER occlude it.
+
+    Face region: SPEAKER.bboxPx.y to SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3
+    This is approximately the top 30% of the speaker's bounding box.
+
+    Safe placement zones:
+    - ABOVE head: y less than SPEAKER.bboxPx.y (use VISIBLE_ZONES.top)
+    - BELOW chest: y greater than SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.6 (use VISIBLE_ZONES.bottom)
+    - LEFT flank: x less than SPEAKER.bboxPx.x (use VISIBLE_ZONES.left)
+    - RIGHT flank: x greater than SPEAKER.bboxPx.x + SPEAKER.bboxPx.w (use VISIBLE_ZONES.right)
+
+    Behind-speaker elements:
+    - Position at SHOULDER or CHEST height for the depth peek effect
+    - NOT at face height — even partially occluded face looks wrong
+    - Use SPEAKER.centerPx.y + offset to target below the chin
+
+    In-front-of-speaker elements:
+    - Upper zone (above head) and lower zone (below chest) ONLY
+    - NEVER overlay the face, even with semi-transparent elements
+  </face_avoidance>
+
   <constants_reference>
     Scene skeletons include these constants (always available in overlay scenes).
     ALL pixel values are in SCENE-LOCAL coordinates (relative to SCENE_WIDTH × SCENE_HEIGHT):
