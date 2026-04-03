@@ -591,17 +591,17 @@ server.registerTool(
       const videoW = canvas.sourceWidth || canvas.width;
       const videoH = canvas.sourceHeight || canvas.height;
 
-      // 3. Compute average body center in source pixels from matte bbox
-      // Note: matte bbox is full-body, not face-only. The center is ~waist level.
-      // computeCenterCrop handles this correctly for cover-crop centering.
-      let sumX = 0, sumY = 0;
+      // 3. Compute face-biased center for crop anchoring.
+      // Matte bbox is full-body — body center is ~waist level.
+      // For talking-head video, crop should center on the face (~top 25% of bbox).
+      let sumX = 0, sumFaceY = 0;
       for (const mf of allBboxFrames) {
-        // Matte bbox is normalized 0-1 — convert to source pixels
         sumX += (mf.x + mf.w / 2) * videoW;
-        sumY += (mf.y + mf.h / 2) * videoH;
+        // Face is approximately at top 25% of the body bbox
+        sumFaceY += (mf.y + mf.h * 0.25) * videoH;
       }
       const bodyCenterX = sumX / allBboxFrames.length;
-      const bodyCenterY = sumY / allBboxFrames.length;
+      const bodyCenterY = sumFaceY / allBboxFrames.length;
 
       // 4. Find all video items and update crop
       const updated: Array<{ itemId: string; trackId: string; cropX: number; cropY: number }> = [];
@@ -653,9 +653,9 @@ server.registerTool(
           type: "text" as const,
           text: JSON.stringify({
             adjusted: true,
-            faceCenter: {
-              x: Math.round(faceCenterX),
-              y: Math.round(faceCenterY),
+            bodyCenter: {
+              x: Math.round(bodyCenterX),
+              y: Math.round(bodyCenterY),
               sourceSize: { width: videoW, height: videoH },
             },
             items: updated,
