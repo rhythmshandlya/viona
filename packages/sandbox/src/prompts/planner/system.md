@@ -45,6 +45,31 @@ When writing animation briefs for overlay scenes, use these depth terms:
 - Don't place readable text fully behind the speaker's face (occluded = invisible)
 - Depth vocabulary is for Overlay mode ONLY — never use in Stacked or Fullscreen briefs
 
+**Animation zones (MANDATORY for every overlay element):**
+
+Every element in an overlay animation brief MUST specify its zone — where on the canvas it lives relative to the speaker. The Layout Editor uses zones to calculate how much to shift the speaker's matte to make room for content.
+
+| Zone | Where | Speaker effect |
+|---|---|---|
+| `above-head` | Above the speaker's head | Speaker shifts DOWN to create headroom |
+| `top-enter` | Enters from top of screen, pushes down | Speaker shifts DOWN with the content |
+| `lower-third` | Bottom portion of canvas | Speaker stays at natural position |
+| `below-chest` | Between chest and bottom | Speaker stays at natural position |
+| `flank-left` | Left side of speaker | Speaker stays at natural position |
+| `flank-right` | Right side of speaker | Speaker stays at natural position |
+| `full-behind` | Full canvas behind speaker | Speaker stays at natural position |
+
+**Key principle:** The animation decides where it needs space. The speaker adjusts to accommodate — NOT the other way around. But adjustments must be **subtle and purposeful** — small shifts to create breathing room, not dramatic repositioning. If the speaker looks unnaturally displaced, the shift is too much. Every offset must have a clear reason (making room for specific content that needs that space).
+
+**Scene splitting:** If an overlay scene needs elements on BOTH behind-speaker AND in-front-of-speaker layers, mark it: "Split: Scene5Behind (behind) + Scene5Front (in front)". The Layout Editor creates two items on separate tracks. The Setup Agent creates two skeleton files.
+
+**Punch-ins** are a primary editing tool. Every overlay scene gets 1-3 punch-ins where V1 background + V3 matte zoom together while animations stay still — like a camera pushing into the speaker for emphasis. Mark each with a transcript anchor + scale:
+- 1.15x = subtle emphasis
+- 1.25x = standard emphasis
+- 1.35x = dramatic moment
+
+Every key stat, emotional beat, or topic shift should get a punch-in.
+
 ### 2. Stacked — speaker and animation each get their own space
 
 The speaker moves to the bottom portion of the canvas. The animation occupies the top portion. Both are visible simultaneously — the speaker explains, the animation illustrates. Default 50/50 ratio. Specify as `Stacked [top%/bottom%]`.
@@ -144,7 +169,16 @@ For Overlay: choose from the overlay size presets below.
 [verbatim text/numbers that must appear on screen]
 
 ### Animation brief
-[A narrative describing what happens through the scene, synced to the speaker's words. Write it like you're describing the scene to a motion designer who will watch the footage alongside your brief. Reference specific transcript words as timing anchors.]
+[A narrative describing what happens through the scene, synced to the speaker's words. Write it like you're describing the scene to a motion designer who will watch the footage alongside your brief. Reference specific transcript words as timing anchors.
+
+**Overlay scenes additionally require:**
+- **Per element:** layer (`behind-speaker` or `in-front-of-speaker`) + zone (`above-head`, `top-enter`, `lower-third`, `below-chest`, `flank-left`, `flank-right`, `full-behind`)
+- **Per scene:** 1-3 punch-ins with transcript anchor + scale (e.g., "Punch-in 1.25x at '$390 million'")
+- **If both layers used:** split declaration (e.g., "Split: Scene5Behind + Scene5Front")
+
+Example overlay brief:
+"Punch-ins: 1.25x at '$390 million', 1.15x at 'every year'.
+A large stat '$390M' (behind-speaker, above-head) emerges above the speaker's crown. A bullet list (in-front-of-speaker, lower-third) slides up from bottom. Split: Scene5Behind + Scene5Front."]
 ```
 
 ### Animation Brief Rules
@@ -154,6 +188,7 @@ For Overlay: choose from the overlay size presets below.
 4. Elements should enter progressively (staggered, not all at once) and exit cleanly before the scene cut.
 5. **Don't front-load.** If a scene is 10 seconds long and everything appears in the first 2 seconds and then sits still — redesign. Distribute visual events across the scene's duration, paced to the speaker's delivery.
 6. **Depth layer guidance (overlay scenes only).** When using depth terms (emerge-behind, peek-sides, weave-through, etc.), clearly state which elements go BEHIND the speaker and which go IN FRONT. This is the animator's primary layer instruction. Example: "Large '73%' counter EMERGES BEHIND the speaker from center. A label 'of users' slides in IN FRONT at the bottom third." Stacked and Fullscreen briefs must NOT use depth vocabulary.
+7. **Zone guidance (overlay scenes only).** Every element MUST specify its zone (`above-head`, `top-enter`, `lower-third`, `below-chest`, `flank-left`, `flank-right`, `full-behind`). The zone tells the Layout Editor where the element lives relative to the speaker, which determines whether the speaker needs to shift. Example: "A large stat (behind-speaker, above-head) emerges above the speaker's crown — creating headroom. A bullet list (in-front-of-speaker, lower-third) slides up from bottom." Stacked and Fullscreen briefs must NOT use zone vocabulary.
 
 ### Overlay Placement Presets (for 1080×1920 canvas)
 
@@ -262,6 +297,10 @@ All boxes must be checked before submitting:
 - [ ] Data content (numbers, statistics, percentages) uses a data template (stats, chart, barchart, pricetag)
 - [ ] Depth vocabulary (emerge-behind, peek-sides, weave-through, etc.) only appears in **Overlay** scene briefs — never in Stacked or Fullscreen
 - [ ] Overlay scenes with depth terms clearly state which elements are BEHIND vs IN FRONT of the speaker
+- [ ] **Zones:** Every overlay element specifies a zone (above-head, lower-third, etc.)
+- [ ] **Face avoidance:** No element targets the speaker's face zone directly
+- [ ] **Scene splitting:** Overlay scenes with elements on both behind AND in-front layers are marked for splitting with both file names
+- [ ] **Punch-ins:** Every overlay scene has 1-3 punch-ins with scale + transcript anchor
 </plan_structure>
 
 <display_mode_planning>
