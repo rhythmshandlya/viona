@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinetic Captions — Cinematic Lux (Full Algorithm)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    color: #fff;
+  }
+  h1 {
+    font-size: 14px; font-weight: 400; color: #888;
+    margin-bottom: 24px; letter-spacing: 2px; text-transform: uppercase;
+  }
+  .controls {
+    display: flex; gap: 12px; margin-bottom: 20px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .controls button {
+    background: #222; border: 1px solid #333; color: #fff;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    transition: background 0.2s;
+  }
+  .controls button:hover { background: #333; }
+  .controls button.active { background: #e63946; border-color: #e63946; }
+  .input-row {
+    display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+  }
+  .input-row input {
+    background: #1a1a1a; border: 1px solid #333; color: #fff;
+    padding: 8px 12px; border-radius: 6px; font-size: 14px; width: 320px;
+  }
+  .input-row label { color: #888; font-size: 12px; }
+  .hint { color: #555; font-size: 11px; margin-bottom: 16px; }
+  .canvas-wrapper {
+    position: relative; border-radius: 8px; overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  canvas { display: block; }
+  .debug-panel {
+    margin-top: 20px; background: #1a1a1a; border: 1px solid #333;
+    border-radius: 8px; padding: 16px; font-size: 11px; color: #aaa;
+    max-width: 960px; width: 100%; font-family: monospace;
+    white-space: pre-wrap; max-height: 500px; overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+
+<h1>Kinetic Captions — Cinematic Lux (Line-Based Ink-Gap Pack)</h1>
+
+<div class="input-row">
+  <input type="text" id="captionInput" value="How on earth do you achieve this" placeholder="Type caption..." style="width:380px" />
+  <label>Hero indices:</label>
+  <input type="text" id="heroIndicesInput" value="2" style="width:100px" placeholder="e.g. 0,2" />
+  <button onclick="updateCaption()" style="background:#e63946;border:1px solid #e63946;color:#fff;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">Apply</button>
+</div>
+<div class="hint">Hero indices: comma-separated. Consecutive merge. Satellite words group into lines with natural word spacing.</div>
+
+<div class="controls">
+  <button onclick="playAnimation()" class="active">Play</button>
+  <button onclick="toggleDebug()">Debug</button>
+  <button onclick="cycleColor()">Color</button>
+</div>
+
+<div class="canvas-wrapper">
+  <canvas id="canvas" width="960" height="540"></canvas>
+</div>
+
+<div class="debug-panel" id="debugPanel" style="display:none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/kiwi.js@1.1.3/lib/kiwi.js"></script>
+
+<script>
+// ==========================================================================
+// KINETIC CAPTION ENGINE — Line-Based Ink-Gap Pack
+//
+// Key design: satellite words are grouped into LINES (like CSS flexbox wrap).
+// Each line is a single block with natural font-based word spacing.
+// Layout is deterministic — no randomness, no SA, no nudge.
+//
+// Pipeline:
+//   Phase 1: Measurement (font + ink bounds + character gaps)
+//   Phase 2: Build line blocks (satellite words → lines, hero blocks unchanged)
+//   Phase 3: Line layout (deterministic vertical stack, ink-gap packing)
+//   Phase 4: Cassowary refinement + alignment snapping
+//   Phase 5: Render (Canvas 2D, offscreen shadow)
+//   Phase 6: Per-line spring animation
+// ==========================================================================
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+const TEMPLATE = {
+  heroFont: "'Playfair Display'",
+  heroWeight: '700',
+  heroStyle: 'italic',
+  heroColor: '#e63946',
+  heroSizeRatio: 0.45,
+
+  satelliteFont: "'Inter'",
+  satelliteWeight: '600',
+  satelliteStyle: 'normal',
+  satelliteColor: '#ffffff',
+
+  textShadow: true,
+  shadowBlur: 14,
+
+  verticalAnchor: 0.50,
+  safeMargin: 0.05,
+};
+
+const LINE_INK_GAP = 5; // px between ink edges (vertical) between lines
+
+let heroColors = ['#e63946', '#ff6b35', '#f4a261', '#2ec4b6', '#a855f7', '#ff477e'];
+let heroColorIdx = 0;
+let showDebug = false;
+let debugLines = [];
+
+let words = [];
+let heroIndices = [2];
+let layoutBlocks = [];
+let animState = null;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 1: MEASUREMENT — font bounds + ink bounds + character gaps
+// ═══════════════════════════════════════════════════════════════════════════
+
+const measureCache = new Map();
+
+function measureWord(text, fontSize, fontFamily, fontWeight, fontStyle) {
+  const key = `${text}|${fontSize}|${fontFamily}|${fontWeight}|${fontStyle}`;
+  if (measureCache.has(key)) return measureCache.get(key);
+
+  ctx.save();
+  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+  const m = ctx.measureText(text);
+  ctx.restore();
+
+  const ascent = m.fontBoundingBoxAscent ?? m.actualBoundingBoxAscent ?? fontSize * 0.82;
+  const descent = m.fontBoundingBoxDescent ?? m.actualBoundingBoxDescent ?? fontSize * 0.18;
+  const inkAscent = m.actualBoundingBoxAscent ?? ascent;
+  const inkDescent = m.actualBoundingBoxDescent ?? descent;
+  const inkLeft = m.actualBoundingBoxLeft ?? 0;
+  const inkRight = m.actualBoundingBoxRight ?? m.width;
+
+  const result = {
+    text, width: m.width, ascent, descent,
+    height: ascent + descent,
+    fontSize, fontFamily, fontWeight, fontStyle,
+    capHeight: ascent * 0.72,
+    inkAscent, inkDescent,
+    inkHeight: inkAscent + inkDescent,
+    inkLeft, inkRight,
+    inkWidth: inkLeft + inkRight,
+    deadAbove: ascent - inkAscent,
+    deadBelow: descent - inkDescent,
+  };
+  measureCache.set(key, result);
+  return result;
+}
+
+function measureNaturalWordGap(fontSize, fontFamily, fontWeight, fontStyle) {
+  const key = `__space__|${fontSize}|${fontFamily}|${fontWeight}|${fontStyle}`;
+  if (measureCache.has(key)) return measureCache.get(key);
+
+  ctx.save();
+  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+  const spaceWidth = ctx.measureText(' ').width;
+  ctx.restore();
+
+  measureCache.set(key, spaceWidth);
+  return spaceWidth;
+}
+
+function analyzeCharGaps(block) {
+  const { text, fontSize, font, weight, style } = block;
+  ctx.save();
+  ctx.font = `${style} ${weight} ${fontSize}px ${font}`;
+
+  const chars = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const cm = ctx.measureText(ch);
+    const prefix = text.substring(0, i);
+    const xOffset = i === 0 ? 0 : ctx.measureText(prefix).width;
+    const inkL = xOffset - (cm.actualBoundingBoxLeft ?? 0);
+    const inkR = xOffset + (cm.actualBoundingBoxRight ?? cm.width);
+
+    chars.push({
+      char: ch, x: xOffset, advanceWidth: cm.width,
+      inkLeft: inkL, inkRight: inkR, inkWidth: inkR - inkL,
+      inkAscent: cm.actualBoundingBoxAscent ?? block.measure.inkAscent,
+      inkDescent: cm.actualBoundingBoxDescent ?? block.measure.inkDescent,
+    });
+  }
+
+  const gaps = [];
+  for (let i = 0; i < chars.length - 1; i++) {
+    const gapStart = chars[i].inkRight;
+    const gapEnd = chars[i + 1].inkLeft;
+    const gapWidth = gapEnd - gapStart;
+    if (gapWidth > 1) {
+      gaps.push({
+        afterChar: chars[i].char, beforeChar: chars[i + 1].char,
+        x: gapStart, width: gapWidth,
+        isWordBreak: chars[i].char === ' ' || chars[i + 1].char === ' ',
+      });
+    }
+  }
+
+  ctx.restore();
+  return { chars, gaps };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 2: BUILD LINES
+// Consecutive satellite words are grouped into LINES using flexbox-wrap
+// logic. Each line = one block with joined text, rendered as a natural
+// phrase with the font's own word spacing. Hero blocks are unchanged.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function findConsecutiveRuns(indices) {
+  if (indices.length === 0) return [];
+  const sorted = [...new Set(indices)].sort((a, b) => a - b);
+  const runs = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === sorted[i-1] + 1) runs[runs.length - 1].push(sorted[i]);
+    else runs.push([sorted[i]]);
+  }
+  return runs;
+}
+
+function computeHeroSize(heroText) {
+  const T = TEMPLATE;
+  const safeW = W * (1 - 2 * T.safeMargin);
+  const targetW = safeW * T.heroSizeRatio;
+  let fs = 72;
+  let m = measureWord(heroText, fs, T.heroFont, T.heroWeight, T.heroStyle);
+  fs = Math.round(fs * (targetW / m.width));
+  fs = Math.min(fs, 140);
+  m = measureWord(heroText, fs, T.heroFont, T.heroWeight, T.heroStyle);
+  if (m.width > safeW * 0.85) {
+    fs = Math.round(fs * (safeW * 0.85) / m.width);
+  }
+  return fs;
+}
+
+function buildLines(wordList, heroIdxArray) {
+  const T = TEMPLATE;
+  const heroSet = new Set(heroIdxArray);
+  const heroRuns = findConsecutiveRuns(heroIdxArray);
+
+  // Hero font size from longest hero run
+  let longestHeroText = '';
+  for (const run of heroRuns) {
+    const text = run.map(i => wordList[i]).join(' ');
+    if (text.length > longestHeroText.length) longestHeroText = text;
+  }
+  const heroFs = computeHeroSize(longestHeroText);
+  const satFs = Math.round(heroFs * 0.38);
+
+  // Measure the hero to get maxLineWidth
+  const heroMeasure = measureWord(longestHeroText, heroFs, T.heroFont, T.heroWeight, T.heroStyle);
+  const safeW = W * (1 - 2 * T.safeMargin);
+  const maxLineWidth = Math.min(heroMeasure.width * 1.3, safeW);
+
+  // Natural word gap for satellite font
+  const wordGap = measureNaturalWordGap(satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+
+  const blocks = [];
+  let i = 0;
+
+  while (i < wordList.length) {
+    if (heroSet.has(i)) {
+      // Hero block (unchanged logic)
+      const run = heroRuns.find(r => r.includes(i));
+      const text = run.map(idx => wordList[idx]).join(' ');
+      const m = measureWord(text, heroFs, T.heroFont, T.heroWeight, T.heroStyle);
+      blocks.push({
+        type: 'hero',
+        heroOrder: heroRuns.indexOf(run),
+        wordIndices: run,
+        text, measure: m, fontSize: heroFs,
+        font: T.heroFont, weight: T.heroWeight,
+        style: T.heroStyle, color: T.heroColor,
+        x: 0, y: 0,
+      });
+      i = run[run.length - 1] + 1;
+    } else {
+      // Collect consecutive satellite words into lines
+      const satWords = [];
+      const satIndices = [];
+      while (i < wordList.length && !heroSet.has(i)) {
+        satWords.push(wordList[i]);
+        satIndices.push(i);
+        i++;
+      }
+
+      // Group into lines using flexbox-wrap logic with natural word gap
+      let lineWords = [];
+      let lineIndices = [];
+      let lineW = 0;
+
+      for (let j = 0; j < satWords.length; j++) {
+        const wMeasure = measureWord(satWords[j], satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+        const needed = wMeasure.width + (lineWords.length > 0 ? wordGap : 0);
+
+        if (lineW + needed > maxLineWidth && lineWords.length > 0) {
+          // Flush current line
+          const lineText = lineWords.join(' ');
+          const m = measureWord(lineText, satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+          blocks.push({
+            type: 'satellite',
+            wordIndices: [...lineIndices],
+            text: lineText,
+            measure: m, fontSize: satFs,
+            font: T.satelliteFont, weight: T.satelliteWeight,
+            style: T.satelliteStyle, color: T.satelliteColor,
+            x: 0, y: 0,
+          });
+          lineWords = [];
+          lineIndices = [];
+          lineW = 0;
+        }
+
+        lineW += needed;
+        lineWords.push(satWords[j]);
+        lineIndices.push(satIndices[j]);
+      }
+
+      // Flush remaining words
+      if (lineWords.length > 0) {
+        const lineText = lineWords.join(' ');
+        const m = measureWord(lineText, satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+        blocks.push({
+          type: 'satellite',
+          wordIndices: [...lineIndices],
+          text: lineText,
+          measure: m, fontSize: satFs,
+          font: T.satelliteFont, weight: T.satelliteWeight,
+          style: T.satelliteStyle, color: T.satelliteColor,
+          x: 0, y: 0,
+        });
+      }
+    }
+  }
+
+  return blocks;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 3: LINE LAYOUT
+// Deterministic, no randomness.
+// - Place heroes at vertical center, horizontally centered.
+// - Place pre-hero lines above, post-hero lines below.
+// - All lines horizontally centered.
+// - Vertical gap: LINE_INK_GAP between ink edges.
+// - Compute total composition height, center the whole stack vertically.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function layoutLines(blocks) {
+  const T = TEMPLATE;
+  const centerX = W / 2;
+  const centerY = H * T.verticalAnchor;
+
+  const heroes = blocks.filter(b => b.type === 'hero');
+
+  // Split into pre-hero, hero, and post-hero
+  const firstHeroWordIdx = Math.min(...heroes.flatMap(h => h.wordIndices));
+  const lastHeroWordIdx = Math.max(...heroes.flatMap(h => h.wordIndices));
+
+  const preLines = blocks.filter(b => b.type === 'satellite' && b.wordIndices[0] < firstHeroWordIdx);
+  const postLines = blocks.filter(b => b.type === 'satellite' && b.wordIndices[0] > lastHeroWordIdx);
+  const betweenLines = blocks.filter(b => b.type === 'satellite' && b.wordIndices[0] > firstHeroWordIdx && b.wordIndices[0] < lastHeroWordIdx);
+
+  // Build ordered row list: pre-lines → heroes (+ between) → post-lines
+  const allRows = [...preLines, ...heroes, ...betweenLines, ...postLines];
+
+  // Compute total composition height using ink bounds
+  let totalInkHeight = 0;
+  for (const row of allRows) {
+    totalInkHeight += row.measure.inkHeight;
+  }
+  totalInkHeight += Math.max(0, allRows.length - 1) * LINE_INK_GAP;
+
+  // Position top-to-bottom, centering the entire stack vertically
+  let curY = centerY - totalInkHeight / 2;
+
+  for (const row of allRows) {
+    // Advance to baseline: curY is at the ink top of this row
+    const baseline = curY + row.measure.inkAscent;
+    row.x = centerX - row.measure.width / 2;
+    row.y = baseline;
+    // Advance past this row's ink descent + gap
+    curY += row.measure.inkHeight + LINE_INK_GAP;
+  }
+
+  return blocks;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 4A: CASSOWARY REFINEMENT (kiwi.js)
+// After line layout, use Cassowary to enforce boundary constraints and
+// clean up edge cases while preserving the clean line arrangement.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function cassowaryRefine(blocks) {
+  const T = TEMPLATE;
+  const sL = W * T.safeMargin, sR = W * (1 - T.safeMargin);
+  const sT = H * T.safeMargin, sB = H * (1 - T.safeMargin);
+
+  const solver = new kiwi.Solver();
+
+  for (const block of blocks) {
+    block._vx = new kiwi.Variable(`${block.text}_x`);
+    block._vy = new kiwi.Variable(`${block.text}_y`);
+
+    // REQUIRED: safe zone boundaries
+    solver.addConstraint(new kiwi.Constraint(
+      new kiwi.Expression(block._vx, -sL),
+      kiwi.Operator.Ge, undefined, kiwi.Strength.required
+    ));
+    solver.addConstraint(new kiwi.Constraint(
+      new kiwi.Expression([-1, block._vx], sR - block.measure.width),
+      kiwi.Operator.Ge, undefined, kiwi.Strength.required
+    ));
+    solver.addConstraint(new kiwi.Constraint(
+      new kiwi.Expression(block._vy, -(sT + block.measure.ascent)),
+      kiwi.Operator.Ge, undefined, kiwi.Strength.required
+    ));
+    solver.addConstraint(new kiwi.Constraint(
+      new kiwi.Expression([-1, block._vy], sB - block.measure.descent),
+      kiwi.Operator.Ge, undefined, kiwi.Strength.required
+    ));
+
+    // STRONG: Stay near line layout position (preserve the layout)
+    solver.addEditVariable(block._vx, kiwi.Strength.strong);
+    solver.suggestValue(block._vx, block.x);
+    solver.addEditVariable(block._vy, kiwi.Strength.strong);
+    solver.suggestValue(block._vy, block.y);
+  }
+
+  // MEDIUM: Reading order (each block's y is below the previous)
+  const sorted = [...blocks].sort((a, b) => a.y - b.y);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const above = sorted[i], below = sorted[i + 1];
+    if (Math.abs(above.y - below.y) > 5) {
+      solver.addConstraint(new kiwi.Constraint(
+        new kiwi.Expression(below._vy, [-1, above._vy], -1),
+        kiwi.Operator.Ge, undefined, kiwi.Strength.medium
+      ));
+    }
+  }
+
+  solver.updateVariables();
+
+  for (const block of blocks) {
+    block.x = block._vx.value();
+    block.y = block._vy.value();
+    delete block._vx;
+    delete block._vy;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 4B: ALIGNMENT SNAPPING (8px threshold)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function alignmentSnapping(blocks) {
+  const SNAP = 8;
+  let snaps = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    for (let j = i + 1; j < blocks.length; j++) {
+      const a = blocks[i], b = blocks[j];
+      // Center X snap (most important for visual coherence)
+      const aCx = a.x + a.measure.width / 2, bCx = b.x + b.measure.width / 2;
+      if (Math.abs(aCx - bCx) > 0.5 && Math.abs(aCx - bCx) < SNAP) {
+        const avg = (aCx + bCx) / 2;
+        a.x = avg - a.measure.width / 2;
+        b.x = avg - b.measure.width / 2;
+        snaps++;
+      }
+      // Left edge snap
+      if (Math.abs(a.x - b.x) > 0.5 && Math.abs(a.x - b.x) < SNAP) {
+        const avg = (a.x + b.x) / 2; a.x = avg; b.x = avg; snaps++;
+      }
+    }
+  }
+  return snaps;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEPT UTILITIES (used by debug overlay and Cassowary)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function aabbOverlap(a, b) {
+  return a.x < b.x + b.measure.width && a.x + a.measure.width > b.x &&
+    a.y - a.measure.ascent < b.y + b.measure.descent &&
+    a.y + a.measure.descent > b.y - b.measure.ascent;
+}
+
+function aabbOverlapArea(a, b) {
+  const ox = Math.max(0, Math.min(a.x + a.measure.width, b.x + b.measure.width) - Math.max(a.x, b.x));
+  const oy = Math.max(0,
+    Math.min(a.y + a.measure.descent, b.y + b.measure.descent) -
+    Math.max(a.y - a.measure.ascent, b.y - b.measure.ascent));
+  return ox * oy;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 5: RENDER
+// ═══════════════════════════════════════════════════════════════════════════
+
+const shadowCanvas = document.createElement('canvas');
+shadowCanvas.width = W; shadowCanvas.height = H;
+const shadowCtx = shadowCanvas.getContext('2d');
+
+function renderBackground() {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#1a1a2e');
+  grad.addColorStop(0.4, '#16213e');
+  grad.addColorStop(1, '#0f3460');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  const vig = ctx.createRadialGradient(W/2, H*0.5, W*0.25, W/2, H*0.5, W*0.95);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.65)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function renderBlock(block, scale, opacity, offsetX, offsetY) {
+  if (opacity <= 0.001 || scale <= 0.001) return;
+  const drawX = block.x + offsetX;
+  const drawY = block.y + offsetY;
+  const cx = drawX + block.measure.width / 2;
+  const cy = drawY - block.measure.capHeight / 2;
+
+  if (TEMPLATE.textShadow) {
+    shadowCtx.clearRect(0, 0, W, H);
+    shadowCtx.save();
+    shadowCtx.globalAlpha = opacity * 0.8;
+    shadowCtx.textBaseline = 'alphabetic';
+    shadowCtx.translate(cx, cy);
+    shadowCtx.scale(scale, scale);
+    shadowCtx.translate(-cx, -cy);
+    shadowCtx.font = `${block.style} ${block.weight} ${block.fontSize}px ${block.font}`;
+    shadowCtx.fillStyle = '#000';
+    shadowCtx.filter = `blur(${TEMPLATE.shadowBlur}px)`;
+    shadowCtx.fillText(block.text, drawX, drawY + 2);
+    shadowCtx.restore();
+    ctx.drawImage(shadowCanvas, 0, 0);
+  }
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.textBaseline = 'alphabetic';
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.translate(-cx, -cy);
+  ctx.font = `${block.style} ${block.weight} ${block.fontSize}px ${block.font}`;
+
+  if (block.type === 'hero') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.strokeText(block.text, drawX, drawY);
+  }
+
+  ctx.fillStyle = block.color;
+  ctx.fillText(block.text, drawX, drawY);
+  ctx.restore();
+}
+
+function renderDebugOverlay(blocks) {
+  if (!showDebug) return;
+  const T = TEMPLATE;
+  ctx.save();
+
+  // Safe zone
+  ctx.globalAlpha = 0.3; ctx.setLineDash([4, 4]);
+  const sL = W * T.safeMargin, sT2 = H * T.safeMargin;
+  ctx.strokeStyle = '#0f0'; ctx.lineWidth = 1;
+  ctx.strokeRect(sL, sT2, W * (1 - 2*T.safeMargin), H * (1 - 2*T.safeMargin));
+
+  for (const block of blocks) {
+    // Dead space (magenta fill)
+    ctx.globalAlpha = 0.08; ctx.fillStyle = '#f0f';
+    if (block.measure.deadAbove > 0)
+      ctx.fillRect(block.x, block.y - block.measure.ascent, block.measure.width, block.measure.deadAbove);
+    if (block.measure.deadBelow > 0)
+      ctx.fillRect(block.x, block.y + block.measure.inkDescent, block.measure.width, block.measure.deadBelow);
+
+    // Ink box (solid)
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = block.type === 'hero' ? '#f44' : '#4af';
+    ctx.setLineDash([]); ctx.lineWidth = 1.5;
+    ctx.strokeRect(block.x, block.y - block.measure.inkAscent, block.measure.width, block.measure.inkHeight);
+
+    // Font box (dashed, dim)
+    ctx.globalAlpha = 0.15; ctx.strokeStyle = '#555';
+    ctx.setLineDash([2, 4]); ctx.lineWidth = 0.5;
+    ctx.strokeRect(block.x, block.y - block.measure.ascent, block.measure.width, block.measure.height);
+
+    // Character gaps for hero blocks only
+    if (block.type === 'hero') {
+      const ga = analyzeCharGaps(block);
+      ctx.globalAlpha = 0.2; ctx.setLineDash([]);
+      for (const gap of ga.gaps) {
+        ctx.fillStyle = gap.isWordBreak ? '#0ff' : '#ff0';
+        ctx.fillRect(block.x + gap.x, block.y - block.measure.inkAscent, gap.width, block.measure.inkHeight);
+      }
+    }
+
+    // Baseline
+    ctx.globalAlpha = 0.3; ctx.strokeStyle = '#ff0'; ctx.lineWidth = 0.5;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(block.x - 3, block.y);
+    ctx.lineTo(block.x + block.measure.width + 3, block.y);
+    ctx.stroke();
+  }
+
+  // Ink gap measurements between sequential lines
+  const sorted = [...blocks].sort((a, b) => a.y - b.y);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const above = sorted[i], below = sorted[i + 1];
+    const prevBottom = above.y + above.measure.inkDescent;
+    const nextTop = below.y - below.measure.inkAscent;
+    const gap = nextTop - prevBottom;
+    const mx = Math.max(above.x + above.measure.width, below.x + below.measure.width) + 8;
+    ctx.globalAlpha = 0.6; ctx.strokeStyle = gap < 2 ? '#f44' : '#0f0';
+    ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(mx, prevBottom); ctx.lineTo(mx, nextTop); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mx - 3, prevBottom); ctx.lineTo(mx + 3, prevBottom);
+    ctx.moveTo(mx - 3, nextTop); ctx.lineTo(mx + 3, nextTop);
+    ctx.stroke();
+    ctx.font = '9px monospace'; ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${gap.toFixed(0)}px`, mx + 6, (prevBottom + nextTop) / 2);
+  }
+
+  // Center crosshair
+  ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.3;
+  ctx.setLineDash([]); ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(W/2 - 12, H * T.verticalAnchor); ctx.lineTo(W/2 + 12, H * T.verticalAnchor);
+  ctx.moveTo(W/2, H * T.verticalAnchor - 12); ctx.lineTo(W/2, H * T.verticalAnchor + 12);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 6: ANIMATION — per-line stagger
+// Heroes: spring scale (staggered by heroOrder).
+// Satellite lines: fade+slide, staggered per-line (not per-word).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function criticallyDampedSpring(t_sec, dur_sec) {
+  const omega = (2 * Math.PI) / dur_sec;
+  const ot = omega * t_sec;
+  return 1 - (1 + ot) * Math.exp(-ot);
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+}
+
+function startAnimation() {
+  const heroCount = layoutBlocks.filter(b => b.type === 'hero').length;
+  animState = {
+    startTime: performance.now(),
+    heroDur: 350,
+    heroStagger: 120,
+    lineDur: 200,
+    lineStagger: 80,
+    lineDelay: 350 + (heroCount - 1) * 120 + 180,
+  };
+}
+
+function getBlockAnim(block, elapsed) {
+  if (!animState) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
+  const s = animState;
+
+  if (block.type === 'hero') {
+    const heroStart = (block.heroOrder ?? 0) * s.heroStagger;
+    const t = Math.max(0, elapsed - heroStart);
+    if (t >= s.heroDur * 1.5) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
+    const scale = criticallyDampedSpring(t / 1000, s.heroDur / 1000);
+    const opacity = Math.min(1, (t / s.heroDur) * 4);
+    return { scale, opacity, offsetX: 0, offsetY: 0 };
+  }
+
+  // Satellite lines: animate per-line in reading order
+  const allLines = layoutBlocks.filter(b => b.type === 'satellite').sort((a, b) => a.wordIndices[0] - b.wordIndices[0]);
+  const lineIdx = allLines.indexOf(block);
+  const lineStart = s.lineDelay + lineIdx * s.lineStagger;
+  const t = elapsed - lineStart;
+
+  if (t <= 0) return { scale: 1, opacity: 0, offsetX: 0, offsetY: -15 };
+  if (t >= s.lineDur) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
+  const p = easeOutCubic(t / s.lineDur);
+  return { scale: 1, opacity: p, offsetX: 0, offsetY: -15 * (1 - p) };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORCHESTRATOR
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildLayout() {
+  measureCache.clear();
+  debugLines = [];
+  const timings = {};
+  const t0 = performance.now();
+
+  // Phase 1+2: Measure and build lines
+  const blocks = buildLines(words, heroIndices);
+  timings.build = performance.now() - t0;
+
+  const heroBlocks = blocks.filter(b => b.type === 'hero');
+  const lineBlocks = blocks.filter(b => b.type === 'satellite');
+  const heroTexts = heroBlocks.map(b => `"${b.text}"`);
+  debugLines.push(`KINETIC CAPTION ENGINE — Line-Based Ink-Gap Pack`);
+  debugLines.push(`${'═'.repeat(55)}`);
+  debugLines.push(`Words: [${words.join(', ')}]`);
+  debugLines.push(`Heroes: [${heroIndices}] → ${heroTexts.join(', ')}`);
+  debugLines.push(`Blocks: ${blocks.length} (${heroTexts.length} hero, ${lineBlocks.length} satellite lines)`);
+  for (const line of lineBlocks) {
+    debugLines.push(`  LINE: "${line.text}" (words ${line.wordIndices.join(',')}), width=${line.measure.width.toFixed(0)}px`);
+  }
+  debugLines.push(``);
+
+  // Phase 3: Line layout (deterministic)
+  const t1 = performance.now();
+  layoutLines(blocks);
+  timings.lineLayout = performance.now() - t1;
+  debugLines.push(`Phase 3: Line layout (deterministic ink-gap stack)`);
+
+  // Phase 4A: Cassowary refinement (safe zone enforcement)
+  const t2 = performance.now();
+  try {
+    cassowaryRefine(blocks);
+    debugLines.push(`Phase 4A: Cassowary refinement — OK (kiwi.js)`);
+  } catch (e) {
+    debugLines.push(`Phase 4A: Cassowary FAILED: ${e.message} (skipped)`);
+  }
+  timings.cassowary = performance.now() - t2;
+
+  // Phase 4B: Alignment snapping
+  const snaps = alignmentSnapping(blocks);
+  debugLines.push(`Phase 4B: Alignment snapping — ${snaps} snaps`);
+
+  const totalTime = performance.now() - t0;
+
+  debugLines.push(``);
+  debugLines.push(`TIMINGS:`);
+  debugLines.push(`  Build lines:     ${timings.build.toFixed(2)}ms`);
+  debugLines.push(`  Line layout:     ${timings.lineLayout.toFixed(2)}ms`);
+  debugLines.push(`  Cassowary:       ${timings.cassowary.toFixed(2)}ms`);
+  debugLines.push(`  TOTAL:           ${totalTime.toFixed(2)}ms`);
+  debugLines.push(``);
+
+  // Block details
+  debugLines.push(`BLOCKS:`);
+  for (const b of blocks) {
+    const tag = b.type === 'hero' ? `HERO-${b.heroOrder}` : `line`;
+    debugLines.push(`  [${tag.padEnd(7)}] "${b.text}"  ${b.fontSize}px  pos(${b.x.toFixed(1)}, ${b.y.toFixed(1)})  ink: ${b.measure.inkAscent.toFixed(0)}↑${b.measure.inkDescent.toFixed(0)}↓  dead: ${b.measure.deadAbove.toFixed(0)}↑${b.measure.deadBelow.toFixed(0)}↓`);
+  }
+
+  // Ink-to-ink gaps between sequential lines
+  debugLines.push(``);
+  debugLines.push(`INK-TO-INK GAPS:`);
+  const sorted = [...blocks].sort((a, b) => a.y - b.y);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gap = (sorted[i+1].y - sorted[i+1].measure.inkAscent) - (sorted[i].y + sorted[i].measure.inkDescent);
+    debugLines.push(`  "${sorted[i].text}" → "${sorted[i+1].text}":  ${gap.toFixed(1)}px (target: ${LINE_INK_GAP}px)`);
+  }
+
+  // Character gap analysis for heroes
+  debugLines.push(``);
+  debugLines.push(`CHARACTER GAPS (hero blocks):`);
+  for (const b of heroBlocks) {
+    const ga = analyzeCharGaps(b);
+    const letterGaps = ga.gaps.filter(g => !g.isWordBreak);
+    const totalWS = ga.gaps.reduce((s, g) => s + g.width, 0);
+    debugLines.push(`  "${b.text}": ${letterGaps.length} letter gaps, ${totalWS.toFixed(0)}px whitespace / ${b.measure.width.toFixed(0)}px width (${(totalWS / b.measure.width * 100).toFixed(0)}%)`);
+    for (const g of ga.gaps) {
+      debugLines.push(`    ${g.isWordBreak ? 'WORD' : 'LTTR'} "${g.afterChar}"→"${g.beforeChar}": ${g.width.toFixed(1)}px at x=${g.x.toFixed(0)}`);
+    }
+  }
+
+  layoutBlocks = blocks;
+  document.getElementById('debugPanel').textContent = debugLines.join('\n');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER LOOP
+// ═══════════════════════════════════════════════════════════════════════════
+
+function render(timestamp) {
+  ctx.clearRect(0, 0, W, H);
+  renderBackground();
+  const elapsed = animState ? timestamp - animState.startTime : Infinity;
+
+  for (const block of layoutBlocks) {
+    const anim = getBlockAnim(block, elapsed);
+    renderBlock(block, anim.scale, anim.opacity, anim.offsetX, anim.offsetY);
+  }
+
+  renderDebugOverlay(layoutBlocks);
+  requestAnimationFrame(render);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function parseHeroIndices(str, maxLen) {
+  return str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0 && n < maxLen);
+}
+
+function updateCaption() {
+  words = document.getElementById('captionInput').value.trim().split(/\s+/);
+  const hiStr = document.getElementById('heroIndicesInput').value.trim();
+  heroIndices = parseHeroIndices(hiStr, words.length);
+  if (heroIndices.length === 0) heroIndices = [0];
+  buildLayout();
+  startAnimation();
+}
+
+function playAnimation() { startAnimation(); }
+
+function toggleDebug() {
+  showDebug = !showDebug;
+  document.getElementById('debugPanel').style.display = showDebug ? 'block' : 'none';
+}
+
+function cycleColor() {
+  heroColorIdx = (heroColorIdx + 1) % heroColors.length;
+  TEMPLATE.heroColor = heroColors[heroColorIdx];
+  buildLayout();
+  startAnimation();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.fonts.ready.then(() => {
+  words = ['How', 'on', 'earth', 'do', 'you', 'achieve', 'this'];
+  heroIndices = [2];
+  buildLayout();
+  startAnimation();
+  requestAnimationFrame(render);
+});
+</script>
+</body>
+</html>
