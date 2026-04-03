@@ -155,19 +155,19 @@ Read SCENE_PLAN.md. If it references shared components (e.g., `ProgressBar`, `An
 For every **overlay** scene, include placeholder SPEAKER and VISIBLE_ZONES constants. The Layout Editor will overwrite these with real matte-derived values after you're done — but the Animator needs the structure to exist.
 
 ```tsx
-// Speaker position (placeholder — Layout Editor will update with matte-derived values)
+// Speaker position in SCENE-LOCAL coordinates (Layout Editor will update with matte-derived values)
 export const SPEAKER = {
   bbox: { x: 0.25, y: 0.05, w: 0.50, h: 0.85 },
   center: { x: 0.50, y: 0.45 },
-  bboxPx: { x: 270, y: 96, w: 540, h: 1632 },
-  centerPx: { x: 540, y: 864 },
+  bboxPx: { x: Math.round(0.25 * SCENE_WIDTH), y: Math.round(0.05 * SCENE_HEIGHT), w: Math.round(0.50 * SCENE_WIDTH), h: Math.round(0.85 * SCENE_HEIGHT) },
+  centerPx: { x: Math.round(0.50 * SCENE_WIDTH), y: Math.round(0.45 * SCENE_HEIGHT) },
 };
 
 export const VISIBLE_ZONES = {
-  left:   { x: 0, y: 0, w: 270, h: 1920 },
-  right:  { x: 810, y: 0, w: 270, h: 1920 },
-  top:    { x: 0, y: 0, w: 1080, h: 96 },
-  bottom: { x: 0, y: 1728, w: 1080, h: 192 },
+  left:   { x: 0, y: 0, w: SPEAKER.bboxPx.x, h: SCENE_HEIGHT },
+  right:  { x: SPEAKER.bboxPx.x + SPEAKER.bboxPx.w, y: 0, w: SCENE_WIDTH - (SPEAKER.bboxPx.x + SPEAKER.bboxPx.w), h: SCENE_HEIGHT },
+  top:    { x: 0, y: 0, w: SCENE_WIDTH, h: SPEAKER.bboxPx.y },
+  bottom: { x: 0, y: SPEAKER.bboxPx.y + SPEAKER.bboxPx.h, w: SCENE_WIDTH, h: SCENE_HEIGHT - (SPEAKER.bboxPx.y + SPEAKER.bboxPx.h) },
 };
 ```
 
