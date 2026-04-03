@@ -48,4 +48,23 @@
 
 ## Zero creative decisions
 - Execute the plan mechanically. Every value comes from SCENE_PLAN.md and depthAssets.
+
+## Content-Driven Matte Offset
+- Read overlay animation brief zones (above-head, top-enter, lower-third, etc.) to determine matte shift.
+- `above-head` / `top-enter` zones → shift V1+V3 DOWN (matteY = +200 to +350).
+- `lower-third`, `flank-*`, `full-behind` zones → no shift (matteY = 0).
+- V1 and V3 always shift TOGETHER — same transform.
+- Oversize matte 15% (1.15x) to prevent edge leaking.
+- Shifts must be subtle and purposeful — not dramatic. When in doubt, shift less.
+- Recalculate SPEAKER constants AFTER applying matte offset.
+
+## Scene Splitting
+- "Split: XBehind + XFront" → two scene items: XBehind.tsx on V2, XFront.tsx on V4.
+- Both share the same startMs/endMs and SPEAKER constants.
+
+## Punch-ins
+- V1 + V3 get IDENTICAL zoom keyframes — they are one visual layer.
+- 300ms ease-in, 2s hold, 300ms ease-out.
+- Never punch-in during first/last 500ms of a scene.
+- At least 3s between punch-ins in the same scene.
 </critical_reminder>
