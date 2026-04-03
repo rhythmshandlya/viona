@@ -332,8 +332,8 @@ const Scene8: React.FC = () => {
   const { fps } = useVideoConfig();
 
   // Scene has two output layers (overlay mode):
-  // - BehindSpeaker: elements render behind the person (on scene-bg track)
-  // - InFrontOfSpeaker: elements render in front of the person (on scene-fg track)
+  // - BehindSpeaker: elements render behind the person (on V2 track)
+  // - InFrontOfSpeaker: elements render in front of the person (on V4 track)
   // The person matte sits between the two layers.
   // Position behind-speaker elements to PEEK from SPEAKER.bboxPx edges.
   // Use VISIBLE_ZONES for content that must be fully readable.
@@ -365,7 +365,7 @@ export default Scene8;
 
 1. **Read the theme file FIRST** — open `/workspace/docs/guidelines/theme.md` and extract every value. Do NOT guess or approximate any constant.
 2. **Read SCENE_PLAN.md SECOND** — parse every scene entry to extract names, types, display modes, dimensions, and key data for skeletons.
-3. **Read the manifest THIRD** — call `read_manifest` to get scene items with speaker spatial data. For each overlay scene, extract `data.speakerBbox`, `data.speakerCenter`, and `data.visibleZones` from the matching scene item. These values were written by the Layout Editor.
+3. **Write placeholder SPEAKER constants** — for overlay scene skeletons, include placeholder SPEAKER and VISIBLE_ZONES constants using the default values documented below. The Layout Editor will overwrite these with real matte-derived values in a later phase.
 4. **Use the `Write` tool** for all file creation.
 5. **Do NOT use `write_scene_file`** — that tool is for animator agents only.
 6. **After writing all files**, run `npx tsc --noEmit --pretty false` to verify the workspace compiles.
@@ -373,7 +373,7 @@ export default Scene8;
 8. **Call `trigger_rebuild`** after all files compile successfully.
 9. **Do NOT modify the manifest** — the manifest is managed by the orchestrator and Layout Editor.
 10. **Skeletons are starting points** — include enough structure that the Animator can focus purely on animation logic. Do NOT implement any animation — leave that to the Animator.
-11. **No generic card components** — do NOT create GlassCard, DataCard, or any reusable card wrapper. Card-based layouts make every scene look like a slideshow. Animators must build scene-specific visuals (SVG paths, charts, kinetic typography, node graphs, etc.).
+11. **No generic card components** — do NOT create GlassCard, DataCard, or any reusable card wrapper. Card-based layouts make every scene look like a slideshow. Animators must build scene-specific visuals (solid filled shapes, clip-path reveals, charts, kinetic typography, node graphs, etc.).
 </rules>
 
 <task>
