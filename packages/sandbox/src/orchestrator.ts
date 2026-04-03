@@ -194,6 +194,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   search_pexels: 'Searching stock footage',
   download_stock_photo: 'Downloading photo',
   get_speaker_position: 'Analyzing speaker position',
+  auto_center_speaker: 'Centering speaker in frame',
   request_segmentation: 'Requesting speaker segmentation',
   check_segmentation_status: 'Checking segmentation status',
   get_depth_compositing_info: 'Checking depth compositing info',
@@ -410,10 +411,15 @@ export async function buildOrchestratorOptions(
           'CRITICAL RULES:\n' +
           '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
           '- Use Glob/Grep instead of find/grep via Bash.\n' +
-          '- CUT video for overlay and fullscreen scenes (remove segments from V0). Audio on A0 is never deleted (split to align, but never remove).\n' +
-          '- For ready overlays: bg image on V1, matte item (fgrSrc + matteSrc) on V3, animation on V2/V4.\n' +
+          '- CUT video for overlay (READY) and fullscreen scenes (remove V0 segments). KEEP V0 for stacked and FAILED overlay.\n' +
+          '- Audio on A0 is never deleted. Split audio at same timestamps as video, but never remove audio segments.\n' +
+          '- For READY overlays: bg image on V1, matte item (fgrSrc + matteSrc) on V3, animation on V2 or V4.\n' +
+          '- Track IDs are UUIDs returned by add_track — do NOT hardcode IDs like trk-V1.\n' +
+          '- Call auto_center_speaker ONCE after all V0 cuts. Call get_speaker_position per overlay scene.\n' +
+          '- All transitions: 300ms synchronized opacity fades across layers.\n' +
           '- Keyframe format: { timeMs, props: {...} } — NEVER flat { timeMs, opacity }.\n' +
           '- timeMs is RELATIVE to the item\'s own startMs, not the absolute timeline.\n' +
+          '- Scene keyframes must ONLY animate opacity — NEVER x, y, width, height, rotation.\n' +
           '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName.\n' +
           '- ALWAYS read_manifest before and after major operations to verify state.',
       },
