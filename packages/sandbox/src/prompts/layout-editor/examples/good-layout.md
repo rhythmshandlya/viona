@@ -1,17 +1,23 @@
 <example>
-## Layout Editor Example — 4 Scenes, Multiple Video Segments
+## Layout Editor Example — 4 Scenes, Depth Compositing Pipeline
 
 **Plan summary (from SCENE_PLAN.md):**
-- Scene 1: "Key Metrics" — File: Scene1.tsx — 8000-22000ms — Stacked 50/50 — Width: 1080, Height: 960
-- Scene 2: "Growth Chart" — File: Scene2.tsx — 22000-38000ms — Fullscreen — Width: 1080, Height: 1920
-- Scene 3: "Stat Callout" — File: Scene3.tsx — 38000-51000ms — Overlay — Placement: lower-third-center
-- Scene 4: "Revenue Breakdown" — File: Scene4.tsx — 51000-64000ms — Stacked 50/50 — Width: 1080, Height: 960
-**Transitions from plan:**
-- Scene 1 entry: Speaker → Stacked (300ms)
-- Scene 1 → Scene 2: Stacked → Fullscreen (300ms)
-- Scene 2 → Scene 3: Fullscreen → Overlay (300ms)
-- Scene 3 → Scene 4: Overlay → Stacked (300ms)
-- Scene 4 exit: Stacked → Speaker (300ms)
+- Scene 1: "Key Metrics" — File: Scene1.tsx — 0-14000ms — Stacked 50/50 — Width: 1080, Height: 960
+- Scene 2: "Growth Chart" — File: Scene2.tsx — 14000-28000ms — Fullscreen — Width: 1080, Height: 1920
+- Scene 3: "Stat Callout" — File: Scene3.tsx — 28000-42000ms — Overlay — Placement: overlay-large — Depth: emerge-behind + lower-third — Zone: above-head — Punch-in: 1.25x at "three hundred million"
+- Scene 4: "Revenue Breakdown" — File: Scene4.tsx — 42000-56000ms — Stacked 50/50 — Width: 1080, Height: 960
+
+**depthAssets (from orchestrator dispatch):**
+```json
+{
+  "scene-3": {
+    "status": "ready",
+    "fgrVideo": "matte/scene-3-fgr.mp4",
+    "matteVideo": "matte/scene-3.mp4",
+    "background": "bg-scene-3.png"
+  }
+}
+```
 
 **Canvas:** 1080x1920.
 
@@ -19,216 +25,270 @@
 
 ### Step 1: Read inputs
 ```
-read_manifest → video track (trk-video) has 8 video items after Trim Editor (fillers removed):
-  vid-1: 0-3200ms
-  vid-2: 3500-7800ms
-  vid-3: 8100-14500ms
-  vid-4: 14800-22000ms (spans Scene 1 end)
-  vid-5: 22200-37800ms
-  vid-6: 38100-43500ms
-  vid-7: 43800-50800ms
-  vid-8: 51200-70000ms (spans Scene 3→4 boundary and Scene 4 end)
+read_manifest → video track (trk-video) has 3 video items after Trim Editor:
+  vid-1: 0-14200ms
+  vid-2: 14500-42000ms (spans Scene 2 end → Scene 3)
+  vid-3: 42300-60000ms
 
-Audio track (trk-audio) has matching segments.
-Read SCENE_PLAN.md → 4 scenes parsed
-get_speaker_position → face centered at x:50%, y:30%
+Audio track (trk-audio) has matching segments: aud-1, aud-2, aud-3.
+Parsed SCENE_PLAN.md → 4 scenes.
+depthAssets → Scene 3 is READY (overlay with depth).
 ```
 
-### Step 2: Create layer sandwich tracks
+### Step 2: Create V1-V4 tracks
 ```
-add_track({ type: "overlay", name: "scene-bg", position: 1 }) → trk-scene-bg
-add_track({ type: "overlay", name: "person", position: 2 })   → trk-person
-add_track({ type: "overlay", name: "scene-fg", position: 3 }) → trk-scene-fg
+const v1 = add_track({ type: "overlay", name: "V1", position: 1 })  → { id: "trk-abc1" }
+const v2 = add_track({ type: "overlay", name: "V2", position: 2 })  → { id: "trk-abc2" }
+const v3 = add_track({ type: "overlay", name: "V3", position: 3 })  → { id: "trk-abc3" }
+const v4 = add_track({ type: "overlay", name: "V4", position: 4 })  → { id: "trk-abc4" }
 ```
 
-### Step 3: Set speaker transforms on video segments
+### Step 3: Cut source video at scene boundaries
 
-**Map each video segment to scene(s):**
-- vid-1 (0-3200ms): Before Scene 1 → Speaker state (full canvas, no change needed)
-- vid-2 (3500-7800ms): Before Scene 1 → Speaker state (no change)
-- vid-3 (8100-14500ms): Entirely within Scene 1 (Stacked) → static transform
-- vid-4 (14800-22000ms): Entirely within Scene 1 (Stacked) → static transform
-- vid-5 (22200-37800ms): Entirely within Scene 2 (Fullscreen) → static opacity 0
-- vid-6 (38100-43500ms): Entirely within Scene 3 (Overlay) → no transform change
-- vid-7 (43800-50800ms): Entirely within Scene 3 (Overlay) → no transform change
-- vid-8 (51200-70000ms): Spans Scene 4 (Stacked, 51000-64000) and outro → transition keyframes at 64000ms
-
-Note: Scene boundaries at 8000, 22000, 38000, 51000 fall in the GAPS between video segments (where fillers were removed). This means most segments fall cleanly within one scene. Only vid-8 spans a boundary.
-
-**Apply transforms:**
+**Split vid-2 (14500-42000ms) at Scene 2→3 boundary (28000ms):**
 ```
-// vid-1, vid-2: Speaker state — default full canvas, no update needed
+split_item({ itemId: "vid-2", atMs: 28000 })
+→ { originalId: "vid-2", newId: "vid-2b" }
+// vid-2: 14500-28000ms (Scene 2 — Fullscreen)
+// vid-2b: 28000-42000ms (Scene 3 — Overlay READY)
 
-// vid-3: Scene 1 (Stacked — bottom half)
+// Also split paired audio at same timestamp:
+split_item({ itemId: "aud-2", atMs: 28000 })
+→ { originalId: "aud-2", newId: "aud-2b" }
+```
+
+**Delete V0 segments within Fullscreen and READY Overlay scenes:**
+```
+// Scene 2 (Fullscreen): delete vid-2
+remove_item({ itemId: "vid-2" })
+
+// Scene 3 (Overlay READY): delete vid-2b
+remove_item({ itemId: "vid-2b" })
+```
+
+**Transform kept segments:**
+```
+// vid-1: Scene 1 (Stacked — speaker in bottom half)
+update_item({ itemId: "vid-1", transform: { x: 0, y: 960, width: 1080, height: 960 } })
+
+// vid-3: Scene 4 (Stacked — speaker in bottom half)
 update_item({ itemId: "vid-3", transform: { x: 0, y: 960, width: 1080, height: 960 } })
-
-// vid-4: Scene 1 (Stacked — bottom half)
-update_item({ itemId: "vid-4", transform: { x: 0, y: 960, width: 1080, height: 960 } })
-
-// vid-5: Scene 2 (Fullscreen — hidden)
-update_item({ itemId: "vid-5", keyframes: [{ timeMs: 0, props: { opacity: 0 } }] })
-
-// vid-6: Scene 3 (Overlay — full canvas, no change needed)
-// vid-7: Scene 3 (Overlay — full canvas, no change needed)
-
-// vid-8: Starts in Scene 4 (Stacked), exits to Speaker at 64000ms
-// vid-8 starts at 51200ms. Scene 4 ends at 64000ms → relative timeMs: 64000-51200 = 12800ms
-update_item({
-  itemId: "vid-8",
-  transform: { x: 0, y: 960, width: 1080, height: 960 },
-  keyframes: [
-    // Stacked → Speaker transition at Scene 4 end
-    { timeMs: 12800, props: { x: 0, y: 960, width: 1080, height: 960, opacity: 1 } },
-    { timeMs: 13100, props: { x: 0, y: 0, width: 1080, height: 1920, opacity: 1 } }
-  ]
-})
 ```
 
-### Step 4: Place scene items
+**Re-read manifest to verify V0 state.**
 
-**Overlay preset map:** `lower-third-center` → { x: 140, y: 1200, width: 800, height: 480 }
-
+### Auto-Center Speaker
 ```
-add_item({
-  type: "scene", trackId: "trk-scene-fg",
-  startMs: 8000, endMs: 22000,
-  data: {
-    sceneFile: "Scene1.tsx", displayMode: "split-screen", sceneName: "Key Metrics",
-    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
-    speakerCenter: { x: 0.50, y: 0.42 },
-    visibleZones: {
-      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
-      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
-      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
-      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
-    }
-  },
-  transform: { x: 0, y: 0, width: 1080, height: 960 }
-})
-→ scene-1
-
-add_item({
-  type: "scene", trackId: "trk-scene-fg",
-  startMs: 22000, endMs: 38000,
-  data: {
-    sceneFile: "Scene2.tsx", displayMode: "fullscreen", sceneName: "Growth Chart",
-    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
-    speakerCenter: { x: 0.50, y: 0.42 },
-    visibleZones: {
-      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
-      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
-      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
-      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
-    }
-  },
-  transform: { x: 0, y: 0, width: 1080, height: 1920 }
-})
-→ scene-2
-
-add_item({
-  type: "scene", trackId: "trk-scene-fg",
-  startMs: 38000, endMs: 51000,
-  data: {
-    sceneFile: "Scene3.tsx", displayMode: "overlay", sceneName: "Stat Callout",
-    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
-    speakerCenter: { x: 0.50, y: 0.42 },
-    visibleZones: {
-      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
-      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
-      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
-      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
-    }
-  },
-  transform: { x: 140, y: 1200, width: 800, height: 480 }
-})
-→ scene-3
-
-add_item({
-  type: "scene", trackId: "trk-scene-fg",
-  startMs: 51000, endMs: 64000,
-  data: {
-    sceneFile: "Scene4.tsx", displayMode: "split-screen", sceneName: "Revenue Breakdown",
-    speakerBbox: { x: 0.30, y: 0.08, w: 0.40, h: 0.78 },
-    speakerCenter: { x: 0.50, y: 0.42 },
-    visibleZones: {
-      left: { x: 0, y: 0, w: 0.30, h: 1.0 },
-      right: { x: 0.70, y: 0, w: 0.30, h: 1.0 },
-      top: { x: 0, y: 0, w: 1.0, h: 0.08 },
-      bottom: { x: 0, y: 0.86, w: 1.0, h: 0.14 }
-    }
-  },
-  transform: { x: 0, y: 0, width: 1080, height: 960 }
-})
-→ scene-4
+auto_center_speaker()
+// Adjusts objectPosition on remaining vid-1 and vid-3 segments
 ```
 
-### Step 5: Add transition keyframes to scene items
+### Step 4: Place depth items for Scene 3 (READY overlay)
 
-**Scene 1 — Stacked entrance + exit (duration = 14000ms):**
+**V1 — Background plate:**
 ```
-update_item({
-  itemId: "scene-1",
+add_item({
+  trackId: "trk-abc1", type: "image",
+  startMs: 28000, endMs: 42000,
+  transform: { x: 0, y: 0, width: 1080, height: 1920 },
   keyframes: [
     { timeMs: 0, props: { opacity: 0 } },
     { timeMs: 300, props: { opacity: 1 } },
     { timeMs: 13700, props: { opacity: 1 } },
     { timeMs: 14000, props: { opacity: 0 } }
-  ]
+  ],
+  data: { src: "bg-scene-3.png" }
 })
+→ bg-3
 ```
 
-**Scene 2 — Fullscreen entrance + exit (duration = 16000ms):**
+**V3 — Person matte:**
 ```
-update_item({
-  itemId: "scene-2",
+add_item({
+  trackId: "trk-abc3", type: "matte",
+  startMs: 28000, endMs: 42000,
+  transform: { x: 0, y: 0, width: 1080, height: 1920 },
   keyframes: [
     { timeMs: 0, props: { opacity: 0 } },
     { timeMs: 300, props: { opacity: 1 } },
-    { timeMs: 15700, props: { opacity: 1 } },
-    { timeMs: 16000, props: { opacity: 0 } }
-  ]
+    { timeMs: 13700, props: { opacity: 1 } },
+    { timeMs: 14000, props: { opacity: 0 } }
+  ],
+  data: {
+    fgrSrc: "matte/scene-3-fgr.mp4",
+    matteSrc: "matte/scene-3.mp4",
+    startFrom: 28000
+  }
 })
+→ matte-3
 ```
 
-**Scene 3 — Overlay entrance + exit (duration = 13000ms):**
+### Step 4b: Calculate content-driven matte offset for Scene 3
+
+**Brief says zone: `above-head` → shift matte DOWN to create headroom.**
 ```
+const oversize = 1.15;
+const matteW = Math.round(1080 * 1.15);   // 1242
+const matteH = Math.round(1920 * 1.15);   // 2208
+const matteX = Math.round(-(1242 - 1080) / 2);  // -81
+const matteY = 250;  // push down 250px for above-head content
+
+// Update BOTH V1 and V3 with same transform:
+update_item({ itemId: "bg-3", transform: { x: -81, y: 250, width: 1242, height: 2208 } })
+update_item({ itemId: "matte-3", transform: { x: -81, y: 250, width: 1242, height: 2208 } })
+```
+
+### Step 5: Place scene items
+
+```
+// Scene 1 — Stacked → V4
+add_item({
+  type: "scene", trackId: "trk-abc4",
+  startMs: 0, endMs: 14000,
+  data: { sceneFile: "Scene1.tsx", displayMode: "split-screen", sceneName: "Key Metrics" },
+  transform: { x: 0, y: 0, width: 1080, height: 960 }
+})
+→ scene-1
+
+// Scene 2 — Fullscreen → V4
+add_item({
+  type: "scene", trackId: "trk-abc4",
+  startMs: 14000, endMs: 28000,
+  data: { sceneFile: "Scene2.tsx", displayMode: "fullscreen", sceneName: "Growth Chart" },
+  transform: { x: 0, y: 0, width: 1080, height: 1920 }
+})
+→ scene-2
+
+// Scene 3 — Overlay with depth (emerge-behind) → V2
+add_item({
+  type: "scene", trackId: "trk-abc2",
+  startMs: 28000, endMs: 42000,
+  data: { sceneFile: "Scene3.tsx", displayMode: "overlay", sceneName: "Stat Callout" },
+  transform: { x: 40, y: 880, width: 1000, height: 960 }
+})
+→ scene-3
+
+// Scene 4 — Stacked → V4
+add_item({
+  type: "scene", trackId: "trk-abc4",
+  startMs: 42000, endMs: 56000,
+  data: { sceneFile: "Scene4.tsx", displayMode: "split-screen", sceneName: "Revenue Breakdown" },
+  transform: { x: 0, y: 0, width: 1080, height: 960 }
+})
+→ scene-4
+```
+
+**Note:** Scene 3 goes on V2 (behind-speaker track) because its brief uses depth vocabulary (emerge-behind). Scenes 1, 2, 4 go on V4.
+
+### Speaker spatial data (Scene 3 only — overlay)
+
+```
+const pos = get_speaker_position({ startMs: 28000, endMs: 42000 });
+// pos.speaker.normalized = { bbox: { x: 0.25, y: 0.08, w: 0.50, h: 0.82 }, center: { x: 0.50, y: 0.45 } }
+
+// Store normalized values on the scene item:
 update_item({
   itemId: "scene-3",
-  keyframes: [
-    { timeMs: 0, props: { opacity: 0 } },
-    { timeMs: 300, props: { opacity: 1 } },
-    { timeMs: 12700, props: { opacity: 1 } },
-    { timeMs: 13000, props: { opacity: 0 } }
-  ]
+  data: {
+    sceneFile: "Scene3.tsx", displayMode: "overlay", sceneName: "Stat Callout",
+    speakerBbox: { x: 0.25, y: 0.08, w: 0.50, h: 0.82 },
+    speakerCenter: { x: 0.50, y: 0.45 }
+  }
 })
+
+// Convert canvas-normalized to scene-local pixels (accounting for matte offset):
+// Post-offset canvas position: speakerCanvasX = 0.25 * 1242 + (-81) = 229.5
+// Scene transform: { x: 40, y: 880, width: 1000, height: 960 }
+// Scene-local: (229.5 - 40) * (1000 / 1000) = 189.5 → bboxPx.x = 190
+
+// Write SPEAKER constants to Scene3.tsx skeleton file using Edit tool.
 ```
 
-**Scene 4 — Stacked entrance + exit (duration = 13000ms):**
+**Stacked and Fullscreen scenes (1, 2, 4): NO speaker data added.**
+
+### Step 6: Add transition keyframes
+
+**Scene items — opacity-only cross-fades:**
 ```
-update_item({
-  itemId: "scene-4",
-  keyframes: [
-    { timeMs: 0, props: { opacity: 0 } },
-    { timeMs: 300, props: { opacity: 1 } },
-    { timeMs: 12700, props: { opacity: 1 } },
-    { timeMs: 13000, props: { opacity: 0 } }
-  ]
-})
+// Scene 1 (14000ms duration):
+update_item({ itemId: "scene-1", keyframes: [
+  { timeMs: 0, props: { opacity: 0 } }, { timeMs: 300, props: { opacity: 1 } },
+  { timeMs: 13700, props: { opacity: 1 } }, { timeMs: 14000, props: { opacity: 0 } }
+]})
+
+// Scene 2 (14000ms duration):
+update_item({ itemId: "scene-2", keyframes: [
+  { timeMs: 0, props: { opacity: 0 } }, { timeMs: 300, props: { opacity: 1 } },
+  { timeMs: 13700, props: { opacity: 1 } }, { timeMs: 14000, props: { opacity: 0 } }
+]})
+
+// Scene 3 (14000ms duration):
+update_item({ itemId: "scene-3", keyframes: [
+  { timeMs: 0, props: { opacity: 0 } }, { timeMs: 300, props: { opacity: 1 } },
+  { timeMs: 13700, props: { opacity: 1 } }, { timeMs: 14000, props: { opacity: 0 } }
+]})
+
+// Scene 4 (14000ms duration):
+update_item({ itemId: "scene-4", keyframes: [
+  { timeMs: 0, props: { opacity: 0 } }, { timeMs: 300, props: { opacity: 1 } },
+  { timeMs: 13700, props: { opacity: 1 } }, { timeMs: 14000, props: { opacity: 0 } }
+]})
 ```
 
-### Step 6: Verify
+**V0 video segments — fade at cut edges:**
 ```
-render_still({ atMs: 15000 })  → Scene 1: speaker bottom half, scene top half
-render_still({ atMs: 30000 })  → Scene 2: fullscreen scene, speaker hidden
-render_still({ atMs: 45000 })  → Scene 3: speaker full size, overlay at lower third
-render_still({ atMs: 57000 })  → Scene 4: speaker bottom half, scene top half
+// vid-1 (0-14200ms): fade out at Scene 1 → Scene 2 boundary
+update_item({ itemId: "vid-1", keyframes: [
+  { timeMs: 13700, props: { opacity: 1 } },
+  { timeMs: 14000, props: { opacity: 0 } }
+]})
+
+// vid-3 (42300-60000ms): fade in at Scene 3 → Scene 4 boundary
+update_item({ itemId: "vid-3", keyframes: [
+  { timeMs: 0, props: { opacity: 0 } },
+  { timeMs: 300, props: { opacity: 1 } }
+]})
+```
+
+**Punch-in keyframes for Scene 3 (V1 + V3 matched zoom):**
+```
+// Brief says: Punch-in 1.25x at "three hundred million" (transcript timestamp: 35200ms)
+// Relative to V1/V3 item startMs (28000): anchorMs = 35200 - 28000 = 7200
+
+const scale = 1.25;
+const punchW = Math.round(1242 * 1.25);  // 1553
+const punchH = Math.round(2208 * 1.25);  // 2760
+const punchX = Math.round((-81 + 1242/2) - 1553/2);  // -237
+const punchY = Math.round((250 + 2208/2) - 2760/2);  // -26
+
+// Add to BOTH bg-3 and matte-3 (identical keyframes):
+// Note: these are V1/V3 depth item keyframes — position animation is allowed here.
+// The opacity-only rule applies to V2/V4 scene items only.
+const punchInKeyframes = [
+  { timeMs: 7050, props: { x: -81, y: 250, width: 1242, height: 2208 } },
+  { timeMs: 7350, props: { x: -237, y: -26, width: 1553, height: 2760 } },
+  { timeMs: 9350, props: { x: -237, y: -26, width: 1553, height: 2760 } },
+  { timeMs: 9650, props: { x: -81, y: 250, width: 1242, height: 2208 } }
+];
+// Merge with existing opacity keyframes on bg-3 and matte-3
+```
+
+### Step 7: Verify
+```
+render_still({ atMs: 7000 })   → Scene 1: speaker bottom half, scene top half
+render_still({ atMs: 21000 })  → Scene 2: fullscreen scene, no speaker video
+render_still({ atMs: 35000 })  → Scene 3: bg image + matte speaker + overlay scene (depth)
+render_still({ atMs: 49000 })  → Scene 4: speaker bottom half, scene top half
 ```
 
 ### Final manifest state
-- **Tracks:** trk-video, trk-audio, trk-scene-bg, trk-person, trk-scene-fg
-- **Video items:** 8 on trk-video (from trimming)
-- **Audio items:** 8 on trk-audio (matching)
-- **Scene items:** 4 total — stacked/fullscreen on trk-scene-fg, depth overlays on trk-scene-bg
-- **Speaker data:** Every scene item has speakerBbox, speakerCenter, visibleZones in data
-- **No splits at scene boundaries** — all display mode changes via transforms + keyframes
+- **Tracks:** V0 (video), A0 (audio), V1 (bg plates), V2 (behind-speaker scenes), V3 (matte), V4 (front scenes/stacked/fullscreen)
+- **V0 items:** 2 remaining (vid-1 stacked, vid-3 stacked) — vid-2 and vid-2b deleted
+- **V1 items:** 1 (bg-scene-3.png for Scene 3)
+- **V3 items:** 1 (matte for Scene 3)
+- **Scene items:** 4 total — Scene 3 on V2, others on V4
+- **Speaker data:** Only Scene 3 (overlay) has speakerBbox and speakerCenter
+- **Matte offset:** Scene 3 V1+V3 shifted to { x: -81, y: 250, width: 1242, height: 2208 }
+- **Punch-ins:** 1 punch-in on Scene 3 at 35200ms (V1+V3 zoom 1.25x)
+- **Audio:** All segments intact, split at 28000ms but never deleted
 </example>
