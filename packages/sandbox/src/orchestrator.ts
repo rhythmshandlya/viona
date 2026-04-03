@@ -10,12 +10,11 @@
 // 2. Trimming — Trim Editor (fillers, silences, captions)
 // 3. Planning — Planner (SCENE_PLAN.md with per-scene schema)
 // 4. Setup — Setup Agent (constants, shared components)
-// 5. Layout — Layout Editor (timeline skeleton, mockups, transforms)
-// 6. Animation — Animators in PARALLEL (one per scene)
-// 7. Review — Viona renders stills, dispatches fix agents
+// 5. Depth Assets — Poll segmentation until matte/fgr/bg ready
+// 6. Layout — Layout Editor (timeline skeleton, depth compositing, transforms)
+// 7. Animation — Animators in PARALLEL (one per scene)
 // 8. Final Assembly — Final Editor (verify scenes, captions, validation)
-// 9. Final Review — Viona spot-checks
-// 10. Done
+// 9. Done
 
 import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
@@ -394,9 +393,9 @@ export async function buildOrchestratorOptions(
           '- Use render_still once to verify visual output after code changes. Max 1 render-fix cycle, then move on.',
       },
 
-      // ---- Layout Editor (Phase 5) ----
+      // ---- Layout Editor (Phase 6) ----
       layout_editor: {
-        description: 'Builds timeline skeleton from SCENE_PLAN.md — keyframes speaker transforms per display mode, places scene items, creates overlay tracks, applies transitions. NEVER splits video.',
+        description: 'Builds timeline skeleton from SCENE_PLAN.md with depth assets — cuts video for overlays/fullscreen, places bg images on V1, matte items on V3, scene items on V2/V4, applies transitions.',
         prompt: layoutEditorPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
@@ -411,14 +410,15 @@ export async function buildOrchestratorOptions(
           'CRITICAL RULES:\n' +
           '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
           '- Use Glob/Grep instead of find/grep via Bash.\n' +
-          '- NEVER split video items. Display mode changes are handled ENTIRELY through keyframes.\n' +
+          '- CUT video for overlay and fullscreen scenes (remove segments from V0). Audio on A0 is never cut.\n' +
+          '- For ready overlays: bg image on V1, matte item (fgrSrc + matteSrc) on V3, animation on V2/V4.\n' +
           '- Keyframe format: { timeMs, props: {...} } — NEVER flat { timeMs, opacity }.\n' +
           '- timeMs is RELATIVE to the item\'s own startMs, not the absolute timeline.\n' +
           '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName.\n' +
           '- ALWAYS read_manifest before and after major operations to verify state.',
       },
 
-      // ---- Animator (Phase 6) ----
+      // ---- Animator (Phase 7) ----
       // Full system prompt loaded from prompts/animator/system.md + reminder.md.
       // Per-scene context (brief, dimensions, display mode) is injected by Viona's dispatch message.
       animator: {
@@ -437,7 +437,7 @@ export async function buildOrchestratorOptions(
           '- ONE hero animation per scene — everything else supports it. Max 5 animated content elements.',
       },
 
-      // ---- Final Editor (Phase 7) ----
+      // ---- Final Editor (Phase 8) ----
       final_editor: {
         description: 'Applies caption styling, validates timeline and workspace (tsc + render). Does NOT re-read all scene files — Animators already verified them.',
         prompt: finalEditorPrompt,
