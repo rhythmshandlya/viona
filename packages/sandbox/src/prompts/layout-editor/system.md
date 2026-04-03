@@ -293,17 +293,37 @@ export const VISIBLE_ZONES = {
 };
 ```
 
-**Scene-local pixel conversion:**
+**Scene-local pixel conversion (canvas-normalized → scene-local):**
+
+The normalized bbox from `get_speaker_position` is in **canvas space** (0-1 relative to CANVAS_W × CANVAS_H). For overlay scenes, the scene is a positioned subset of the canvas. Convert by mapping canvas pixels to scene-local pixels:
+
 ```
-bboxPx.x = Math.round(bbox.x * SCENE_WIDTH)
-bboxPx.y = Math.round(bbox.y * SCENE_HEIGHT)
-bboxPx.w = Math.round(bbox.w * SCENE_WIDTH)
-bboxPx.h = Math.round(bbox.h * SCENE_HEIGHT)
-centerPx.x = Math.round(center.x * SCENE_WIDTH)
-centerPx.y = Math.round(center.y * SCENE_HEIGHT)
+// sceneTransform = the scene item's transform (x, y, width, height on canvas)
+// Example: overlay-large → { x: 40, y: 880, width: 1000, height: 960 }
+
+// Step 1: Convert normalized bbox to canvas pixels
+const canvasBboxX = bbox.x * CANVAS_W;
+const canvasBboxY = bbox.y * CANVAS_H;
+const canvasBboxW = bbox.w * CANVAS_W;
+const canvasBboxH = bbox.h * CANVAS_H;
+const canvasCenterX = center.x * CANVAS_W;
+const canvasCenterY = center.y * CANVAS_H;
+
+// Step 2: Convert canvas pixels to scene-local pixels
+const scaleX = SCENE_WIDTH / sceneTransform.width;
+const scaleY = SCENE_HEIGHT / sceneTransform.height;
+
+bboxPx.x = Math.round((canvasBboxX - sceneTransform.x) * scaleX)
+bboxPx.y = Math.round((canvasBboxY - sceneTransform.y) * scaleY)
+bboxPx.w = Math.round(canvasBboxW * scaleX)
+bboxPx.h = Math.round(canvasBboxH * scaleY)
+centerPx.x = Math.round((canvasCenterX - sceneTransform.x) * scaleX)
+centerPx.y = Math.round((canvasCenterY - sceneTransform.y) * scaleY)
 ```
 
-Use `SCENE_WIDTH` and `SCENE_HEIGHT` from the scene's placement preset — NOT the full canvas 1080×1920. VISIBLE_ZONES pixel values also use scene dimensions:
+If matte offset was applied (Step 4b), use the **post-offset** canvas positions from Step 4b's recalculation instead of raw `get_speaker_position` values.
+
+VISIBLE_ZONES are derived from the scene-local bboxPx:
 ```
 VISIBLE_ZONES.left.w  = bboxPx.x
 VISIBLE_ZONES.right.x = bboxPx.x + bboxPx.w
