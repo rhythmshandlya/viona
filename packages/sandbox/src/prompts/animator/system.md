@@ -182,6 +182,47 @@ Every scene must have edge padding so content never touches the canvas boundary:
 
 ---
 
+## CRITICAL — Face Avoidance for Overlay Scenes
+
+**Your #4 failure mode is covering the speaker's face with animation elements.** The face is the viewer's primary visual anchor. Covering it breaks eye contact and looks amateur.
+
+### The rules:
+
+**1. NEVER place content over the speaker's face.** The face is approximately `SPEAKER.bboxPx.y` to `SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3` (top 30% of the speaker bbox).
+
+**2. Primary content goes ABOVE or BELOW the speaker:**
+- **Upper zone** (above `SPEAKER.bboxPx.y`): Headers, labels, stats. Use `VISIBLE_ZONES.top`.
+- **Lower zone** (below `SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.6`): Cards, bars, detail text. Use `VISIBLE_ZONES.bottom`.
+
+**3. Behind-speaker elements at SHOULDER height, not face height:**
+- Position at `SPEAKER.centerPx.y + SPEAKER.bboxPx.h * 0.2` or lower
+- This creates the depth peek effect at the body without occluding the face
+
+**4. Flank elements on the SIDES, not center:**
+- Use `VISIBLE_ZONES.left` and `VISIBLE_ZONES.right`
+
+### Zone reference:
+```
+┌─────────────────────────┐
+│     UPPER ZONE          │  ← Headers, stats (in-front OK)
+│     (above head)        │
+├─────────────────────────┤
+│  ┌─┐  FACE ZONE  ┌─┐   │  ← FORBIDDEN — no elements here
+│  │F│  ██████████  │F│   │
+│  │L│  ██ FACE ██  │L│   │     FL/FR = flank zones
+│  │A│  ██████████  │A│   │
+│  │N│              │N│   │
+│  │K│  SHOULDERS   │K│   │  ← Behind-speaker elements peek here
+│  │ │              │ │   │
+│  └─┘              └─┘   │
+├─────────────────────────┤
+│     LOWER ZONE          │  ← Cards, bars, text (both layers OK)
+│     (below chest)       │
+└─────────────────────────┘
+```
+
+---
+
 ## The Quality Bar
 
 A slideshow: elements fade in from the bottom, sit still, fade out. Every card looks the same. Nothing moves after it appears. The background is a flat color.
