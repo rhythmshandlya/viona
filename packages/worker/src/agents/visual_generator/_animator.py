@@ -64,7 +64,6 @@ class AnimatorMixin:
                     "mcp__assets__search_unsplash",
                     "mcp__assets__search_pexels",
                     "mcp__assets__download_stock_photo",
-                    "mcp__assets__get_speaker_grid",
                     "mcp__viewport__get_scene_dimensions",
                     "mcp__viewport__validate_scene_code",
                 ],
@@ -299,7 +298,6 @@ class AnimatorMixin:
                 "mcp__assets__search_unsplash",
                 "mcp__assets__search_pexels",
                 "mcp__assets__download_stock_photo",
-                "mcp__assets__get_speaker_grid",
                 "mcp__viewport__get_scene_dimensions",
                 "mcp__viewport__validate_scene_code",
             ]

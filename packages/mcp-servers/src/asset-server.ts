@@ -899,30 +899,6 @@ server.registerTool(
   }
 );
 
-// Deprecated alias — backward compat for prompts still referencing old name
-server.registerTool(
-  "get_speaker_grid",
-  {
-    description: "[Deprecated — use get_speaker_position] Get speaker position data for overlay placement.",
-    inputSchema: {
-      startMs: z.number().describe("Start of time range in milliseconds"),
-      endMs: z.number().describe("End of time range in milliseconds"),
-    },
-  },
-  async ({ startMs, endMs }: { startMs: number; endMs: number }) => {
-    return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          deprecated: true,
-          message: "Use get_speaker_position instead for canvas-space coordinates.",
-          hint: "Call get_speaker_position with { startMs, endMs }",
-        }),
-      }],
-    };
-  }
-);
-
 // ---------------------------------------------------------------------------
 // Segmentation tools — request/poll person matte extraction from worker
 // ---------------------------------------------------------------------------
