@@ -47,7 +47,8 @@ A thermometer that rises from empty to the 73% mark, then cracks and leaks — v
 - the number 73%, the phrase "quit within 3 months"
 
 ### Animation brief
-Large "73%" counter EMERGES BEHIND the speaker from center, scaling up as the speaker begins "seventy-three percent of people." The number is wide enough to PEEK from both sides of the speaker's shoulders. Red fill rises from 0% to 73% while the speaker says "who start a fitness routine quit" — counter ticks up in sync behind the speaker's body. As the speaker says "it's not because they're lazy," the glass cracks at the 73% mark and red tint pulses outward behind the speaker. "73% quit" text slides in IN FRONT of the speaker at the bottom third when the speaker hits "three critical mistakes." The depth contrast — massive stat behind, label in front — creates emphasis. Everything scales down and fades before the cut.
+Punch-in 1.25x at "seventy-three percent".
+Large "73%" counter (behind-speaker, full-behind) EMERGES BEHIND the speaker from center, scaling up as the speaker begins "seventy-three percent of people." The number is wide enough to PEEK from both sides of the speaker's shoulders. Red fill rises from 0% to 73% while the speaker says "who start a fitness routine quit" — counter ticks up in sync behind the speaker's body. As the speaker says "it's not because they're lazy," the glass cracks at the 73% mark and red tint pulses outward behind the speaker. "73% quit" text (in-front-of-speaker, lower-third) slides in IN FRONT of the speaker at the bottom third when the speaker hits "three critical mistakes." The depth contrast — massive stat behind, label in front — creates emphasis. Everything scales down and fades before the cut. Split: Scene1Behind + Scene1Front.
 
 ---
 
@@ -170,7 +171,8 @@ A fuel gauge needle swinging from "Empty" to the optimal zone — the gauge repr
 - "0.7–1.0g / lb", the word "protein", "daily" or "every day"
 
 ### Animation brief
-Gauge arc scales in as the speaker says "no nutrition plan." Needle starts rotating as "if you're not eating enough protein" plays — sweeping through "Empty" and "Low" zones with labels fading in at each section. When the speaker says "point seven to one gram," the needle reaches the green optimal zone and bounces with spring physics; zone pulses. "per pound, per day" types in word by word synced to "every single day." Checkmark stamps when the speaker hits "that's non-negotiable." Fade out before cut.
+Punch-in 1.25x at "that's non-negotiable".
+Gauge arc (in-front-of-speaker, lower-third) scales in as the speaker says "no nutrition plan." Needle starts rotating as "if you're not eating enough protein" plays — sweeping through "Empty" and "Low" zones with labels fading in at each section. When the speaker says "point seven to one gram," the needle reaches the green optimal zone and bounces with spring physics; zone pulses. "per pound, per day" types in word by word synced to "every single day." Checkmark stamps when the speaker hits "that's non-negotiable." Fade out before cut.
 
 ---
 
@@ -253,16 +255,16 @@ Three remedy icons arranged in an organic triangle that lock together like puzzl
 - "1. Progressive Overload", "2. Recovery", "3. Nutrition"
 
 ### Animation brief
-As the speaker says "start with progressive overload," first icon + label springs in from bottom-left. "Prioritize recovery" triggers the second icon snapping into position with a magnetic pull. "Fix your nutrition" brings the third icon, completing the triangle — a background shape scales up behind all three, unifying them. When the speaker hits "the results will come," the unified shape pulses and all labels brighten. Icons scale down at exit before "faster than you ever expected."
+Punch-in 1.35x at "faster than you ever expected".
+As the speaker says "start with progressive overload," first icon + label (in-front-of-speaker, lower-third) springs in from bottom-left. "Prioritize recovery" triggers the second icon snapping into position with a magnetic pull. "Fix your nutrition" brings the third icon, completing the triangle — a background shape (behind-speaker, full-behind) scales up behind all three, unifying them. When the speaker hits "the results will come," the unified shape pulses and all labels brighten. Icons scale down at exit before "faster than you ever expected."
 
 ---
 
-## Punch-in Locations
-| Timestamp | Crop | Notes |
-|---|---|---|
-| 3500ms | { x: 50, y: 40, scale: 1.3 } | "seventy-three percent" — emphasis on the shocking statistic during Scene 1 (Overlay) |
-| 44000ms | { x: 50, y: 42, scale: 1.25 } | "that's non-negotiable" — conviction beat during Scene 4 (Overlay) |
-| 64000ms | { x: 50, y: 38, scale: 1.35 } | "faster than you ever expected" — closing promise during Scene 6 (Overlay) |
+## Punch-in Rules
+Punch-ins are specified per-scene inside each overlay animation brief above. Summary:
+- Scene 1: Punch-in 1.25x at "seventy-three percent" — emphasis on the shocking stat
+- Scene 4: Punch-in 1.25x at "that's non-negotiable" — conviction beat
+- Scene 6: Punch-in 1.35x at "faster than you ever expected" — closing promise
 
 ---
 
@@ -278,6 +280,9 @@ As the speaker says "start with progressive overload," first icon + label spring
 - [x] Every scene has a **File** field (Scene{N}.tsx format): Scene1.tsx through Scene6.tsx.
 - [x] Every scene has **Scene dimensions** (Width × Height in pixels): Overlays use preset sizes (1000×960, 900×760, 800×640), Stacked scenes use canvas calculations, Fullscreen uses 1080×1920.
 - [x] Every Overlay scene uses a placement preset name from the preset table: center-card (Scene 1), overlay-medium (Scene 4), overlay-medium (Scene 6).
+- [x] **Zones:** Every overlay element specifies a zone: Scene 1 (full-behind + lower-third), Scene 4 (lower-third), Scene 6 (lower-third + full-behind).
+- [x] **Punch-ins:** Every overlay scene has 1-3 punch-ins: Scene 1 (1.25x), Scene 4 (1.25x), Scene 6 (1.35x).
+- [x] **Scene splitting:** Scene 1 has elements on both layers → Split: Scene1Behind + Scene1Front.
 - [x] Stacked dimensions calculated correctly: Scene 2: 1080 × (1920 × 50%) = 1080 × 960. Scene 5: 1080 × (1920 × 55%) = 1080 × 1056.
 - [x] Every scene has an **Animation brief** describing entrance, mid-scene evolution, visual climax, and exit.
 - [x] No brief is just "elements enter and exit" — every scene has mid-scene change: thermometer cracks (1), staircase crumbles and rebuilds (2), battery drains vs charges (3), gauge needle travels zones (4), ribbon curves upward (5), puzzle pieces snap together (6).
