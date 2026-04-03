@@ -592,14 +592,16 @@ server.registerTool(
       const videoH = canvas.sourceHeight || canvas.height;
 
       // 3. Compute average body center in source pixels from matte bbox
+      // Note: matte bbox is full-body, not face-only. The center is ~waist level.
+      // computeCenterCrop handles this correctly for cover-crop centering.
       let sumX = 0, sumY = 0;
       for (const mf of allBboxFrames) {
         // Matte bbox is normalized 0-1 — convert to source pixels
         sumX += (mf.x + mf.w / 2) * videoW;
         sumY += (mf.y + mf.h / 2) * videoH;
       }
-      const faceCenterX = sumX / allBboxFrames.length;
-      const faceCenterY = sumY / allBboxFrames.length;
+      const bodyCenterX = sumX / allBboxFrames.length;
+      const bodyCenterY = sumY / allBboxFrames.length;
 
       // 4. Find all video items and update crop
       const updated: Array<{ itemId: string; trackId: string; cropX: number; cropY: number }> = [];
@@ -613,7 +615,7 @@ server.registerTool(
         const itemH = typeof t.height === 'number' ? t.height : canvas.height;
 
         const crop = computeCenterCrop(
-          faceCenterX, faceCenterY,
+          bodyCenterX, bodyCenterY,
           videoW, videoH,
           itemW, itemH,
         );
@@ -946,13 +948,17 @@ server.registerTool(
         throw new Error(`API returned ${res.status}: ${(err as any).error || res.statusText}`);
       }
 
-      const data = await res.json() as { jobIds: string[]; estimatedDurationMs: number };
+      const data = await res.json() as { jobIds: string[]; allSceneIds: string[]; estimatedDurationMs: number };
+      const primarySceneId = ranges[0].sceneId;
 
-      // Build expected matte paths for the caller
+      // All scenes share the same matte/fgr (full-video pass), only bg images differ per scene
       const mattePaths = ranges.map(r => ({
         sceneId: r.sceneId,
-        mattePath: `public/matte/${r.sceneId}.mp4`,
-        staticFile: `matte/${r.sceneId}.mp4`,
+        mattePath: `public/matte/${primarySceneId}.mp4`,
+        fgrPath: `public/matte/${primarySceneId}-fgr.mp4`,
+        staticFile: `matte/${primarySceneId}.mp4`,
+        fgrStaticFile: `matte/${primarySceneId}-fgr.mp4`,
+        bgStaticFile: `bg-${r.sceneId}.png`,
       }));
 
       return {
@@ -1022,6 +1028,7 @@ server.registerTool(
           status: string;
           progress: number;
           sceneId: string | null;
+          allSceneIds?: string[];
           outputKey: string | null;
           error: string | null;
         }>;
@@ -1039,7 +1046,7 @@ server.registerTool(
         if (job.status === "complete" && job.sceneId) {
           const primarySceneId = job.sceneId;
           // allSceneIds from job metadata — all overlay scenes sharing this matte
-          const allSceneIds: string[] = (job as any).allSceneIds ?? [primarySceneId];
+          const allSceneIds: string[] = job.allSceneIds ?? [primarySceneId];
 
           // Download matte/fgr/bbox ONCE using the primary scene ID
           const localMattePath = path.join(MATTE_DIR, `${primarySceneId}.mp4`);
