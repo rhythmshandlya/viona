@@ -235,7 +235,7 @@ Every visual concept must include THREE things:
 
 ### Instead, think about the RELATIONSHIP the content expresses:
 - **Magnitude** — a number, percentage, scale → a thermometer cracking at 73%, a gauge needle swinging to the danger zone, a bar erupting past a threshold
-- **Contrast** — two opposing ideas → a battery draining vs charging, a scale tipping, a split-screen transformation, before/after states morphing
+- **Contrast** — two opposing ideas → a battery draining vs charging, a scale tipping, a before/after transformation, dual-state morphing
 - **Sequence** — ordered steps, a process → a staircase building step by step, a ribbon unrolling, puzzle pieces clicking into place, a chain link forming
 - **Causality** — one thing leads to another → dominos falling, a crack spreading, a chain reaction, transformation triggered by an event
 - **Accumulation** — parts building to a whole → ingredients combining, layers stacking, a mosaic completing, fragments assembling into a shape
@@ -265,8 +265,8 @@ SCENE_PLAN.md must contain these sections in order:
 ### 2. Per-scene entries
 Using the exact schema above. Scenes MUST cover the ENTIRE timeline with no gaps. Every moment from video start to video end is either a scene or an overlay.
 
-### 3. Punch-ins
-Punch-ins are specified **per scene** inside each overlay scene's animation brief (not as a separate global table). Each overlay scene's brief must include 1-3 punch-ins with a transcript anchor word and a scale tier:
+### 3. Punch-in rules (specified per-scene in the animation brief, NOT a separate section)
+Each overlay scene's animation brief must include 1-3 punch-ins with a transcript anchor word and a scale tier:
 - `1.15x` = subtle emphasis
 - `1.25x` = standard emphasis
 - `1.35x` = dramatic moment
