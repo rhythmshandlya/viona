@@ -1,38 +1,51 @@
 <critical_reminder>
-## Video — Multiple Segments, No New Splits
-- After the Trim Editor, the video track has MULTIPLE video items (fillers removed). Enumerate ALL of them.
-- Do NOT split video at scene boundaries. Keyframes handle display mode changes.
-- For each video segment: determine which scene(s) it overlaps → set correct transform/opacity.
-- Segments within ONE scene: set static transform via `update_item` (no keyframes needed).
-- Segments spanning a scene boundary: add 300ms transition keyframes at the boundary.
-- Do NOT split video for any reason. No punch-ins or crop changes.
+## Video — Cut at Scene Boundaries
+- Source video is physically CUT: delete V0 segments for READY overlay and fullscreen scenes.
+- KEEP V0 segments for stacked and FAILED overlay scenes (transform accordingly).
+- Audio is NEVER cut or deleted. Split audio at same timestamps as video to keep alignment.
+- After Trim Editor, V0 may already have multiple segments (fillers removed). Handle all of them.
+- `split_item` returns `{ originalId, newId }` — original is LEFT, newId is RIGHT.
 
-## Keyframes
-- Build ONE complete keyframe array for the video item covering ALL scene boundaries.
-- Each boundary: 300ms transition from previous state to new state.
-- Stacked speaker: `{ x: 0, y: SCENE_H, width: CANVAS_W, height: CANVAS_H - SCENE_H, opacity: 1 }`
-- Fullscreen speaker: `{ opacity: 0 }` (hidden, audio continues)
-- Overlay speaker: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, opacity: 1 }` (full canvas)
-- Format: `{ timeMs: T, props: { ... } }` — NEVER flat format.
-- timeMs is RELATIVE to the item's startMs.
+## Depth Items (V1 + V3)
+- For each READY overlay scene: image on V1 (background), matte on V3 (fgr + matte).
+- Use depthAssets paths from orchestrator dispatch — do NOT hardcode file paths.
+- Matte item `data.startFrom` = scene startMs (offset into full-length matte video).
+- Do NOT add V1/V3 items for FAILED overlay scenes.
+
+## Track Architecture — V0 through V4
+- V0: source video (cut for overlays/fullscreen, kept for stacked)
+- V1: background images (READY overlay only)
+- V2: behind-speaker animations (overlay depth briefs)
+- V3: matte items (READY overlay only)
+- V4: in-front animations / fullscreen / stacked scenes
+- A0: audio — continuous, never cut
 
 ## Scene Items
 - Type `'scene'` (NOT `'shape'`).
 - Must have `data.sceneFile` (with `.tsx`), `data.displayMode`, `data.sceneName`.
 - `displayMode` API value for Stacked = `"split-screen"`.
-- Depth scenes (brief mentions "behind", "emerge-behind", etc.) go on `trk-scene-bg`. All other scenes go on `trk-scene-fg`. Sequential within each track, no overlap.
+- Depth scenes (brief mentions "behind", "emerge-behind", etc.) go on V2. All other scenes go on V4. Sequential within each track, no overlap.
 - Scene keyframes must ONLY animate `opacity` (fade in/out). NEVER include x, y, width, height, or rotation — those override the base transform and break positioning.
 
+## Transitions — Coordinated Multi-Layer
+- All transitions are 300ms opacity fades, synchronized across layers.
+- V0 segments at cut edges: fade out/in 300ms.
+- V1 and V3 items: 300ms fade in at start, fade out at end.
+- V2/V4 scene items: cross-fade (outgoing fades out, incoming fades in, 300ms each).
+
 ## Speaker Spatial Data
-- Every scene item MUST have `data.speakerBbox`, `data.speakerCenter`, `data.visibleZones`.
-- Call `get_speaker_position` per scene time range to get speaker coordinates.
+- Every OVERLAY scene item MUST have `data.speakerBbox`, `data.speakerCenter`, `data.visibleZones`.
+- Call `get_speaker_position` per overlay scene to get speaker coordinates.
 - Normalize to 0-1 range (divide by canvas width/height).
-- Depth scenes (brief mentions "behind", "emerge-behind", etc.) go on `trk-scene-bg`.
-- All other scenes go on `trk-scene-fg`.
+- Write SPEAKER/VISIBLE_ZONES constants to overlay scene skeleton files.
+
+## Keyframes
+- Format: `{ timeMs: T, props: { ... } }` — NEVER flat format.
+- timeMs is RELATIVE to the item's startMs.
 
 ## Video fill
-- Handled by the renderer via `objectFit: 'cover'`. Do NOT apply any crop or zoom transforms.
+- Handled by the renderer via `objectFit: 'cover'`. Do NOT apply any crop or zoom transforms to video items.
 
 ## Zero creative decisions
-- Execute the plan mechanically. Every value comes from SCENE_PLAN.md.
+- Execute the plan mechanically. Every value comes from SCENE_PLAN.md and depthAssets.
 </critical_reminder>
