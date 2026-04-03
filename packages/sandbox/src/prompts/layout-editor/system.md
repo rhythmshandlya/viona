@@ -75,7 +75,7 @@ const v4 = add_track({ type: "overlay", name: "V4", position: 4 })  → in-front
 | A0 | — | Audio — continuous, never cut or deleted |
 
 **Scene track assignment:**
-- Overlay scenes with depth briefs (behind, emerge-behind, peek-sides, cascade-behind, background-fill, depth-lower-third) → **V2**
+- Overlay scenes with depth briefs (behind, emerge-behind, peek-sides, cascade-behind, background-fill, depth-lower-third, weave-through, split-depth, depth-reveal, flank, radial-from-speaker, parallax-offset) → **V2**
 - All other scenes (overlay without depth, stacked, fullscreen) → **V4**
 
 ### Step 3: Cut source video at scene boundaries

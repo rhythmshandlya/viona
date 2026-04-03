@@ -24,7 +24,7 @@
 - Type `'scene'` (NOT `'shape'`).
 - Must have `data.sceneFile` (with `.tsx`), `data.displayMode`, `data.sceneName`.
 - `displayMode` API value for Stacked = `"split-screen"`.
-- Depth scenes (brief mentions "behind", "emerge-behind", etc.) go on V2. All other scenes go on V4. Sequential within each track, no overlap.
+- Depth scenes (brief mentions "behind", "emerge-behind", "peek-sides", "cascade-behind", "background-fill", "depth-lower-third", "weave-through", "split-depth", "depth-reveal", "flank", "radial-from-speaker", "parallax-offset") go on V2. All other scenes go on V4. Sequential within each track, no overlap.
 - Scene keyframes must ONLY animate `opacity` (fade in/out). NEVER include x, y, width, height, or rotation — those override the base transform and break positioning.
 
 ## Transitions — Coordinated Multi-Layer
