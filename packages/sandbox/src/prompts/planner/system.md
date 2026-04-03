@@ -265,13 +265,13 @@ SCENE_PLAN.md must contain these sections in order:
 ### 2. Per-scene entries
 Using the exact schema above. Scenes MUST cover the ENTIRE timeline with no gaps. Every moment from video start to video end is either a scene or an overlay.
 
-### 3. Punch-in locations
-Timestamps + zoom level for speaker emphasis during **overlay segments only**.
-- Format: `| timestampMs | { x, y, scale } | "reason" |`
-- x/y are center-point percentages (0-100), scale is zoom factor (e.g., 1.3)
-- Frequency: 1-2 per minute
-- **NEVER during Stacked or Fullscreen segments** — only during Overlay segments
-- Never two punch-ins within 10 seconds of each other
+### 3. Punch-ins
+Punch-ins are specified **per scene** inside each overlay scene's animation brief (not as a separate global table). Each overlay scene's brief must include 1-3 punch-ins with a transcript anchor word and a scale tier:
+- `1.15x` = subtle emphasis
+- `1.25x` = standard emphasis
+- `1.35x` = dramatic moment
+- **NEVER during Stacked or Fullscreen scenes** — only during Overlay scenes
+- The Layout Editor looks up the transcript word timestamp and creates matched V1+V3 zoom keyframes
 
 ### 4. Self-verification checklist
 All boxes must be checked before submitting:

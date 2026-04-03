@@ -166,9 +166,11 @@ The animation brief's zones determine whether the speaker's matte (V3) and backg
 
 If a scene has MULTIPLE zones (e.g., above-head + lower-third via split), use the zone that requires the largest shift.
 
+If no zone is specified in the brief, assume `full-behind` (no shift, `matteY = 0`).
+
 **B. Calculate matte and background transforms:**
 
-Always oversize 15% to prevent edge leaking at boundaries:
+Always oversize V1/V3 by 15% for ALL overlay scenes (including no-shift ones) to prevent edge leaking at boundaries:
 ```
 const oversize = 1.15;
 const matteW = Math.round(CANVAS_W * oversize);
@@ -318,9 +320,7 @@ When the animation brief says "Split: Scene5Behind + Scene5Front":
 1. Create TWO scene items for the same time range:
    - `Scene5Behind.tsx` → **V2** track (behind speaker)
    - `Scene5Front.tsx` → **V4** track (in front of speaker)
-2. Each item gets its own transform based on its zone:
-   - Behind-scene (V2): transform covers the zone where behind-speaker content appears (e.g., upper area for `above-head`)
-   - Front-scene (V4): transform covers the zone where in-front content appears (e.g., lower area for `lower-third`)
+2. Both items use the **same overlay preset transform** from the plan (same x, y, width, height). The Animator handles internal positioning within the scene — the manifest transform is identical for both.
 3. Both items share the same `startMs`/`endMs` and transition keyframes
 4. Both scene files get SPEAKER constants (same values — same matte offset applies to both)
 
@@ -364,6 +364,8 @@ All transitions are 300ms. Every layer involved in the boundary gets synchronize
 ```
 
 #### Punch-in keyframes (V1 + V3 matched zoom)
+
+**Note:** Punch-in keyframes animate `x`, `y`, `width`, `height` on **V1/V3 depth items** — this is allowed. The opacity-only restriction above applies only to **V2/V4 scene items**.
 
 When the animation brief specifies punch-ins (e.g., "Punch-in 1.25x at '$390 million'"):
 
