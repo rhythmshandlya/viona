@@ -24,6 +24,7 @@ Workspace layout:
 <segmentation>
   Person segmentation (alpha matting) is {{HAS_SEGMENTATION}} for this project.
   When available, overlay scenes can place elements behind the speaker using the
-  scene-bg track. The person matte layer composites the speaker on top.
+  V2 track. The person matte (V3) composites the speaker on top, and V4 holds
+  elements in front of the speaker.
 </segmentation>
 </identity>
