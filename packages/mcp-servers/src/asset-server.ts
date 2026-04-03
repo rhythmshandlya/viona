@@ -1190,9 +1190,10 @@ server.registerTool(
     try {
       // Check if matte directory exists and list available mattes
       let matteFiles: string[] = [];
+      let entries: string[] = [];
       try {
-        const entries = await readdir(MATTE_DIR);
-        matteFiles = entries.filter(f => f.endsWith(".mp4"));
+        entries = await readdir(MATTE_DIR);
+        matteFiles = entries.filter(f => f.endsWith(".mp4") && !f.endsWith("-fgr.mp4"));
       } catch {
         // Directory doesn't exist — no mattes available
       }
@@ -1202,10 +1203,15 @@ server.registerTool(
 
       const scenes = matteFiles.map(f => {
         const sceneId = f.replace(".mp4", "");
+        const hasFgr = entries.includes(`${sceneId}-fgr.mp4`);
         return {
           sceneId,
           mattePath: `public/matte/${f}`,
           staticFile: `matte/${f}`,
+          fgrPath: hasFgr ? `public/matte/${sceneId}-fgr.mp4` : null,
+          fgrStaticFile: hasFgr ? `matte/${sceneId}-fgr.mp4` : null,
+          bgPath: `public/bg-${sceneId}.png`,
+          bgStaticFile: `bg-${sceneId}.png`,
         };
       });
 
@@ -1219,21 +1225,21 @@ server.registerTool(
             totalMattes: matteFiles.length,
             techniques: matteFiles.length > 0 ? {
               behindSpeaker: {
-                description: "Place graphics behind the speaker using the person track's alpha matte compositing.",
+                description: "Place graphics behind the speaker using the matte compositing stack.",
                 usage: [
-                  "1. The person track automatically handles matte compositing — no manual setup needed.",
-                  "2. Place behind-speaker animations on the scene-bg track (position 1).",
-                  "3. Place in-front-of-speaker animations on the scene-fg track (position 3).",
-                  "4. The person matte layer (position 2) composites the speaker between the two.",
+                  "1. V1 (position 1): Clean background image — replaces source video behind everything.",
+                  "2. V2 (position 2): Behind-speaker animations — rendered between bg and matte.",
+                  "3. V3 (position 3): Matte item (fgr + alpha) — composites the speaker cutout.",
+                  "4. V4 (position 4): In-front-of-speaker animations — rendered on top of speaker.",
                   "5. Use SPEAKER.bboxPx and VISIBLE_ZONES constants for spatial positioning.",
                 ],
               },
               depthParallax: {
                 description: "Create depth-of-field parallax with foreground/background separation.",
                 usage: [
-                  "1. Render background elements on scene-bg with slower parallax speed.",
-                  "2. The person matte layer provides the natural depth separator.",
-                  "3. Add foreground elements on scene-fg for additional depth layering.",
+                  "1. Place background elements on V2 (position 2) with slower parallax speed.",
+                  "2. The matte on V3 (position 3) provides the natural depth separator.",
+                  "3. Add foreground elements on V4 (position 4) for additional depth layering.",
                 ],
               },
             } : null,
