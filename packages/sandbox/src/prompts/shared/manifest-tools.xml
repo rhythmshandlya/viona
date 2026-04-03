@@ -5,12 +5,13 @@
 - add_track — Add a new track (video, audio, overlay, caption).
 - update_track — Update track properties.
 - remove_track — Remove a track and all its items.
-- add_item — Add a new item (video, audio, text, image, scene, caption, shape).
+- add_item — Add a new item (video, audio, text, image, scene, caption, shape, matte).
 - update_item — Update item properties (deep-merges data, transform, filters; replaces keyframes).
 - remove_item — Remove an item by ID.
 - split_item — Split a video/audio item at a timestamp.
 - update_caption_preset — Update global caption preset (font, colors, animation, position, effects).
-- update_manifest — Batch update the manifest.
+- generate_captions — Generate captions from transcript and add to timeline.
+- ripple_delete — Delete an item and close the gap by shifting later items.
 
 ## Scene Tools (mcp__scenes__*)
 - write_scene_file — Write a .tsx scene file.
