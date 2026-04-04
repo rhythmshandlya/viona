@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, readFileSync, copyFileSync } from 'fs';
 
 const CHROMIUM_PATH = '/usr/bin/chromium';
 const browserExecutable = existsSync(CHROMIUM_PATH) ? CHROMIUM_PATH : null;
+const isLinux = process.platform === 'linux';
+const chromiumOptions = isLinux ? { gl: 'swangle' as const } : undefined;
 
 /**
  * Render the full composition to an MP4 video file.
@@ -64,6 +66,7 @@ export async function renderVideo(options?: {
     id: compositionId,
     browserExecutable,
     inputProps,
+    chromiumOptions,
   });
 
   // Override with correct values from manifest (calculateMetadata may have failed)
@@ -84,6 +87,7 @@ export async function renderVideo(options?: {
     imageFormat: 'png',
     x264Preset: 'faster',
     browserExecutable,
+    chromiumOptions,
     inputProps,
     onProgress: ({ progress }) => {
       const percent = Math.round(progress * 100);

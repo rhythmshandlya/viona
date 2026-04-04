@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-flow",
+  "name": "Explainer Data Flow",
+  "description": "Animated vertical data flow with traveling particles between connected nodes",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "flow", "pipeline", "diagram"],
+  "stylePreset": "blackboardClean",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

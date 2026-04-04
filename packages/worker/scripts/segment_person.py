@@ -88,6 +88,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--end-ms", type=int, default=0, help="(Deprecated) Scene end time in ms — use --bg-ranges instead")
     parser.add_argument("--bg-output", type=str, default="", help="(Deprecated) Single bg output path — use --bg-ranges instead")
     parser.add_argument("--bg-ranges", type=str, default="", help="JSON array of {sceneId, startMs, endMs, output} for multiple background images")
+    parser.add_argument("--matte-ranges", type=str, default="", help="JSON array of {startMs, endMs} — only run RVM inference for frames within these ranges; output black matte for frames outside")
     return parser.parse_args()
 
 
@@ -140,7 +141,7 @@ def load_rvm_model(backbone: str, device: torch.device, dtype: torch.dtype):
     model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model = torch.jit.script(model)
     model = torch.jit.freeze(model)
-    print(f"Model loaded: {backbone} | {device} | {dtype} | JIT frozen")
+    print(f"Model loaded: {backbone} | {device} | {dtype} | JIT frozen", flush=True)
     return model
 
 
@@ -171,14 +172,15 @@ def process_video(
     scale: float,
     fps: int,
     downsample_ratio: float,
+    matte_ranges: list = None,
 ) -> dict:
     """Run RVM segmentation on a video file, output RGB matte MP4 via FFmpeg pipe."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_fp16 = device.type == "cuda"
     dtype = torch.float16 if use_fp16 else torch.float32
-    print(f"Using device: {device} | {dtype}")
+    print(f"Using device: {device} | {dtype}", flush=True)
 
-    print(f"Loading RVM model ({backbone})...")
+    print(f"Loading RVM model ({backbone})...", flush=True)
     model = load_rvm_model(backbone, device, dtype)
 
     info = probe_video(input_path)
@@ -199,8 +201,25 @@ def process_video(
     out_h = int(src_h * scale) // 2 * 2
     max_frames = int(duration_s * effective_fps)
 
-    print(f"Processing video: {src_w}x{src_h} @ {src_fps:.2f}fps ({src_fps_frac}), {max_frames} frames")
-    print(f"Output: {out_w}x{out_h} @ {effective_fps:.2f}fps, scale={scale}")
+    # Build frame-level skip mask from matte_ranges (ms → frame indices)
+    # If matte_ranges is provided, only run RVM for frames within those ranges.
+    # Frames outside get black matte output (no GPU inference).
+    skip_mask = None
+    if matte_ranges:
+        skip_mask = np.ones(max_frames + 100, dtype=bool)  # True = skip
+        active_frame_count = 0
+        for r in matte_ranges:
+            f_start = int(r["startMs"] / 1000 * effective_fps)
+            f_end = int(r["endMs"] / 1000 * effective_fps)
+            skip_mask[f_start:f_end] = False
+            active_frame_count += f_end - f_start
+        skipped = int(skip_mask[:max_frames].sum())
+        print(f"Matte ranges: {len(matte_ranges)} ranges, {active_frame_count} active frames, {skipped} skipped")
+    else:
+        print("Matte ranges: none (processing all frames)")
+
+    print(f"Processing video: {src_w}x{src_h} @ {src_fps:.2f}fps ({src_fps_frac}), {max_frames} frames", flush=True)
+    print(f"Output: {out_w}x{out_h} @ {effective_fps:.2f}fps, scale={scale}", flush=True)
 
     if device.type == "cuda":
         rec = [None] * 4
@@ -235,80 +254,105 @@ def process_video(
     fgr_encoder = make_ffmpeg_encoder(fgr_output_path, out_w, out_h, effective_fps_str)
 
     frame_size = out_w * out_h * 3
+    black_frame = np.zeros((out_h, out_w, 3), dtype=np.uint8)
+    black_bytes = black_frame.tobytes()
     rec = [None] * 4
     frame_idx = 0
+    inferred_frames = 0
     start_time = time.time()
     bbox_frames = []
 
     while True:
         frames_rgb = []
+        batch_frame_indices = []
         for _ in range(SEQ_CHUNK):
             raw = decoder.stdout.read(frame_size)
             if len(raw) < frame_size:
                 break
             frames_rgb.append(np.frombuffer(raw, dtype=np.uint8).reshape(out_h, out_w, 3))
+            batch_frame_indices.append(frame_idx + len(frames_rgb) - 1)
 
         if not frames_rgb:
             break
 
         T = len(frames_rgb)
-        batch = np.stack(frames_rgb)
 
-        src = torch.from_numpy(batch).permute(0, 3, 1, 2).unsqueeze(0)
-        src = src.to(device, dtype=dtype, non_blocking=True).div(255.0)
+        # Check if ANY frame in this batch needs inference
+        needs_inference = skip_mask is None or any(
+            not skip_mask[idx] for idx in batch_frame_indices if idx < len(skip_mask)
+        )
 
-        with torch.no_grad():
-            fgr, pha, *rec = model(src, *rec, downsample_ratio)
+        if needs_inference:
+            batch = np.stack(frames_rgb)
+            src = torch.from_numpy(batch).permute(0, 3, 1, 2).unsqueeze(0)
+            src = src.to(device, dtype=dtype, non_blocking=True).div(255.0)
 
-        mattes = pha[0, :, 0].float().mul(255).clamp(0, 255).byte().cpu().numpy()
+            with torch.no_grad():
+                fgr, pha, *rec = model(src, *rec, downsample_ratio)
 
-        for t in range(T):
-            matte_u8 = mattes[t]
+            mattes = pha[0, :, 0].float().mul(255).clamp(0, 255).byte().cpu().numpy()
 
-            # Tighter bbox: threshold at 128 (solid body only, not halos),
-            # then erode to shrink edge noise from hair/clothing.
-            mask = (matte_u8 > 128).astype(np.uint8)
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-            mask = cv2.erode(mask, kernel, iterations=1)
+            for t in range(T):
+                current_idx = batch_frame_indices[t]
+                should_skip = skip_mask is not None and current_idx < len(skip_mask) and skip_mask[current_idx]
 
-            rows = np.any(mask > 0, axis=1)
-            cols = np.any(mask > 0, axis=0)
-            if np.any(rows) and np.any(cols):
-                rmin, rmax = np.where(rows)[0][[0, -1]]
-                cmin, cmax = np.where(cols)[0][[0, -1]]
+                if should_skip:
+                    # Frame is outside matte ranges — write black
+                    encoder.stdin.write(black_bytes)
+                    fgr_encoder.stdin.write(black_bytes)
+                else:
+                    matte_u8 = mattes[t]
+                    inferred_frames += 1
 
-                # Pad bbox by 5% of frame dimensions to give breathing room
-                pad_h = int(out_h * 0.05)
-                pad_w = int(out_w * 0.05)
-                rmin = max(0, rmin - pad_h)
-                rmax = min(out_h - 1, rmax + pad_h)
-                cmin = max(0, cmin - pad_w)
-                cmax = min(out_w - 1, cmax + pad_w)
+                    # Tighter bbox: threshold at 128 (solid body only, not halos),
+                    # then erode to shrink edge noise from hair/clothing.
+                    mask = (matte_u8 > 128).astype(np.uint8)
+                    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+                    mask = cv2.erode(mask, kernel, iterations=1)
 
-                bbox_frames.append({
-                    "frame": frame_idx,
-                    "x": float(cmin / out_w),
-                    "y": float(rmin / out_h),
-                    "w": float((cmax - cmin + 1) / out_w),
-                    "h": float((rmax - rmin + 1) / out_h),
-                })
+                    rows = np.any(mask > 0, axis=1)
+                    cols = np.any(mask > 0, axis=0)
+                    if np.any(rows) and np.any(cols):
+                        rmin, rmax = np.where(rows)[0][[0, -1]]
+                        cmin, cmax = np.where(cols)[0][[0, -1]]
 
-            matte_rgb = np.stack([matte_u8, matte_u8, matte_u8], axis=-1)
-            encoder.stdin.write(matte_rgb.tobytes())
+                        pad_h = int(out_h * 0.05)
+                        pad_w = int(out_w * 0.05)
+                        rmin = max(0, rmin - pad_h)
+                        rmax = min(out_h - 1, rmax + pad_h)
+                        cmin = max(0, cmin - pad_w)
+                        cmax = min(out_w - 1, cmax + pad_w)
 
-            # Extract foreground frame: fgr is [1, T, 3, H, W], need [H, W, 3] uint8
-            fgr_frame = fgr[0, t].permute(1, 2, 0).float().mul(255).clamp(0, 255).cpu().numpy()
-            # Premultiply by alpha (clean edges, transparent where no speaker)
-            alpha_f = pha[0, t, 0].float().cpu().numpy()  # [H, W] in 0-1 range
-            fgr_premul = (fgr_frame * alpha_f[:, :, np.newaxis]).clip(0, 255).astype(np.uint8)
-            fgr_encoder.stdin.write(fgr_premul.tobytes())
+                        bbox_frames.append({
+                            "frame": current_idx,
+                            "x": float(cmin / out_w),
+                            "y": float(rmin / out_h),
+                            "w": float((cmax - cmin + 1) / out_w),
+                            "h": float((rmax - rmin + 1) / out_h),
+                        })
 
-            frame_idx += 1
+                    matte_rgb = np.stack([matte_u8, matte_u8, matte_u8], axis=-1)
+                    encoder.stdin.write(matte_rgb.tobytes())
+
+                    fgr_frame = fgr[0, t].permute(1, 2, 0).float().mul(255).clamp(0, 255).cpu().numpy()
+                    alpha_f = pha[0, t, 0].float().cpu().numpy()
+                    fgr_straight = fgr_frame.clip(0, 255).astype(np.uint8)
+                    fgr_encoder.stdin.write(fgr_straight.tobytes())
+
+                frame_idx += 1
+        else:
+            # Entire batch is skippable — write black frames, no GPU work
+            for t in range(T):
+                encoder.stdin.write(black_bytes)
+                fgr_encoder.stdin.write(black_bytes)
+                frame_idx += 1
 
         if frame_idx >= 100 and (frame_idx - T) // 100 < frame_idx // 100:
             elapsed_so_far = time.time() - start_time
             fps_so_far = frame_idx / max(0.1, elapsed_so_far)
-            print(f"Processed {frame_idx} frames ({fps_so_far:.1f} fps)")
+            pct = frame_idx / max(1, max_frames) * 100
+            remaining = (max_frames - frame_idx) / max(0.1, fps_so_far)
+            print(f"Processed {frame_idx}/{max_frames} frames ({pct:.0f}%) | {fps_so_far:.1f} fps | {inferred_frames} inferred | ETA {remaining:.0f}s", flush=True)
 
     decoder.stdout.close()
     decoder.wait()
@@ -318,7 +362,7 @@ def process_video(
     fgr_encoder.wait()
 
     elapsed = time.time() - start_time
-    print(f"Done! Processed {frame_idx} frames in {elapsed:.1f}s ({frame_idx / max(1, elapsed):.1f} fps)")
+    print(f"Done! Processed {frame_idx} frames ({inferred_frames} inferred, {frame_idx - inferred_frames} skipped) in {elapsed:.1f}s ({frame_idx / max(1, elapsed):.1f} fps)")
     print(f"Foreground video saved: {fgr_output_path}")
 
     # Compute aggregate stats for downstream tools
@@ -468,13 +512,19 @@ def generate_background(input_path: str, matte_path: str, output_path: str, star
 
 
 def main():
+    print(f"segment_person.py starting", flush=True)
+    print(f"Python: {sys.executable}", flush=True)
     args = parse_arguments()
+    print(f"Args parsed: input={args.input}, scale={args.scale}, backbone={args.backbone}", flush=True)
 
     input_path = Path(args.input)
     if not input_path.exists():
         print(f"Error: Input file not found: {args.input}", file=sys.stderr)
         sys.exit(2)
+    print(f"Input file exists: {input_path.stat().st_size} bytes", flush=True)
 
+    matte_ranges = json.loads(args.matte_ranges) if args.matte_ranges else None
+    print(f"Matte ranges: {len(matte_ranges) if matte_ranges else 'none'}", flush=True)
     result = process_video(
         str(input_path),
         args.output,
@@ -482,6 +532,7 @@ def main():
         args.scale,
         args.fps,
         args.downsample_ratio,
+        matte_ranges=matte_ranges,
     )
 
     print(f"Matte saved: {args.output}")

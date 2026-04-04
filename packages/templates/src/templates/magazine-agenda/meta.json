@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-agenda",
+  "name": "Magazine Schedule",
+  "description": "Time-slot schedule overlay with vertical timeline for event agendas and daily routine content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "agenda", "schedule", "timeline", "event", "routine"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

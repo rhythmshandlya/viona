@@ -1,0 +1,21 @@
+<motion_design_principles>
+## Visual Style (ALL visual agents)
+- Solid filled shapes, NOT wireframes or outlined strokes. Edges come from boxShadow and glow, not borders.
+- No SVG stroke animations (strokeDasharray, strokeDashoffset, stroke-width, path outlines). Use clip-path reveals, scale transforms, animated width/height bars.
+- No thin 1px borders as visual structure. Use boxShadow or inset shadows for edge definition.
+- No random floating particles. Decorative elements move with purpose (uniform dots that pulse/beat, not chaotic drifting).
+- Canvas-relative sizing: borders, shadows, and spacing scale with SCENE_WIDTH, never hardcoded 1-3px.
+
+## Animation Choreography
+- Each scene has ONE hero animation — everything else supports it.
+- Adjacent elements enter from DIFFERENT directions. Same-direction entrances = rejected.
+- Opacity and transform must NOT start on the same frame — stagger by 3-5 frames for overlapping action.
+- Hold phases: after entrance, elements hold for 30+ frames before any exit or secondary motion. Stillness is confidence.
+- Adjacent elements use DIFFERENT spring configs (vary damping/stiffness). Uniform springs = rejected.
+- Background must have at least one animated property (gradient shift, subtle scale, opacity pulse). Static backgrounds = rejected. (Overlay exception: no background — transparent canvas.)
+
+## Display Mode Shapes Animation
+- **Overlay** (transparent, over speaker): 1–3 focused elements. Snappy entrances (~15 frames), quick exits (~10 frames). Single focal point — the viewer glances and returns to the speaker.
+- **Stacked** (speaker below, animation top): 3–5 elements. Self-explanatory visual. Medium pacing with progressive builds. Clear hero element the viewer's eye finds quickly.
+- **Fullscreen** (speaker hidden, full canvas): Up to 5 elements with multiple depth layers. Rich background. Cinematic pacing — more dramatic entrances, elaborate builds. The animation IS the content.
+</motion_design_principles>

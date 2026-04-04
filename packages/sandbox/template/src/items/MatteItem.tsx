@@ -89,6 +89,7 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
         pauseWhenBuffering
         muted
         onLoadedData={doRender}
+        crossOrigin="anonymous"
       />
       <Video
         ref={matteVideoRef}
@@ -98,6 +99,7 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
         pauseWhenBuffering
         muted
         onLoadedData={doRender}
+        crossOrigin="anonymous"
       />
       <canvas
         ref={canvasRef}

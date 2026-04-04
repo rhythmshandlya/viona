@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-mythfact",
+  "name": "Magazine Myth Buster",
+  "description": "Myth-busting overlay with animated strike-through on the myth and clean reveal of the fact below",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "myth", "fact", "debunk", "educational", "truth"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

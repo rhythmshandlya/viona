@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-alert",
+  "name": "Magazine Breaking News",
+  "description": "Breaking news alert banner with urgent stamp, red flash, and headline reveal",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "alert", "breaking", "news", "urgent", "announcement", "breaking-news"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

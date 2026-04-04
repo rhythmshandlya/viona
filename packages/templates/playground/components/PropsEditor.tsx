@@ -6,6 +6,7 @@ import {
   ColorInput, Toggle, ButtonGroup, Label, CountrySelect,
   useCountryList, type CountryOption,
 } from './ui';
+import { t } from '../theme';
 
 interface PropsEditorProps {
   template: TemplateEntry;
@@ -36,9 +37,12 @@ export function PropsEditor({ template, props, onUpdateProp, onReset }: PropsEdi
         onClick={onReset}
         style={{
           marginTop: 16, width: '100%', padding: '7px 0',
-          background: 'transparent', border: '1px solid #333',
-          borderRadius: 6, color: '#888', fontSize: 12, cursor: 'pointer',
+          background: 'transparent', border: `1px solid ${t.border}`,
+          borderRadius: 6, color: t.text3, fontSize: 12, cursor: 'pointer',
+          transition: 'border-color 0.15s, color 0.15s',
         }}
+        onMouseEnter={(e) => { (e.target as HTMLElement).style.borderColor = t.borderHover; (e.target as HTMLElement).style.color = t.text2; }}
+        onMouseLeave={(e) => { (e.target as HTMLElement).style.borderColor = t.border; (e.target as HTMLElement).style.color = t.text3; }}
       >
         Reset to defaults
       </button>
@@ -75,7 +79,18 @@ function FieldControl({
         label={field.label} value={value ?? ''} countries={countries}
         onChange={(name, country) => {
           onChange(name);
-          if (country && 'countryCode' in allProps) onUpdateProp(['countryCode'], country.iso_a3);
+          if (!country) return;
+          if ('countryCode' in allProps) onUpdateProp(['countryCode'], country.iso_a3);
+          // Auto-fill geographic fields when a country is selected
+          const [lat, lng] = country.centroid;
+          if ('regionLat' in allProps) onUpdateProp(['regionLat'], lat);
+          if ('regionLng' in allProps) onUpdateProp(['regionLng'], lng);
+          if ('label' in allProps) onUpdateProp(['label'], name.toUpperCase());
+          if ('subtitle' in allProps) {
+            const latDir = lat >= 0 ? 'N' : 'S';
+            const lngDir = lng >= 0 ? 'E' : 'W';
+            onUpdateProp(['subtitle'], `${Math.abs(lat).toFixed(4)}\u00b0 ${latDir}, ${Math.abs(lng).toFixed(4)}\u00b0 ${lngDir}`);
+          }
         }}
       />
     );
@@ -110,7 +125,7 @@ function FieldControl({
         <Label>{field.label} (array)</Label>
         <textarea value={JSON.stringify(value ?? [], null, 2)}
           onChange={(e) => { try { onChange(JSON.parse(e.target.value)); } catch {} }}
-          style={{ width: '100%', minHeight: 60, background: '#1a1a2e', border: '1px solid #2a2a3e', borderRadius: 6, padding: '6px 10px', color: '#e0e0e0', fontSize: 12, fontFamily: 'monospace', resize: 'vertical' }} />
+          style={{ width: '100%', minHeight: 60, background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 6, padding: '6px 10px', color: t.text1, fontSize: 12, fontFamily: 'monospace', resize: 'vertical', transition: 'border-color 0.15s' }} />
       </div>
     );
   }

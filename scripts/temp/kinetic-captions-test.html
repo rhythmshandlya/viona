@@ -3,61 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kinetic Captions — Cinematic Lux (Full Algorithm)</title>
+<title>Kinetic Captions — Cinematic Lux</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;600;700;800;900&family=Bebas+Neue&family=Space+Grotesk:wght@400;600;700&family=Outfit:wght@400;600;700;800;900&family=Syne:wght@400;700;800&family=DM+Serif+Display:ital@0;1&family=Archivo+Black&family=Caveat:wght@700&family=Unbounded:wght@400;700;900&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #111;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    font-family: 'Inter', sans-serif;
-    color: #fff;
+    background: #111; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; min-height: 100vh;
+    font-family: 'Inter', sans-serif; color: #fff;
   }
-  h1 {
-    font-size: 14px; font-weight: 400; color: #888;
-    margin-bottom: 24px; letter-spacing: 2px; text-transform: uppercase;
-  }
-  .controls {
-    display: flex; gap: 12px; margin-bottom: 20px;
-    flex-wrap: wrap; justify-content: center;
-  }
-  .controls button {
-    background: #222; border: 1px solid #333; color: #fff;
-    padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;
-    transition: background 0.2s;
-  }
+  h1 { font-size: 14px; font-weight: 400; color: #888; margin-bottom: 24px; letter-spacing: 2px; text-transform: uppercase; }
+  .controls { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+  .controls button { background: #222; border: 1px solid #333; color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
   .controls button:hover { background: #333; }
   .controls button.active { background: #e63946; border-color: #e63946; }
-  .input-row {
-    display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
-  }
-  .input-row input {
-    background: #1a1a1a; border: 1px solid #333; color: #fff;
-    padding: 8px 12px; border-radius: 6px; font-size: 14px; width: 320px;
-  }
+  .input-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .input-row input { background: #1a1a1a; border: 1px solid #333; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 14px; width: 320px; }
   .input-row label { color: #888; font-size: 12px; }
   .hint { color: #555; font-size: 11px; margin-bottom: 16px; }
-  .canvas-wrapper {
-    position: relative; border-radius: 8px; overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  }
+  .canvas-wrapper { position: relative; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
   canvas { display: block; }
-  .debug-panel {
-    margin-top: 20px; background: #1a1a1a; border: 1px solid #333;
-    border-radius: 8px; padding: 16px; font-size: 11px; color: #aaa;
-    max-width: 960px; width: 100%; font-family: monospace;
-    white-space: pre-wrap; max-height: 500px; overflow-y: auto;
-  }
+  .debug-panel { margin-top: 20px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 16px; font-size: 11px; color: #aaa; max-width: 960px; width: 100%; font-family: monospace; white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
+  .preset-scroll { width: 960px; max-height: 120px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; background: #0a0a0a; border: 1px solid #222; border-radius: 8px; margin-bottom: 16px; scrollbar-width: thin; scrollbar-color: #333 #111; }
+  .preset-scroll::-webkit-scrollbar { width: 6px; }
+  .preset-scroll::-webkit-scrollbar-track { background: #111; }
+  .preset-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  .preset-btn { background: #151515; border: 1px solid #252525; color: #777; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 10px; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
+  .preset-btn:hover { background: #252525; color: #ddd; border-color: #444; }
+  .preset-btn.active { background: #e63946; color: #fff; border-color: #e63946; }
+  .preset-btn .hero-word { color: #e63946; font-weight: 700; }
+  .preset-btn.active .hero-word { color: #fff; }
 </style>
 </head>
 <body>
 
-<h1>Kinetic Captions — Cinematic Lux (Line-Based Ink-Gap Pack)</h1>
+<h1>Kinetic Captions — Cinematic Lux</h1>
 
 <div class="input-row">
   <input type="text" id="captionInput" value="How on earth do you achieve this" placeholder="Type caption..." style="width:380px" />
@@ -71,7 +52,13 @@
   <button onclick="playAnimation()" class="active">Play</button>
   <button onclick="toggleDebug()">Debug</button>
   <button onclick="cycleColor()">Color</button>
+  <button onclick="randomizeHero()">Rand Hero</button>
+  <button onclick="cycleTemplate()">Next Template</button>
+  <button onclick="autoPlayAll()" id="autoPlayBtn">Auto-Play All</button>
+  <span id="templateLabel" style="color:#666;font-size:11px;padding:8px 0;">Cinematic Lux</span>
 </div>
+
+<div class="preset-scroll" id="presetList"></div>
 
 <div class="canvas-wrapper">
   <canvas id="canvas" width="960" height="540"></canvas>
@@ -83,19 +70,10 @@
 
 <script>
 // ==========================================================================
-// KINETIC CAPTION ENGINE — Line-Based Ink-Gap Pack
+// KINETIC CAPTION ENGINE — Fully Configurable
 //
-// Key design: satellite words are grouped into LINES (like CSS flexbox wrap).
-// Each line is a single block with natural font-based word spacing.
-// Layout is deterministic — no randomness, no SA, no nudge.
-//
-// Pipeline:
-//   Phase 1: Measurement (font + ink bounds + character gaps)
-//   Phase 2: Build line blocks (satellite words → lines, hero blocks unchanged)
-//   Phase 3: Line layout (deterministic vertical stack, ink-gap packing)
-//   Phase 4: Cassowary refinement + alignment snapping
-//   Phase 5: Render (Canvas 2D, offscreen shadow)
-//   Phase 6: Per-line spring animation
+// ALL tunable parameters live in the CONFIG object below.
+// Change any value and call buildLayout() to see the effect.
 // ==========================================================================
 
 const canvas = document.getElementById('canvas');
@@ -103,32 +81,120 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
 
-const TEMPLATE = {
-  heroFont: "'Playfair Display'",
-  heroWeight: '700',
-  heroStyle: 'italic',
-  heroColor: '#e63946',
-  heroSizeRatio: 0.45,
 
-  satelliteFont: "'Inter'",
-  satelliteWeight: '600',
-  satelliteStyle: 'normal',
-  satelliteColor: '#ffffff',
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION — every tunable parameter in one place
+// ═══════════════════════════════════════════════════════════════════════════
 
-  textShadow: true,
-  shadowBlur: 14,
+const CONFIG = {
 
-  verticalAnchor: 0.50,
-  safeMargin: 0.05,
+  // ── Canvas & Safe Zone ───────────────────────────────────────────────
+  canvas: {
+    width: W,
+    height: H,
+    verticalAnchor: 0.50,   // 0.0 = top, 0.5 = center, 1.0 = bottom
+    safeMargin: 0.05,       // fraction of canvas dimensions (5% each side)
+  },
+
+  // ── Hero Typography ──────────────────────────────────────────────────
+  hero: {
+    fontFamily: "'Playfair Display'",
+    fontWeight: '700',
+    fontStyle: 'italic',
+    color: '#e63946',
+    colorCycle: ['#e63946', '#ff6b35', '#f4a261', '#2ec4b6', '#a855f7', '#ff477e'],
+    sizeRatio: 0.45,        // hero fills this fraction of safe width
+    maxFontSize: 140,       // px — clamp hero font size
+    overflowClamp: 0.85,    // scale down if hero exceeds this fraction of safe width
+    strokeColor: 'rgba(0,0,0,0.4)',
+    strokeWidth: 2,
+  },
+
+  // ── Satellite Typography ─────────────────────────────────────────────
+  satellite: {
+    fontFamily: "'Inter'",
+    fontWeight: '600',
+    fontStyle: 'normal',
+    color: '#ffffff',
+    sizeRatio: 0.38,        // satellite font size = hero font size × this
+    maxLineWidthRatio: 1.3, // max satellite line width = hero width × this
+    wideLineThreshold: 0.8, // lines wider than this ratio of hero stay centered
+  },
+
+  // ── Layout ───────────────────────────────────────────────────────────
+  layout: {
+    lineInkGap: 5,          // px between ink edges of adjacent lines
+    alignSnap: 8,           // px threshold for alignment snapping
+    capHeightRatio: 0.72,   // cap height ≈ ascent × this (Latin approximation)
+    inlineOrphanThreshold: 0.4, // satellite < this ratio of hero width → try inline placement
+    inlineGap: 10,          // px horizontal gap between hero and inline satellite
+  },
+
+  // ── Shadow & Readability ─────────────────────────────────────────────
+  shadow: {
+    enabled: true,
+    blur: 14,               // px blur radius
+    opacity: 0.8,           // shadow layer opacity multiplier
+    offsetY: 2,             // px vertical shadow offset
+  },
+
+  // ── Background ───────────────────────────────────────────────────────
+  background: {
+    gradient: [
+      { stop: 0.0, color: '#1a1a2e' },
+      { stop: 0.4, color: '#16213e' },
+      { stop: 1.0, color: '#0f3460' },
+    ],
+    vignette: {
+      innerRadius: 0.25,    // fraction of canvas width
+      outerRadius: 0.95,
+      opacity: 0.65,
+    },
+  },
+
+  // ── Animation ────────────────────────────────────────────────────────
+  animation: {
+    hero: {
+      duration: 350,        // ms — spring scale-in duration
+      stagger: 120,         // ms between multiple hero entrances
+      fadeSpeed: 4,         // opacity = min(1, progress × this)
+      settleFactor: 1.5,    // animation done at duration × this
+    },
+    satellite: {
+      duration: 200,        // ms per satellite line
+      stagger: 80,          // ms between line entrances
+      delayAfterHeroes: 180,// ms gap after last hero finishes
+      slideOffset: -15,     // px — initial Y offset (negative = slide up)
+    },
+    spring: {
+      // Critically-damped: ζ = 1.0, ω = 2π/duration
+      // x(t) = 1 - (1 + ωt)e^(-ωt)
+      damping: 1.0,         // ζ (1.0 = critically damped)
+    },
+  },
+
+  // ── Debug Overlay ────────────────────────────────────────────────────
+  debug: {
+    safeZoneColor: '#0f0',
+    inkBoxHeroColor: '#f44',
+    inkBoxSatColor: '#4af',
+    fontBoxColor: '#555',
+    deadSpaceColor: '#f0f',
+    baselineColor: '#ff0',
+    charGapWordColor: '#0ff',
+    charGapLetterColor: '#ff0',
+    gapLabelFont: '9px monospace',
+  },
 };
 
-const LINE_INK_GAP = 5; // px between ink edges (vertical) between lines
 
-let heroColors = ['#e63946', '#ff6b35', '#f4a261', '#2ec4b6', '#a855f7', '#ff477e'];
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+
 let heroColorIdx = 0;
 let showDebug = false;
 let debugLines = [];
-
 let words = [];
 let heroIndices = [2];
 let layoutBlocks = [];
@@ -136,7 +202,7 @@ let animState = null;
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PHASE 1: MEASUREMENT — font bounds + ink bounds + character gaps
+// PHASE 1: MEASUREMENT
 // ═══════════════════════════════════════════════════════════════════════════
 
 const measureCache = new Map();
@@ -161,7 +227,7 @@ function measureWord(text, fontSize, fontFamily, fontWeight, fontStyle) {
     text, width: m.width, ascent, descent,
     height: ascent + descent,
     fontSize, fontFamily, fontWeight, fontStyle,
-    capHeight: ascent * 0.72,
+    capHeight: ascent * CONFIG.layout.capHeightRatio,
     inkAscent, inkDescent,
     inkHeight: inkAscent + inkDescent,
     inkLeft, inkRight,
@@ -176,52 +242,44 @@ function measureWord(text, fontSize, fontFamily, fontWeight, fontStyle) {
 function measureNaturalWordGap(fontSize, fontFamily, fontWeight, fontStyle) {
   const key = `__space__|${fontSize}|${fontFamily}|${fontWeight}|${fontStyle}`;
   if (measureCache.has(key)) return measureCache.get(key);
-
   ctx.save();
   ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-  const spaceWidth = ctx.measureText(' ').width;
+  const w = ctx.measureText(' ').width;
   ctx.restore();
-
-  measureCache.set(key, spaceWidth);
-  return spaceWidth;
+  measureCache.set(key, w);
+  return w;
 }
 
 function analyzeCharGaps(block) {
   const { text, fontSize, font, weight, style } = block;
   ctx.save();
   ctx.font = `${style} ${weight} ${fontSize}px ${font}`;
-
   const chars = [];
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const cm = ctx.measureText(ch);
     const prefix = text.substring(0, i);
-    const xOffset = i === 0 ? 0 : ctx.measureText(prefix).width;
-    const inkL = xOffset - (cm.actualBoundingBoxLeft ?? 0);
-    const inkR = xOffset + (cm.actualBoundingBoxRight ?? cm.width);
-
+    const xOff = i === 0 ? 0 : ctx.measureText(prefix).width;
+    const inkL = xOff - (cm.actualBoundingBoxLeft ?? 0);
+    const inkR = xOff + (cm.actualBoundingBoxRight ?? cm.width);
     chars.push({
-      char: ch, x: xOffset, advanceWidth: cm.width,
+      char: ch, x: xOff, advanceWidth: cm.width,
       inkLeft: inkL, inkRight: inkR, inkWidth: inkR - inkL,
       inkAscent: cm.actualBoundingBoxAscent ?? block.measure.inkAscent,
       inkDescent: cm.actualBoundingBoxDescent ?? block.measure.inkDescent,
     });
   }
-
   const gaps = [];
   for (let i = 0; i < chars.length - 1; i++) {
-    const gapStart = chars[i].inkRight;
-    const gapEnd = chars[i + 1].inkLeft;
-    const gapWidth = gapEnd - gapStart;
-    if (gapWidth > 1) {
+    const gw = chars[i + 1].inkLeft - chars[i].inkRight;
+    if (gw > 1) {
       gaps.push({
         afterChar: chars[i].char, beforeChar: chars[i + 1].char,
-        x: gapStart, width: gapWidth,
+        x: chars[i].inkRight, width: gw,
         isWordBreak: chars[i].char === ' ' || chars[i + 1].char === ' ',
       });
     }
   }
-
   ctx.restore();
   return { chars, gaps };
 }
@@ -229,9 +287,6 @@ function analyzeCharGaps(block) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PHASE 2: BUILD LINES
-// Consecutive satellite words are grouped into LINES using flexbox-wrap
-// logic. Each line = one block with joined text, rendered as a natural
-// phrase with the font's own word spacing. Hero blocks are unchanged.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function findConsecutiveRuns(indices) {
@@ -246,116 +301,133 @@ function findConsecutiveRuns(indices) {
 }
 
 function computeHeroSize(heroText) {
-  const T = TEMPLATE;
-  const safeW = W * (1 - 2 * T.safeMargin);
-  const targetW = safeW * T.heroSizeRatio;
+  const C = CONFIG;
+  const safeW = W * (1 - 2 * C.canvas.safeMargin);
+  const targetW = safeW * C.hero.sizeRatio;
   let fs = 72;
-  let m = measureWord(heroText, fs, T.heroFont, T.heroWeight, T.heroStyle);
+  let m = measureWord(heroText, fs, C.hero.fontFamily, C.hero.fontWeight, C.hero.fontStyle);
   fs = Math.round(fs * (targetW / m.width));
-  fs = Math.min(fs, 140);
-  m = measureWord(heroText, fs, T.heroFont, T.heroWeight, T.heroStyle);
-  if (m.width > safeW * 0.85) {
-    fs = Math.round(fs * (safeW * 0.85) / m.width);
+  fs = Math.min(fs, C.hero.maxFontSize);
+  m = measureWord(heroText, fs, C.hero.fontFamily, C.hero.fontWeight, C.hero.fontStyle);
+  if (m.width > safeW * C.hero.overflowClamp) {
+    fs = Math.round(fs * (safeW * C.hero.overflowClamp) / m.width);
   }
   return fs;
 }
 
 function buildLines(wordList, heroIdxArray) {
-  const T = TEMPLATE;
+  const C = CONFIG;
   const heroSet = new Set(heroIdxArray);
   const heroRuns = findConsecutiveRuns(heroIdxArray);
 
-  // Hero font size from longest hero run
   let longestHeroText = '';
   for (const run of heroRuns) {
     const text = run.map(i => wordList[i]).join(' ');
     if (text.length > longestHeroText.length) longestHeroText = text;
   }
   const heroFs = computeHeroSize(longestHeroText);
-  const satFs = Math.round(heroFs * 0.38);
+  const satFs = Math.round(heroFs * C.satellite.sizeRatio);
 
-  // Measure the hero to get maxLineWidth
-  const heroMeasure = measureWord(longestHeroText, heroFs, T.heroFont, T.heroWeight, T.heroStyle);
-  const safeW = W * (1 - 2 * T.safeMargin);
-  const maxLineWidth = Math.min(heroMeasure.width * 1.3, safeW);
-
-  // Natural word gap for satellite font
-  const wordGap = measureNaturalWordGap(satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+  const heroMeasure = measureWord(longestHeroText, heroFs, C.hero.fontFamily, C.hero.fontWeight, C.hero.fontStyle);
+  const safeW = W * (1 - 2 * C.canvas.safeMargin);
+  const maxLineWidth = Math.min(heroMeasure.width * C.satellite.maxLineWidthRatio, safeW);
+  const wordGap = measureNaturalWordGap(satFs, C.satellite.fontFamily, C.satellite.fontWeight, C.satellite.fontStyle);
 
   const blocks = [];
   let i = 0;
 
   while (i < wordList.length) {
     if (heroSet.has(i)) {
-      // Hero block (unchanged logic)
       const run = heroRuns.find(r => r.includes(i));
       const text = run.map(idx => wordList[idx]).join(' ');
-      const m = measureWord(text, heroFs, T.heroFont, T.heroWeight, T.heroStyle);
+      const m = measureWord(text, heroFs, C.hero.fontFamily, C.hero.fontWeight, C.hero.fontStyle);
       blocks.push({
-        type: 'hero',
-        heroOrder: heroRuns.indexOf(run),
-        wordIndices: run,
-        text, measure: m, fontSize: heroFs,
-        font: T.heroFont, weight: T.heroWeight,
-        style: T.heroStyle, color: T.heroColor,
+        type: 'hero', heroOrder: heroRuns.indexOf(run),
+        wordIndices: [...run], text, measure: m, fontSize: heroFs,
+        font: C.hero.fontFamily, weight: C.hero.fontWeight,
+        style: C.hero.fontStyle, color: C.hero.color,
         x: 0, y: 0,
       });
       i = run[run.length - 1] + 1;
     } else {
-      // Collect consecutive satellite words into lines
       const satWords = [];
-      const satIndices = [];
       while (i < wordList.length && !heroSet.has(i)) {
-        satWords.push(wordList[i]);
-        satIndices.push(i);
+        satWords.push({ word: wordList[i], index: i });
         i++;
       }
 
-      // Group into lines using flexbox-wrap logic with natural word gap
-      let lineWords = [];
-      let lineIndices = [];
-      let lineW = 0;
-
-      for (let j = 0; j < satWords.length; j++) {
-        const wMeasure = measureWord(satWords[j], satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
-        const needed = wMeasure.width + (lineWords.length > 0 ? wordGap : 0);
-
+      let lineWords = [], lineIndices = [], lineW = 0;
+      for (const sw of satWords) {
+        const wm = measureWord(sw.word, satFs, C.satellite.fontFamily, C.satellite.fontWeight, C.satellite.fontStyle);
+        const needed = wm.width + (lineWords.length > 0 ? wordGap : 0);
         if (lineW + needed > maxLineWidth && lineWords.length > 0) {
-          // Flush current line
           const lineText = lineWords.join(' ');
-          const m = measureWord(lineText, satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+          const m = measureWord(lineText, satFs, C.satellite.fontFamily, C.satellite.fontWeight, C.satellite.fontStyle);
           blocks.push({
-            type: 'satellite',
-            wordIndices: [...lineIndices],
-            text: lineText,
-            measure: m, fontSize: satFs,
-            font: T.satelliteFont, weight: T.satelliteWeight,
-            style: T.satelliteStyle, color: T.satelliteColor,
+            type: 'satellite', wordIndices: [...lineIndices],
+            text: lineText, measure: m, fontSize: satFs,
+            font: C.satellite.fontFamily, weight: C.satellite.fontWeight,
+            style: C.satellite.fontStyle, color: C.satellite.color,
             x: 0, y: 0,
           });
-          lineWords = [];
-          lineIndices = [];
-          lineW = 0;
+          lineWords = []; lineIndices = []; lineW = 0;
         }
-
         lineW += needed;
-        lineWords.push(satWords[j]);
-        lineIndices.push(satIndices[j]);
+        lineWords.push(sw.word);
+        lineIndices.push(sw.index);
       }
-
-      // Flush remaining words
       if (lineWords.length > 0) {
         const lineText = lineWords.join(' ');
-        const m = measureWord(lineText, satFs, T.satelliteFont, T.satelliteWeight, T.satelliteStyle);
+        const m = measureWord(lineText, satFs, C.satellite.fontFamily, C.satellite.fontWeight, C.satellite.fontStyle);
         blocks.push({
-          type: 'satellite',
-          wordIndices: [...lineIndices],
-          text: lineText,
-          measure: m, fontSize: satFs,
-          font: T.satelliteFont, weight: T.satelliteWeight,
-          style: T.satelliteStyle, color: T.satelliteColor,
+          type: 'satellite', wordIndices: [...lineIndices],
+          text: lineText, measure: m, fontSize: satFs,
+          font: C.satellite.fontFamily, weight: C.satellite.fontWeight,
+          style: C.satellite.fontStyle, color: C.satellite.color,
           x: 0, y: 0,
         });
+      }
+    }
+  }
+  // ── Merge short orphan satellite lines ──
+  // A satellite line that's very short (< 40% of hero width) and alone between
+  // heroes wastes a full row. Merge it into the nearest adjacent satellite line
+  // if the combined width fits within maxLineWidth.
+  const heroWidthRef = blocks.find(b => b.type === 'hero')?.measure.width ?? safeW;
+  let merged = true;
+  while (merged) {
+    merged = false;
+    for (let j = 0; j < blocks.length; j++) {
+      const b = blocks[j];
+      if (b.type !== 'satellite') continue;
+      if (b.measure.width >= heroWidthRef * 0.4) continue; // not short enough to merge
+
+      // Find nearest satellite neighbor (skip heroes)
+      let bestIdx = -1, bestDist = Infinity;
+      for (let k = 0; k < blocks.length; k++) {
+        if (k === j || blocks[k].type !== 'satellite') continue;
+        const dist = Math.abs(k - j);
+        if (dist < bestDist) { bestDist = dist; bestIdx = k; }
+      }
+      if (bestIdx === -1) continue;
+
+      const neighbor = blocks[bestIdx];
+      const combinedText = bestIdx < j
+        ? neighbor.text + ' ' + b.text
+        : b.text + ' ' + neighbor.text;
+      const combinedM = measureWord(combinedText, satFs, C.satellite.fontFamily, C.satellite.fontWeight, C.satellite.fontStyle);
+
+      if (combinedM.width <= maxLineWidth) {
+        // Merge: combine word indices and text, replace neighbor, remove orphan
+        const combinedIndices = bestIdx < j
+          ? [...neighbor.wordIndices, ...b.wordIndices]
+          : [...b.wordIndices, ...neighbor.wordIndices];
+        neighbor.text = combinedText;
+        neighbor.measure = combinedM;
+        neighbor.wordIndices = combinedIndices;
+        blocks.splice(j, 1);
+        merged = true;
+        break; // restart scan after mutation
       }
     }
   }
@@ -366,49 +438,128 @@ function buildLines(wordList, heroIdxArray) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PHASE 3: LINE LAYOUT
-// Deterministic, no randomness.
-// - Place heroes at vertical center, horizontally centered.
-// - Place pre-hero lines above, post-hero lines below.
-// - All lines horizontally centered.
-// - Vertical gap: LINE_INK_GAP between ink edges.
-// - Compute total composition height, center the whole stack vertically.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function layoutLines(blocks) {
-  const T = TEMPLATE;
+  const C = CONFIG;
   const centerX = W / 2;
-  const centerY = H * T.verticalAnchor;
+  const centerY = H * C.canvas.verticalAnchor;
+  const gap = C.layout.lineInkGap;
+  const hGap = C.layout.inlineGap;
+  const safeW = W * (1 - 2 * C.canvas.safeMargin);
+  const sL = W * C.canvas.safeMargin;
+  const sR = W * (1 - C.canvas.safeMargin);
 
   const heroes = blocks.filter(b => b.type === 'hero');
-
-  // Split into pre-hero, hero, and post-hero
-  const firstHeroWordIdx = Math.min(...heroes.flatMap(h => h.wordIndices));
-  const lastHeroWordIdx = Math.max(...heroes.flatMap(h => h.wordIndices));
-
-  const preLines = blocks.filter(b => b.type === 'satellite' && b.wordIndices[0] < firstHeroWordIdx);
-  const postLines = blocks.filter(b => b.type === 'satellite' && b.wordIndices[0] > lastHeroWordIdx);
-  const betweenLines = blocks.filter(b => b.type === 'satellite' && b.wordIndices[0] > firstHeroWordIdx && b.wordIndices[0] < lastHeroWordIdx);
-
-  // Build ordered row list: pre-lines → heroes (+ between) → post-lines
-  const allRows = [...preLines, ...heroes, ...betweenLines, ...postLines];
-
-  // Compute total composition height using ink bounds
-  let totalInkHeight = 0;
-  for (const row of allRows) {
-    totalInkHeight += row.measure.inkHeight;
+  if (heroes.length === 0) {
+    // No heroes — just stack centered
+    let totalInkH = blocks.reduce((s, b) => s + b.measure.inkHeight, 0) + Math.max(0, blocks.length - 1) * gap;
+    let curY = centerY - totalInkH / 2;
+    for (const row of blocks) {
+      row.x = centerX - row.measure.width / 2;
+      row.y = curY + row.measure.inkAscent;
+      curY += row.measure.inkHeight + gap;
+    }
+    return blocks;
   }
-  totalInkHeight += Math.max(0, allRows.length - 1) * LINE_INK_GAP;
 
-  // Position top-to-bottom, centering the entire stack vertically
-  let curY = centerY - totalInkHeight / 2;
+  // ── Step 1: Detect inline orphans ──
+  // A satellite that's immediately adjacent to a hero AND very short
+  // (< inlineOrphanThreshold of hero width) AND fits beside the hero.
+  // These get placed inline instead of taking their own row.
+  const inlineMap = new Map(); // satellite index → hero index it inlines with
 
-  for (const row of allRows) {
-    // Advance to baseline: curY is at the ink top of this row
-    const baseline = curY + row.measure.inkAscent;
+  for (let i = 0; i < blocks.length; i++) {
+    if (blocks[i].type !== 'satellite') continue;
+    const sat = blocks[i];
+
+    // Must be directly adjacent to a hero (no other block between)
+    const prevIsHero = i > 0 && blocks[i - 1].type === 'hero';
+    const nextIsHero = i < blocks.length - 1 && blocks[i + 1].type === 'hero';
+    if (!prevIsHero && !nextIsHero) continue;
+
+    // Pick the adjacent hero
+    const heroIdx = prevIsHero ? i - 1 : i + 1;
+    const hero = blocks[heroIdx];
+
+    // Must be a single tiny word (≤ 4 chars) — longer words get their own row
+    if (sat.wordIndices.length > 1) continue;
+    if (sat.text.length > 4) continue;
+    if (sat.measure.width / hero.measure.width >= C.layout.inlineOrphanThreshold) continue;
+
+    // Must fit beside the hero
+    if (hero.measure.width + hGap + sat.measure.width > safeW) continue;
+
+    // Already has an inline on this side? Skip (one per side max)
+    const existingSide = prevIsHero ? 'after' : 'before';
+    let sideConflict = false;
+    for (const [si, hi] of inlineMap) {
+      if (hi === heroIdx) {
+        const otherSide = si < heroIdx ? 'before' : 'after';
+        if (otherSide === existingSide) { sideConflict = true; break; }
+      }
+    }
+    if (sideConflict) continue;
+
+    inlineMap.set(i, heroIdx);
+  }
+
+  // ── Step 2: Stack non-inline blocks vertically ──
+  const stackBlocks = blocks.filter((_, i) => !inlineMap.has(i));
+
+  let totalInkH = stackBlocks.reduce((s, b) => s + b.measure.inkHeight, 0);
+  totalInkH += Math.max(0, stackBlocks.length - 1) * gap;
+
+  let curY = centerY - totalInkH / 2;
+  for (const row of stackBlocks) {
     row.x = centerX - row.measure.width / 2;
-    row.y = baseline;
-    // Advance past this row's ink descent + gap
-    curY += row.measure.inkHeight + LINE_INK_GAP;
+    row.y = curY + row.measure.inkAscent;
+    curY += row.measure.inkHeight + gap;
+  }
+
+  // ── Step 3: Place inline orphans beside their hero ──
+  for (const [satIdx, heroIdx] of inlineMap) {
+    const sat = blocks[satIdx];
+    const hero = blocks[heroIdx];
+    const isBefore = satIdx < heroIdx;
+
+    // Horizontal: place to left or right of hero
+    if (isBefore) {
+      sat.x = hero.x - hGap - sat.measure.width;
+    } else {
+      sat.x = hero.x + hero.measure.width + hGap;
+    }
+
+    // Clamp to safe zone
+    if (sat.x < sL) sat.x = sL;
+    if (sat.x + sat.measure.width > sR) sat.x = sR - sat.measure.width;
+
+    // Vertical: center satellite's ink against hero's ink center
+    const heroInkCenter = hero.y - hero.measure.inkAscent + hero.measure.inkHeight / 2;
+    sat.y = heroInkCenter - sat.measure.inkHeight / 2 + sat.measure.inkAscent;
+  }
+
+  // ── Step 4: Smart alignment for remaining standalone satellites ──
+  const heroLeft = Math.min(...heroes.map(h => h.x));
+  const heroRight = Math.max(...heroes.map(h => h.x + h.measure.width));
+  const heroWidth = heroRight - heroLeft;
+
+  for (const sat of blocks.filter(b => b.type === 'satellite')) {
+    if (inlineMap.has(blocks.indexOf(sat))) continue;
+    if (sat.measure.width / heroWidth >= C.satellite.wideLineThreshold) continue;
+
+    const satIdx = blocks.indexOf(sat);
+    let nearestHero = heroes[0], minDist = Infinity;
+    for (const h of heroes) {
+      const d = Math.abs(blocks.indexOf(h) - satIdx);
+      if (d < minDist) { minDist = d; nearestHero = h; }
+    }
+
+    const isBefore = satIdx < blocks.indexOf(nearestHero);
+    const candidateX = isBefore ? heroLeft : heroRight - sat.measure.width;
+    if (candidateX >= sL && candidateX + sat.measure.width <= sR) {
+      sat.x = candidateX;
+    }
   }
 
   return blocks;
@@ -416,114 +567,68 @@ function layoutLines(blocks) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PHASE 4A: CASSOWARY REFINEMENT (kiwi.js)
-// After line layout, use Cassowary to enforce boundary constraints and
-// clean up edge cases while preserving the clean line arrangement.
+// PHASE 4A: CASSOWARY REFINEMENT
 // ═══════════════════════════════════════════════════════════════════════════
 
 function cassowaryRefine(blocks) {
-  const T = TEMPLATE;
-  const sL = W * T.safeMargin, sR = W * (1 - T.safeMargin);
-  const sT = H * T.safeMargin, sB = H * (1 - T.safeMargin);
+  const C = CONFIG;
+  const sL = W * C.canvas.safeMargin, sR = W * (1 - C.canvas.safeMargin);
+  const sT = H * C.canvas.safeMargin, sB = H * (1 - C.canvas.safeMargin);
 
   const solver = new kiwi.Solver();
-
   for (const block of blocks) {
     block._vx = new kiwi.Variable(`${block.text}_x`);
     block._vy = new kiwi.Variable(`${block.text}_y`);
 
-    // REQUIRED: safe zone boundaries
-    solver.addConstraint(new kiwi.Constraint(
-      new kiwi.Expression(block._vx, -sL),
-      kiwi.Operator.Ge, undefined, kiwi.Strength.required
-    ));
-    solver.addConstraint(new kiwi.Constraint(
-      new kiwi.Expression([-1, block._vx], sR - block.measure.width),
-      kiwi.Operator.Ge, undefined, kiwi.Strength.required
-    ));
-    solver.addConstraint(new kiwi.Constraint(
-      new kiwi.Expression(block._vy, -(sT + block.measure.ascent)),
-      kiwi.Operator.Ge, undefined, kiwi.Strength.required
-    ));
-    solver.addConstraint(new kiwi.Constraint(
-      new kiwi.Expression([-1, block._vy], sB - block.measure.descent),
-      kiwi.Operator.Ge, undefined, kiwi.Strength.required
-    ));
+    solver.addConstraint(new kiwi.Constraint(new kiwi.Expression(block._vx, -sL), kiwi.Operator.Ge, undefined, kiwi.Strength.required));
+    solver.addConstraint(new kiwi.Constraint(new kiwi.Expression([-1, block._vx], sR - block.measure.width), kiwi.Operator.Ge, undefined, kiwi.Strength.required));
+    solver.addConstraint(new kiwi.Constraint(new kiwi.Expression(block._vy, -(sT + block.measure.ascent)), kiwi.Operator.Ge, undefined, kiwi.Strength.required));
+    solver.addConstraint(new kiwi.Constraint(new kiwi.Expression([-1, block._vy], sB - block.measure.descent), kiwi.Operator.Ge, undefined, kiwi.Strength.required));
 
-    // STRONG: Stay near line layout position (preserve the layout)
     solver.addEditVariable(block._vx, kiwi.Strength.strong);
     solver.suggestValue(block._vx, block.x);
     solver.addEditVariable(block._vy, kiwi.Strength.strong);
     solver.suggestValue(block._vy, block.y);
   }
 
-  // MEDIUM: Reading order (each block's y is below the previous)
   const sorted = [...blocks].sort((a, b) => a.y - b.y);
   for (let i = 0; i < sorted.length - 1; i++) {
-    const above = sorted[i], below = sorted[i + 1];
-    if (Math.abs(above.y - below.y) > 5) {
+    if (Math.abs(sorted[i].y - sorted[i+1].y) > 5) {
       solver.addConstraint(new kiwi.Constraint(
-        new kiwi.Expression(below._vy, [-1, above._vy], -1),
-        kiwi.Operator.Ge, undefined, kiwi.Strength.medium
-      ));
+        new kiwi.Expression(sorted[i+1]._vy, [-1, sorted[i]._vy], -1),
+        kiwi.Operator.Ge, undefined, kiwi.Strength.medium));
     }
   }
 
   solver.updateVariables();
-
   for (const block of blocks) {
-    block.x = block._vx.value();
-    block.y = block._vy.value();
-    delete block._vx;
-    delete block._vy;
+    block.x = block._vx.value(); block.y = block._vy.value();
+    delete block._vx; delete block._vy;
   }
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PHASE 4B: ALIGNMENT SNAPPING (8px threshold)
+// PHASE 4B: ALIGNMENT SNAPPING
 // ═══════════════════════════════════════════════════════════════════════════
 
 function alignmentSnapping(blocks) {
-  const SNAP = 8;
+  const snap = CONFIG.layout.alignSnap;
   let snaps = 0;
   for (let i = 0; i < blocks.length; i++) {
     for (let j = i + 1; j < blocks.length; j++) {
       const a = blocks[i], b = blocks[j];
-      // Center X snap (most important for visual coherence)
       const aCx = a.x + a.measure.width / 2, bCx = b.x + b.measure.width / 2;
-      if (Math.abs(aCx - bCx) > 0.5 && Math.abs(aCx - bCx) < SNAP) {
+      if (Math.abs(aCx - bCx) > 0.5 && Math.abs(aCx - bCx) < snap) {
         const avg = (aCx + bCx) / 2;
-        a.x = avg - a.measure.width / 2;
-        b.x = avg - b.measure.width / 2;
-        snaps++;
+        a.x = avg - a.measure.width / 2; b.x = avg - b.measure.width / 2; snaps++;
       }
-      // Left edge snap
-      if (Math.abs(a.x - b.x) > 0.5 && Math.abs(a.x - b.x) < SNAP) {
+      if (Math.abs(a.x - b.x) > 0.5 && Math.abs(a.x - b.x) < snap) {
         const avg = (a.x + b.x) / 2; a.x = avg; b.x = avg; snaps++;
       }
     }
   }
   return snaps;
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// KEPT UTILITIES (used by debug overlay and Cassowary)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function aabbOverlap(a, b) {
-  return a.x < b.x + b.measure.width && a.x + a.measure.width > b.x &&
-    a.y - a.measure.ascent < b.y + b.measure.descent &&
-    a.y + a.measure.descent > b.y - b.measure.ascent;
-}
-
-function aabbOverlapArea(a, b) {
-  const ox = Math.max(0, Math.min(a.x + a.measure.width, b.x + b.measure.width) - Math.max(a.x, b.x));
-  const oy = Math.max(0,
-    Math.min(a.y + a.measure.descent, b.y + b.measure.descent) -
-    Math.max(a.y - a.measure.ascent, b.y - b.measure.ascent));
-  return ox * oy;
 }
 
 
@@ -536,38 +641,39 @@ shadowCanvas.width = W; shadowCanvas.height = H;
 const shadowCtx = shadowCanvas.getContext('2d');
 
 function renderBackground() {
+  const bg = CONFIG.background;
   const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#1a1a2e');
-  grad.addColorStop(0.4, '#16213e');
-  grad.addColorStop(1, '#0f3460');
+  for (const s of bg.gradient) grad.addColorStop(s.stop, s.color);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  const vig = ctx.createRadialGradient(W/2, H*0.5, W*0.25, W/2, H*0.5, W*0.95);
+
+  const v = bg.vignette;
+  const vig = ctx.createRadialGradient(W/2, H*0.5, W*v.innerRadius, W/2, H*0.5, W*v.outerRadius);
   vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, 'rgba(0,0,0,0.65)');
+  vig.addColorStop(1, `rgba(0,0,0,${v.opacity})`);
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, W, H);
 }
 
 function renderBlock(block, scale, opacity, offsetX, offsetY) {
   if (opacity <= 0.001 || scale <= 0.001) return;
+  const S = CONFIG.shadow;
+  const H_CFG = CONFIG.hero;
   const drawX = block.x + offsetX;
   const drawY = block.y + offsetY;
   const cx = drawX + block.measure.width / 2;
   const cy = drawY - block.measure.capHeight / 2;
 
-  if (TEMPLATE.textShadow) {
+  if (S.enabled) {
     shadowCtx.clearRect(0, 0, W, H);
     shadowCtx.save();
-    shadowCtx.globalAlpha = opacity * 0.8;
+    shadowCtx.globalAlpha = opacity * S.opacity;
     shadowCtx.textBaseline = 'alphabetic';
-    shadowCtx.translate(cx, cy);
-    shadowCtx.scale(scale, scale);
-    shadowCtx.translate(-cx, -cy);
+    shadowCtx.translate(cx, cy); shadowCtx.scale(scale, scale); shadowCtx.translate(-cx, -cy);
     shadowCtx.font = `${block.style} ${block.weight} ${block.fontSize}px ${block.font}`;
     shadowCtx.fillStyle = '#000';
-    shadowCtx.filter = `blur(${TEMPLATE.shadowBlur}px)`;
-    shadowCtx.fillText(block.text, drawX, drawY + 2);
+    shadowCtx.filter = `blur(${S.blur}px)`;
+    shadowCtx.fillText(block.text, drawX, drawY + S.offsetY);
     shadowCtx.restore();
     ctx.drawImage(shadowCanvas, 0, 0);
   }
@@ -575,14 +681,12 @@ function renderBlock(block, scale, opacity, offsetX, offsetY) {
   ctx.save();
   ctx.globalAlpha = opacity;
   ctx.textBaseline = 'alphabetic';
-  ctx.translate(cx, cy);
-  ctx.scale(scale, scale);
-  ctx.translate(-cx, -cy);
+  ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy);
   ctx.font = `${block.style} ${block.weight} ${block.fontSize}px ${block.font}`;
 
   if (block.type === 'hero') {
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.strokeStyle = H_CFG.strokeColor;
+    ctx.lineWidth = H_CFG.strokeWidth; ctx.lineJoin = 'round';
     ctx.strokeText(block.text, drawX, drawY);
   }
 
@@ -593,89 +697,70 @@ function renderBlock(block, scale, opacity, offsetX, offsetY) {
 
 function renderDebugOverlay(blocks) {
   if (!showDebug) return;
-  const T = TEMPLATE;
+  const D = CONFIG.debug;
+  const C = CONFIG;
   ctx.save();
 
   // Safe zone
   ctx.globalAlpha = 0.3; ctx.setLineDash([4, 4]);
-  const sL = W * T.safeMargin, sT2 = H * T.safeMargin;
-  ctx.strokeStyle = '#0f0'; ctx.lineWidth = 1;
-  ctx.strokeRect(sL, sT2, W * (1 - 2*T.safeMargin), H * (1 - 2*T.safeMargin));
+  ctx.strokeStyle = D.safeZoneColor; ctx.lineWidth = 1;
+  const sL = W * C.canvas.safeMargin, sT = H * C.canvas.safeMargin;
+  ctx.strokeRect(sL, sT, W * (1 - 2*C.canvas.safeMargin), H * (1 - 2*C.canvas.safeMargin));
 
   for (const block of blocks) {
-    // Dead space (magenta fill)
-    ctx.globalAlpha = 0.08; ctx.fillStyle = '#f0f';
-    if (block.measure.deadAbove > 0)
-      ctx.fillRect(block.x, block.y - block.measure.ascent, block.measure.width, block.measure.deadAbove);
-    if (block.measure.deadBelow > 0)
-      ctx.fillRect(block.x, block.y + block.measure.inkDescent, block.measure.width, block.measure.deadBelow);
+    ctx.globalAlpha = 0.08; ctx.fillStyle = D.deadSpaceColor;
+    if (block.measure.deadAbove > 0) ctx.fillRect(block.x, block.y - block.measure.ascent, block.measure.width, block.measure.deadAbove);
+    if (block.measure.deadBelow > 0) ctx.fillRect(block.x, block.y + block.measure.inkDescent, block.measure.width, block.measure.deadBelow);
 
-    // Ink box (solid)
     ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = block.type === 'hero' ? '#f44' : '#4af';
+    ctx.strokeStyle = block.type === 'hero' ? D.inkBoxHeroColor : D.inkBoxSatColor;
     ctx.setLineDash([]); ctx.lineWidth = 1.5;
     ctx.strokeRect(block.x, block.y - block.measure.inkAscent, block.measure.width, block.measure.inkHeight);
 
-    // Font box (dashed, dim)
-    ctx.globalAlpha = 0.15; ctx.strokeStyle = '#555';
+    ctx.globalAlpha = 0.15; ctx.strokeStyle = D.fontBoxColor;
     ctx.setLineDash([2, 4]); ctx.lineWidth = 0.5;
     ctx.strokeRect(block.x, block.y - block.measure.ascent, block.measure.width, block.measure.height);
 
-    // Character gaps for hero blocks only
     if (block.type === 'hero') {
       const ga = analyzeCharGaps(block);
       ctx.globalAlpha = 0.2; ctx.setLineDash([]);
-      for (const gap of ga.gaps) {
-        ctx.fillStyle = gap.isWordBreak ? '#0ff' : '#ff0';
-        ctx.fillRect(block.x + gap.x, block.y - block.measure.inkAscent, gap.width, block.measure.inkHeight);
+      for (const g of ga.gaps) {
+        ctx.fillStyle = g.isWordBreak ? D.charGapWordColor : D.charGapLetterColor;
+        ctx.fillRect(block.x + g.x, block.y - block.measure.inkAscent, g.width, block.measure.inkHeight);
       }
     }
 
-    // Baseline
-    ctx.globalAlpha = 0.3; ctx.strokeStyle = '#ff0'; ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.3; ctx.strokeStyle = D.baselineColor; ctx.lineWidth = 0.5;
     ctx.setLineDash([2, 3]);
-    ctx.beginPath();
-    ctx.moveTo(block.x - 3, block.y);
-    ctx.lineTo(block.x + block.measure.width + 3, block.y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(block.x - 3, block.y); ctx.lineTo(block.x + block.measure.width + 3, block.y); ctx.stroke();
   }
 
-  // Ink gap measurements between sequential lines
+  // Ink gap measurements
   const sorted = [...blocks].sort((a, b) => a.y - b.y);
   for (let i = 0; i < sorted.length - 1; i++) {
-    const above = sorted[i], below = sorted[i + 1];
-    const prevBottom = above.y + above.measure.inkDescent;
-    const nextTop = below.y - below.measure.inkAscent;
-    const gap = nextTop - prevBottom;
-    const mx = Math.max(above.x + above.measure.width, below.x + below.measure.width) + 8;
+    const bot = sorted[i].y + sorted[i].measure.inkDescent;
+    const top = sorted[i+1].y - sorted[i+1].measure.inkAscent;
+    const gap = top - bot;
+    const mx = Math.max(sorted[i].x + sorted[i].measure.width, sorted[i+1].x + sorted[i+1].measure.width) + 8;
     ctx.globalAlpha = 0.6; ctx.strokeStyle = gap < 2 ? '#f44' : '#0f0';
     ctx.lineWidth = 1; ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(mx, prevBottom); ctx.lineTo(mx, nextTop); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(mx - 3, prevBottom); ctx.lineTo(mx + 3, prevBottom);
-    ctx.moveTo(mx - 3, nextTop); ctx.lineTo(mx + 3, nextTop);
-    ctx.stroke();
-    ctx.font = '9px monospace'; ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
-    ctx.fillText(`${gap.toFixed(0)}px`, mx + 6, (prevBottom + nextTop) / 2);
+    ctx.beginPath(); ctx.moveTo(mx, bot); ctx.lineTo(mx, top); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mx-3, bot); ctx.lineTo(mx+3, bot); ctx.moveTo(mx-3, top); ctx.lineTo(mx+3, top); ctx.stroke();
+    ctx.font = D.gapLabelFont; ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${gap.toFixed(0)}px`, mx + 6, (bot + top) / 2);
   }
 
-  // Center crosshair
-  ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.3;
-  ctx.setLineDash([]); ctx.lineWidth = 0.5;
+  ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.3; ctx.setLineDash([]); ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(W/2 - 12, H * T.verticalAnchor); ctx.lineTo(W/2 + 12, H * T.verticalAnchor);
-  ctx.moveTo(W/2, H * T.verticalAnchor - 12); ctx.lineTo(W/2, H * T.verticalAnchor + 12);
+  ctx.moveTo(W/2 - 12, H * C.canvas.verticalAnchor); ctx.lineTo(W/2 + 12, H * C.canvas.verticalAnchor);
+  ctx.moveTo(W/2, H * C.canvas.verticalAnchor - 12); ctx.lineTo(W/2, H * C.canvas.verticalAnchor + 12);
   ctx.stroke();
-
   ctx.restore();
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PHASE 6: ANIMATION — per-line stagger
-// Heroes: spring scale (staggered by heroOrder).
-// Satellite lines: fade+slide, staggered per-line (not per-word).
+// PHASE 6: ANIMATION
 // ═══════════════════════════════════════════════════════════════════════════
 
 function criticallyDampedSpring(t_sec, dur_sec) {
@@ -689,40 +774,44 @@ function easeOutCubic(t) {
 }
 
 function startAnimation() {
+  const A = CONFIG.animation;
   const heroCount = layoutBlocks.filter(b => b.type === 'hero').length;
   animState = {
     startTime: performance.now(),
-    heroDur: 350,
-    heroStagger: 120,
-    lineDur: 200,
-    lineStagger: 80,
-    lineDelay: 350 + (heroCount - 1) * 120 + 180,
+    heroDur: A.hero.duration,
+    heroStagger: A.hero.stagger,
+    lineDur: A.satellite.duration,
+    lineStagger: A.satellite.stagger,
+    lineDelay: A.hero.duration + (heroCount - 1) * A.hero.stagger + A.satellite.delayAfterHeroes,
   };
 }
 
 function getBlockAnim(block, elapsed) {
   if (!animState) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
   const s = animState;
+  const A = CONFIG.animation;
 
   if (block.type === 'hero') {
-    const heroStart = (block.heroOrder ?? 0) * s.heroStagger;
-    const t = Math.max(0, elapsed - heroStart);
-    if (t >= s.heroDur * 1.5) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
-    const scale = criticallyDampedSpring(t / 1000, s.heroDur / 1000);
-    const opacity = Math.min(1, (t / s.heroDur) * 4);
-    return { scale, opacity, offsetX: 0, offsetY: 0 };
+    const start = (block.heroOrder ?? 0) * s.heroStagger;
+    const t = Math.max(0, elapsed - start);
+    if (t >= s.heroDur * A.hero.settleFactor) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
+    return {
+      scale: criticallyDampedSpring(t / 1000, s.heroDur / 1000),
+      opacity: Math.min(1, (t / s.heroDur) * A.hero.fadeSpeed),
+      offsetX: 0, offsetY: 0,
+    };
   }
 
-  // Satellite lines: animate per-line in reading order
   const allLines = layoutBlocks.filter(b => b.type === 'satellite').sort((a, b) => a.wordIndices[0] - b.wordIndices[0]);
-  const lineIdx = allLines.indexOf(block);
-  const lineStart = s.lineDelay + lineIdx * s.lineStagger;
-  const t = elapsed - lineStart;
+  const idx = allLines.indexOf(block);
+  const start = s.lineDelay + idx * s.lineStagger;
+  const t = elapsed - start;
+  const slideY = A.satellite.slideOffset;
 
-  if (t <= 0) return { scale: 1, opacity: 0, offsetX: 0, offsetY: -15 };
+  if (t <= 0) return { scale: 1, opacity: 0, offsetX: 0, offsetY: slideY };
   if (t >= s.lineDur) return { scale: 1, opacity: 1, offsetX: 0, offsetY: 0 };
   const p = easeOutCubic(t / s.lineDur);
-  return { scale: 1, opacity: p, offsetX: 0, offsetY: -15 * (1 - p) };
+  return { scale: 1, opacity: p, offsetX: 0, offsetY: slideY * (1 - p) };
 }
 
 
@@ -736,81 +825,63 @@ function buildLayout() {
   const timings = {};
   const t0 = performance.now();
 
-  // Phase 1+2: Measure and build lines
   const blocks = buildLines(words, heroIndices);
   timings.build = performance.now() - t0;
 
   const heroBlocks = blocks.filter(b => b.type === 'hero');
   const lineBlocks = blocks.filter(b => b.type === 'satellite');
-  const heroTexts = heroBlocks.map(b => `"${b.text}"`);
-  debugLines.push(`KINETIC CAPTION ENGINE — Line-Based Ink-Gap Pack`);
+
+  debugLines.push(`KINETIC CAPTION ENGINE — CONFIG-DRIVEN`);
   debugLines.push(`${'═'.repeat(55)}`);
   debugLines.push(`Words: [${words.join(', ')}]`);
-  debugLines.push(`Heroes: [${heroIndices}] → ${heroTexts.join(', ')}`);
-  debugLines.push(`Blocks: ${blocks.length} (${heroTexts.length} hero, ${lineBlocks.length} satellite lines)`);
-  for (const line of lineBlocks) {
-    debugLines.push(`  LINE: "${line.text}" (words ${line.wordIndices.join(',')}), width=${line.measure.width.toFixed(0)}px`);
-  }
+  debugLines.push(`Heroes: [${heroIndices}] → ${heroBlocks.map(b => `"${b.text}"`).join(', ')}`);
+  debugLines.push(`Blocks: ${blocks.length} (${heroBlocks.length} hero, ${lineBlocks.length} satellite)`);
+  for (const l of lineBlocks) debugLines.push(`  LINE: "${l.text}" (words ${l.wordIndices.join(',')}), w=${l.measure.width.toFixed(0)}px`);
   debugLines.push(``);
 
-  // Phase 3: Line layout (deterministic)
   const t1 = performance.now();
   layoutLines(blocks);
-  timings.lineLayout = performance.now() - t1;
-  debugLines.push(`Phase 3: Line layout (deterministic ink-gap stack)`);
+  timings.layout = performance.now() - t1;
+  debugLines.push(`Phase 3: Line layout (ink-gap: ${CONFIG.layout.lineInkGap}px)`);
 
-  // Phase 4A: Cassowary refinement (safe zone enforcement)
   const t2 = performance.now();
-  try {
-    cassowaryRefine(blocks);
-    debugLines.push(`Phase 4A: Cassowary refinement — OK (kiwi.js)`);
-  } catch (e) {
-    debugLines.push(`Phase 4A: Cassowary FAILED: ${e.message} (skipped)`);
-  }
+  try { cassowaryRefine(blocks); debugLines.push(`Phase 4A: Cassowary — OK`); }
+  catch (e) { debugLines.push(`Phase 4A: Cassowary FAILED: ${e.message}`); }
   timings.cassowary = performance.now() - t2;
 
-  // Phase 4B: Alignment snapping
   const snaps = alignmentSnapping(blocks);
-  debugLines.push(`Phase 4B: Alignment snapping — ${snaps} snaps`);
-
-  const totalTime = performance.now() - t0;
+  debugLines.push(`Phase 4B: Snap — ${snaps}`);
 
   debugLines.push(``);
-  debugLines.push(`TIMINGS:`);
-  debugLines.push(`  Build lines:     ${timings.build.toFixed(2)}ms`);
-  debugLines.push(`  Line layout:     ${timings.lineLayout.toFixed(2)}ms`);
-  debugLines.push(`  Cassowary:       ${timings.cassowary.toFixed(2)}ms`);
-  debugLines.push(`  TOTAL:           ${totalTime.toFixed(2)}ms`);
+  debugLines.push(`TIMINGS: build=${timings.build.toFixed(1)}ms layout=${timings.layout.toFixed(1)}ms cass=${timings.cassowary.toFixed(1)}ms total=${(performance.now()-t0).toFixed(1)}ms`);
   debugLines.push(``);
 
-  // Block details
   debugLines.push(`BLOCKS:`);
   for (const b of blocks) {
     const tag = b.type === 'hero' ? `HERO-${b.heroOrder}` : `line`;
-    debugLines.push(`  [${tag.padEnd(7)}] "${b.text}"  ${b.fontSize}px  pos(${b.x.toFixed(1)}, ${b.y.toFixed(1)})  ink: ${b.measure.inkAscent.toFixed(0)}↑${b.measure.inkDescent.toFixed(0)}↓  dead: ${b.measure.deadAbove.toFixed(0)}↑${b.measure.deadBelow.toFixed(0)}↓`);
+    debugLines.push(`  [${tag.padEnd(7)}] "${b.text}"  ${b.fontSize}px  pos(${b.x.toFixed(1)}, ${b.y.toFixed(1)})  ink:${b.measure.inkAscent.toFixed(0)}↑${b.measure.inkDescent.toFixed(0)}↓  dead:${b.measure.deadAbove.toFixed(0)}↑${b.measure.deadBelow.toFixed(0)}↓`);
   }
 
-  // Ink-to-ink gaps between sequential lines
   debugLines.push(``);
-  debugLines.push(`INK-TO-INK GAPS:`);
+  debugLines.push(`INK GAPS:`);
   const sorted = [...blocks].sort((a, b) => a.y - b.y);
   for (let i = 0; i < sorted.length - 1; i++) {
-    const gap = (sorted[i+1].y - sorted[i+1].measure.inkAscent) - (sorted[i].y + sorted[i].measure.inkDescent);
-    debugLines.push(`  "${sorted[i].text}" → "${sorted[i+1].text}":  ${gap.toFixed(1)}px (target: ${LINE_INK_GAP}px)`);
+    const g = (sorted[i+1].y - sorted[i+1].measure.inkAscent) - (sorted[i].y + sorted[i].measure.inkDescent);
+    debugLines.push(`  "${sorted[i].text}" → "${sorted[i+1].text}":  ${g.toFixed(1)}px`);
   }
 
-  // Character gap analysis for heroes
   debugLines.push(``);
-  debugLines.push(`CHARACTER GAPS (hero blocks):`);
+  debugLines.push(`HERO CHAR GAPS:`);
   for (const b of heroBlocks) {
     const ga = analyzeCharGaps(b);
-    const letterGaps = ga.gaps.filter(g => !g.isWordBreak);
-    const totalWS = ga.gaps.reduce((s, g) => s + g.width, 0);
-    debugLines.push(`  "${b.text}": ${letterGaps.length} letter gaps, ${totalWS.toFixed(0)}px whitespace / ${b.measure.width.toFixed(0)}px width (${(totalWS / b.measure.width * 100).toFixed(0)}%)`);
-    for (const g of ga.gaps) {
-      debugLines.push(`    ${g.isWordBreak ? 'WORD' : 'LTTR'} "${g.afterChar}"→"${g.beforeChar}": ${g.width.toFixed(1)}px at x=${g.x.toFixed(0)}`);
-    }
+    const ws = ga.gaps.reduce((s, g) => s + g.width, 0);
+    debugLines.push(`  "${b.text}": ${ga.gaps.length} gaps, ${ws.toFixed(0)}px/${b.measure.width.toFixed(0)}px (${(ws/b.measure.width*100).toFixed(0)}%)`);
+    for (const g of ga.gaps) debugLines.push(`    ${g.isWordBreak?'WORD':'LTTR'} "${g.afterChar}"→"${g.beforeChar}": ${g.width.toFixed(1)}px @x=${g.x.toFixed(0)}`);
   }
+
+  debugLines.push(``);
+  debugLines.push(`CONFIG DUMP:`);
+  debugLines.push(JSON.stringify(CONFIG, null, 2));
 
   layoutBlocks = blocks;
   document.getElementById('debugPanel').textContent = debugLines.join('\n');
@@ -825,20 +896,144 @@ function render(timestamp) {
   ctx.clearRect(0, 0, W, H);
   renderBackground();
   const elapsed = animState ? timestamp - animState.startTime : Infinity;
-
   for (const block of layoutBlocks) {
     const anim = getBlockAnim(block, elapsed);
     renderBlock(block, anim.scale, anim.opacity, anim.offsetX, anim.offsetY);
   }
-
   renderDebugOverlay(layoutBlocks);
   requestAnimationFrame(render);
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PRESETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PRESETS = [
+  { text: 'Stop scrolling right now', heroes: [0] },
+  { text: 'Listen to me very carefully', heroes: [0] },
+  { text: 'Warning this will change your life', heroes: [0] },
+  { text: 'Breaking news just dropped today', heroes: [0,1] },
+  { text: 'Attention all creators watch this', heroes: [0] },
+  { text: 'How on earth do you achieve this', heroes: [2] },
+  { text: 'Nobody talks about this', heroes: [3] },
+  { text: 'I finally discovered the truth', heroes: [2] },
+  { text: 'This is actually insane right now', heroes: [2,3] },
+  { text: 'You will never believe what happened', heroes: [3] },
+  { text: 'They literally destroyed everything overnight', heroes: [2] },
+  { text: 'We need to talk about this problem', heroes: [5] },
+  { text: 'I cannot explain how powerful this is', heroes: [4] },
+  { text: 'This one decision changed my entire life', heroes: [2] },
+  { text: 'The real reason nobody tells you this', heroes: [2,3] },
+  { text: 'You need to hear this now', heroes: [4] },
+  { text: 'Watch till the very end', heroes: [4] },
+  { text: 'And then it all made sense', heroes: [5] },
+  { text: 'Everything pointed to one thing', heroes: [4,5] },
+  { text: 'That is when I finally understood', heroes: [5] },
+  { text: 'This changes everything you know', heroes: [1,2] },
+  { text: 'One simple trick to double your income', heroes: [1,2] },
+  { text: 'I was completely wrong about this', heroes: [2,3] },
+  { text: 'Here is the brutal truth about success', heroes: [3,4] },
+  { text: 'The biggest lie they ever told us', heroes: [2,3] },
+  { text: 'Wait for it you will not believe this', heroes: [0,1,2] },
+  { text: 'I finally found the perfect solution today', heroes: [3,4,5] },
+  { text: 'This is exactly how millionaires think differently', heroes: [3,4,5] },
+  { text: 'You have been doing it all wrong', heroes: [3,4,5] },
+  { text: 'I spent three years building something nobody asked for', heroes: [5] },
+  { text: 'Most people will scroll past and that is the problem', heroes: [6] },
+  { text: 'I lost everything and started from zero', heroes: [2] },
+  { text: 'Unbelievable', heroes: [0] },
+  { text: 'Just do it now', heroes: [0,1,2,3] },
+  { text: 'Game over', heroes: [0,1] },
+  { text: 'Think again', heroes: [0] },
+  { text: 'Plot twist incoming', heroes: [0,1] },
+  { text: 'Facts only', heroes: [0] },
+  { text: 'Read that again', heroes: [1] },
+  { text: 'Let that sink in', heroes: [1,2,3] },
+  { text: 'Mic drop', heroes: [0,1] },
+  { text: 'Hear me out', heroes: [0] },
+  { text: 'Yeh Video Ignore mat krna', heroes: [2] },
+  { text: 'Aaj main tumhe bataunga asli sach', heroes: [4] },
+  { text: 'Suno dhyan se bahut zaroori hai', heroes: [3,4] },
+  { text: 'Koi nahi batayega tumhe yeh baat', heroes: [4,5] },
+  { text: 'Paise kamane ka asli tarika yeh hai', heroes: [3,4] },
+  { text: 'Mat karo yeh galti kabhi bhi', heroes: [2,3] },
+  { text: 'Money cannot buy happiness but poverty guarantees misery', heroes: [0, 5] },
+  { text: 'Success is not final failure is not fatal', heroes: [0, 4] },
+  { text: 'Work hard dream big stay focused always', heroes: [0,1, 4,5] },
+  { text: 'First they ignore you then they copy you', heroes: [2, 6] },
+  { text: 'Why does nobody talk about this', heroes: [0] },
+  { text: 'What if everything you know is wrong', heroes: [5] },
+  { text: 'Are you seriously still doing this', heroes: [3] },
+  { text: 'How is this even possible right now', heroes: [4] },
+  { text: 'So there I was standing in the rain alone', heroes: [7] },
+  { text: 'He looked at me and said one word', heroes: [7,8] },
+  { text: 'That was the day everything changed forever', heroes: [5] },
+  { text: 'Your excuses are killing your dreams', heroes: [1] },
+  { text: 'Discipline beats talent every single time', heroes: [0] },
+  { text: 'Stop waiting for permission and just start', heroes: [0,1] },
+  { text: 'You are one decision away from a different life', heroes: [2] },
+  { text: 'Five things I wish I knew at twenty', heroes: [0,1] },
+  { text: 'Three habits that made me a millionaire', heroes: [0,1] },
+  { text: 'Save this before it gets taken down', heroes: [0] },
+  { text: 'Share this with someone who needs it', heroes: [0] },
+  { text: 'A', heroes: [0] },
+  { text: 'OK fine', heroes: [0] },
+  { text: 'Supercalifragilisticexpialidocious is the word', heroes: [0] },
+  { text: 'AI will replace every single job on earth within five years maybe', heroes: [2, 6,7] },
+  { text: 'The quick brown fox jumps over the lazy dog', heroes: [2,3] },
+];
+
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CONTROLS
 // ═══════════════════════════════════════════════════════════════════════════
+
+let activePresetIdx = -1;
+let autoPlayTimer = null;
+
+function renderPresetList() {
+  const el = document.getElementById('presetList');
+  el.innerHTML = '';
+  PRESETS.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (i === activePresetIdx ? ' active' : '');
+    const ws = p.text.split(/\s+/);
+    const hs = new Set(p.heroes);
+    btn.innerHTML = ws.map((w, j) => hs.has(j) ? `<span class="hero-word">${w}</span>` : w).join(' ');
+    btn.onclick = () => loadPreset(i);
+    el.appendChild(btn);
+  });
+}
+
+function loadPreset(index) {
+  activePresetIdx = index;
+  const p = PRESETS[index];
+  document.getElementById('captionInput').value = p.text;
+  document.getElementById('heroIndicesInput').value = p.heroes.join(',');
+  words = p.text.split(/\s+/);
+  heroIndices = [...p.heroes];
+  buildLayout(); startAnimation(); renderPresetList();
+  const btns = document.querySelectorAll('.preset-btn');
+  if (btns[index]) btns[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function randomizeHero() {
+  const start = Math.floor(Math.random() * words.length);
+  const len = Math.min(1 + Math.floor(Math.random() * 3), words.length - start);
+  heroIndices = Array.from({ length: len }, (_, i) => start + i);
+  document.getElementById('heroIndicesInput').value = heroIndices.join(',');
+  activePresetIdx = -1;
+  buildLayout(); startAnimation(); renderPresetList();
+}
+
+function autoPlayAll() {
+  const btn = document.getElementById('autoPlayBtn');
+  if (autoPlayTimer) { clearInterval(autoPlayTimer); autoPlayTimer = null; btn.textContent = 'Auto-Play All'; btn.classList.remove('active'); return; }
+  btn.textContent = 'Stop Auto'; btn.classList.add('active');
+  let idx = 0; loadPreset(idx);
+  autoPlayTimer = setInterval(() => { idx = (idx + 1) % PRESETS.length; loadPreset(idx); }, 2500);
+}
 
 function parseHeroIndices(str, maxLen) {
   return str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0 && n < maxLen);
@@ -846,11 +1041,10 @@ function parseHeroIndices(str, maxLen) {
 
 function updateCaption() {
   words = document.getElementById('captionInput').value.trim().split(/\s+/);
-  const hiStr = document.getElementById('heroIndicesInput').value.trim();
-  heroIndices = parseHeroIndices(hiStr, words.length);
+  heroIndices = parseHeroIndices(document.getElementById('heroIndicesInput').value.trim(), words.length);
   if (heroIndices.length === 0) heroIndices = [0];
-  buildLayout();
-  startAnimation();
+  activePresetIdx = -1;
+  buildLayout(); startAnimation(); renderPresetList();
 }
 
 function playAnimation() { startAnimation(); }
@@ -861,8 +1055,87 @@ function toggleDebug() {
 }
 
 function cycleColor() {
-  heroColorIdx = (heroColorIdx + 1) % heroColors.length;
-  TEMPLATE.heroColor = heroColors[heroColorIdx];
+  heroColorIdx = (heroColorIdx + 1) % CONFIG.hero.colorCycle.length;
+  CONFIG.hero.color = CONFIG.hero.colorCycle[heroColorIdx];
+  buildLayout(); startAnimation();
+}
+
+// ── Template Switching ───────────────────────────────────────────────────
+const TEMPLATES = [
+  {
+    name: 'Cinematic Lux',
+    hero: { fontFamily: "'Playfair Display'", fontWeight: '700', fontStyle: 'italic', color: '#e63946', strokeColor: 'rgba(0,0,0,0.4)', strokeWidth: 2, sizeRatio: 0.45 },
+    satellite: { fontFamily: "'Inter'", fontWeight: '600', fontStyle: 'normal', color: '#ffffff', sizeRatio: 0.38 },
+    shadow: { enabled: true, blur: 14, opacity: 0.8, offsetY: 2 },
+    background: { gradient: [{ stop: 0, color: '#1a1a2e' }, { stop: 0.4, color: '#16213e' }, { stop: 1, color: '#0f3460' }], vignette: { innerRadius: 0.25, outerRadius: 0.95, opacity: 0.65 } },
+  },
+  {
+    name: 'Bold Street',
+    hero: { fontFamily: "'Bebas Neue'", fontWeight: '400', fontStyle: 'normal', color: '#ffffff', strokeColor: 'rgba(0,0,0,0.6)', strokeWidth: 3, sizeRatio: 0.50 },
+    satellite: { fontFamily: "'Space Grotesk'", fontWeight: '600', fontStyle: 'normal', color: '#facc15', sizeRatio: 0.35 },
+    shadow: { enabled: true, blur: 20, opacity: 0.9, offsetY: 3 },
+    background: { gradient: [{ stop: 0, color: '#0a0a0a' }, { stop: 0.5, color: '#1a1a1a' }, { stop: 1, color: '#0a0a0a' }], vignette: { innerRadius: 0.3, outerRadius: 0.9, opacity: 0.5 } },
+  },
+  {
+    name: 'Neon Pop',
+    hero: { fontFamily: "'Outfit'", fontWeight: '900', fontStyle: 'normal', color: '#00ff88', strokeColor: 'rgba(0,255,136,0.2)', strokeWidth: 1, sizeRatio: 0.48 },
+    satellite: { fontFamily: "'Outfit'", fontWeight: '400', fontStyle: 'normal', color: '#ffffff', sizeRatio: 0.36 },
+    shadow: { enabled: true, blur: 24, opacity: 0.6, offsetY: 0 },
+    background: { gradient: [{ stop: 0, color: '#0d0d0d' }, { stop: 0.5, color: '#111122' }, { stop: 1, color: '#0d0d0d' }], vignette: { innerRadius: 0.2, outerRadius: 0.85, opacity: 0.7 } },
+  },
+  {
+    name: 'Editorial',
+    hero: { fontFamily: "'DM Serif Display'", fontWeight: '400', fontStyle: 'italic', color: '#f8f8f0', strokeColor: 'rgba(0,0,0,0.3)', strokeWidth: 1, sizeRatio: 0.42 },
+    satellite: { fontFamily: "'Space Grotesk'", fontWeight: '400', fontStyle: 'normal', color: '#aaaaaa', sizeRatio: 0.34 },
+    shadow: { enabled: true, blur: 10, opacity: 0.5, offsetY: 1 },
+    background: { gradient: [{ stop: 0, color: '#1c1c1c' }, { stop: 0.5, color: '#252525' }, { stop: 1, color: '#1c1c1c' }], vignette: { innerRadius: 0.3, outerRadius: 1.0, opacity: 0.4 } },
+  },
+  {
+    name: 'Handwritten Fire',
+    hero: { fontFamily: "'Caveat'", fontWeight: '700', fontStyle: 'normal', color: '#ff6b35', strokeColor: 'rgba(0,0,0,0.5)', strokeWidth: 2, sizeRatio: 0.55 },
+    satellite: { fontFamily: "'Inter'", fontWeight: '700', fontStyle: 'normal', color: '#ffffff', sizeRatio: 0.32 },
+    shadow: { enabled: true, blur: 16, opacity: 0.85, offsetY: 2 },
+    background: { gradient: [{ stop: 0, color: '#1a0a00' }, { stop: 0.5, color: '#2a1000' }, { stop: 1, color: '#0a0500' }], vignette: { innerRadius: 0.2, outerRadius: 0.9, opacity: 0.7 } },
+  },
+  {
+    name: 'Brutal Mono',
+    hero: { fontFamily: "'Archivo Black'", fontWeight: '400', fontStyle: 'normal', color: '#ffffff', strokeColor: 'rgba(255,255,255,0.1)', strokeWidth: 0, sizeRatio: 0.50 },
+    satellite: { fontFamily: "'Outfit'", fontWeight: '600', fontStyle: 'normal', color: '#ff0055', sizeRatio: 0.36 },
+    shadow: { enabled: false, blur: 0, opacity: 0, offsetY: 0 },
+    background: { gradient: [{ stop: 0, color: '#000000' }, { stop: 0.5, color: '#0a0a0a' }, { stop: 1, color: '#000000' }], vignette: { innerRadius: 0.4, outerRadius: 1.0, opacity: 0.3 } },
+  },
+  {
+    name: 'Cosmic Syne',
+    hero: { fontFamily: "'Syne'", fontWeight: '800', fontStyle: 'normal', color: '#a855f7', strokeColor: 'rgba(168,85,247,0.2)', strokeWidth: 1, sizeRatio: 0.46 },
+    satellite: { fontFamily: "'Syne'", fontWeight: '400', fontStyle: 'normal', color: '#e0e0ff', sizeRatio: 0.35 },
+    shadow: { enabled: true, blur: 18, opacity: 0.7, offsetY: 1 },
+    background: { gradient: [{ stop: 0, color: '#0a0020' }, { stop: 0.5, color: '#150040' }, { stop: 1, color: '#0a0020' }], vignette: { innerRadius: 0.2, outerRadius: 0.9, opacity: 0.6 } },
+  },
+  {
+    name: 'Futura Clean',
+    hero: { fontFamily: "'Unbounded'", fontWeight: '900', fontStyle: 'normal', color: '#2ec4b6', strokeColor: 'rgba(0,0,0,0.3)', strokeWidth: 1, sizeRatio: 0.40 },
+    satellite: { fontFamily: "'Unbounded'", fontWeight: '400', fontStyle: 'normal', color: '#ffffff', sizeRatio: 0.30 },
+    shadow: { enabled: true, blur: 12, opacity: 0.6, offsetY: 1 },
+    background: { gradient: [{ stop: 0, color: '#0f172a' }, { stop: 0.5, color: '#1e293b' }, { stop: 1, color: '#0f172a' }], vignette: { innerRadius: 0.3, outerRadius: 0.95, opacity: 0.5 } },
+  },
+];
+
+let templateIdx = 0;
+
+function applyTemplate(t) {
+  Object.assign(CONFIG.hero, t.hero);
+  CONFIG.hero.colorCycle[0] = t.hero.color;
+  Object.assign(CONFIG.satellite, t.satellite);
+  Object.assign(CONFIG.shadow, t.shadow);
+  CONFIG.background.gradient = t.background.gradient;
+  Object.assign(CONFIG.background.vignette, t.background.vignette);
+  document.getElementById('templateLabel').textContent = t.name;
+}
+
+function cycleTemplate() {
+  templateIdx = (templateIdx + 1) % TEMPLATES.length;
+  applyTemplate(TEMPLATES[templateIdx]);
+  measureCache.clear();
   buildLayout();
   startAnimation();
 }
@@ -873,10 +1146,8 @@ function cycleColor() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 document.fonts.ready.then(() => {
-  words = ['How', 'on', 'earth', 'do', 'you', 'achieve', 'this'];
-  heroIndices = [2];
-  buildLayout();
-  startAnimation();
+  renderPresetList();
+  loadPreset(0);
   requestAnimationFrame(render);
 });
 </script>

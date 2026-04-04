@@ -10,48 +10,44 @@
 - Animations are dense, not sparse — every scene should feel rich and purposeful
 - The Planner covers the ENTIRE timeline: every moment is either a scene (Stacked/Fullscreen) or an overlay
 
-## 2. Spatial States & Display Modes
+## 2. Display Modes
 
-4 spatial states define WHERE the speaker and animation live on the canvas:
+Three display modes define the animation's ROLE in the scene — each fundamentally changes how the animation is designed, paced, and composed.
 
 ### Speaker (spatial state only — NOT planned)
 
-Speaker video at full canvas, nothing else visible. The Planner never plans speaker-only time. This state exists only as a transition target at video boundaries (start/end).
+Speaker video at full canvas, nothing else visible. Only exists as a transition target at video boundaries (start/end). The Planner never plans speaker-only time.
 
-### Overlay (display mode)
+### Overlay — graphic supports the speaker
 
-Speaker video IS the full-screen content. Animation elements are placed on it.
+The speaker video stays full-screen. The animation floats over it as a supporting graphic — like TV news graphics, sports broadcast overlays, or YouTube stat callouts.
 
-- **Default placement:** lower third, center (around the speaker's chest area in a talking head). User can reposition.
-- Avoid speaker face zone.
-- Dense real animations — logo morphing, mini data-viz, animated icons, key visual metaphors. NOT text labels or lightweight annotations.
+- **The speaker is the star.** The overlay reinforces what they're saying — a stat, a key term, a quick visual.
+- **Simpler compositions.** 1–3 focused elements, single focal point. The viewer glances at the overlay and returns to the speaker.
+- **Snappy timing.** Elements enter decisively, hold long enough to read, exit quickly.
+- **Transparent canvas.** No background — text needs high contrast treatments for readability over video.
+- **Default placement:** lower portion or center, avoiding the speaker's face.
 
-**Overlay quality:** Overlays are NOT filler or basic text pop-ups. Same production quality as scene animations — viona-glass theme (glass effects, springs, motion), contextual to what the speaker is saying, meaningful durations (not <5 second flashes).
+Overlays are NOT filler, text labels, or floating badges — they are properly animated graphics, just simpler than Stacked/Fullscreen.
 
-Good overlays:
-- Animated icon sequences illustrating a concept
-- Mini data-viz that builds as the speaker explains
-- Glass cards with key terms + depth/parallax entrance
-- Abstract pattern animations that visualize metaphors
-- Logo morphing sequences
+### Stacked — animation illustrates, speaker explains
 
-The Planner's animation brief for overlays must be just as detailed as for scenes.
+The speaker moves to the bottom portion. The animation occupies the top portion. Both are visible simultaneously — like a teacher with a whiteboard. Default 50/50 ratio.
 
-### Stacked (display mode)
+- **Self-explanatory visual.** If you muted the speaker, the animation should still communicate the concept through clear labels, hierarchy, and visual relationships.
+- **Medium complexity.** 3–5 content elements with progressive builds, connections, and spatial storytelling.
+- **Default mode for structured content** — processes, comparisons, multi-part explanations.
+- Ratio calculated from source video dimensions to fit speaker without cropping.
 
-Animation gets its own dedicated space by MOVING THE SPEAKER. Speaker shrinks to the bottom portion, animation occupies the top portion. Two separate zones.
+### Fullscreen — the animation IS the content
 
-- Default split ratio: 50/50
-- Ratio calculated from source video dimensions to fit speaker without black bars or excessive cropping
-- Default mode for most structured content scenes
+Speaker video hidden (opacity 0). Animation takes the full canvas. The speaker's audio becomes narration.
 
-### Fullscreen (display mode)
+- **Immersive visual.** The viewer watches the animation as the primary experience. Rich background, multiple depth layers, cinematic pacing.
+- **Use for maximum impact.** Dramatic reveals, complex visualizations, emotional peaks.
+- **Use sparingly.** If every scene is fullscreen, the speaker's personal connection is lost.
 
-Speaker video hidden (opacity 0, not removed). Animation takes the full canvas. Speaker audio continues underneath.
-
-- Used when the visual needs full viewer attention — complex diagrams, dense data, visual metaphors that need space
-
-**Key distinction:** Overlay adds elements ON the speaker video. Stacked gives the animation its own space BY moving the speaker. Fullscreen removes the speaker entirely.
+**Key distinction:** Overlay adds graphics ON the speaker. Stacked gives the animation its own space BY moving the speaker. Fullscreen replaces the speaker with the animation entirely.
 
 ## 3. Transitions (15 total)
 
@@ -104,35 +100,15 @@ Optional white flash frame (2-3 frames, 80% opacity) to signal new topic. Use sp
 - Hard cut (split video, apply crop), not animated zoom
 - Planner decides timestamps, Layout Editor executes
 
-## 5. Animation Scene Types
+## 5. Visual Concept Direction
 
-| Content pattern | Scene type |
-|---|---|
-| Lists, steps, reasons | Step cards |
-| A vs B, pros/cons | Comparison columns |
-| Process, workflow | Flowchart |
-| Stats, percentages | Data visualization |
-| Term definition | Definition card |
-| Chronological events | Timeline |
-| Structure, dependencies | Hierarchy/tree |
-| Cause → effect | Arrow chain |
-| Percentage, ratio | Progress indicator |
-| Visual metaphor, abstract/emotional content | Custom animation |
+Every scene's animation is driven by a **visual concept** — a metaphor or physical anchor with a primary motion. There are no rigid scene type classifications. The Planner writes a creative brief per scene, and the Animator interprets it freely.
 
-No content is "too abstract" for a scene. If transcript content doesn't fit a structured type, use **Custom animation** with abstract visual metaphors. Example: "thinking outside the box" → animate a glowing dot (person) outside a box with other dots inside. The Planner interprets speech metaphors into literal/abstract visual concepts.
+Strong concepts describe a **physical metaphor** (thermometer, staircase, battery, gauge, ribbon, puzzle, scale, chain) with a **primary motion** (rising, splitting, filling, assembling, morphing, crumbling, unrolling). Weak concepts describe layouts ("three cards", "two columns").
 
-## 6. Layout Patterns (composition within a scene)
+No two adjacent scenes should use the same primary motion technique. Vary the energy, spatial approach, and visual vocabulary across scenes.
 
-- **Center-dominant** — hero element large and centered
-- **Asymmetric** — content weighted 60/40 or 70/30
-- **Diagonal flow** — elements along a diagonal axis
-- **Stacked cascade** — elements overlap with parallax depth
-- **Full-bleed** — single element fills canvas
-- **Scattered** — organic placement, not grid-aligned
-
-**Rule:** No two adjacent scenes use the same layout pattern. Bottom 12% stays clear for captions.
-
-## 7. Pacing Rules
+## 6. Pacing Rules
 
 - Planner covers the ENTIRE timeline — every moment is either a scene (Stacked/Fullscreen) or an overlay
 - Stacked/Fullscreen scenes cover 40-60% of total duration (rest is overlays)
@@ -141,12 +117,10 @@ No content is "too abstract" for a scene. If transcript content doesn't fit a st
 - Motion from frame 0 — never a static opening frame
 - Transitions go directly from one state to the next (300ms)
 
-## 8. Scene Design Rules
+## 7. Scene Design Rules
 
 ### Mandatory
-- Follow viona-glass theme (colors, fonts, springs, glass effects)
-- All `interpolate()` calls need BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`
-- No `useCurrentFrame()` subtraction inside `<Sequence>` — frame is already 0-relative
+- Follow the active theme from `theme.md` (colors, fonts, springs, surfaces)
 - `overflow: 'hidden'` on containers with moving elements
 - Content must match EXACTLY what the speaker says
 - Numbers, labels, items must match transcript verbatim
@@ -154,10 +128,10 @@ No content is "too abstract" for a scene. If transcript content doesn't fit a st
 ### Visual Quality
 - Every surface has at least two animated properties (gradient shift, depth shadow, shimmer) — no flat static rectangles
 - Text hierarchy: headings at primary color, supporting text at secondary
-- Accent elements use primary violet (#8B5CF6)
-- Minimum 48px from canvas edge for any content
+- Colors from the theme palette — never hardcoded hex values
+- Minimum `s(48)` from canvas edge for any content
 
-## 9. Do NOT Use
+## 8. Do NOT Use
 
 - B-roll stock footage or photos
 - Emoji/sticker overlays

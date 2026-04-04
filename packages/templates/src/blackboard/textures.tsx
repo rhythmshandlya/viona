@@ -1,9 +1,8 @@
-import React from 'react';
 import { AbsoluteFill } from 'remotion';
 import { BLACKBOARD_COLORS } from './constants';
 
 export function BoardTexture({
-  opacity = 0.04,
+  opacity = 0.03,
   seed = 'board',
 }: {
   opacity?: number;
@@ -14,6 +13,7 @@ export function BoardTexture({
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       <AbsoluteFill style={{ backgroundColor: BLACKBOARD_COLORS.background }} />
+      {/* Very subtle noise for texture */}
       <svg
         width="100%"
         height="100%"
@@ -23,16 +23,16 @@ export function BoardTexture({
           <filter id={filterId}>
             <feTurbulence
               type="fractalNoise"
-              baseFrequency="0.65"
+              baseFrequency="0.8"
               numOctaves={3}
               stitchTiles="stitch"
             />
             <feColorMatrix
               type="matrix"
-              values={`0 0 0 0 0.06
-                       0 0 0 0 0.05
-                       0 0 0 0 0.04
-                       0 0 0 0.5 0`}
+              values={`0 0 0 0 0.5
+                       0 0 0 0 0.5
+                       0 0 0 0 0.5
+                       0 0 0 0.3 0`}
             />
           </filter>
         </defs>
@@ -43,7 +43,7 @@ export function BoardTexture({
 }
 
 export function ChalkDust({
-  opacity = 0.03,
+  opacity = 0.02,
   seed = 'dust',
 }: {
   opacity?: number;
@@ -68,10 +68,10 @@ export function ChalkDust({
             />
             <feColorMatrix
               type="matrix"
-              values={`0 0 0 0 0.96
-                       0 0 0 0 0.62
-                       0 0 0 0 0.04
-                       0 0 0 0.3 0`}
+              values={`0 0 0 0 0.5
+                       0 0 0 0 0.5
+                       0 0 0 0 0.5
+                       0 0 0 0.2 0`}
             />
           </filter>
         </defs>

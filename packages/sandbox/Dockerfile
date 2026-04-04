@@ -21,8 +21,9 @@ RUN npx tsc
 RUN find src/prompts -type f \( -name '*.md' -o -name '*.xml' \) ! -name '*.old' \
     -exec sh -c 'dest="dist/${1#src/}" && mkdir -p "$(dirname "$dest")" && cp "$1" "$dest"' _ {} \;
 
-# Copy shared prompt modules from worker (available because build context is repo root)
-COPY packages/worker/src/prompts/shared/ /app/prompts/shared/
+# Copy composition and strategy prompt modules from worker (available because build context is repo root)
+COPY packages/worker/src/prompts/composition.md /app/prompts/composition.md
+COPY packages/worker/src/prompts/strategies/ /app/prompts/strategies/
 
 # Copy theme files from worker
 COPY packages/worker/src/prompts/themes/ /app/prompts/themes/
@@ -41,12 +42,13 @@ RUN npx tsc
 # Stage 2: Production image
 FROM node:20-slim
 
-# System dependencies for Remotion (Chromium), ffmpeg, Python, and git (checkpoint system)
+# System dependencies for Remotion (Chromium), ffmpeg, Python, git (checkpoint system), and gosu (entrypoint)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     chromium \
     ffmpeg \
     git \
+    gosu \
     python3 \
     unzip \
     && rm -rf /var/lib/apt/lists/*
@@ -54,11 +56,14 @@ RUN apt-get update && \
 # Set Chromium path for Remotion
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
+# Create non-root user early so --chown on COPY avoids expensive recursive chown
+RUN groupadd -r sandbox && useradd -r -g sandbox -m -s /bin/bash sandbox
+
 WORKDIR /app
 
 # Install production dependencies only (strip type-only workspace dep)
-COPY packages/sandbox/package.json packages/sandbox/package-lock.json* ./
-RUN sed -i '/"@viona\/shared"/d' package.json && npm install --omit=dev
+COPY --chown=sandbox:sandbox packages/sandbox/package.json packages/sandbox/package-lock.json* ./
+RUN sed -i '/"@viona\/shared"/d' package.json && npm install --omit=dev && chown -R sandbox:sandbox node_modules
 
 # Install Claude Code CLI (required by @anthropic-ai/claude-agent-sdk)
 RUN npm install -g @anthropic-ai/claude-code
@@ -72,38 +77,36 @@ RUN npm install -g mcp-remote better-icons
 # UNSPLASH_ACCESS_KEY — Unsplash stock photo search
 
 # Copy compiled JS from builder
-COPY --from=builder /app/dist/ /app/dist/
+COPY --chown=sandbox:sandbox --from=builder /app/dist/ /app/dist/
 
-# Copy shared prompt modules
-COPY --from=builder /app/prompts/shared/ /app/prompts/shared/
+# Copy composition rules and genre strategies
+COPY --chown=sandbox:sandbox --from=builder /app/prompts/composition.md /app/prompts/composition.md
+COPY --chown=sandbox:sandbox --from=builder /app/prompts/strategies/ /app/prompts/strategies/
 
 # Copy theme design system files
-COPY --from=builder /app/prompts/themes/ /app/prompts/themes/
+COPY --chown=sandbox:sandbox --from=builder /app/prompts/themes/ /app/prompts/themes/
 
 # Copy MCP server compiled files
-COPY --from=mcp-builder /mcp/dist/ /app/mcp-servers/
+COPY --chown=sandbox:sandbox --from=mcp-builder /mcp/dist/ /app/mcp-servers/
 
 # Install MCP server runtime deps alongside the compiled files
-COPY packages/mcp-servers/package.json /app/mcp-servers/
-RUN cd /app/mcp-servers && npm install --omit=dev
+COPY --chown=sandbox:sandbox packages/mcp-servers/package.json /app/mcp-servers/
+RUN cd /app/mcp-servers && npm install --omit=dev && chown -R sandbox:sandbox /app/mcp-servers/node_modules
 
 # Copy template files (composition infrastructure, .claude/, configs)
-COPY packages/sandbox/template/ /app/template/
+COPY --chown=sandbox:sandbox packages/sandbox/template/ /app/template/
 
-# Create non-root user (claude CLI blocks --dangerously-skip-permissions as root)
-RUN groupadd -r sandbox && useradd -r -g sandbox -m -s /bin/bash sandbox
-
-# Install gosu for entrypoint privilege drop
-RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+# Install workspace template dependencies (separate from sandbox deps).
+# Workspace needs react 19 + zod 3.22.3 for Remotion, while sandbox uses
+# react 18 + zod 4.x for claude-agent-sdk. The workspace node_modules
+# symlink points here, not /app/node_modules.
+RUN cd /app/template && npm install && chown -R sandbox:sandbox /app/template/node_modules
 
 # Workspace will be mounted as a volume at /workspace (Railway attaches volumes externally)
 RUN mkdir -p /workspace && chown sandbox:sandbox /workspace
 
-# Give sandbox user ownership of app files
-RUN chown -R sandbox:sandbox /app
-
 # Entrypoint fixes volume permissions then drops to sandbox user
-COPY packages/sandbox/entrypoint.sh /app/entrypoint.sh
+COPY --chown=sandbox:sandbox packages/sandbox/entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=3 \

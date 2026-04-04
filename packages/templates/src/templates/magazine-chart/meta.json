@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-chart",
+  "name": "Magazine Bar Chart",
+  "description": "Horizontal bar chart with animated fill bars and labels for data visualization content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "chart", "bar", "data", "visualization", "statistics", "data-viz"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

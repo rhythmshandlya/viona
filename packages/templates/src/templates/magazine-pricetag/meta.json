@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-pricetag",
+  "name": "Magazine Price Reveal",
+  "description": "Large price figure with cost breakdown items for price reveals and financial content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "price", "cost", "money", "finance", "budget"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

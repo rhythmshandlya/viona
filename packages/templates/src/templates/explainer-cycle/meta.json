@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-cycle",
+  "name": "Explainer Cycle",
+  "description": "Animated circular process diagram with orbiting indicator and sequential arc reveals",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "cycle", "process", "lifecycle", "diagram"],
+  "stylePreset": "blackboardClean",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

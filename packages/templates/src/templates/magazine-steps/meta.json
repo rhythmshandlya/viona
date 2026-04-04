@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-steps",
+  "name": "Magazine Step Flow",
+  "description": "Step-by-step numbered flow with connecting dashed line, ideal for tutorials and how-to content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "steps", "tutorial", "how-to", "process", "numbered"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

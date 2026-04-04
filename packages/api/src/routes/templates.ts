@@ -104,6 +104,7 @@ export async function templateRoutes(fastify: FastifyInstance) {
           propsSchema: templates.propsSchema,
           defaultProps: templates.defaultProps,
           screenshotUrl: templates.screenshotUrl,
+          dependencies: templates.dependencies,
           createdAt: templates.createdAt,
         })
           .from(templates)

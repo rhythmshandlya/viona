@@ -1,5 +1,5 @@
 import React from 'react';
-import { BLACKBOARD_COLORS, BLACKBOARD_FONTS, BLACKBOARD_GLOW } from './constants';
+import { BLACKBOARD_COLORS, BLACKBOARD_FONTS } from './constants';
 
 export function GlowHeading({
   text,
@@ -19,11 +19,10 @@ export function GlowHeading({
       style={{
         fontFamily: BLACKBOARD_FONTS.heading,
         fontSize: size,
-        fontWeight: 700,
+        fontWeight: 600,
         color,
-        lineHeight: 1.1,
-        letterSpacing: '-0.02em',
-        textShadow: glowIntensity > 0 ? BLACKBOARD_GLOW.textPrimary : 'none',
+        lineHeight: 1.15,
+        letterSpacing: '-0.025em',
         ...style,
       }}
     >
@@ -80,7 +79,7 @@ export function DataValue({
         fontSize: size,
         fontWeight: 700,
         color,
-        textShadow: glowIntensity > 0 ? BLACKBOARD_GLOW.textPrimary : 'none',
+        lineHeight: 1,
         ...style,
       }}
     >

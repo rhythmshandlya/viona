@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Player, type RenderLoading } from '@remotion/player';
 import { AbsoluteFill, prefetch } from 'remotion';
+import { preloadVideo, preloadAudio } from '@remotion/preload';
 import { useWorkspaceComposition, resolvePublicBase, resolveDirectMediaUrl } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
@@ -53,20 +54,23 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   }, []);
 
   // -----------------------------------------------------------------------
-  // Media prefetching via Remotion's prefetch() — downloads full media
-  // files into blob URLs in the background.
+  // Media loading strategy:
   //
-  // NLE-style timelines create multiple <Video> components for the same
-  // source file at different trim points. At cuts, old elements unmount
-  // and new ones mount — each needing to seek within the file. With
-  // network URLs, this seek requires HTTP range requests and codec init
-  // (~300ms+), causing visible lag. With blob URLs the entire file is in
-  // memory, so seeks are instant.
+  // - Video/Audio: use @remotion/preload (preloadVideo/preloadAudio).
+  //   These add <link rel="preload"> hints so the browser starts loading
+  //   the file in the background using native HTTP range requests. This
+  //   does NOT download the full file or create blob URLs — the browser
+  //   manages buffering naturally, which is critical for large source
+  //   videos (100MB+). Blob URLs from prefetch() would compete with the
+  //   <video> element's native streaming and don't support range requests,
+  //   causing playback to stall after the initial buffer runs out.
   //
-  // Trade-off: blob download runs alongside the Player's native streaming
-  // during initial playback (minor bandwidth competition). Once complete,
-  // all subsequent cuts/seeks are lag-free.
+  // - Images: use prefetch() to download fully into blob URLs. Images are
+  //   small and benefit from guaranteed instant availability.
+  //
+  // - Matte videos: use preloadVideo() since they're large video files.
   // -----------------------------------------------------------------------
+  const preloadedRef = useRef<Set<string>>(new Set());
   const prefetchHandlesRef = useRef<Map<string, () => void>>(new Map());
 
   useEffect(() => {
@@ -75,34 +79,55 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
     const publicBase = resolvePublicBase(bundleUrl);
 
-    // Collect unique media URLs
-    const currentMedia = new Set<string>();
+    // Resolve media URLs exactly like customStaticFile() in useWorkspaceComposition
+    // so that preload hints match the actual <video>/<audio> element src.
+    // URL mismatch between preload and element causes browser to ignore preloaded data.
     const resolveMedia = (src: string) => {
       if (/^https?:\/\/|^blob:/.test(src)) return src;
-      // Already a resolved absolute path — don't double-resolve
       if (src.startsWith('/api/')) return src;
       const cleanPath = src.startsWith('/') ? src.slice(1) : src;
-      return resolveDirectMediaUrl(bundleUrl, cleanPath) ?? `${publicBase}/${cleanPath}`;
+      const directUrl = resolveDirectMediaUrl(bundleUrl, cleanPath);
+      if (directUrl) return directUrl;
+      return `${publicBase}/${cleanPath}`;
     };
+
+    // Collect media URLs by type
+    const videoUrls = new Set<string>();
+    const audioUrls = new Set<string>();
+    const imageUrls = new Set<string>();
+
     for (const item of m.items) {
-      if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
-        currentMedia.add(resolveMedia(item.data.src as string));
+      if (item.type === 'video' && item.data?.src) {
+        videoUrls.add(resolveMedia(item.data.src as string));
       }
-      // Prefetch matte item videos for depth compositing
+      if (item.type === 'audio' && item.data?.src) {
+        audioUrls.add(resolveMedia(item.data.src as string));
+      }
       if (item.type === 'matte') {
-        if (item.data?.fgrSrc) currentMedia.add(resolveMedia(item.data.fgrSrc as string));
-        if (item.data?.matteSrc) currentMedia.add(resolveMedia(item.data.matteSrc as string));
+        if (item.data?.fgrSrc) videoUrls.add(resolveMedia(item.data.fgrSrc as string));
+        if (item.data?.matteSrc) videoUrls.add(resolveMedia(item.data.matteSrc as string));
       }
-      // Prefetch image sources (background plates)
       if (item.type === 'image' && item.data?.src) {
-        currentMedia.add(resolveMedia(item.data.src as string));
+        imageUrls.add(resolveMedia(item.data.src as string));
       }
     }
 
-    // Prefetch each media URL into a blob. Once downloaded, Remotion
-    // internally maps the original URL → blob URL so all <Video>/<Audio>
-    // components using that URL get instant seeks from memory.
-    for (const url of currentMedia) {
+    // Preload video/audio — browser handles buffering with range requests
+    for (const url of videoUrls) {
+      if (!preloadedRef.current.has(url)) {
+        try { preloadVideo(url); } catch { /* ignore */ }
+        preloadedRef.current.add(url);
+      }
+    }
+    for (const url of audioUrls) {
+      if (!preloadedRef.current.has(url)) {
+        try { preloadAudio(url); } catch { /* ignore */ }
+        preloadedRef.current.add(url);
+      }
+    }
+
+    // Prefetch images into blob URLs (small files, instant availability)
+    for (const url of imageUrls) {
       if (!prefetchHandlesRef.current.has(url)) {
         try {
           const { free, waitUntilDone } = prefetch(url);
@@ -110,15 +135,13 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
           // promise rejection (Remotion rejects waitUntilDone on HTTP errors).
           waitUntilDone().catch(() => {});
           prefetchHandlesRef.current.set(url, free);
-        } catch {
-          // prefetch may fail for blob: or invalid URLs — fall back silently
-        }
+        } catch { /* ignore */ }
       }
     }
 
     // Free prefetches no longer in the manifest
     for (const [url, free] of prefetchHandlesRef.current) {
-      if (!currentMedia.has(url)) {
+      if (!imageUrls.has(url)) {
         free();
         prefetchHandlesRef.current.delete(url);
       }

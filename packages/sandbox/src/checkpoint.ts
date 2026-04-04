@@ -22,6 +22,7 @@ const SANDBOX_SECRET = process.env.SANDBOX_SECRET;
 let gitReady = false;
 let checkpointInProgress = false;
 let watcher: FSWatcher | null = null;
+let scenesWatcher: FSWatcher | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const DEBOUNCE_MS = 5000;
@@ -181,7 +182,20 @@ async function ensureGitReady(): Promise<void> {
 }
 
 /**
- * Start watching manifest.json for changes. Debounces 5s then runs checkpoint().
+ * Shared debounce handler — resets timer and schedules checkpoint.
+ */
+function scheduleCheckpoint(): void {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    checkpoint().catch(err => {
+      logger.error({ err }, 'Debounced checkpoint failed');
+    });
+  }, DEBOUNCE_MS);
+}
+
+/**
+ * Start watching manifest.json AND src/scenes/ for changes.
+ * Debounces 5s then runs checkpoint().
  */
 export function startCheckpointWatcher(): void {
   if (watcher) return; // Already watching
@@ -190,24 +204,25 @@ export function startCheckpointWatcher(): void {
   ensureGitReady().catch(err => logger.warn({ err }, 'ensureGitReady failed'));
 
   try {
-    watcher = watch(MANIFEST_PATH, () => {
-      // Reset debounce timer on each change
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        checkpoint().catch(err => {
-          logger.error({ err }, 'Debounced checkpoint failed');
-        });
-      }, DEBOUNCE_MS);
-    });
-
-    logger.info('Checkpoint watcher started (5s debounce)');
+    watcher = watch(MANIFEST_PATH, () => scheduleCheckpoint());
+    logger.info('Checkpoint watcher started for manifest.json');
   } catch (err) {
-    logger.error({ err }, 'Failed to start checkpoint watcher');
+    logger.error({ err }, 'Failed to start manifest checkpoint watcher');
+  }
+
+  // Also watch src/scenes/ so generated scene files trigger checkpoints
+  const SCENES_DIR = join(WORKSPACE, 'src', 'scenes');
+  try {
+    scenesWatcher = watch(SCENES_DIR, { recursive: true }, () => scheduleCheckpoint());
+    logger.info('Checkpoint watcher started for src/scenes/');
+  } catch (err) {
+    // Directory may not exist yet on first boot — non-fatal
+    logger.debug({ err }, 'Scenes watcher not started (directory may not exist yet)');
   }
 }
 
 /**
- * Stop watching manifest.json.
+ * Stop watching manifest.json and src/scenes/.
  */
 export function stopCheckpointWatcher(): void {
   if (debounceTimer) {
@@ -217,5 +232,9 @@ export function stopCheckpointWatcher(): void {
   if (watcher) {
     watcher.close();
     watcher = null;
+  }
+  if (scenesWatcher) {
+    scenesWatcher.close();
+    scenesWatcher = null;
   }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BLACKBOARD_COLORS, BLACKBOARD_GLOW } from './constants';
+import { BLACKBOARD_COLORS } from './constants';
 
 export function GlowPanel({
   glowIntensity = 1,
@@ -12,15 +12,14 @@ export function GlowPanel({
   children: React.ReactNode;
   style?: React.CSSProperties;
 }) {
-  const glowValue = glowColor === 'primary' ? BLACKBOARD_GLOW.primary : BLACKBOARD_GLOW.secondary;
+  const glowRgba = glowColor === 'primary' ? '245,158,11' : '77,216,232';
 
   return (
     <div
       style={{
         backgroundColor: BLACKBOARD_COLORS.surface,
-        border: `1px solid ${BLACKBOARD_COLORS.surfaceBorder}`,
         borderRadius: 12,
-        boxShadow: glowIntensity > 0 ? glowValue : 'none',
+        boxShadow: `0 0 ${12 * glowIntensity}px rgba(${glowRgba},0.1), 0 4px 20px rgba(0,0,0,0.4)`,
         opacity: glowIntensity > 0 ? 1 : 0,
         ...style,
       }}
@@ -43,18 +42,11 @@ export function GlowBorder({
   children: React.ReactNode;
   style?: React.CSSProperties;
 }) {
-  const rgb = glowColor === 'primary' ? '245,158,11' : '6,182,212';
-  const alpha = (0.3 * glowIntensity).toFixed(2);
-  const spread = 8 + glowIntensity * 12;
-
   return (
     <div
       style={{
-        border: `1px solid rgba(${rgb},${alpha})`,
         borderRadius,
-        boxShadow: glowIntensity > 0
-          ? `0 0 ${spread}px rgba(${rgb},${(0.15 * glowIntensity).toFixed(2)})`
-          : 'none',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
         ...style,
       }}
     >
@@ -77,7 +69,6 @@ export function GlowCircle({
   style?: React.CSSProperties;
 }) {
   const color = glowColor === 'primary' ? BLACKBOARD_COLORS.primary : BLACKBOARD_COLORS.secondary;
-  const glowValue = glowColor === 'primary' ? BLACKBOARD_GLOW.primary : BLACKBOARD_GLOW.secondary;
 
   return (
     <div
@@ -86,8 +77,7 @@ export function GlowCircle({
         height: size,
         borderRadius: '50%',
         backgroundColor: BLACKBOARD_COLORS.surface,
-        border: `2px solid ${color}`,
-        boxShadow: glowIntensity > 0 ? glowValue : 'none',
+        boxShadow: `0 0 8px ${color}40, 0 0 2px ${color}80, 0 2px 8px rgba(0,0,0,0.4)`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

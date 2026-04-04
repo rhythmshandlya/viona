@@ -1,18 +1,18 @@
 {
   "slug": "magazine",
   "name": "Magazine",
-  "description": "Editorial magazine style with serif typography, warm earth tones, and cinematic parallax motion",
+  "description": "Modern editorial style with crisp serif typography, clean white paper, and refined cinematic motion",
   "colorPalette": {
-    "primary": "#2D1B0E",
-    "secondary": "#8B6914",
-    "accent": "#C4A265",
-    "background": "#F5F0E8",
-    "text": "#1A1A1A"
+    "primary": "#0f172a",
+    "secondary": "#64748b",
+    "accent": "#e11d48",
+    "background": "#ffffff",
+    "text": "#0f172a"
   },
   "fontRecommendations": {
     "heading": "Playfair Display",
     "body": "Lora",
     "accent": "Merriweather"
   },
-  "styleGuidance": "Magazine theme uses serif headlines with editorial grid layouts. Warm earth tones dominate with gold accents. Motion should be subtle and cinematic — parallax scrolling, gentle zoom, smooth reveals. Text should feel typeset, not animated. Prefer clean negative space over busy compositions. Photography-forward with minimal overlay text."
+  "styleGuidance": "Modern magazine — crisp white paper, rich dark type, editorial red accents. Motion should be precise and confident: smooth reveals, clean parallax, sharp cuts. Typography is the hero — tight letter-spacing, strong weight contrast. Generous white space, minimal texture. Photography-forward with bold headline overlays."
 }

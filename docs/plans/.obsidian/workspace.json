@@ -11,10 +11,14 @@
             "id": "142b2a5c0c9de825",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "2026-03-11-landing-redesign-implementation.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "2026-03-11-landing-redesign-implementation"
             }
           }
         ]
@@ -49,7 +53,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "depth-compositing-pipeline",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -70,7 +74,8 @@
               "title": "Bookmarks"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -176,7 +181,7 @@
       "bases:Create new base": false
     }
   },
-  "active": "9535d9d64f0d78ac",
+  "active": "d0ded755b13365a4",
   "lastOpenFiles": [
     "2026-01-26-phase1-subtitle-pipeline-design.md"
   ]

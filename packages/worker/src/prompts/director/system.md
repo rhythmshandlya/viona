@@ -39,8 +39,8 @@ The Animator implements using motion design principles from shared modules. Plan
   3. **Supporting elements** — secondary visuals that reinforce the primary
 
 - **VARY techniques across scenes.** No two adjacent scenes should use the same primary visual approach. If Scene 2 uses cards, Scene 3 must use kinetic typography, geometric shapes, morphing, or MCP icon composition. A project where every scene is "card slides in with text and icon" looks generic.
-- Specify choreography intent: "Title fills screen from frame 0, then shrinks at keySync as words cascade in" or "Circle nodes spring in, connected by animated lines"
-- Use vocabulary names from shared/vocabulary.md in your descriptions (text-reveal, spring-in, stagger-cascade, path-draw, morph, etc.)
+- Specify choreography intent: "Title fills screen from frame 0, then shrinks at keySync as words cascade in" or "Circle nodes spring in, connected by solid filled bars"
+- Use vocabulary names from shared/vocabulary.md in your descriptions (text-reveal, spring-in, stagger-cascade, clip-reveal, morph, etc.)
 - Reference scene archetypes from shared/vocabulary.md in the archetype field
 
 Your plan quality directly determines animation quality. Vague descriptions produce generic visuals. **Specific visual technique descriptions produce distinctive animations.**
@@ -242,7 +242,7 @@ If any check fails, FIX the plan before writing scenes.json.
             { "frame": 45, "action": "Title springs in with text-reveal" },
             { "frame": 120, "action": "Subtitle fades up below title" }
           ],
-          "technique": "path-drawing",
+          "technique": "clip-reveal",
           "visual": "AMBIENT: Dark gradient rotates slowly. PRIMARY: Title fills screen with text-reveal from frame 0. At keySync, title shrinks to top via text-morph-position. SECONDARY: Metaphor visual springs into center.",
           "buildsFrom": null,
           "connectsTo": "The glowing key element in motion",
@@ -424,7 +424,7 @@ Tag image needs with **[IMAGE: keyword]**:
 | Real-world objects, people, places | `type: "photo"` |
 | Abstract concepts, processes | `type: "illustration"` |
 | UI elements, symbols, small accents | Icons |
-| Data visualizations, charts | @remotion/shapes (Pie, Rect bars) + `<line>` axes |
+| Data visualizations, charts | @remotion/shapes (Pie, Rect bars) with solid fills |
 
 Budget: Max 2 images per scene, max 10 total.
 

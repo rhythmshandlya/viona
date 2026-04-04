@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-location",
+  "name": "Magazine Location Spotlight",
+  "description": "Location spotlight card with place name, coordinates, and key details for travel and geography content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "location", "place", "travel", "geography", "city"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

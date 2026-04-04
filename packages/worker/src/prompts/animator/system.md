@@ -68,7 +68,7 @@ b) **REASONING (MANDATORY)** — write to IMPLEMENTATION_LOG.md before ANY code:
    - What does the Director want? Key sync point? Target emotion?
 
    ### 2. VISUAL LAYERS
-   - Layer 1 (Primary): the VISUAL that carries the segment's meaning — animated SVG illustration, path-drawing animation, morphing shape, data visualization, kinetic typography, or diagram. NOT just a card with text.
+   - Layer 1 (Primary): the VISUAL that carries the segment's meaning — filled shape animation, clip-path reveal, morphing shape, data visualization, kinetic typography, or solid diagram. NOT just a card with text. NOT SVG strokes/outlines.
    - Layer 2 (Supporting): labeled icons, annotations, connecting elements
    - Layer 3 (Ambient): ambient texture (gradient drift, glow pulse, grid shift) at opacity <= 0.15
    - Attention-grabbing count (L1+L2): <= 4?
@@ -221,11 +221,12 @@ const contentOpacity = interpolate(frame,
 ```tsx
 const cardStyle = {
   background: COLORS.cardBg, // Solid opaque color from theme (e.g. '#141824')
-  border: `1px solid ${COLORS.cardBorder}`,
-  borderRadius: 16, boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+  borderRadius: EW * 0.015,
+  boxShadow: `0 ${EH * 0.008}px ${EH * 0.03}px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`,
   overflow: 'hidden' as const,
 };
-// Vary borderRadius (12-20), boxShadow intensity, and border accent between scenes.
+// Use boxShadow for depth — NOT thin border outlines. Inset shadow for top edge highlight.
+// Vary borderRadius, boxShadow intensity, and glow color between scenes.
 ```
 
 ### Spring Variation
@@ -233,14 +234,15 @@ No two elements entering within 20 frames of each other should share identical s
 
 ### Accent Line Draw (underline, connector, divider)
 ```tsx
-// Line draws beneath a title or between elements — secondary action that reinforces primary
+// Gradient bar beneath a title — secondary action that reinforces primary
 const lineProgress = interpolate(frame, [keySync + 5, keySync + 25], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic),
 });
 <div style={{
-  width: EW * 0.4 * lineProgress, height: 3,
+  width: EW * 0.4 * lineProgress, height: EH * 0.006,
   background: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.secondary})`,
-  borderRadius: 2, margin: '0 auto',
+  borderRadius: 99, margin: '0 auto',
+  boxShadow: `0 0 ${EW * 0.01}px ${COLORS.accent}44`,
 }} />
 ```
 
@@ -253,7 +255,7 @@ const fillProgress = interpolate(frame, [startFrame, startFrame + 60], [0, targe
 <div style={{ width: EW * 0.6, height: EH * 0.02, background: 'rgba(255,255,255,0.1)', borderRadius: 99 }}>
   <div style={{ width: `${fillProgress}%`, height: '100%', background: COLORS.accent, borderRadius: 99 }} />
 </div>
-// Circular ring: use SVG circle with strokeDasharray={circumference} strokeDashoffset={circumference * (1 - fillProgress / 100)}
+// Circular gauge: use conic-gradient with animated rotation or clip-path circle reveal
 ```
 
 ### Highlight Sweep (attention draw on existing element)
@@ -455,8 +457,8 @@ Transition durations OVERLAP with scene durations. Only use TransitionSeries whe
 - **All elements animate simultaneously** — Always stagger
 - **Static elements** — Any element visible 30+ frames MUST have ambient motion (float, breathe, glow pulse). Settled ≠ frozen. Use the continuous motion recipes below.
 - **Plain colored divs as real objects** — If you need a visual object, use `@remotion/shapes` components (Circle, Rect, Star, Polygon, Pie) or download via MCP. A bare `<div>` with a background color is not an illustration.
-- **Hand-drawn SVG paths** — NEVER write complex `<path d="M... C... S...">` coordinates. Use `@remotion/shapes` for geometry, MCP icons for illustrations, and `<line>`/`<rect>`/`<circle>` SVG primitives for simple connectors.
-- **Thin strokes/borders** — All strokeWidth and border values MUST be canvas-relative: `strokeWidth={s(3)}` or `EW * 0.004`, NEVER hardcoded `strokeWidth={1}` or `strokeWidth={2}`. Minimum visible stroke: `s(2)` (~4px on 1080 canvas). Use `s(3)` to `s(5)` for accent lines, `s(2)` for subtle borders.
+- **SVG stroke-based visuals** — NEVER use `strokeDasharray`, `strokeDashoffset`, `strokeWidth`, `<line>`, `<path>` for visible elements. No wireframe outlines, no stroke-draw animations, no path-drawing reveals. These look like wireframes, not motion graphics. Use solid filled shapes, `boxShadow` for depth, `clip-path` for reveals, gradient fills, and animated `width`/`height` for bars and connectors.
+- **Hand-drawn SVG paths** — NEVER write complex `<path d="M... C... S...">` coordinates. Use `@remotion/shapes` for geometry (with `fill`, not `stroke`), MCP icons for illustrations.
 - **Missing clamp** — BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'` required on every interpolate()
 - **Hardcoded 1080/1920** — Use EW/EH from constants.ts
 - **Text-only scenes** — Every scene needs a VISUAL element: @remotion/shapes geometry, MCP icon, morph, diagram, data-viz, or illustration. Cards with only text inside = text-only.
@@ -502,7 +504,7 @@ Hand-coded SVGs look amateur. "I want more control" is NOT a valid reason to ski
 | Screenshots | `mcp__assets__screenshot` | `<Img>` with zoom/pan/highlight |
 | Stock photos | `search_unsplash`/`search_pexels` -> `download_stock_photo` | `<Img>` with Ken Burns, overlays |
 | Company logos | **Iconify FIRST**: `mcp__better-icons__search_icons` -> `get_icon` (`simple-icons:*`, `logos:*`). Freepik fallback only. | Inline SVG — NEVER hand-draw logos |
-| Data viz | `@remotion/shapes` (Pie, Rect for bars) + `<line>` for axes | Dynamic values need code |
+| Data viz | `@remotion/shapes` (Pie, Rect for bars) with solid fills | Dynamic values need code |
 
 ### Icon Workflow
 1. `mcp__freepik__search_icons` with concept term ("cloud computing", "neural network")

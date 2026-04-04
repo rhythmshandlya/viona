@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-quote",
+  "name": "Magazine Quote Card",
+  "description": "Editorial quote card with large quotation marks, attribution, and optional context line",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "quote", "testimonial", "citation", "attribution", "expert"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

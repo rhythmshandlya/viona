@@ -33,6 +33,7 @@ import { useWorkspaceWS } from './hooks/use-workspace-ws';
 import {
   useProject,
   useIsLoading,
+  useLoadingMessage,
   useError,
   useProjectActions,
   useTimelineActions,
@@ -111,6 +112,7 @@ export function Editor({ projectId }: EditorProps) {
   // State
   const project = useProject();
   const isLoading = useIsLoading();
+  const loadingMessage = useLoadingMessage();
   const error = useError();
   const selectedIds = useSelectedIds();
   const captionItems = useCaptionItems();
@@ -256,14 +258,31 @@ export function Editor({ projectId }: EditorProps) {
     },
   });
 
-  // Sandbox cleanup on unmount
+  // Sandbox cleanup on unmount — debounced to survive React Strict Mode
+  // double-mount and transient re-renders that would otherwise destroy
+  // the sandbox mid-session.
   useEffect(() => {
+    // Store timer ID in a ref-like variable so the cleanup on re-mount
+    // (which fires the NEW effect's setup, not the old cleanup) can cancel it.
+    const key = '__viona_suspend_timer';
+    const win = window as any;
+
+    // Cancel any pending suspend from a previous unmount (Strict Mode remount)
+    if (win[key]) {
+      clearTimeout(win[key]);
+      win[key] = null;
+    }
+
     return () => {
       const state = useEditorStore.getState();
       if (state.project && state.sandboxStatus === 'ready') {
-        api.suspendSandbox(state.project.id).catch((err: any) => {
-          console.warn('Failed to suspend sandbox on unmount:', err);
-        });
+        const projectId = state.project.id;
+        win[key] = setTimeout(() => {
+          win[key] = null;
+          api.suspendSandbox(projectId).catch((err: any) => {
+            console.warn('Failed to suspend sandbox on unmount:', err);
+          });
+        }, 5000);
       }
     };
   }, []);
@@ -531,9 +550,9 @@ export function Editor({ projectId }: EditorProps) {
   if (isLoading) {
     return (
       <div className="editor-theme editor-bg-mesh min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-3 text-[var(--editor-text-primary)]">
-          <Loader2 className="w-5 h-5 animate-spin text-[var(--editor-accent)]" />
-          <span className="text-sm">Loading project...</span>
+        <div className="flex flex-col items-center gap-3 text-[var(--editor-text-primary)]">
+          <Loader2 className="w-6 h-6 animate-spin text-[var(--editor-accent)]" />
+          <span className="text-sm">{loadingMessage || 'Loading project...'}</span>
         </div>
       </div>
     );

@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-network",
+  "name": "Explainer Network",
+  "description": "Animated radial network graph with pulsing connections and traveling data particles",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "network", "graph", "diagram", "architecture"],
+  "stylePreset": "blackboardClean",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

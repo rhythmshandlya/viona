@@ -14,6 +14,7 @@ export interface JobState {
   startedAt: number;
   activeTasks: ActiveTask[];
   plan: { title: string; tasks: unknown[] } | null;
+  widget: unknown | null;
   textBuffer: string;
   result: { sessionId?: string; cost?: number } | null;
   error: string | null;
@@ -50,6 +51,7 @@ export function startJob(): void {
     startedAt: Date.now(),
     activeTasks: [],
     plan: null,
+    widget: null,
     textBuffer: '',
     result: null,
     error: null,
@@ -95,6 +97,12 @@ export function updatePlan(plan: { title: string; tasks: unknown[] }): void {
   if (!currentJob) return;
   currentJob.plan = plan;
   notify('plan', plan);
+}
+
+export function updateWidget(widget: unknown): void {
+  if (!currentJob) return;
+  currentJob.widget = widget;
+  notify('widget', widget);
 }
 
 export function appendText(text: string): void {

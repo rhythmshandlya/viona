@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-verdict",
+  "name": "Magazine Verdict Card",
+  "description": "Verdict card with animated rating ring, highlight bullets, and recommendation line for review content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "verdict", "rating", "review", "score", "recommendation"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

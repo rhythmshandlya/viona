@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-didyouknow",
+  "name": "Magazine Fun Fact",
+  "description": "Fun fact card with decorative question mark and editorial text reveal for educational content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "didyouknow", "fact", "educational", "trivia", "funfact", "fun-fact"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

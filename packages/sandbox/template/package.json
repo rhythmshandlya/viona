@@ -24,7 +24,7 @@
     "remotion": "4.0.422",
     "tailwindcss": "4.0.0",
     "three": "^0.170.0",
-    "zod": "^3.24.0"
+    "zod": "3.22.3"
   },
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.422",

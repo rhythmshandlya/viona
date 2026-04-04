@@ -50,12 +50,11 @@ export async function processSegmentationJob(job: Job<SegmentationJobData>) {
     await downloadFile('uploads', videoKey, videoPath);
     await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
-    // Step 2: Run segment_person.py on the FULL video (10-80%)
-    // No clipping — processes the entire video at native frame rate for:
-    //   1. Exact 1:1 frame correspondence with source (no seeking/resampling)
-    //   2. Best RVM quality (recurrent state builds up continuously)
-    //   3. Same frame rate as source (no 29.97→30 drift)
-    await publishJobProgress(jobId, 12, 'Running person segmentation (full video)...', pubExtras);
+    // Step 2: Run segment_person.py on overlay ranges only (10-80%)
+    // Only processes frames within overlay scene ranges (where matte is needed).
+    // Frames outside these ranges get black matte (no model inference).
+    // Maintains 1:1 frame correspondence with source at native frame rate.
+    await publishJobProgress(jobId, 12, 'Running person segmentation...', pubExtras);
 
     const mattePath = join(workDir, 'matte.mp4');
 
@@ -188,7 +187,12 @@ async function runSegmentation(
   bgRanges: Array<{ sceneId: string; startMs: number; endMs: number }>,
   workDir: string,
 ): Promise<void> {
-  const pythonPath = config.pythonPath || 'python3';
+  // Force system python which has CUDA PyTorch. The scripts/.venv has CPU-only.
+  // Resolve: PYTHON_PATH env > conda env python > bare 'python'
+  const pythonPath = process.env.PYTHON_PATH
+    || (process.env.CONDA_PREFIX ? join(process.env.CONDA_PREFIX, 'python.exe') : null)
+    || 'python';
+  logger.info({ pythonPath, CONDA_PREFIX: process.env.CONDA_PREFIX || 'unset', PYTHON_PATH: process.env.PYTHON_PATH || 'unset' }, 'Resolved python path');
   let expectedFrames = 0;
 
   // Build bg-ranges JSON for the script
@@ -199,6 +203,15 @@ async function runSegmentation(
     output: join(workDir, `bg-${r.sceneId}.png`),
   })));
 
+  // Matte ranges = time ranges that need actual RVM inference (overlay scenes).
+  // Frames outside these ranges get black matte output with no GPU work.
+  const matteRangesArg = JSON.stringify(bgRanges.map(r => ({
+    startMs: r.startMs,
+    endMs: r.endMs,
+  })));
+
+  logger.info({ pythonPath, scriptPath, videoPath, mattePath, scale: '1.0', matteRanges: bgRanges.length }, 'Starting segmentation subprocess');
+
   await runSubprocess({
     command: pythonPath,
     args: [
@@ -206,14 +219,16 @@ async function runSegmentation(
       videoPath,
       '--output', mattePath,
       '--backbone', 'resnet50',
-      '--scale', '1.0',            // full resolution for quality
+      '--scale', '1.0',            // full resolution on GPU
       '--fps', '0',                 // 0 = use source native frame rate
       '--downsample-ratio', '0.8',
       '--bg-ranges', bgRangesArg,
+      '--matte-ranges', matteRangesArg,
     ],
-    timeoutMs: 15 * 60 * 1000,     // 15 min (full video at full res is slower)
+    timeoutMs: 15 * 60 * 1000,     // 15 min — 10 min was too tight (be06b344 killed at 96%)
     name: 'segmentation',
     onStdoutLine: (line) => {
+      logger.info({ name: 'segmentation', line: line.trim() }, 'Python stdout');
       // Parse total frame count from initial log line
       if (!expectedFrames && line.includes('Processing video:')) {
         const totalMatch = line.match(/(\d+) frames/);
@@ -232,6 +247,9 @@ async function runSegmentation(
           publishJobProgress(jobId, progress, `Segmenting: ${processed} frames processed`, { projectId, sceneId });
         }
       }
+    },
+    onStderrLine: (line) => {
+      if (line.trim()) logger.warn({ name: 'segmentation', line: line.trim() }, 'Python stderr');
     },
   });
 }

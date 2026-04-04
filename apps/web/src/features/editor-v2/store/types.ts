@@ -82,6 +82,8 @@ export interface AudioItemData {
   isEnhanced: boolean;
   sourceVideoItemId: string;
   volume: number;
+  startFrom?: number;
+  playbackRate?: number;
   waveformData?: number[];
   enhancementStatus?: 'idle' | 'processing' | 'complete' | 'error';
   enhancementProgress?: number;

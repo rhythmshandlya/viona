@@ -2,7 +2,7 @@ import React from 'react';
 import { MAGAZINE_COLORS, MAGAZINE_FONTS, FONT_SIZES } from './constants';
 
 /**
- * Large serif headline with editorial styling.
+ * Large serif headline with modern editorial styling.
  */
 export function SerifHeadline({
   text,
@@ -19,9 +19,10 @@ export function SerifHeadline({
 }) {
   const rule = showRule ? (
     <div style={{
-      width: '100%', height: 2,
+      width: 48, height: 3,
       background: MAGAZINE_COLORS.accent,
-      marginBottom: 12,
+      marginBottom: 16,
+      borderRadius: 1,
     }} />
   ) : null;
 
@@ -34,18 +35,19 @@ export function SerifHeadline({
           fontSize: size,
           fontWeight: 700,
           color,
-          lineHeight: 1.1,
-          letterSpacing: '-0.02em',
+          lineHeight: 1.08,
+          letterSpacing: '-0.025em',
         }}
       >
         {text}
       </div>
       {showRule && (
         <div style={{
-          width: '100%', height: 1,
+          width: 48, height: 2,
           background: MAGAZINE_COLORS.accent,
-          marginTop: 12,
-          opacity: 0.5,
+          marginTop: 16,
+          borderRadius: 1,
+          opacity: 0.6,
         }} />
       )}
     </div>
@@ -53,7 +55,7 @@ export function SerifHeadline({
 }
 
 /**
- * Byline — "By SOURCE" in small caps.
+ * Byline — "By SOURCE" in clean small caps.
  */
 export function Byline({ source, color = MAGAZINE_COLORS.secondary }: { source: string; color?: string }) {
   return (
@@ -63,7 +65,7 @@ export function Byline({ source, color = MAGAZINE_COLORS.secondary }: { source: 
         fontSize: FONT_SIZES.small,
         fontWeight: 400,
         color,
-        letterSpacing: '0.08em',
+        letterSpacing: '0.1em',
         textTransform: 'uppercase',
       }}
     >
@@ -91,9 +93,8 @@ export function Dateline({
         fontSize: FONT_SIZES.caption,
         fontWeight: 400,
         color,
-        letterSpacing: '0.06em',
+        letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        opacity: 0.7,
       }}
     >
       {date}{location ? ` \u2022 ${location}` : ''}
@@ -102,7 +103,7 @@ export function Dateline({
 }
 
 /**
- * Section label with horizontal rules: ── ANALYSIS ──
+ * Section label with short accent bar: ── ANALYSIS ──
  */
 export function SectionLabel({
   label,
@@ -115,19 +116,19 @@ export function SectionLabel({
     flex: 1,
     height: 1,
     background: color,
-    opacity: 0.5,
+    opacity: 0.35,
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
       <div style={ruleStyle} />
       <span
         style={{
           fontFamily: MAGAZINE_FONTS.accent,
           fontSize: FONT_SIZES.small,
-          fontWeight: 600,
+          fontWeight: 700,
           color,
-          letterSpacing: '0.15em',
+          letterSpacing: '0.18em',
           textTransform: 'uppercase',
           whiteSpace: 'nowrap',
         }}

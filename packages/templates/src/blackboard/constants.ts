@@ -1,18 +1,18 @@
 import { FONTS } from '../fonts';
 
 export const BLACKBOARD_COLORS = {
-  background: '#0a0a14',
-  surface: '#141420',
-  surfaceBorder: '#1e1e30',
-  primary: '#f59e0b',
-  secondary: '#06b6d4',
-  text: '#f1f5f9',
-  textMuted: '#94a3b8',
-  textDim: '#64748b',
+  background: '#09090b',
+  surface: '#18181b',
+  surfaceBorder: '#27272a',
+  primary: '#f97316',
+  secondary: '#3b82f6',
+  text: '#fafafa',
+  textMuted: '#a1a1aa',
+  textDim: '#71717a',
 } as const;
 
 export const BLACKBOARD_FONTS = {
-  heading: FONTS.spaceGrotesk,
+  heading: FONTS.inter,
   body: FONTS.inter,
   mono: FONTS.firaCode,
 } as const;
@@ -26,9 +26,9 @@ export const BLACKBOARD_TIMING = {
 } as const;
 
 export const BLACKBOARD_GLOW = {
-  primary: '0 0 20px rgba(245, 158, 11, 0.4), 0 0 60px rgba(245, 158, 11, 0.15)',
-  secondary: '0 0 20px rgba(6, 182, 212, 0.4), 0 0 60px rgba(6, 182, 212, 0.15)',
-  textPrimary: '0 0 30px rgba(245, 158, 11, 0.3)',
-  textSecondary: '0 0 30px rgba(6, 182, 212, 0.3)',
-  surfaceBorder: '0 0 1px rgba(245, 158, 11, 0.2)',
+  primary: '0 1px 3px rgba(0,0,0,0.4)',
+  secondary: '0 1px 3px rgba(0,0,0,0.4)',
+  textPrimary: 'none',
+  textSecondary: 'none',
+  surfaceBorder: '0 1px 2px rgba(0,0,0,0.3)',
 } as const;

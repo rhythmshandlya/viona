@@ -62,8 +62,8 @@ function findBrowserExecutable(): string | null {
 
 const browserExecutable = findBrowserExecutable();
 
-const CONCURRENCY = parseInt(process.env.RENDER_CONCURRENCY || '2', 10);
-const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '4', 10);
+const CONCURRENCY = parseInt(process.env.RENDER_CONCURRENCY || '1', 10);
+const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '8', 10);
 
 // ---- Clients ----
 

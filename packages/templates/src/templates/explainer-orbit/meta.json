@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-orbit",
+  "name": "Explainer Orbit",
+  "description": "Animated solar-system orbit diagram with concentric rings and continuously orbiting labeled elements",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "orbit", "ecosystem", "solar", "relationships", "diagram"],
+  "stylePreset": "blackboardClean",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

@@ -66,7 +66,7 @@ async function main() {
   });
 
   await fastify.register(rateLimit, {
-    max: 500,
+    max: 5000,
     timeWindow: '1 minute',
   });
 

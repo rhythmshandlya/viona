@@ -19,10 +19,10 @@ Abstract concepts → concrete visual representations. Map every concept to some
 | Counters/stats | Large animated number with Pie ring or Rect bar context |
 | Before/after | Shape morph (Circle→Star), color-shift wipe, split-screen reveal |
 | Head-to-head | Animated split with visual metaphors on each side |
-| Sequences/steps | Circle nodes connected by animated `<line>` connectors |
+| Sequences/steps | Numbered filled circles with solid connector bars between them |
 | Growth/trends | Animated Rect bars, rising geometric elements |
 | Quotes/emphasis | Kinetic typography (word cascade, letter reveal) |
-| Features/lists | Staggered MCP icon + label pairs with line connectors |
+| Features/lists | Staggered MCP icon + label pairs with solid accent bars |
 | Hook/bold claim | Kinetic typography filling the screen, geometric shape reveal |
 | Transformation | Shape morph (@remotion/shapes A → B), scatter/reform |
 | Emotional moment | MCP icon composition, large animated icon, geometric bloom |

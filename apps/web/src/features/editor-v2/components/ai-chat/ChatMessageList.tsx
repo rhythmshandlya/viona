@@ -1,10 +1,9 @@
 'use client';
 
 import React, { memo } from 'react';
-import type { Message, TextBlock, WidgetBlock, PlanBlock, ActiveTask } from './types';
+import type { Message, TextBlock, WidgetBlock, ActiveTask } from './types';
 import { ChatBubble } from './ChatBubble';
 import { WidgetRenderer } from './WidgetRenderer';
-import { AgentPlanWidget } from './AgentPlanWidget';
 import { ActiveTaskList } from './ActiveTaskList';
 
 interface ChatMessageListProps {
@@ -19,7 +18,7 @@ interface ChatMessageListProps {
   onScenesUpdate?: (planJobId: string, scenes: unknown[]) => void | Promise<void>;
 }
 
-/** Group adjacent text blocks into a single string for one bubble. */
+/** Render each content block — each TextBlock gets its own bubble. */
 function renderMessageBlocks(
   msg: Message,
   isLastMessage: boolean,
@@ -30,27 +29,24 @@ function renderMessageBlocks(
   onScenesUpdate?: (planJobId: string, scenes: unknown[]) => void | Promise<void>,
 ) {
   const elements: React.ReactNode[] = [];
-  let textAccum = '';
+  const blocks = msg.content;
 
-  const flushText = (isFinal: boolean) => {
-    if (textAccum.trim()) {
-      elements.push(
-        <ChatBubble
-          key={`text-${elements.length}`}
-          role={msg.role}
-          text={textAccum}
-          isStreaming={isFinal && isLastMessage && isTextActive && msg.role === 'assistant'}
-        />,
-      );
-    }
-    textAccum = '';
-  };
-
-  for (const block of msg.content) {
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
     if (block.type === 'text' && !(block as TextBlock).hidden) {
-      textAccum += (textAccum ? '\n' : '') + (block as TextBlock).text;
+      const text = (block as TextBlock).text;
+      if (text.trim()) {
+        const isLast = i === blocks.length - 1;
+        elements.push(
+          <ChatBubble
+            key={`text-${elements.length}`}
+            role={msg.role}
+            text={text}
+            isStreaming={isLast && isLastMessage && isTextActive && msg.role === 'assistant'}
+          />,
+        );
+      }
     } else if (block.type === 'widget') {
-      flushText(false);
       elements.push(
         <WidgetRenderer
           key={`widget-${(block as WidgetBlock).widget.id}`}
@@ -61,19 +57,11 @@ function renderMessageBlocks(
           disabled={isStreaming}
         />,
       );
-    } else if (block.type === 'plan') {
-      flushText(false);
-      elements.push(
-        <AgentPlanWidget
-          key={`plan-${elements.length}`}
-          plan={(block as PlanBlock).plan}
-        />,
-      );
     }
-    // 'progress' blocks (deprecated) are silently skipped
+    // 'plan' blocks are rendered in the dedicated plan panel above the chat input.
+    // 'progress' blocks (deprecated) are silently skipped.
   }
 
-  flushText(true);
   return elements;
 }
 

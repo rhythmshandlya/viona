@@ -80,6 +80,3 @@ import './templates/explainer-funnel/register';
 import './templates/explainer-venn/register';
 import './templates/explainer-orbit/register';
 import './templates/explainer-matrix/register';
-import './templates/depth-context-shift/register';
-import './templates/depth-evidence-frame/register';
-import './templates/depth-list-build/register';

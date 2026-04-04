@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { TemplateEntry, ThemeDefinition } from '../lib/types';
 import { PaletteSwatches } from './PaletteSwatches';
 import { PlayerWrapper } from './PlayerWrapper';
+import { t } from '../theme';
 
 interface ThemeBrowserProps {
   themes: ThemeDefinition[];
@@ -21,11 +22,11 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
     }
   }, [initialThemeSlug]);
 
-  const selectedTheme = themes.find((t) => t.slug === selectedSlug);
-  const themedTemplates = templates.filter((t) => t.themes.includes(selectedSlug));
+  const selectedTheme = themes.find((th) => th.slug === selectedSlug);
+  const themedTemplates = templates.filter((tpl) => tpl.themes.includes(selectedSlug));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', background: '#0a0a14' }}>
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', background: t.bgPage }}>
       {/* Left sidebar */}
       <div
         style={{
@@ -33,8 +34,8 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
           minWidth: 280,
           height: '100%',
           overflowY: 'auto',
-          background: '#0c0c14',
-          borderRight: '1px solid #1e1e2e',
+          background: t.bgPanel,
+          borderRight: `1px solid ${t.border}`,
         }}
       >
         {themes.map((theme) => (
@@ -44,17 +45,18 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
             style={{
               padding: '12px 16px',
               cursor: 'pointer',
-              background: theme.slug === selectedSlug ? '#8B5CF620' : 'transparent',
-              borderLeft: theme.slug === selectedSlug ? '3px solid #8B5CF6' : '3px solid transparent',
+              background: theme.slug === selectedSlug ? t.accentSoft : 'transparent',
+              borderLeft: theme.slug === selectedSlug ? `3px solid ${t.accent}` : '3px solid transparent',
+              transition: 'background 0.1s',
             }}
           >
-            <div style={{ fontSize: 14, fontWeight: 'bold', color: '#e0e0e0', marginBottom: 4 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.text1, marginBottom: 4 }}>
               {theme.name}
             </div>
             <div
               style={{
                 fontSize: 12,
-                color: '#888',
+                color: t.text2,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -70,25 +72,26 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
       <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
         {selectedTheme ? (
           <>
-            <h2 style={{ fontSize: 20, color: '#e0e0e0', marginTop: 0, marginBottom: 12 }}>
+            <h2 style={{ fontSize: 20, color: t.text1, marginTop: 0, marginBottom: 12 }}>
               {selectedTheme.name}
             </h2>
 
-            <p style={{ fontSize: 14, color: '#999', lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 14, color: t.text2, lineHeight: 1.6, marginBottom: 20 }}>
               {selectedTheme.description}
             </p>
 
             {/* Style guidance */}
             <div
               style={{
-                background: '#1a1a2e',
-                borderLeft: '3px solid #8B5CF6',
+                background: t.bgPanel,
+                borderLeft: `3px solid ${t.accent}`,
                 padding: '12px 16px',
                 fontStyle: 'italic',
-                color: '#aaa',
+                color: t.text2,
                 fontSize: 13,
                 marginBottom: 24,
                 lineHeight: 1.6,
+                borderRadius: '0 6px 6px 0',
               }}
             >
               {selectedTheme.styleGuidance}
@@ -102,7 +105,7 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: '#666',
+                  color: t.text3,
                   marginBottom: 10,
                 }}
               >
@@ -119,7 +122,7 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: '#666',
+                  color: t.text3,
                   marginBottom: 10,
                 }}
               >
@@ -128,8 +131,8 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {Object.entries(selectedTheme.fontRecommendations).map(([key, font]) => (
                   <div key={key} style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                    <span style={{ fontSize: 12, color: '#888', minWidth: 80 }}>{key}</span>
-                    <span style={{ fontSize: 14, color: '#e0e0e0' }}>{font}</span>
+                    <span style={{ fontSize: 12, color: t.text2, minWidth: 80 }}>{key}</span>
+                    <span style={{ fontSize: 14, color: t.text1 }}>{font}</span>
                   </div>
                 ))}
               </div>
@@ -143,7 +146,7 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: '#666',
+                  color: t.text3,
                   marginBottom: 12,
                 }}
               >
@@ -162,14 +165,17 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
                       key={template.id}
                       onClick={() => onSelectTemplate(template.id)}
                       style={{
-                        background: '#12121f',
+                        background: t.bgPanel,
                         borderRadius: 8,
                         overflow: 'hidden',
                         cursor: 'pointer',
-                        border: '1px solid #1e1e2e',
+                        border: `1px solid ${t.border}`,
+                        transition: 'border-color 0.15s',
                       }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = t.accent + '50'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = t.border; }}
                     >
-                      <div style={{ maxWidth: 240 }}>
+                      <div style={{ maxWidth: 240, background: t.bgRaised }}>
                         <PlayerWrapper
                           template={template}
                           props={template.defaultProps}
@@ -177,24 +183,25 @@ export function ThemeBrowser({ themes, templates, initialThemeSlug, onSelectTemp
                           duration={12}
                           maxWidth={240}
                           controls={false}
-                          autoPlay={false}
+                          autoPlay
+                          lazy
                         />
                       </div>
-                      <div style={{ padding: '10px 12px', fontSize: 13, color: '#e0e0e0' }}>
+                      <div style={{ padding: '10px 12px', fontSize: 13, color: t.text1 }}>
                         {template.name}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: '#666', fontStyle: 'italic' }}>
+                <p style={{ fontSize: 13, color: t.text3, fontStyle: 'italic' }}>
                   No templates assigned to this theme yet
                 </p>
               )}
             </div>
           </>
         ) : (
-          <p style={{ color: '#666', fontSize: 14 }}>Select a theme from the sidebar</p>
+          <p style={{ color: t.text3, fontSize: 14 }}>Select a theme from the sidebar</p>
         )}
       </div>
     </div>

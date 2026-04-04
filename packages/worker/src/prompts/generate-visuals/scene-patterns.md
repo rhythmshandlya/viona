@@ -22,7 +22,7 @@ Use these composition templates when the transcript content matches. These are p
 ### 3. Radial Feature Layout
 **When:** Speaker describes a central concept with related features/properties ("X has these benefits", "core principle with...")
 - Central element (larger, accent-bordered) with feature cards arranged around it
-- Cards stagger in one by one with varied spring configs, connected by SVG stroke-draw lines to center
+- Cards stagger in one by one with varied spring configs, connected to center by solid filled accent bars that grow outward
 - Each card has an icon + label (never standalone icons)
 - Cards ACTIVATE at sync points (dim → bright), not orbit
 - Use for: frameworks, architectures, ecosystems, feature sets

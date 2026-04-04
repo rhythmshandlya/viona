@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-definition",
+  "name": "Magazine Word Definition",
+  "description": "Term definition overlay with large word, pronunciation, and editorial definition text for explainer content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "definition", "explainer", "term", "glossary", "educational", "vocabulary"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-tree",
+  "name": "Explainer Tree",
+  "description": "Animated hierarchy tree with growing branches and node reveals",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "tree", "hierarchy", "diagram"],
+  "stylePreset": "blackboardClean",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

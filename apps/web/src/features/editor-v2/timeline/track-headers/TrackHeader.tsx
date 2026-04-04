@@ -61,11 +61,12 @@ export function TrackHeader({ track }: TrackHeaderProps) {
     return (videoItem.data as VideoItemData).segmentation;
   });
 
-  const allTracks = useEditorStore((state) => state.trackIds.map(id => state.tracks[id]).filter(Boolean));
+  const displayName = useEditorStore((state) => {
+    return getTrackDisplayName(track, state.tracks);
+  });
 
   const Icon = TRACK_ICONS[track.type] || Type;
   const nameColor: string | undefined = undefined;
-  const displayName = getTrackDisplayName(track, allTracks);
 
   const handleDoubleClick = () => {
     setIsEditing(true);

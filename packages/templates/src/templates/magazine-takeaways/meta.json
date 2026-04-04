@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-takeaways",
+  "name": "Magazine Key Takeaways",
+  "description": "Key takeaways summary card with numbered bullet points for end-of-video recap content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "takeaways", "summary", "recap", "bullets", "key-points"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

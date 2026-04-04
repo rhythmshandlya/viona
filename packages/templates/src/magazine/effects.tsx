@@ -10,10 +10,11 @@ type Edge = 'top' | 'bottom' | 'left' | 'right';
 
 /**
  * Generates a CSS polygon clip-path with torn (jagged) edges.
+ * Modern version: much less roughness for a cleaner tear.
  * Uses Remotion's deterministic `random()` for reproducible results.
  *
  * @param edges Which edges to tear (untorn edges are straight)
- * @param roughness 0-1, controls max offset of torn points (in px: roughness * 15)
+ * @param roughness 0-1, controls max offset of torn points (in px: roughness * 8)
  * @param seed Deterministic seed for random()
  * @param width Container width in px (explicit — no DOM measurement)
  * @param height Container height in px (explicit — no DOM measurement)
@@ -26,7 +27,7 @@ export function generateTornClipPath(
   height: number,
 ): string {
   const pointsPerEdge = 20;
-  const maxOffset = roughness * 15;
+  const maxOffset = roughness * 8;
   const tornSet = new Set(edges);
   const points: string[] = [];
 
@@ -76,7 +77,7 @@ export function generateTornClipPath(
  */
 export function TornEdge({
   edges = ['top', 'bottom'],
-  roughness = 0.6,
+  roughness = 0.3,
   seed = 42,
   width = 1080,
   height = 1920,
@@ -104,12 +105,12 @@ export function TornEdge({
 // ── FoldShadow ──────────────────────────────────────────────────────────────
 
 /**
- * CSS gradient simulating a paper fold crease shadow.
+ * CSS gradient simulating a subtle paper fold crease shadow.
  */
 export function FoldShadow({
   angle = 90,
   position = 0.5,
-  depth = 0.3,
+  depth = 0.12,
 }: {
   angle?: number;
   position?: number;
@@ -132,11 +133,11 @@ export function FoldShadow({
 // ── BurnEdge ────────────────────────────────────────────────────────────────
 
 /**
- * Dark vignette with irregular edge for an aged/burned paper look.
+ * Subtle edge vignette — modern, clean version (no charring/burning).
  * @param seed Deterministic seed for unique SVG filter ID (required for SSR)
  */
 export function BurnEdge({
-  intensity = 0.4,
+  intensity = 0.15,
   opacity = 1,
   seed = 'burn',
 }: {
@@ -150,19 +151,9 @@ export function BurnEdge({
     <AbsoluteFill style={{ pointerEvents: 'none', opacity }}>
       <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
         <defs>
-          <filter id={filterId}>
-            <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves={3} />
-            <feColorMatrix type="matrix"
-              values={`0 0 0 0 0
-                       0 0 0 0 0
-                       0 0 0 0 0
-                       0 0 0 ${intensity} 0`}
-            />
-            <feComposite in2="SourceGraphic" operator="in" />
-          </filter>
-          <radialGradient id={`${filterId}-grad`} cx="50%" cy="50%" r="50%">
-            <stop offset="60%" stopColor="transparent" />
-            <stop offset="100%" stopColor={`rgba(30,15,5,${intensity})`} />
+          <radialGradient id={`${filterId}-grad`} cx="50%" cy="50%" r="55%">
+            <stop offset="70%" stopColor="transparent" />
+            <stop offset="100%" stopColor={`rgba(15,23,42,${intensity})`} />
           </radialGradient>
         </defs>
         <rect width="100%" height="100%" fill={`url(#${filterId}-grad)`} />
@@ -174,7 +165,7 @@ export function BurnEdge({
 // ── InkBleed ────────────────────────────────────────────────────────────────
 
 /**
- * SVG filter definition for ink absorption/bleed effect on text.
+ * SVG filter definition for crisp text rendering with minimal bleed.
  * Renders an invisible <svg> with the filter. Apply via style={{ filter: `url(#${id})` }}.
  * Returns the filter ID string.
  */
@@ -183,13 +174,13 @@ export function InkBleedFilter({ id }: { id: string }) {
     <svg width="0" height="0" style={{ position: 'absolute' }}>
       <defs>
         <filter id={id}>
-          <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.2" />
           <feColorMatrix
             type="matrix"
             values="1 0 0 0 0
                     0 1 0 0 0
                     0 0 1 0 0
-                    0 0 0 1.8 -0.3"
+                    0 0 0 1.4 -0.15"
           />
         </filter>
       </defs>

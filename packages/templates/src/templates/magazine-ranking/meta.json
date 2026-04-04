@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-ranking",
+  "name": "Magazine Top List",
+  "description": "Numbered ranked list with large rank numbers on torn paper strips, ideal for Top 5 and listicle content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "ranking", "list", "top5", "listicle", "numbered", "top-list"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-trivia",
+  "name": "Magazine Quiz Card",
+  "description": "Question card with dramatic pause and answer reveal for quiz and engagement content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "trivia", "quiz", "question", "answer", "engagement"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

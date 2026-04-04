@@ -46,7 +46,7 @@ const S3_ENDPOINT = process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || 'lo
 const S3_PORT = parseInt(process.env.S3_PORT || process.env.MINIO_PORT || '9000', 10);
 const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || process.env.MINIO_ACCESS_KEY || 'minioadmin';
 const S3_SECRET_KEY = process.env.S3_SECRET_KEY || process.env.MINIO_SECRET_KEY || 'minioadmin';
-const S3_BUCKET = process.env.S3_BUCKET || process.env.MINIO_BUCKET_UPLOADS || 'viona';
+const S3_BUCKET = process.env.S3_BUCKET || process.env.MINIO_BUCKET || 'viona';
 const S3_USE_SSL = (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true';
 const DATABASE_URL =
   process.env.DATABASE_URL ||
@@ -169,29 +169,74 @@ async function uploadTemplate(
     }
   }
 
-  // ── 2b. Upload shared magazine library files (if template uses them) ─
-  const magazineDir = join(SRC_DIR, 'magazine');
-  if (existsSync(magazineDir)) {
-    const sourceFiles2 = existsSync(sourceDir) ? getAllFiles(sourceDir) : [];
-    const usesMagazine = sourceFiles2.some(fp => {
-      const content = readFileSync(fp, 'utf-8');
-      return /from\s+['"](?:\.\.\/){2,}magazine\//.test(content);
-    });
+  // ── 2b. Detect which shared modules this template uses ──────────────
+  const sourceFilesAll = existsSync(sourceDir) ? getAllFiles(sourceDir) : [];
+  const allSourceContent = sourceFilesAll
+    .filter(fp => /\.(ts|tsx)$/.test(fp))
+    .map(fp => readFileSync(fp, 'utf-8'));
 
-    if (usesMagazine) {
-      const magazineFiles = getAllFiles(magazineDir);
-      console.log(`  Uploading ${magazineFiles.length} shared magazine library files...`);
-      for (const filePath of magazineFiles) {
-        const relativePath = filePath.substring(magazineDir.length + 1);
-        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/magazine/${relativePath}`);
+  const usesMagazine = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}magazine\//.test(c));
+  const usesBlackboard = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}blackboard\//.test(c));
+  const usesFonts = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}fonts['"]/.test(c));
+  const usesScale = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}use-scale['"]/.test(c));
+  const usesLib = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}lib\//.test(c));
+
+  // ── 2c. Upload shared magazine library (if used) ──────────────────
+  const magazineDir = join(SRC_DIR, 'magazine');
+  if (usesMagazine && existsSync(magazineDir)) {
+    const magazineFiles = getAllFiles(magazineDir);
+    console.log(`  Uploading ${magazineFiles.length} shared magazine library files...`);
+    for (const filePath of magazineFiles) {
+      const relativePath = filePath.substring(magazineDir.length + 1);
+      const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/magazine/${relativePath}`);
+      const contentType = getContentType(filePath);
+      await uploadFileToS3(client, filePath, s3Key, contentType);
+    }
+  }
+
+  // ── 2d. Upload shared blackboard library (if used) ────────────────
+  const blackboardDir = join(SRC_DIR, 'blackboard');
+  if (usesBlackboard && existsSync(blackboardDir)) {
+    const blackboardFiles = getAllFiles(blackboardDir);
+    console.log(`  Uploading ${blackboardFiles.length} shared blackboard library files...`);
+    for (const filePath of blackboardFiles) {
+      const relativePath = filePath.substring(blackboardDir.length + 1);
+      const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/blackboard/${relativePath}`);
+      const contentType = getContentType(filePath);
+      await uploadFileToS3(client, filePath, s3Key, contentType);
+    }
+  }
+
+  // ── 2e. Upload shared root files (fonts.ts, use-scale.ts) ─────────
+  // These are uploaded when ANY template needs them, not just magazine/blackboard
+  if (usesFonts || usesMagazine || usesBlackboard) {
+    const fontsPath = join(SRC_DIR, 'fonts.ts');
+    if (existsSync(fontsPath)) {
+      const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/fonts.ts`);
+      await uploadFileToS3(client, fontsPath, s3Key, 'text/typescript');
+    }
+  }
+
+  if (usesScale) {
+    const scalePath = join(SRC_DIR, 'use-scale.ts');
+    if (existsSync(scalePath)) {
+      console.log(`  Uploading use-scale.ts...`);
+      const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/use-scale.ts`);
+      await uploadFileToS3(client, scalePath, s3Key, 'text/typescript');
+    }
+  }
+
+  // ── 2f. Upload shared lib/ directory (if used, e.g. lib/map/) ─────
+  if (usesLib) {
+    const libDir = join(SRC_DIR, 'lib');
+    if (existsSync(libDir)) {
+      const libFiles = getAllFiles(libDir);
+      console.log(`  Uploading ${libFiles.length} shared lib/ files...`);
+      for (const filePath of libFiles) {
+        const relativePath = filePath.substring(libDir.length + 1);
+        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/lib/${relativePath}`);
         const contentType = getContentType(filePath);
         await uploadFileToS3(client, filePath, s3Key, contentType);
-      }
-      // Also upload fonts.ts (magazine library depends on it)
-      const fontsPath = join(SRC_DIR, 'fonts.ts');
-      if (existsSync(fontsPath)) {
-        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/fonts.ts`);
-        await uploadFileToS3(client, fontsPath, s3Key, 'text/typescript');
       }
     }
   }
@@ -246,13 +291,15 @@ async function upsertTemplate(
   const width = (compositionMeta.width as number) || 1920;
   const height = (compositionMeta.height as number) || 1080;
 
+  const dependencies = (entry.meta as any).dependencies || null;
+
   const sql = `
     INSERT INTO templates (
       slug, name, description, category, tags, aspect_ratio,
       duration_frames, fps, width, height, props_schema, default_props,
-      screenshot_url, bundle_key, source_key, type, version, is_published
+      screenshot_url, bundle_key, source_key, type, dependencies, version, is_published
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 1, true)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 1, true)
     ON CONFLICT (slug) DO UPDATE SET
       name = EXCLUDED.name,
       description = EXCLUDED.description,
@@ -264,6 +311,7 @@ async function upsertTemplate(
       bundle_key = EXCLUDED.bundle_key,
       source_key = EXCLUDED.source_key,
       type = EXCLUDED.type,
+      dependencies = EXCLUDED.dependencies,
       version = templates.version + 1,
       updated_at = NOW()
   `;
@@ -285,6 +333,7 @@ async function upsertTemplate(
     bundleKey,
     sourceKey,
     (entry.meta.type as string) || 'scene',
+    dependencies ? JSON.stringify(dependencies) : null,
   ];
 
   await dbClient.query(sql, values);
@@ -382,6 +431,21 @@ async function main() {
         entry,
       );
       console.log(`  S3 upload complete.`);
+
+      // Verify source files actually landed in the bucket
+      const verifyPrefix = `${S3_PREFIX}${sourceKey}`;
+      let verifyCount = 0;
+      const verifyStream = minioClient.listObjects(S3_BUCKET, verifyPrefix, true);
+      for await (const _obj of verifyStream) {
+        verifyCount++;
+      }
+      if (verifyCount === 0) {
+        throw new Error(
+          `Post-upload verification failed: 0 objects at prefix "${verifyPrefix}" in bucket "${S3_BUCKET}". ` +
+          `Check that S3_BUCKET is correct (currently: ${S3_BUCKET}).`,
+        );
+      }
+      console.log(`  Verified: ${verifyCount} source files in ${S3_BUCKET}/${verifyPrefix}`);
 
       // Upsert to DB
       await upsertTemplate(dbClient, entry, bundleKey, sourceKey);

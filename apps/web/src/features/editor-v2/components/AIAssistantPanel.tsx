@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Sparkles, Loader2, RotateCcw, RefreshCw,
-  Target, Box, Layers,
+  Target, Box, Layers, ListChecks, ChevronDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
@@ -25,7 +25,8 @@ import { useActiveTasks } from '../hooks/use-progress';
 import { ChatMessageList } from './ai-chat/ChatMessageList';
 import { ChatInput } from './ai-chat/ChatInput';
 import type { ChatInputHandle, ContextChip, AttachmentChip } from './ai-chat/ChatInput';
-import type { Message, MessageBlock, WidgetBlock, PlanBlock, ProgressState, ActiveTask } from './ai-chat/types';
+import type { Message, MessageBlock, WidgetBlock, PlanBlock, ProgressState, ActiveTask, AgentPlan } from './ai-chat/types';
+import { AgentPlanView } from '@/components/ui/agent-plan';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -154,6 +155,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const [lastError, setLastError] = useState<string | null>(null);
   const [showTypingDot, setShowTypingDot] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<AgentPlan | null>(null);
+  const [planExpanded, setPlanExpanded] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(`viona:activeJobId:${projectId}`) || null; }
     catch { return null; }
@@ -171,6 +174,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const lastTextTimeRef = useRef(Date.now());
   const receivedDoneRef = useRef(false);
   const lastTextDedupRef = useRef<{ text: string; time: number }>({ text: '', time: 0 });
+  // When true, the next text chunk starts a new TextBlock (separate chat bubble)
+  const textBoundaryRef = useRef(false);
 
   // -- Hooks ---------------------------------------------------------------
   const activityState = useActivity();
@@ -182,6 +187,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const selectedTimeRange = useSelectedTimeRange();
   const aiEditRequested = useAIEditRequested();
   const pendingAIMessage = usePendingAIMessage();
+  const sandboxStatus = useEditorStore((s) => s.sandboxStatus);
   const { reloadVisuals, loadProject } = useProjectActions();
   const { setSelectedScene, setSelectedElement, setSelectedTimeRange, setPendingAIMessage } = useAIActions();
   const { clearSelection } = useTimelineActions();
@@ -412,11 +418,24 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           // Restore plan from Redis if available
           const sandboxPlan = data.sandboxPlan;
           if (sandboxPlan) {
+            setCurrentPlan(sandboxPlan as AgentPlan);
+          }
+          // Restore widget from Redis if available (survives SSE disconnect)
+          const sandboxWidget = (data as any).sandboxWidget;
+          if (sandboxWidget) {
             const lastAssistant = [...loaded].reverse().find(m => m.role === 'assistant');
-            if (lastAssistant && !lastAssistant.content.some(b => b.type === 'plan')) {
-              lastAssistant.content = [...lastAssistant.content, { type: 'plan', plan: sandboxPlan as any } as PlanBlock];
+            if (lastAssistant && !lastAssistant.content.some(b => b.type === 'widget')) {
+              lastAssistant.content = [...lastAssistant.content, { type: 'widget', widget: sandboxWidget as any }];
             }
           }
+          // Extract plan blocks from messages into dedicated state and strip from message content
+          let restoredPlan: AgentPlan | null = null;
+          for (const m of loaded) {
+            const planBlock = m.content.find(b => b.type === 'plan') as PlanBlock | undefined;
+            if (planBlock) restoredPlan = planBlock.plan;
+            m.content = m.content.filter(b => b.type !== 'plan');
+          }
+          if (restoredPlan) setCurrentPlan(restoredPlan);
           loaded = loaded.filter((m) => m.content.length > 0 || m.role !== 'assistant');
           setMessages(loaded);
         }
@@ -480,6 +499,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               const loaded: Message[] = data.messages.map((m) => ({
                 id: m.id, role: m.role, content: normalizeContent(m.content), createdAt: m.createdAt,
               }));
+              // Restore widget from Redis (lost during SSE disconnect)
+              const sandboxWidget = (data as any).sandboxWidget;
+              if (sandboxWidget) {
+                const lastAssistant = [...loaded].reverse().find(m => m.role === 'assistant');
+                if (lastAssistant && !lastAssistant.content.some(b => b.type === 'widget')) {
+                  lastAssistant.content = [...lastAssistant.content, { type: 'widget', widget: sandboxWidget as any }];
+                }
+              }
+              // Restore plan from Redis
+              const sandboxPlan = (data as any).sandboxPlan;
+              if (sandboxPlan) {
+                setCurrentPlan(sandboxPlan as AgentPlan);
+              }
               setMessages(loaded);
               if (data.conversationId) setConversationId(data.conversationId);
             }
@@ -509,6 +541,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         case 'task_started': {
           const taskData = data as ActiveTask;
           activeTasksState.onTaskStarted(taskData);
+          textBoundaryRef.current = true;
           return;
         }
         case 'task_updated': {
@@ -519,6 +552,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         case 'task_completed': {
           const completeData = data as { id: string };
           activeTasksState.onTaskCompleted(completeData.id);
+          textBoundaryRef.current = true;
           return;
         }
         case 'activity':
@@ -552,6 +586,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         }
       }
 
+      // agent_plan is handled outside of setMessages — update dedicated state
+      if (eventType === 'agent_plan') {
+        const planData = data as AgentPlan;
+        setCurrentPlan(planData);
+        setPlanExpanded(true);
+        return;
+      }
+
       // Content-modifying events
       setMessages((prev) =>
         prev.map((m) => {
@@ -560,7 +602,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
           switch (eventType) {
             case 'reset':
-              // Clear text and plan blocks, keep widgets
+              // Clear text blocks, keep widgets
               return { ...m, content: blocks.filter(b => b.type === 'widget') };
 
             case 'text': {
@@ -578,8 +620,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 lastTextDedupRef.current = { text: chunk, time: now };
               }
 
+              // If a boundary was set (subagent dispatched/completed, phase change),
+              // force a new TextBlock so it renders as a separate chat bubble.
+              const forceNew = textBoundaryRef.current;
+              if (forceNew) textBoundaryRef.current = false;
+
               const last = blocks[blocks.length - 1];
-              if (last && last.type === 'text') {
+              if (last && last.type === 'text' && !forceNew) {
                 blocks[blocks.length - 1] = { ...last, text: last.text + chunk };
               } else {
                 blocks.push({ type: 'text', text: chunk });
@@ -590,19 +637,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             case 'widget': {
               const widgetData = data as WidgetBlock['widget'];
               blocks.push({ type: 'widget', widget: widgetData });
-              break;
-            }
-
-            case 'agent_plan': {
-              // Merge-not-append: replace existing plan block or add new one
-              const planData = data as { title: string; tasks: any[] };
-              const planBlock: PlanBlock = { type: 'plan', plan: planData };
-              const existingIdx = blocks.findIndex(b => b.type === 'plan');
-              if (existingIdx >= 0) {
-                blocks[existingIdx] = planBlock;
-              } else {
-                blocks.push(planBlock);
-              }
               break;
             }
 
@@ -678,6 +712,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: [], createdAt: new Date().toISOString() }]);
       setIsStreaming(true);
       lastTextDedupRef.current = { text: '', time: 0 }; // Reset dedup for new message
+      textBoundaryRef.current = false; // Reset boundary for new message
 
       const effectiveTimeRange = snapshotContext?.selectedTimeRange ?? selectedTimeRange;
 
@@ -1172,7 +1207,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
   const canSend = input.trim().length > 0 || attachmentFiles.length > 0;
 
-  const inputPlaceholder = isStreaming
+  const sandboxReady = sandboxStatus === 'ready';
+
+  const inputPlaceholder = !sandboxReady
+    ? 'Waiting for sandbox to start...'
+    : isStreaming
     ? 'Type to queue another message...'
     : sceneTags.length > 0
       ? `Describe changes to ${sceneTags.map((t) => `Scene ${t.sceneIndex}`).join(', ')}...`
@@ -1325,6 +1364,54 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         onChange={handleAttachmentSelect}
       />
 
+      {/* Toggleable plan panel above chat input */}
+      {currentPlan && (
+        <div className="mx-2 mb-2">
+          <button
+            onClick={() => setPlanExpanded(prev => !prev)}
+            className="flex items-center justify-between w-full px-3 py-2 text-xs rounded-xl backdrop-blur-2xl border transition-all duration-200 hover:border-[var(--editor-accent)]/30"
+            style={{
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.06) 0%, rgba(139, 92, 246, 0.02) 100%)',
+              borderColor: 'rgba(139, 92, 246, 0.12)',
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <span
+                className="flex items-center justify-center w-5 h-5 rounded-md"
+                style={{ background: 'rgba(139, 92, 246, 0.12)' }}
+              >
+                <ListChecks className="w-3 h-3 text-[var(--editor-accent)]" />
+              </span>
+              <span className="text-[var(--editor-text-primary)] font-medium truncate max-w-[180px]">{currentPlan.title}</span>
+              <span
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                style={{
+                  background: 'rgba(139, 92, 246, 0.1)',
+                  color: 'var(--editor-accent)',
+                }}
+              >
+                {currentPlan.tasks.filter(t => t.status === 'complete').length}/{currentPlan.tasks.length}
+              </span>
+            </span>
+            <ChevronDown
+              className="w-3.5 h-3.5 text-[var(--editor-accent)] transition-transform duration-200"
+              style={{ transform: planExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            />
+          </button>
+          {planExpanded && (
+            <div
+              className="mt-1 max-h-[300px] overflow-y-auto rounded-xl backdrop-blur-2xl border p-2"
+              style={{
+                background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.04) 0%, rgba(139, 92, 246, 0.01) 100%)',
+                borderColor: 'rgba(139, 92, 246, 0.08)',
+              }}
+            >
+              <AgentPlanView plan={currentPlan} className="!bg-transparent !border-0 !backdrop-blur-none" />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Input area */}
       <ChatInput
         ref={chatInputRef}
@@ -1341,6 +1428,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         queueSize={queueSize}
         onClearQueue={handleClearQueue}
         canSend={canSend}
+        disabled={!sandboxReady}
       />
     </div>
   );

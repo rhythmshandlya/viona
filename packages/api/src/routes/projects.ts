@@ -206,34 +206,25 @@ export async function projectRoutes(fastify: FastifyInstance) {
       where: eq(transcripts.projectId, id),
     });
 
-    // Generate presigned URL for video playback (valid for 8 hours)
-    // This allows the frontend to load video without cookies for cross-origin requests
+    // Generate presigned URLs for video/audio playback (valid for 8 hours).
+    // These let the browser download directly from MinIO/S3, bypassing the
+    // Next.js → API → MinIO proxy chain for dramatically faster loading.
     const PRESIGNED_TTL = 28800; // 8 hours — covers a full editing session
     let videoPresignedUrl: string | null = null;
     if (project.videoKey) {
       try {
-        fastify.log.info({ videoKey: project.videoKey }, 'Checking if video exists for presigned URL');
-        const exists = await objectExists('uploads', project.videoKey);
-        fastify.log.info({ videoKey: project.videoKey, exists }, 'Video exists check result');
-        if (exists) {
-          videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, PRESIGNED_TTL);
-          fastify.log.info({ videoKey: project.videoKey, urlGenerated: !!videoPresignedUrl, videoPresignedUrl }, 'Presigned URL generated');
-        }
+        // presignedGetObject doesn't require the object to exist — it just signs the URL.
+        // If the object is missing, the browser gets a 404 from MinIO directly.
+        videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, PRESIGNED_TTL);
       } catch (err) {
         fastify.log.warn({ err, videoKey: project.videoKey }, 'Failed to generate presigned URL for video');
       }
-    } else {
-      fastify.log.info({ projectId: id }, 'No videoKey for project, skipping presigned URL');
     }
 
-    // Generate presigned URL for audio playback (audio projects)
     let audioPresignedUrl: string | null = null;
     if (project.audioKey) {
       try {
-        const exists = await objectExists('uploads', project.audioKey);
-        if (exists) {
-          audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, PRESIGNED_TTL);
-        }
+        audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, PRESIGNED_TTL);
       } catch (err) {
         fastify.log.warn({ err, audioKey: project.audioKey }, 'Failed to generate presigned URL for audio');
       }
@@ -334,14 +325,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'No video uploaded' });
     }
 
-    // Check if video exists
-    const exists = await objectExists('uploads', project.videoKey);
-    if (!exists) {
-      return reply.status(404).send({ error: 'Video not found in storage' });
-    }
-
     try {
       // Get object metadata for content-type and size
+      // (also serves as an existence check — throws if object is missing)
       const stat = await getObjectStat('uploads', project.videoKey);
 
       // Determine content type from file extension
@@ -353,13 +339,18 @@ export async function projectRoutes(fastify: FastifyInstance) {
       };
       const contentType = contentTypes[ext || ''] || 'application/octet-stream';
 
-      // Handle range requests for video seeking
+      // Handle range requests for video seeking.
+      // Let the browser choose its own chunk sizes — it manages buffer levels
+      // natively and requests optimal ranges. Capping to small chunks just
+      // adds unnecessary round-trips.
       const range = request.headers.range;
 
       if (range) {
         const parts = range.replace(/bytes=/, '').split('-');
         const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const end = parts[1]
+          ? parseInt(parts[1], 10)
+          : stat.size - 1;
         const chunkSize = end - start + 1;
 
         const stream = await getPartialObjectStream(
@@ -374,8 +365,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
         reply.header('Accept-Ranges', 'bytes');
         reply.header('Content-Length', chunkSize);
         reply.header('Content-Type', contentType);
-        // Cache video chunks for the session — avoids re-fetching on seeks
-        reply.header('Cache-Control', 'private, max-age=3600, immutable');
+        // Cache video chunks — content is immutable (same videoKey = same file)
+        reply.header('Cache-Control', 'private, max-age=86400, immutable');
 
         return reply.send(stream);
       }
@@ -386,11 +377,15 @@ export async function projectRoutes(fastify: FastifyInstance) {
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
       reply.header('Accept-Ranges', 'bytes');
-      // Cache video for the session
-      reply.header('Cache-Control', 'private, max-age=3600, immutable');
+      // Cache video — content is immutable (same videoKey = same file)
+      reply.header('Cache-Control', 'private, max-age=86400, immutable');
 
       return reply.send(stream);
-    } catch (err) {
+    } catch (err: any) {
+      // statObject throws if not found — return 404 instead of 500
+      if (err?.code === 'NotFound' || err?.message?.includes('Not Found')) {
+        return reply.status(404).send({ error: 'Video not found in storage' });
+      }
       fastify.log.error(err, 'Failed to stream video');
       return reply.status(500).send({ error: 'Failed to stream video' });
     }
@@ -416,12 +411,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'No audio uploaded' });
     }
 
-    const exists = await objectExists('uploads', project.audioKey);
-    if (!exists) {
-      return reply.status(404).send({ error: 'Audio not found in storage' });
-    }
-
     try {
+      // statObject doubles as existence check — throws if missing
       const stat = await getObjectStat('uploads', project.audioKey);
       const ext = project.audioKey.split('.').pop()?.toLowerCase();
       const contentTypes: Record<string, string> = {
@@ -437,7 +428,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       if (range) {
         const parts = range.replace(/bytes=/, '').split('-');
         const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const end = parts[1]
+          ? parseInt(parts[1], 10)
+          : stat.size - 1;
         const chunkSize = end - start + 1;
 
         const stream = await getPartialObjectStream('uploads', project.audioKey, start, chunkSize);
@@ -446,6 +439,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         reply.header('Accept-Ranges', 'bytes');
         reply.header('Content-Length', chunkSize);
         reply.header('Content-Type', contentType);
+        reply.header('Cache-Control', 'private, max-age=86400, immutable');
         return reply.send(stream);
       }
 
@@ -453,8 +447,12 @@ export async function projectRoutes(fastify: FastifyInstance) {
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
       reply.header('Accept-Ranges', 'bytes');
+      reply.header('Cache-Control', 'private, max-age=86400, immutable');
       return reply.send(stream);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === 'NotFound' || err?.message?.includes('Not Found')) {
+        return reply.status(404).send({ error: 'Audio not found in storage' });
+      }
       fastify.log.error(err, 'Failed to stream audio');
       return reply.status(500).send({ error: 'Failed to stream audio' });
     }
@@ -1716,13 +1714,15 @@ export async function projectRoutes(fastify: FastifyInstance) {
     };
     const contentType = contentTypes[ext || ''] || 'application/octet-stream';
 
-    // Handle Range requests for media seeking/switching
+    // Handle Range requests — let browser choose chunk sizes
     const rangeHeader = request.headers.range;
     if (rangeHeader) {
       const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
       if (match) {
         const start = parseInt(match[1], 10);
-        const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+        const end = match[2]
+          ? parseInt(match[2], 10)
+          : totalSize - 1;
         const chunkSize = end - start + 1;
 
         const stream = await getPartialObjectStream(storagePrefix, key, start, chunkSize);
@@ -1731,6 +1731,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         reply.header('Content-Length', chunkSize);
         reply.header('Content-Range', `bytes ${start}-${end}/${totalSize}`);
         reply.header('Accept-Ranges', 'bytes');
+        reply.header('Cache-Control', 'private, max-age=86400, immutable');
         return reply.send(stream);
       }
     }
@@ -1740,6 +1741,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     reply.header('Content-Type', contentType);
     reply.header('Content-Length', totalSize);
     reply.header('Accept-Ranges', 'bytes');
+    reply.header('Cache-Control', 'private, max-age=86400, immutable');
     return reply.send(stream);
   });
 

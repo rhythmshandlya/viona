@@ -1,12 +1,23 @@
 import { execFile } from 'child_process';
 import { readFile } from 'fs/promises';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
-const WORKSPACE = '/workspace';
+const WORKSPACE = process.env.WORKSPACE_DIR || '/workspace';
 const MANIFEST_PATH = join(WORKSPACE, 'manifest.json');
+
+/** Write render-props.json with manifest for --props flag (bypasses broken calculateMetadata). */
+function writeRenderProps(): string {
+  const propsPath = join(WORKSPACE, '.build', 'render-props.json');
+  mkdirSync(join(WORKSPACE, '.build'), { recursive: true });
+  const manifestRaw = readFileSync(MANIFEST_PATH, 'utf-8');
+  const manifest = JSON.parse(manifestRaw);
+  writeFileSync(propsPath, JSON.stringify({ manifest }));
+  return propsPath;
+}
 
 interface SceneRenderResult {
   sceneFile: string;
@@ -39,6 +50,7 @@ export const validateWorkspaceTool = {
     required: [] as string[],
   },
   async execute(input: { renderFrame?: number }): Promise<string> {
+    const isLinux = process.platform === 'linux';
     const result: ValidationResult = {
       tsc: { pass: false },
       render: { pass: false },
@@ -86,6 +98,9 @@ export const validateWorkspaceTool = {
       const sceneResults: SceneRenderResult[] = [];
       let allScenesPassed = true;
 
+      // Write props file once for all renders (bypasses broken calculateMetadata)
+      const propsPath = writeRenderProps();
+
       for (const { frame, sceneFile } of framesToRender) {
         try {
           const outputPath = join(WORKSPACE, '.build', `validate-still-${frame}.png`);
@@ -95,8 +110,10 @@ export const validateWorkspaceTool = {
             'MainComposition',
             outputPath,
             `--frame=${frame}`,
+            `--props=${propsPath}`,
+            ...(isLinux ? ['--gl=swangle'] : []),
           ], {
-            timeout: 60_000,
+            timeout: 90_000,
             cwd: WORKSPACE,
           });
           sceneResults.push({ sceneFile, frame, pass: true });
@@ -115,14 +132,19 @@ export const validateWorkspaceTool = {
       const frame = input.renderFrame ?? 10;
       try {
         const outputPath = join(WORKSPACE, '.build', `validate-still-${frame}.png`);
+        // Try to write props file; if manifest is unreadable, render without props
+        let extraArgs: string[] = [];
+        try { extraArgs = [`--props=${writeRenderProps()}`]; } catch {}
         await execFileAsync('npx', [
           'remotion', 'still',
           'src/Root.tsx',
           'MainComposition',
           outputPath,
           `--frame=${frame}`,
+          ...extraArgs,
+          ...(isLinux ? ['--gl=swangle'] : []),
         ], {
-          timeout: 60_000,
+          timeout: 90_000,
           cwd: WORKSPACE,
         });
         result.render = { pass: true };

@@ -54,6 +54,7 @@ export const VideoItem: React.FC<VideoItemProps> = React.memo(({
             objectPosition: `${crop.x}% ${crop.y}%`,
             transform: `scale(${crop.scale})`,
           }}
+          crossOrigin="anonymous"
         />
       </div>
     );
@@ -67,6 +68,7 @@ export const VideoItem: React.FC<VideoItemProps> = React.memo(({
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}
       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      crossOrigin="anonymous"
     />
   );
 });

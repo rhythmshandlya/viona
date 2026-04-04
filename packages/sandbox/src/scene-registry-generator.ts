@@ -12,7 +12,8 @@ export async function generateSceneRegistry(): Promise<void> {
 
   try {
     const entries = await readdir(SCENES_DIR);
-    sceneFiles = entries.filter(f => f.endsWith('.tsx') || f.endsWith('.ts'));
+    // Pick up Scene*.tsx files (SceneN.tsx, SceneNBehind.tsx, SceneNFront.tsx)
+    sceneFiles = entries.filter(f => /^Scene\d+\w*\.tsx$/.test(f));
   } catch {
     // No scenes dir yet — generate empty registry
   }

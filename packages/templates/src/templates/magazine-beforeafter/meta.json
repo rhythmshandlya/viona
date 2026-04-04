@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-beforeafter",
+  "name": "Magazine Before & After",
+  "description": "Split before/after layout with directional entrances and arrow transition, ideal for transformation content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "before", "after", "transformation", "comparison", "change"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

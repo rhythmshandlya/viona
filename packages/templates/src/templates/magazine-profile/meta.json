@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-profile",
+  "name": "Magazine Bio Card",
+  "description": "Person bio card with circular avatar placeholder, name, title, and key details for profile introductions",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "profile", "bio", "person", "expert", "introduction"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

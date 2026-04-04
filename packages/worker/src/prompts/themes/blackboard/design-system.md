@@ -93,13 +93,13 @@ const BoardTexture: React.FC<{ s: (px: number) => number }> = ({ s }) => (
 ```tsx
 {
   background: '#18181b',
-  border: '1px solid #27272a',
-  borderTop: '1px solid rgba(255,255,255,0.05)',
   borderRadius: s(16),
   padding: `${s(32)}px ${s(40)}px`,
-  boxShadow: `0 0 ${s(20)}px rgba(245,158,11,0.1)`,
+  boxShadow: `0 0 ${s(20)}px rgba(245,158,11,0.1), 0 ${s(8)}px ${s(32)}px rgba(0,0,0,0.4)`,
 }
 ```
+
+**Do NOT use thin borders (`1px solid`).** Use `boxShadow` for edge definition and depth — not outlines. Professional motion graphics use filled surfaces with shadow/glow for depth, not wireframe borders.
 
 ### GLOW CONVENTIONS
 

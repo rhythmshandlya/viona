@@ -60,7 +60,6 @@ export interface InitData {
     durationMs: number;
   };
   theme?: string;
-  segmentationAvailable?: boolean;
   [key: string]: unknown;
 }
 

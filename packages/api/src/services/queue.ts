@@ -290,7 +290,7 @@ export const segmentationQueue = new Queue('segmentation', {
 
 export async function queueSegmentationJob(data: SegmentationJobData) {
   return segmentationQueue.add('segmentation', data, {
-    jobId: `${data.projectId}:segment:${data.sceneId}:${Date.now()}`,
+    jobId: `segment-${data.sceneId}-${Date.now()}`,
     attempts: 2,
     backoff: {
       type: 'exponential',

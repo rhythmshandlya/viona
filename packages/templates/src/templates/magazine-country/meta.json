@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-country",
+  "name": "Magazine Country Highlight",
+  "description": "Cartographic ink map centered on a country with pin drop, radar pulse, and editorial country info overlay",
+  "category": "geographic",
+  "tags": ["magazine-theme", "map", "country", "nation", "geography", "highlight", "cartography", "pin"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

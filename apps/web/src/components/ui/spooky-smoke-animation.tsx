@@ -56,7 +56,13 @@ void main(){gl_Position=position;}`;
 
   constructor(canvas: HTMLCanvasElement, fragmentSource: string) {
     this.canvas = canvas;
-    this.gl = canvas.getContext("webgl2") as WebGL2RenderingContext;
+    const ctx = canvas.getContext("webgl2");
+    if (!ctx) {
+      // WebGL unavailable — leave gl null so render/resize bail out gracefully
+      this.gl = null as any;
+      return;
+    }
+    this.gl = ctx;
     this.setup(fragmentSource);
     this.init();
   }
@@ -66,6 +72,7 @@ void main(){gl_Position=position;}`;
   }
 
   updateScale() {
+    if (!this.gl) return;
     const dpr = Math.max(1, window.devicePixelRatio);
     const { innerWidth: width, innerHeight: height } = window;
     this.canvas.width = width * dpr;
@@ -84,7 +91,7 @@ void main(){gl_Position=position;}`;
 
   reset() {
     const { gl, program, vs, fs } = this;
-    if (!program) return;
+    if (!gl || !program) return;
     if (vs) { gl.detachShader(program, vs); gl.deleteShader(vs); }
     if (fs) { gl.detachShader(program, fs); gl.deleteShader(fs); }
     gl.deleteProgram(program);
@@ -126,7 +133,7 @@ void main(){gl_Position=position;}`;
 
   render(now = 0) {
     const { gl, program, buffer, canvas } = this;
-    if (!program || !gl.isProgram(program)) return;
+    if (!gl || !program || !gl.isProgram(program)) return;
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);

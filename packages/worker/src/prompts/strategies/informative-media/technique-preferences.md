@@ -8,7 +8,7 @@
 | `"icon-composition"` | Country flags, org logos, concept icons from MCP | MCP icons + labels |
 | `"kinetic-typography"` | Key quotes, bold claims, headline text | Word cascade, char stagger |
 | `"split-composition"` | Before/after, side-by-side comparison | Side-by-side with data |
-| `"animated-diagram"` | Timelines, relationship maps | Circle nodes + line connectors |
+| `"animated-diagram"` | Timelines, relationship maps | Filled circle nodes + solid bar connectors |
 | `"card-data"` | Stat displays, fact cards | Card with animated data |
 | `"geometric-reveal"` | Data-driven shape reveals (Pie for polls) | @remotion/shapes (Pie, Rect) |
 
@@ -17,12 +17,11 @@ No two adjacent beats should share the same technique.
 
 <shapes_and_icons>
 ## Shape & Icon Rules
-- Use `@remotion/shapes` (Rect, Circle, Triangle, Ellipse, Star, Pie, Polygon) for geometry
-- Use `make*()` functions when you need SVG path strings (e.g. for evolvePath)
+- Use `@remotion/shapes` (Rect, Circle, Triangle, Ellipse, Star, Pie, Polygon) for geometry — always with `fill`, not `stroke`
 - Use Freepik/Iconify MCP for icons, flags, logos — NEVER hand-draw SVG paths
-- Use `<line>`, `<rect>`, `<circle>` SVG primitives for simple connectors
-- All strokeWidth canvas-relative: `strokeWidth={s(3)}`, NEVER hardcoded 1-3px
-- Minimum visible stroke: `s(2)` (~4px on 1080 canvas)
+- Use solid filled `div` elements for connectors and bars — NOT SVG `<line>` or `<path>` with strokes
+- Use `boxShadow` for depth and edge definition — NOT thin borders
+- Use `clip-path` for masking and progressive reveals
 </shapes_and_icons>
 
 <animation_vocabulary>
@@ -44,7 +43,7 @@ No two adjacent beats should share the same technique.
 | `spring-in` | Scale 0→1 with spring overshoot | Icons, cards, focal elements |
 | `fade-rise` | Opacity 0→1 + translateY up 20px | Subtle entrances, secondary content |
 | `stagger-cascade` | Multiple elements enter sequentially (6-8f apart) | Lists, grid items, steps |
-| `draw-in` | Shape outline draws progressively (use @remotion/shapes `make*` + `evolvePath`) | Diagrams, connections, flow lines |
+| `clip-reveal` | Shape fills progressively via clip-path or width/height animation | Diagrams, connections, flow bars |
 | `fill-progress` | Bar/shape fills from 0% to target | Progress bars, chart bars |
 | `count-up` | Number ticks from 0 to value over ~45 frames | Metrics, scores, percentages |
 | `pop-scatter` | Elements burst outward from center | Celebrations, impact moments |
@@ -68,12 +67,12 @@ No two adjacent beats should share the same technique.
 |-----------|----------|----------------|
 | `hook-title` | Opening scene | `text-reveal` → `text-morph-position` to top |
 | `stat-reveal` | Data points, metrics | `count-up` + `text-reveal` for number |
-| `process-flow` | How-to, timelines | Circle nodes + `<line>` connectors, `stagger-cascade` steps |
+| `process-flow` | How-to, timelines | Filled circle nodes + solid bar connectors, `stagger-cascade` steps |
 | `comparison-split` | Before/after, A vs B | `slide-left` divider, `stagger-cascade` each side |
 | `feature-list` | Benefits, bullet points | `stagger-cascade` with `spring-in` icons |
-| `timeline-march` | History, chronology | Animated `<line>` center line, `stagger-cascade` Circle nodes |
+| `timeline-march` | History, chronology | Solid filled center bar (height grows), `stagger-cascade` Circle nodes |
 | `quote-spotlight` | Testimonials, key phrases | `word-cascade` quote, `fade-rise` attribution |
-| `data-chart` | Charts, rankings | `<line>` axes, `fill-progress` Rect bars |
+| `data-chart` | Charts, rankings | Solid filled axis bars, `fill-progress` Rect bars |
 | `hero-image` | Real-world context | Ken Burns image + `text-reveal` overlay |
 | `payoff-close` | Conclusion, CTA | `spring-in` callback + `word-cascade` summary |
 
@@ -103,7 +102,7 @@ Before marking any scene complete:
 - [ ] Elements visible 30+ frames have ambient motion (float/breathe/pulse)
 - [ ] ≥2 different animation techniques used across scenes
 - [ ] No hand-drawn SVG `<path d>` with complex coordinates
-- [ ] All strokeWidth values canvas-relative via `s()`
+- [ ] No SVG stroke-based visuals — uses solid fills, boxShadow, clip-path instead
 - [ ] Content vertically centered: top = (usableHeight - contentHeight) / 2
 - [ ] Related elements grouped in shared flex container
 - [ ] Visual technique varies from adjacent scenes
@@ -135,11 +134,11 @@ Before finalizing scene plan:
 - Abstract shapes without real-world context
 - Too many geometric decorations without data purpose
 - Missing source citations on data displays
-- Hand-drawn SVG paths — use @remotion/shapes or MCP icons
-- Hardcoded strokeWidth — use canvas-relative s() sizing
+- Hand-drawn SVG paths — use @remotion/shapes (with fill) or MCP icons
+- SVG stroke-based visuals — use solid filled shapes, boxShadow, clip-path reveals
 - Same technique in 3+ scenes
 - Developer animation: opacity-only fades, same easing everywhere, static backgrounds
-- Curved/organic lines for paths, connectors — use straight clean geometric lines
+- Wireframe/outlined elements — use solid filled surfaces with shadow for depth
 - Random floating particles — use smooth uniform dots that move in lines and pulse/beat
 - Flashy reveals on serious data (undermines authority)
 </anti_patterns>

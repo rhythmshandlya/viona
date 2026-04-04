@@ -104,7 +104,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
       hasTranscript: !!transcript,
       theme: (videoSettings.theme as string) || 'blackboard',
       projectType: project.projectType || 'video',
-      hasSegmentation: !!(videoSettings.segmentationAvailable),
     };
 
     // 3. Get or create conversation

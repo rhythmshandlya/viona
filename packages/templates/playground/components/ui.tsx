@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../theme';
 
 // ── Country Data ─────────────────────────────────────────────────────────────
 
@@ -34,14 +35,14 @@ export function useCountryList(): CountryOption[] {
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <h3 style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>{title}</h3>
+      <h3 style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: t.text3, marginBottom: 6 }}>{title}</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
     </div>
   );
 }
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: 12, color: '#888', marginBottom: 2, display: 'block' }}>{children}</span>;
+  return <span style={{ fontSize: 12, color: t.text2, marginBottom: 2, display: 'block' }}>{children}</span>;
 }
 
 export function ButtonGroup({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
@@ -52,10 +53,11 @@ export function ButtonGroup({ options, value, onChange }: { options: string[]; v
           key={o} onClick={() => onChange(o)}
           style={{
             flex: 1, padding: '5px 0', border: '1px solid',
-            borderColor: o === value ? '#8B5CF6' : '#2a2a3e', borderRadius: 5,
-            background: o === value ? '#8B5CF620' : 'transparent',
-            color: o === value ? '#c4b5fd' : '#777',
+            borderColor: o === value ? t.accent : t.border, borderRadius: 5,
+            background: o === value ? t.accentSoft : 'transparent',
+            color: o === value ? t.accentText : t.text3,
             cursor: 'pointer', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            transition: 'all 0.15s',
           }}
         >{o}</button>
       ))}
@@ -68,7 +70,7 @@ export function TextInput({ label, value, onChange }: { label: string; value: st
     <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Label>{label}</Label>
       <input value={value} onChange={(e) => onChange(e.target.value)}
-        style={{ background: '#1a1a2e', border: '1px solid #2a2a3e', borderRadius: 5, padding: '5px 8px', color: '#e0e0e0', fontSize: 13 }} />
+        style={{ background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 5, padding: '5px 8px', color: t.text1, fontSize: 13, transition: 'border-color 0.15s' }} />
     </label>
   );
 }
@@ -81,12 +83,12 @@ export function NumberInput({ label, value, min, max, step, onChange }: { label:
         <input
           type="number" value={value} min={min} max={max} step={step}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{ flex: 1, background: '#1a1a2e', border: '1px solid #2a2a3e', borderRadius: 5, padding: '5px 8px', color: '#e0e0e0', fontSize: 13, width: 80 }}
+          style={{ flex: 1, background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 5, padding: '5px 8px', color: t.text1, fontSize: 13, width: 80, transition: 'border-color 0.15s' }}
         />
         <input
           type="range" value={value} min={min} max={max} step={step}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{ flex: 2, accentColor: '#8B5CF6' }}
+          style={{ flex: 2, accentColor: t.accent }}
         />
       </div>
     </label>
@@ -98,10 +100,10 @@ export function SliderInput({ label, value, min, max, step, onChange }: { label:
     <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Label>{label}</Label>
-        <span style={{ fontSize: 11, color: '#8B5CF6', fontFamily: 'monospace' }}>{step < 1 ? value.toFixed(2) : value}</span>
+        <span style={{ fontSize: 11, color: t.accent, fontFamily: 'monospace' }}>{step < 1 ? value.toFixed(2) : value}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} style={{ accentColor: '#8B5CF6' }} />
+        onChange={(e) => onChange(Number(e.target.value))} style={{ accentColor: t.accent }} />
     </label>
   );
 }
@@ -111,7 +113,7 @@ export function SelectInput({ label, value, options, onChange }: { label: string
     <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Label>{label}</Label>
       <select value={value} onChange={(e) => onChange(e.target.value)}
-        style={{ background: '#1a1a2e', border: '1px solid #2a2a3e', borderRadius: 5, padding: '5px 8px', color: '#e0e0e0', fontSize: 13 }}
+        style={{ background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 5, padding: '5px 8px', color: t.text1, fontSize: 13, transition: 'border-color 0.15s' }}
       >
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -123,9 +125,9 @@ export function ColorInput({ label, value, onChange }: { label: string; value: s
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <input type="color" value={value} onChange={(e) => onChange(e.target.value)}
-        style={{ width: 28, height: 22, border: '1px solid #2a2a3e', borderRadius: 4, cursor: 'pointer', background: 'transparent' }} />
-      <span style={{ fontSize: 12, color: '#888' }}>{label}</span>
-      <span style={{ fontSize: 11, color: '#555', fontFamily: 'monospace', marginLeft: 'auto' }}>{value}</span>
+        style={{ width: 28, height: 22, border: `1px solid ${t.border}`, borderRadius: 4, cursor: 'pointer', background: 'transparent' }} />
+      <span style={{ fontSize: 12, color: t.text2 }}>{label}</span>
+      <span style={{ fontSize: 11, color: t.text3, fontFamily: 'monospace', marginLeft: 'auto' }}>{value}</span>
     </label>
   );
 }
@@ -134,11 +136,11 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
       <div onClick={() => onChange(!value)}
-        style={{ width: 32, height: 18, borderRadius: 9, background: value ? '#8B5CF6' : '#2a2a3e', position: 'relative', transition: 'background 0.15s', flexShrink: 0 }}
+        style={{ width: 32, height: 18, borderRadius: 9, background: value ? t.accent : t.border, position: 'relative', transition: 'background 0.15s', flexShrink: 0 }}
       >
         <div style={{ width: 14, height: 14, borderRadius: 7, background: 'white', position: 'absolute', top: 2, left: value ? 16 : 2, transition: 'left 0.15s' }} />
       </div>
-      <span style={{ fontSize: 13, color: '#aaa' }}>{label}</span>
+      <span style={{ fontSize: 13, color: t.text2 }}>{label}</span>
     </label>
   );
 }
@@ -160,26 +162,27 @@ export function CountrySelect({ label, value, countries, onChange }: {
       <div
         onClick={() => setOpen(!open)}
         style={{
-          background: '#1a1a2e', border: '1px solid #2a2a3e', borderRadius: 5, padding: '5px 8px',
-          color: '#e0e0e0', fontSize: 13, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 5, padding: '5px 8px',
+          color: value ? t.text1 : t.text3, fontSize: 13, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          transition: 'border-color 0.15s',
         }}
       >
         <span>{value || 'Select country...'}</span>
-        <span style={{ color: '#666', fontSize: 10 }}>{open ? '\u25B2' : '\u25BC'}</span>
+        <span style={{ color: t.text3, fontSize: 10 }}>{open ? '\u25B2' : '\u25BC'}</span>
       </div>
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-          background: '#1a1a2e', border: '1px solid #2a2a3e', borderRadius: 6,
+          background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 6,
           maxHeight: 250, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
         }}>
           <input
             autoFocus
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Type to filter..."
-            style={{ background: '#12121f', border: 'none', borderBottom: '1px solid #2a2a3e', padding: '6px 10px', color: '#e0e0e0', fontSize: 13, outline: 'none' }}
+            style={{ background: t.bgInput, border: 'none', borderBottom: `1px solid ${t.border}`, padding: '6px 10px', color: t.text1, fontSize: 13, outline: 'none' }}
           />
           <div style={{ overflowY: 'auto', maxHeight: 200 }}>
             {filtered.slice(0, 50).map((c) => (
@@ -188,16 +191,17 @@ export function CountrySelect({ label, value, countries, onChange }: {
                 onClick={() => { onChange(c.name, c); setOpen(false); setSearchTerm(''); }}
                 style={{
                   padding: '5px 10px', cursor: 'pointer', fontSize: 13,
-                  color: c.name === value ? '#c4b5fd' : '#ccc',
-                  background: c.name === value ? '#8B5CF620' : 'transparent',
+                  color: c.name === value ? t.accentText : t.text1,
+                  background: c.name === value ? t.accentSoft : 'transparent',
+                  transition: 'background 0.1s',
                 }}
-                onMouseEnter={(e) => { (e.target as HTMLDivElement).style.background = '#8B5CF610'; }}
-                onMouseLeave={(e) => { (e.target as HTMLDivElement).style.background = c.name === value ? '#8B5CF620' : 'transparent'; }}
+                onMouseEnter={(e) => { (e.target as HTMLDivElement).style.background = t.accentSoft; }}
+                onMouseLeave={(e) => { (e.target as HTMLDivElement).style.background = c.name === value ? t.accentSoft : 'transparent'; }}
               >
-                {c.name} <span style={{ color: '#555', fontSize: 11 }}>{c.iso_a3}</span>
+                {c.name} <span style={{ color: t.text3, fontSize: 11 }}>{c.iso_a3}</span>
               </div>
             ))}
-            {filtered.length === 0 && <div style={{ padding: '8px 10px', color: '#555', fontSize: 12 }}>No countries found</div>}
+            {filtered.length === 0 && <div style={{ padding: '8px 10px', color: t.text3, fontSize: 12 }}>No countries found</div>}
           </div>
         </div>
       )}

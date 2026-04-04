@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-warning",
+  "name": "Magazine Caution Card",
+  "description": "Caution overlay with warning header and flagged bullet items for red flags and mistakes content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "warning", "caution", "red-flag", "avoid", "mistakes"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

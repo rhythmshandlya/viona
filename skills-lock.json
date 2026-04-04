@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "motion-designer": {
+      "source": "ncklrs/startup-os-skills",
+      "sourceType": "github",
+      "computedHash": "a1d1743be9f364159644bb385b5231bbce83449ce409ac2baf87f69218edef66"
+    },
+    "spring-animation": {
+      "source": "notedit/happy-skills",
+      "sourceType": "github",
+      "computedHash": "5df3b4dd10aea7696f5ab3c1d873745915fd25c16e2060f8b408dd424d1f0f79"
+    },
+    "storyboard-creation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "f3c39f48278e0cccd55682cdf0754717d35c9dcef3b19ddd60cc0b98884c1699"
+    }
+  }
+}

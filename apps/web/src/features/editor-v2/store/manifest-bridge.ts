@@ -330,6 +330,8 @@ function convertManifestItemV2(
         isEnhanced: !!d.enhancedSrc,
         sourceVideoItemId: d.sourceVideoItemId || '',
         volume: d.volume ?? 1,
+        startFrom: d.startFrom ?? 0,
+        playbackRate: d.playbackRate ?? 1,
       };
       return { ...base, data } as TimelineItem;
     }
@@ -478,6 +480,7 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         src: d.src || '',
         volume: d.volume ?? 1,
         playbackRate: d.playbackRate ?? 1,
+        startFrom: d.startFrom ?? 0,
         ...(d.enhancedSrc ? { enhancedSrc: d.enhancedSrc } : {}),
         ...(d.fadeInMs ? { fadeInMs: d.fadeInMs } : {}),
         ...(d.fadeOutMs ? { fadeOutMs: d.fadeOutMs } : {}),

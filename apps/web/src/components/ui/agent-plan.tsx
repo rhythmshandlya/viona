@@ -122,13 +122,13 @@ function StatusIcon({ status, size = "sm" }: { status: string; size?: "sm" | "md
           <CheckCircle2 className={cn(cls, "text-green-400")} />
         ) : status === "running" ? (
           <CircleDotDashed
-            className={cn(cls, "text-blue-400 animate-spin")}
+            className={cn(cls, "text-[#a78bfa] animate-spin")}
             style={{ animationDuration: "3s" }}
           />
         ) : status === "failed" ? (
           <CircleX className={cn(cls, "text-red-400")} />
         ) : (
-          <Circle className={cn(cls, "text-white/20")} />
+          <Circle className={cn(cls, "text-[var(--editor-text-muted,rgba(255,255,255,0.2))]")} />
         )}
       </motion.div>
     </AnimatePresence>
@@ -147,9 +147,9 @@ function statusLabel(status: string): string {
 function statusBadgeColors(status: string): string {
   switch (status) {
     case "complete": return "bg-green-500/15 text-green-400";
-    case "running": return "bg-blue-500/15 text-blue-400";
+    case "running": return "bg-[rgba(139,92,246,0.15)] text-[#a78bfa]";
     case "failed": return "bg-red-500/15 text-red-400";
-    default: return "bg-white/[0.06] text-white/40";
+    default: return "bg-[var(--editor-text-muted,rgba(255,255,255,0.06))] text-[var(--editor-text-muted,rgba(255,255,255,0.4))]";
   }
 }
 
@@ -172,7 +172,7 @@ const SubtaskRow = memo(function SubtaskRow({ subtask }: { subtask: AgentSubtask
       <motion.div
         className="flex flex-1 items-center rounded-md p-1 cursor-pointer"
         whileHover={{
-          backgroundColor: "rgba(255,255,255,0.03)",
+          backgroundColor: "rgba(139, 92, 246, 0.04)",
           transition: { duration: 0.2 },
         }}
         onClick={() => setExpanded(!expanded)}
@@ -186,8 +186,8 @@ const SubtaskRow = memo(function SubtaskRow({ subtask }: { subtask: AgentSubtask
           className={cn(
             "text-xs flex-1",
             subtask.status === "complete"
-              ? "text-white/30 line-through"
-              : "text-white/60",
+              ? "text-[var(--editor-text-muted,rgba(255,255,255,0.3))] line-through"
+              : "text-[var(--editor-text-secondary,rgba(255,255,255,0.6))]",
           )}
         >
           {subtask.title}
@@ -211,11 +211,11 @@ const SubtaskRow = memo(function SubtaskRow({ subtask }: { subtask: AgentSubtask
             }}
             layout
           >
-            <span className="text-white/25 text-[10px] font-medium">Tools:</span>
+            <span className="text-[var(--editor-text-muted,rgba(255,255,255,0.25))] text-[10px] font-medium">Tools:</span>
             {subtask.tools.map((tool, idx) => (
               <motion.span
                 key={idx}
-                className="bg-white/[0.06] text-white/30 rounded px-1.5 py-0.5 text-[10px] font-medium border border-white/[0.04]"
+                className="bg-[rgba(139,92,246,0.06)] text-[var(--editor-text-muted,rgba(255,255,255,0.4))] rounded px-1.5 py-0.5 text-[10px] font-medium border border-[rgba(139,92,246,0.08)]"
                 initial={{ opacity: 0, y: -5 }}
                 animate={{
                   opacity: 1,
@@ -224,7 +224,7 @@ const SubtaskRow = memo(function SubtaskRow({ subtask }: { subtask: AgentSubtask
                 }}
                 whileHover={{
                   y: -1,
-                  backgroundColor: "rgba(255,255,255,0.1)",
+                  backgroundColor: "rgba(139, 92, 246, 0.12)",
                   transition: { duration: 0.2 },
                 }}
               >
@@ -255,9 +255,9 @@ const TaskRow = memo(function TaskRow({ task }: { task: AgentTask }) {
     >
       {/* Task header */}
       <motion.div
-        className="group flex items-center px-3 py-1.5 rounded-md cursor-pointer"
+        className="group flex items-center px-3 py-1.5 rounded-lg cursor-pointer"
         whileHover={{
-          backgroundColor: "rgba(255,255,255,0.03)",
+          backgroundColor: "rgba(139, 92, 246, 0.04)",
           transition: { duration: 0.2 },
         }}
         onClick={() => hasSubtasks && setExpanded(!expanded)}
@@ -271,8 +271,8 @@ const TaskRow = memo(function TaskRow({ task }: { task: AgentTask }) {
             className={cn(
               "text-sm flex-1 truncate mr-2",
               task.status === "complete"
-                ? "text-white/30 line-through"
-                : "text-white/80",
+                ? "text-[var(--editor-text-muted,rgba(255,255,255,0.3))] line-through"
+                : "text-[var(--editor-text-primary,rgba(255,255,255,0.8))]",
             )}
           >
             {task.title}
@@ -317,7 +317,7 @@ const TaskRow = memo(function TaskRow({ task }: { task: AgentTask }) {
             layout
           >
             {/* Vertical connecting line */}
-            <div className="absolute top-0 bottom-0 left-[20px] border-l-2 border-dashed border-white/[0.08]" />
+            <div className="absolute top-0 bottom-0 left-[20px] border-l-2 border-dashed border-[rgba(139,92,246,0.12)]" />
             <ul className="mt-1 mr-2 mb-1.5 ml-3 space-y-0.5">
               {task.subtasks!.map((subtask) => (
                 <SubtaskRow key={subtask.id} subtask={subtask} />
@@ -340,13 +340,10 @@ interface AgentPlanViewProps {
 }
 
 export const AgentPlanView = memo(function AgentPlanView({ plan, className }: AgentPlanViewProps) {
-  const completedCount = plan.tasks.filter((t) => t.status === "complete").length;
-  const totalCount = plan.tasks.length;
-
   return (
     <motion.div
       className={cn(
-        "rounded-xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl overflow-hidden",
+        "rounded-xl border border-[rgba(139,92,246,0.08)] bg-[rgba(139,92,246,0.02)] backdrop-blur-xl overflow-hidden",
         className,
       )}
       initial={{ opacity: 0, y: 10 }}
@@ -356,18 +353,10 @@ export const AgentPlanView = memo(function AgentPlanView({ plan, className }: Ag
         transition: { duration: 0.3, ease: [0.2, 0.65, 0.3, 0.9] },
       }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
-        <span className="text-xs text-white/50 font-normal">{plan.title}</span>
-        <span className="text-[10px] text-white/30">
-          {completedCount}/{totalCount}
-        </span>
-      </div>
-
       {/* Task list */}
       <LayoutGroup>
-        <div className="p-2 overflow-hidden">
-          <ul className="space-y-1 overflow-hidden">
+        <div className="p-1 overflow-hidden">
+          <ul className="space-y-0.5 overflow-hidden">
             {plan.tasks.map((task) => (
               <TaskRow key={task.id} task={task} />
             ))}

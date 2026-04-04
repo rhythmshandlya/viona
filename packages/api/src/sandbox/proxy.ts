@@ -212,20 +212,34 @@ export async function proxyPromptWithIntercept(
   try {
     logger.info(logCtx, 'Proxy: connecting to sandbox');
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${secret}`,
-      },
-      body: JSON.stringify(body),
-      signal: abortController.signal,
-    });
+    // Retry loop for 503 (workspace not initialized yet)
+    const MAX_INIT_RETRIES = 20; // 20 × 3s = 60s max wait
+    const INIT_RETRY_DELAY = 3000;
+    let res: Response | null = null;
 
-    if (!res.ok) {
-      logger.warn({ ...logCtx, status: res.status }, 'Proxy: sandbox returned non-OK');
+    for (let attempt = 0; attempt <= MAX_INIT_RETRIES; attempt++) {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify(body),
+        signal: abortController.signal,
+      });
 
-      if (res.status === 409) {
+      if (res.status === 503 && attempt < MAX_INIT_RETRIES) {
+        logger.info({ ...logCtx, attempt }, 'Proxy: workspace not ready, retrying...');
+        await new Promise(r => setTimeout(r, INIT_RETRY_DELAY));
+        continue;
+      }
+      break;
+    }
+
+    if (!res!.ok) {
+      logger.warn({ ...logCtx, status: res!.status }, 'Proxy: sandbox returned non-OK');
+
+      if (res!.status === 409) {
         // Agent busy — send as SSE error so frontend can show a friendly message
         const errorStream = new PassThrough();
         reply
@@ -237,7 +251,19 @@ export async function proxyPromptWithIntercept(
         return;
       }
 
-      reply.status(res.status).send({ error: `Agent returned ${res.status}` });
+      if (res!.status === 503) {
+        // Still not ready after all retries
+        const errorStream = new PassThrough();
+        reply
+          .header('Content-Type', 'text/event-stream')
+          .header('Cache-Control', 'no-cache')
+          .send(errorStream);
+        errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Sandbox is still initializing. Please try again in a moment.', recoverable: true })}\n\n`);
+        errorStream.end();
+        return;
+      }
+
+      reply.status(res!.status).send({ error: `Agent returned ${res!.status}` });
       return;
     }
 
@@ -302,8 +328,8 @@ export async function proxyPromptWithIntercept(
       }
     };
 
-    if (res.body) {
-      reader = (res.body as ReadableStream).getReader();
+    if (res!.body) {
+      reader = (res!.body as ReadableStream).getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 

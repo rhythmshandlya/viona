@@ -341,6 +341,14 @@ class ApiClient {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
       console.error('[API Error]', response.status, url, JSON.stringify(error).slice(0, 500));
+
+      // Redirect to login on 401 after retry exhausted
+      if (response.status === 401 && typeof window !== 'undefined') {
+        window.location.href = '/login';
+        // Return a never-resolving promise so callers don't see the error
+        return new Promise(() => {});
+      }
+
       throw new Error(error.error || `Request failed: ${response.status}`);
     }
 

@@ -35,7 +35,7 @@ Review ALL three screenshots against the plan:
 
 ### Technique Diversity (check across all scenes in batch)
 15. **TECHNIQUE DIVERSITY**: Do the screenshots show varied visual approaches across scenes? If 3+ consecutive screenshots show the same structure (card with text sliding in), flag as "repetitive visual pattern — lacks technique diversity."
-16. **TECHNIQUE MATCH**: Does each scene use the technique specified in the plan? If the plan says "path-drawing" but the screenshot shows a card with text, flag as "technique mismatch."
+16. **TECHNIQUE MATCH**: Does each scene use the technique specified in the plan? If the plan says "clip-reveal" but the screenshot shows a card with text, flag as "technique mismatch."
 
 ### Late Frame (Exit)
 13. **Content still present**: The scene should still have visible content (not fully faded yet at -15 frames)

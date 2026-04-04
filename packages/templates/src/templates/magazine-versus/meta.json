@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-versus",
+  "name": "Magazine VS Matchup",
+  "description": "Dramatic VS matchup overlay with center badge, opposing names, and stat bullets for comparison content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "versus", "vs", "matchup", "battle", "competition"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

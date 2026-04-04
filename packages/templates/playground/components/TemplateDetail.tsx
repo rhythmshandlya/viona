@@ -3,7 +3,7 @@ import type { TemplateEntry, ThemeDefinition } from '../lib/types';
 import { PlayerWrapper, type AspectKey } from './PlayerWrapper';
 import { PropsEditor } from './PropsEditor';
 import { ButtonGroup, Label } from './ui';
-import { t } from '../theme';
+import { t, type BgMode } from '../theme';
 
 interface TemplateDetailProps {
   template: TemplateEntry;
@@ -17,6 +17,7 @@ export function TemplateDetail({ template, themes, onBack, onSelectTheme }: Temp
   const intrinsicDuration = template.durationInFrames / template.fps;
   const [aspect, setAspect] = useState<AspectKey>('1:1');
   const [duration, setDuration] = useState<number | null>(null);
+  const [bgMode, setBgMode] = useState<BgMode>('checkerboard');
 
   const onUpdateProp = useCallback((path: string[], value: any) => {
     setProps((prev) => {
@@ -89,6 +90,14 @@ export function TemplateDetail({ template, themes, onBack, onSelectTheme }: Temp
               onChange={(v) => setDuration(v === 'native' ? null : Number(v))}
             />
           </div>
+          <div style={{ flex: 1, maxWidth: 280 }}>
+            <Label>Background</Label>
+            <ButtonGroup
+              options={['Check', 'Dark', 'Light', 'None']}
+              value={{ checkerboard: 'Check', dark: 'Dark', light: 'Light', none: 'None' }[bgMode]}
+              onChange={(v) => setBgMode({ Check: 'checkerboard', Dark: 'dark', Light: 'light', None: 'none' }[v] as BgMode)}
+            />
+          </div>
         </div>
 
         {matchedThemes.length > 0 && (
@@ -120,6 +129,7 @@ export function TemplateDetail({ template, themes, onBack, onSelectTheme }: Temp
           props={props}
           aspect={aspect}
           duration={duration ?? undefined}
+          bgMode={bgMode}
         />
       </div>
 

@@ -1,0 +1,14 @@
+{
+  "slug": "explainer-funnel",
+  "name": "Explainer Funnel",
+  "description": "Animated funnel/pipeline diagram with flowing particles that filter through narrowing stages — ideal for sales, conversion, and process visualization",
+  "category": "overlay",
+  "tags": ["blackboard-theme", "overlay", "funnel", "conversion", "pipeline", "diagram", "sales", "data-visualization"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["blackboard"]
+}

@@ -1,12 +1,13 @@
 /**
  * Remotion configuration for Claude Code visual generation.
- * Optimized for Windows local execution.
+ * Auto-detects platform for correct GPU/headless settings.
  */
 
 import { Config } from "@remotion/cli/config";
 
-// Use ANGLE renderer for better Windows compatibility
-Config.setChromiumOpenGlRenderer("angle");
+// Use software rendering in Linux containers (no GPU), ANGLE on Windows
+const isLinux = process.platform === "linux";
+Config.setChromiumOpenGlRenderer(isLinux ? "swangle" : "angle");
 
 // Disable web security for local rendering
 Config.setChromiumDisableWebSecurity(true);

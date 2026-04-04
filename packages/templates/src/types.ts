@@ -19,16 +19,14 @@ export interface TemplateMeta {
     | 'social'
     | 'corporate'
     | 'entertainment'
-    | 'overlay'
-    | 'depth';
+    | 'overlay';
   tags: string[];
   stylePreset: string;
   aspectRatio: '16:9' | '9:16' | '1:1';
   sceneCount: number;
   estimatedDuration: string;
   thumbnail: string;
-  type?: 'scene' | 'overlay'
-    | 'depth';
+  type?: 'scene' | 'overlay';
   themes?: string[];
 }
 

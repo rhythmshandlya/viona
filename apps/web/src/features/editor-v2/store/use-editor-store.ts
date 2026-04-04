@@ -41,6 +41,10 @@ export function useIsLoading() {
   return useEditorStore((state) => state.isLoading);
 }
 
+export function useLoadingMessage() {
+  return useEditorStore((state) => state.loadingMessage);
+}
+
 export function useError() {
   return useEditorStore((state) => state.error);
 }

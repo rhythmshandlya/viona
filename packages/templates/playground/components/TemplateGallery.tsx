@@ -24,9 +24,11 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
     const q = search.toLowerCase().trim();
     return templates.filter((tpl) => {
       if (q) {
+        const idMatch = tpl.id.toLowerCase().includes(q);
         const nameMatch = tpl.name.toLowerCase().includes(q);
+        const descMatch = tpl.description.toLowerCase().includes(q);
         const tagMatch = tpl.tags.some((tag) => tag.toLowerCase().includes(q));
-        if (!nameMatch && !tagMatch) return false;
+        if (!idMatch && !nameMatch && !descMatch && !tagMatch) return false;
       }
       if (categoryFilter && tpl.category !== categoryFilter) return false;
       if (themeFilter) {
@@ -184,6 +186,7 @@ function TemplateCard({
           controls={false}
           autoPlay
           lazy
+          bgMode="dark"
         />
       </div>
 
@@ -236,6 +239,24 @@ function TemplateCard({
               {name}
             </span>
           ))}
+          {template.tags
+            .filter((tag) => tag !== 'magazine-theme' && tag !== 'overlay')
+            .slice(0, 3)
+            .map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  fontSize: 10,
+                  background: t.bgRaised,
+                  borderRadius: 4,
+                  padding: '2px 6px',
+                  color: t.text3,
+                  fontWeight: 500,
+                }}
+              >
+                {tag}
+              </span>
+            ))}
         </div>
       </div>
     </div>

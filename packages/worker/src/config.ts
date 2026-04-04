@@ -100,5 +100,5 @@ export const config = {
   },
 
   // Python path for running Python scripts (head-tracking)
-  pythonPath: process.env.PYTHON_PATH || 'python3',
+  pythonPath: process.env.PYTHON_PATH || 'python',
 } as const;

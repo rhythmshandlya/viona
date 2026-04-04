@@ -383,7 +383,7 @@ Machine-readable v2 format with segments and beats:
             {{ "frame": 45, "action": "Title springs in with text-reveal" }},
             {{ "frame": 120, "action": "Subtitle fades up below title" }}
           ],
-          "technique": "path-drawing",
+          "technique": "clip-reveal",
           "visual": "AMBIENT: ... PRIMARY: ... SECONDARY: ...",
           "buildsFrom": null,
           "connectsTo": "the glowing key element in motion",
@@ -478,7 +478,7 @@ Machine-readable v2 format with segments and beats:
 - Example: if beat starts at frame 120, narrator says "overflow" at 4.5s (frame 135), keySync = 135 - 120 = 15
 
 **TECHNIQUE FIELD (required per beat):**
-Valid values: `"card-data"`, `"path-drawing"`, `"shape-morph"`, `"animated-diagram"`, `"split-composition"`, `"particle-scatter"`, `"svg-illustration"`, `"data-viz"`, `"kinetic-typography"`
+Valid values: `"card-data"`, `"clip-reveal"`, `"shape-morph"`, `"animated-diagram"`, `"split-composition"`, `"particle-scatter"`, `"svg-illustration"`, `"data-viz"`, `"kinetic-typography"`
 No two adjacent beats should share the same `technique` value.
 
 **CRITICAL DURATION CONSTRAINT:**

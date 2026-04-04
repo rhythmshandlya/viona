@@ -23,7 +23,7 @@ During export, render.ts downloads clips and passes local paths.
 Special value `__loading__` means the video URL is being fetched - show a loading state.
 
 **Frame styling:** Default to the studio theme's card styling for the frame around the video —
-`COLORS.cardBg` as background, `1px solid COLORS.cardBorder` border, `32px` border radius,
+`COLORS.cardBg` as background, `boxShadow` for depth (no thin borders), `EW * 0.03` border radius,
 and a subtle box shadow.
 
 If the Director specifies a `frameStyle` in scenes.json (e.g., `"phone"`, `"laptop"`, `"browser"`, `"polaroid"`, `"film"`), implement that frame style instead. When no frameStyle is specified, use the default card frame.
@@ -59,11 +59,10 @@ export const Scene4: React.FC<Scene4Props> = ({ videoClips }) => {
         <div style={{
           width: EW * 0.85,
           background: COLORS.cardBg,
-          border: `1px solid ${COLORS.cardBorder}`,
-          borderRadius: 32,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          borderRadius: EW * 0.03,
+          boxShadow: `0 ${EH * 0.008}px ${EH * 0.03}px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`,
           overflow: 'hidden',
-          padding: 8,
+          padding: EW * 0.008,
         }}>
           <div style={{
             width: '100%',

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Player } from '@remotion/player';
 import type { TemplateEntry } from '../lib/types';
-import { t } from '../theme';
+import { t, bgModeStyles, type BgMode } from '../theme';
 
 const ASPECTS = {
   '1:1': { width: 1080, height: 1080 },
@@ -73,9 +73,10 @@ interface PlayerWrapperProps {
   controls?: boolean;
   autoPlay?: boolean;
   lazy?: boolean;
+  bgMode?: BgMode;
 }
 
-export function PlayerWrapper({ template, props, aspect, duration: durationOverride, maxWidth, controls = true, autoPlay = true, lazy = false }: PlayerWrapperProps) {
+export function PlayerWrapper({ template, props, aspect, duration: durationOverride, maxWidth, controls = true, autoPlay = true, lazy = false, bgMode = 'none' }: PlayerWrapperProps) {
   const [Component, setComponent] = useState<React.FC<any> | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [visible, setVisible] = useState(!lazy);
@@ -130,7 +131,7 @@ export function PlayerWrapper({ template, props, aspect, duration: durationOverr
   // Skeleton while not visible or still loading
   if (!visible || (!Component && !loadError)) {
     return (
-      <div ref={containerRef} style={{ maxWidth: effectiveMaxWidth, width: '100%' }}>
+      <div ref={containerRef} style={{ maxWidth: effectiveMaxWidth, width: '100%', borderRadius: 8, overflow: 'hidden', ...bgModeStyles[bgMode] }}>
         <ThumbnailSkeleton aspect={aspect} />
       </div>
     );
@@ -142,7 +143,8 @@ export function PlayerWrapper({ template, props, aspect, duration: durationOverr
     return (
       <div style={{
         maxWidth: effectiveMaxWidth, width: '100%', paddingBottom: `${ratio * 100}%`,
-        position: 'relative', background: t.bgRaised, borderRadius: 8,
+        position: 'relative', background: t.bgRaised, borderRadius: 8, overflow: 'hidden',
+        ...bgModeStyles[bgMode],
       }}>
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -156,25 +158,28 @@ export function PlayerWrapper({ template, props, aspect, duration: durationOverr
 
   return (
     <TemplateBoundary templateId={template.id}>
-      <Player
-        key={`${template.id}-${aspect}`}
-        component={Component!}
-        inputProps={props}
-        durationInFrames={durationInFrames}
-        compositionWidth={dims.width}
-        compositionHeight={dims.height}
-        fps={fps}
-        style={{
-          width: '100%',
-          maxWidth: effectiveMaxWidth,
-          borderRadius: 8,
-          overflow: 'hidden',
-        }}
-        controls={controls}
-        autoPlay={autoPlay}
-        loop
-        initiallyMuted
-      />
+      <div style={{
+        borderRadius: 8,
+        overflow: 'hidden',
+        maxWidth: effectiveMaxWidth,
+        width: '100%',
+        ...bgModeStyles[bgMode],
+      }}>
+        <Player
+          key={`${template.id}-${aspect}-${durationInFrames}`}
+          component={Component!}
+          inputProps={props}
+          durationInFrames={durationInFrames}
+          compositionWidth={dims.width}
+          compositionHeight={dims.height}
+          fps={fps}
+          style={{ width: '100%' }}
+          controls={controls}
+          autoPlay={autoPlay}
+          loop
+          initiallyMuted
+        />
+      </div>
     </TemplateBoundary>
   );
 }

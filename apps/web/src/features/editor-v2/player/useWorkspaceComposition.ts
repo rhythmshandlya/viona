@@ -12,6 +12,7 @@ import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
 // ---------------------------------------------------------------------------
 const compositionCache = new Map<string, React.ComponentType<any>>();
 
+
 export function clearCompositionCache() {
   compositionCache.clear();
 }
@@ -82,11 +83,16 @@ export function resolvePublicBase(bundleBaseUrl: string): string {
     : `${bundleBaseUrl}/public`;
 }
 
+// Note: All media loads through Next.js rewrite (same-origin) so that:
+//   1. @remotion/preload hints match the <video> element src (same URL)
+//   2. No CORS complexity — cookies, cache partitions, and preloading all work natively
+//   3. The browser's native <video> range request buffering works correctly
+// The rewrite /api/* → backend streams responses properly for range requests.
+
 /**
  * Resolve a sandbox-local media filename to a direct API endpoint URL.
- * Video/audio served from the sandbox proxy can be unreliable for large files
- * (155MB+ videos going through Next.js rewrite → API → sandbox container).
- * The direct MinIO endpoints bypass the sandbox entirely and are reliable.
+ * Some files (source video, matte) live in MinIO and can be served directly
+ * through dedicated API endpoints — bypassing the sandbox container proxy.
  * Returns null if no direct endpoint is available for the given filename.
  */
 export function resolveDirectMediaUrl(bundleBaseUrl: string, filename: string): string | null {
@@ -108,13 +114,23 @@ export function resolveDirectMediaUrl(bundleBaseUrl: string, filename: string): 
 function createRequire(bundleBaseUrl: string) {
   const publicBase = resolvePublicBase(bundleBaseUrl);
 
-  // staticFile returns a deterministic same-origin URL.
-  // For source video, uses direct MinIO endpoint (bypasses sandbox proxy).
-  // Remotion's prefetch() in WorkspacePlayer downloads these into blob URLs,
-  // so after initial load all playback is from memory — zero network.
+  // staticFile returns a same-origin URL for media files.
+  // MUST stay same-origin so that:
+  //   1. Remotion's prefetch() can download into blob URLs (CORS)
+  //   2. Remotion's blob URL mapping matches the src used by <Video>/<Audio>
+  //   3. Video seeking works correctly (video.currentTime on same-origin)
+  // Presigned URLs are cross-origin and break all three — only used in prefetch.
   const customStaticFile = (relativePath: string) => {
+    // Guard: if the path is already a fully-resolved URL, return as-is.
+    // Prevents double-prefixing (e.g. /api/.../public/ + /api/.../public/audio.aac)
+    if (/^https?:\/\//.test(relativePath)) {
+      return relativePath;
+    }
+    if (relativePath.startsWith('/api/')) {
+      return relativePath;
+    }
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-    // Use direct API endpoint for source video — sandbox proxy is unreliable for large files
+    // Use direct API endpoint for source video — bypasses sandbox proxy for large files
     const directUrl = resolveDirectMediaUrl(bundleBaseUrl, cleanPath);
     if (directUrl) return directUrl;
     return `${publicBase}/${cleanPath}`;
@@ -142,14 +158,12 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
-      // Cap premountFor to 60 frames (~2s at 30fps).
-      // Video decode needs: container parse (~20ms) + decoder init (~50ms) +
-      // seek to non-keyframe (~200ms) + first frame decode (~30ms) = ~300ms.
-      // Scene components need: React mount + initial render = ~100-200ms.
-      // 2s covers worst case with generous margin for both.
-      // Chrome's power-saver only triggers after sustained (5s+) offscreen
-      // playback — 2s is safely under the threshold.
-      const PREMOUNT_CAP = 60;
+      // Cap premountFor to 90 frames (~3s at 30fps).
+      // Matte items need both fgr + matte videos loaded (2 HTTP requests
+      // + 2 video decodes) so they request 3s of premount. Other items
+      // request ≤2s. Chrome's power-saver only triggers after sustained
+      // (5s+) offscreen playback — 3s is safely under the threshold.
+      const PREMOUNT_CAP = 90;
       const CappedPremountSequence = (props: any) => {
         const { premountFor, ...rest } = props;
         return React.createElement(Remotion.Sequence, {
@@ -158,10 +172,10 @@ function createRequire(bundleBaseUrl: string) {
         });
       };
 
-      // Wrap Video to inject a default onError handler.
-      // Without onError, Remotion throws an uncatchable error from a
-      // useEffect event listener when the <video> element fails to load
-      // (e.g., media not yet available during sandbox init).
+      // Wrap Video/Audio to inject default onError handlers.
+      // Without onError, Remotion throws an uncatchable error from a DOM
+      // event listener when the element fails to load (e.g., media not yet
+      // available during sandbox init).
       const SafeVideo = (props: any) => {
         return React.createElement(Remotion.Video, {
           ...props,
@@ -171,9 +185,19 @@ function createRequire(bundleBaseUrl: string) {
         });
       };
 
+      const SafeAudio = (props: any) => {
+        return React.createElement(Remotion.Audio, {
+          ...props,
+          onError: props.onError || ((err: Error) => {
+            console.warn('[WorkspacePlayer] Audio load error (will retry on next seek):', err.message);
+          }),
+        });
+      };
+
       return {
         ...Remotion,
         Video: SafeVideo,
+        Audio: SafeAudio,
         Sequence: CappedPremountSequence,
         Composition: () => null,
         staticFile: customStaticFile,

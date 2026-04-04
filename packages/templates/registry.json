@@ -37,6 +37,417 @@
       }
     },
     {
+      "name": "explainer-analogy",
+      "type": "registry:component",
+      "description": "X is like Y split card with connector label and explanation reveal",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "analogy",
+        "comparison",
+        "educational"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-barchart",
+      "type": "registry:component",
+      "description": "Horizontal bar chart with animated cyan fill bars and amber value labels",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "chart",
+        "bar",
+        "data",
+        "data-viz"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-cause-effect",
+      "type": "registry:component",
+      "description": "Two panels showing cause and effect with animated arrow bridge and dual-color glow",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "cause-effect",
+        "educational",
+        "logic"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-comparison",
+      "type": "registry:component",
+      "description": "Side-by-side comparison columns with dual-color amber and cyan glow accents",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "comparison",
+        "versus",
+        "side-by-side"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-cycle",
+      "type": "registry:component",
+      "description": "Animated circular process diagram with orbiting indicator and sequential arc reveals",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "cycle",
+        "process",
+        "lifecycle",
+        "diagram"
+      ],
+      "meta": {
+        "stylePreset": "blackboardClean",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-definition",
+      "type": "registry:component",
+      "description": "Term definition card with large word, pronunciation, and glow underline reveal",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "definition",
+        "vocabulary",
+        "educational"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-flow",
+      "type": "registry:component",
+      "description": "Animated vertical data flow with traveling particles between connected nodes",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "flow",
+        "pipeline",
+        "diagram"
+      ],
+      "meta": {
+        "stylePreset": "blackboardClean",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-funnel",
+      "type": "registry:component",
+      "description": "Animated funnel/pipeline diagram with flowing particles that filter through narrowing stages — ideal for sales, conversion, and process visualization",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "funnel",
+        "conversion",
+        "pipeline",
+        "diagram",
+        "sales",
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-howitworks",
+      "type": "registry:component",
+      "description": "Numbered breakdown with expanding glow circles and staggered reveals",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "how-it-works",
+        "breakdown",
+        "educational"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-layers",
+      "type": "registry:component",
+      "description": "Animated layered architecture diagram with stacking layers, depth shadows, and pulsing data-flow arrows",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "layers",
+        "stack",
+        "architecture",
+        "diagram",
+        "tech"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-matrix",
+      "type": "registry:component",
+      "description": "Animated 2x2 quadrant matrix diagram with axis draw-in, staggered cell reveals, and pulsing cursor dot",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "matrix",
+        "quadrant",
+        "grid",
+        "priority",
+        "categorization",
+        "diagram"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-network",
+      "type": "registry:component",
+      "description": "Animated radial network graph with pulsing connections and traveling data particles",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "network",
+        "graph",
+        "diagram",
+        "architecture"
+      ],
+      "meta": {
+        "stylePreset": "blackboardClean",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-orbit",
+      "type": "registry:component",
+      "description": "Animated solar-system orbit diagram with concentric rings and continuously orbiting labeled elements",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "orbit",
+        "ecosystem",
+        "solar",
+        "relationships",
+        "diagram"
+      ],
+      "meta": {
+        "stylePreset": "blackboardClean",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-process",
+      "type": "registry:component",
+      "description": "Step-by-step process flow with glowing connecting lines and numbered nodes",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "process",
+        "steps",
+        "tutorial",
+        "how-to"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-ranking",
+      "type": "registry:component",
+      "description": "Numbered ranked list with large amber rank numbers and staggered glow reveals",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "ranking",
+        "list",
+        "top-list",
+        "listicle"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-stats",
+      "type": "registry:component",
+      "description": "Big number count-up with Fira Code font and glow pulse on landing",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "stats",
+        "numbers",
+        "data",
+        "metrics"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-timeline",
+      "type": "registry:component",
+      "description": "Vertical or horizontal timeline with glowing amber line and cyan node dots",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "timeline",
+        "history",
+        "chronology",
+        "dates"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-tree",
+      "type": "registry:component",
+      "description": "Animated hierarchy tree with growing branches and node reveals",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "tree",
+        "hierarchy",
+        "diagram"
+      ],
+      "meta": {
+        "stylePreset": "blackboardClean",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "explainer-venn",
+      "type": "registry:component",
+      "description": "Animated two-circle Venn diagram with sliding circles, labeled intersection, orbiting dots, and pulsing overlap highlight",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "blackboard-theme",
+        "overlay",
+        "explainer",
+        "venn",
+        "diagram",
+        "comparison",
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "globe-spin",
       "type": "registry:component",
       "description": "3D rotating globe with a glowing arc connecting two cities, cinematic camera orbit and zoom",
@@ -63,9 +474,120 @@
       }
     },
     {
+      "name": "magazine-agenda",
+      "type": "registry:component",
+      "description": "Time-slot schedule overlay with vertical timeline for event agendas and daily routine content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "agenda",
+        "schedule",
+        "timeline",
+        "event",
+        "routine"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-alert",
+      "type": "registry:component",
+      "description": "Breaking news alert banner with urgent stamp, red flash, and headline reveal",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "alert",
+        "breaking",
+        "news",
+        "urgent",
+        "announcement",
+        "breaking-news"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-beforeafter",
+      "type": "registry:component",
+      "description": "Split before/after layout with directional entrances and arrow transition, ideal for transformation content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "before",
+        "after",
+        "transformation",
+        "comparison",
+        "change"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-chart",
+      "type": "registry:component",
+      "description": "Horizontal bar chart with animated fill bars and labels for data visualization content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "chart",
+        "bar",
+        "data",
+        "visualization",
+        "statistics",
+        "data-viz"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-checklist",
+      "type": "registry:component",
+      "description": "Torn paper strips with animated checkmarks reveal a bullet-point list with parallax depth",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "checklist",
+        "list",
+        "bullets",
+        "editorial"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "magazine-collage",
       "type": "registry:component",
-      "description": "Torn paper clippings scatter and drift with parallax depth in a scrapbook collage",
+      "description": "Torn paper clippings scatter and drift with parallax depth, creating a scrapbook collage overlay",
       "categories": [
         "overlay"
       ],
@@ -85,9 +607,120 @@
       }
     },
     {
+      "name": "magazine-comparison",
+      "type": "registry:component",
+      "description": "Side-by-side torn paper scraps comparing two subjects with a red center divider and parallax push-pull",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "comparison",
+        "versus",
+        "side-by-side",
+        "editorial"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-country",
+      "type": "registry:component",
+      "description": "Cartographic ink map centered on a country with pin drop, radar pulse, and editorial country info overlay",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "magazine-theme",
+        "map",
+        "country",
+        "nation",
+        "geography",
+        "highlight",
+        "cartography",
+        "pin"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-definition",
+      "type": "registry:component",
+      "description": "Term definition overlay with large word, pronunciation, and editorial definition text for explainer content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "definition",
+        "explainer",
+        "term",
+        "glossary",
+        "educational",
+        "vocabulary"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-didyouknow",
+      "type": "registry:component",
+      "description": "Fun fact card with decorative question mark and editorial text reveal for educational content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "didyouknow",
+        "fact",
+        "educational",
+        "trivia",
+        "funfact",
+        "fun-fact"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-factfile",
+      "type": "registry:component",
+      "description": "Dossier-style torn paper card with key-value fields revealing line by line, paperclip decoration",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "factfile",
+        "profile",
+        "dossier",
+        "data"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "magazine-inkmap",
       "type": "registry:component",
-      "description": "Cartographic ink map with desaturated tiles, animated pin drop, and radar pulse",
+      "description": "Editorial location indicator with animated pin, coordinates display, and radar pulse — ideal for travel, news, and documentary overlays",
       "categories": [
         "overlay"
       ],
@@ -104,6 +737,50 @@
         "stylePreset": "elegantEditorial",
         "aspectRatio": "9:16",
         "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "magazine-location",
+      "type": "registry:component",
+      "description": "Location spotlight card with place name, coordinates, and key details for travel and geography content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "location",
+        "place",
+        "travel",
+        "geography",
+        "city"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-mythfact",
+      "type": "registry:component",
+      "description": "Myth-busting overlay with animated strike-through on the myth and clean reveal of the fact below",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "myth",
+        "fact",
+        "debunk",
+        "educational",
+        "truth"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
       }
     },
     {
@@ -130,9 +807,228 @@
       }
     },
     {
+      "name": "magazine-pricetag",
+      "type": "registry:component",
+      "description": "Large price figure with cost breakdown items for price reveals and financial content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "price",
+        "cost",
+        "money",
+        "finance",
+        "budget"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-profile",
+      "type": "registry:component",
+      "description": "Person bio card with circular avatar placeholder, name, title, and key details for profile introductions",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "profile",
+        "bio",
+        "person",
+        "expert",
+        "introduction"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-proscons",
+      "type": "registry:component",
+      "description": "Two-column pros and cons list with checkmark and cross icons, ideal for reviews and decision content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "pros",
+        "cons",
+        "review",
+        "decision",
+        "comparison"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-quote",
+      "type": "registry:component",
+      "description": "Editorial quote card with large quotation marks, attribution, and optional context line",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "quote",
+        "testimonial",
+        "citation",
+        "attribution",
+        "expert"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-ranking",
+      "type": "registry:component",
+      "description": "Numbered ranked list with large rank numbers on torn paper strips, ideal for Top 5 and listicle content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "ranking",
+        "list",
+        "top5",
+        "listicle",
+        "numbered",
+        "top-list"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-stats",
+      "type": "registry:component",
+      "description": "Bold statistics on scattered paper scraps with animated count-up numbers and parallax depth",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "stats",
+        "numbers",
+        "data",
+        "metrics"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-steps",
+      "type": "registry:component",
+      "description": "Step-by-step numbered flow with connecting dashed line, ideal for tutorials and how-to content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "steps",
+        "tutorial",
+        "how-to",
+        "process",
+        "numbered"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-takeaways",
+      "type": "registry:component",
+      "description": "Key takeaways summary card with numbered bullet points for end-of-video recap content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "takeaways",
+        "summary",
+        "recap",
+        "bullets",
+        "key-points"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-timeline",
+      "type": "registry:component",
+      "description": "Historical events pinned to a vertical red thread with torn paper scraps and parallax depth",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "timeline",
+        "history",
+        "dates",
+        "chronology"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-trivia",
+      "type": "registry:component",
+      "description": "Question card with dramatic pause and answer reveal for quiz and engagement content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "trivia",
+        "quiz",
+        "question",
+        "answer",
+        "engagement"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "magazine-typewriter",
       "type": "registry:component",
-      "description": "Typewriter-style character-by-character text reveal on fresh paper",
+      "description": "Typewriter-style character-by-character text reveal on fresh paper with editorial styling",
       "categories": [
         "overlay"
       ],
@@ -152,308 +1048,70 @@
       }
     },
     {
-      "name": "magazine-checklist",
-      "type": "registry:component",
-      "description": "Torn paper strips with animated checkmarks revealing a bullet-point list",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "checklist", "list", "bullets", "editorial"],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "magazine-timeline",
-      "type": "registry:component",
-      "description": "Historical events pinned to a vertical red thread with torn paper scraps",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "timeline", "history", "dates", "chronology"],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "magazine-stats",
-      "type": "registry:component",
-      "description": "Bold statistics on scattered paper scraps with animated count-up numbers",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "stats", "numbers", "data", "metrics"],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "magazine-comparison",
-      "type": "registry:component",
-      "description": "Side-by-side torn paper scraps comparing two subjects with a red center divider",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "comparison", "versus", "side-by-side", "editorial"],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "magazine-factfile",
-      "type": "registry:component",
-      "description": "Dossier-style torn paper card with key-value fields revealing line by line",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "factfile", "profile", "dossier", "data"],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "magazine-ranking",
-      "type": "registry:component",
-      "description": "Numbered ranked list with large rank numbers on torn paper strips",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "ranking", "list", "top5", "listicle", "numbered", "top-list"],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "magazine-steps",
-      "type": "registry:component",
-      "description": "Step-by-step numbered flow with connecting dashed line for tutorials",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "steps", "tutorial", "how-to", "process", "numbered"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-proscons",
-      "type": "registry:component",
-      "description": "Two-column pros and cons list with checkmark and cross icons",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "pros", "cons", "review", "decision", "comparison"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
       "name": "magazine-verdict",
       "type": "registry:component",
-      "description": "Verdict card with animated rating ring, highlight bullets, and recommendation line",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "verdict", "rating", "review", "score", "recommendation"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-mythfact",
-      "type": "registry:component",
-      "description": "Myth-busting overlay with animated strike-through on the myth and fact reveal below",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "myth", "fact", "debunk", "educational", "truth"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-beforeafter",
-      "type": "registry:component",
-      "description": "Split before/after layout with directional entrances and arrow transition",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "before", "after", "transformation", "comparison", "change"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-definition",
-      "type": "registry:component",
-      "description": "Term definition card with large word, pronunciation, and editorial definition text",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "definition", "explainer", "term", "glossary", "educational", "vocabulary"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-takeaways",
-      "type": "registry:component",
-      "description": "Key takeaways summary card with numbered bullet points for recap content",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "takeaways", "summary", "recap", "bullets", "key-points"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-quote",
-      "type": "registry:component",
-      "description": "Editorial quote card with large quotation marks, attribution, and context line",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "quote", "testimonial", "citation", "attribution", "expert"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
+      "description": "Verdict card with animated rating ring, highlight bullets, and recommendation line for review content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "verdict",
+        "rating",
+        "review",
+        "score",
+        "recommendation"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
     },
     {
       "name": "magazine-versus",
       "type": "registry:component",
-      "description": "Dramatic VS matchup overlay with center badge, opposing names, and stat bullets",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "versus", "vs", "matchup", "battle", "competition"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-alert",
-      "type": "registry:component",
-      "description": "Breaking news alert banner with urgent stamp, red flash, and headline reveal",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "alert", "breaking", "news", "urgent", "announcement", "breaking-news"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-didyouknow",
-      "type": "registry:component",
-      "description": "Fun fact card with decorative question mark and editorial text reveal",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "didyouknow", "fact", "educational", "trivia", "funfact", "fun-fact"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-profile",
-      "type": "registry:component",
-      "description": "Person bio card with circular avatar placeholder, name, title, and key details",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "profile", "bio", "person", "expert", "introduction"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-trivia",
-      "type": "registry:component",
-      "description": "Question card with dramatic pause and answer reveal for quiz content",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "trivia", "quiz", "question", "answer", "engagement"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-pricetag",
-      "type": "registry:component",
-      "description": "Large price figure with cost breakdown items for price reveals",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "price", "cost", "money", "finance", "budget"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
+      "description": "Dramatic VS matchup overlay with center badge, opposing names, and stat bullets for comparison content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "versus",
+        "vs",
+        "matchup",
+        "battle",
+        "competition"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
     },
     {
       "name": "magazine-warning",
       "type": "registry:component",
-      "description": "Caution overlay with warning header and flagged bullet items for red flags",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "warning", "caution", "red-flag", "avoid", "mistakes"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-chart",
-      "type": "registry:component",
-      "description": "Horizontal bar chart with animated fill bars and labels for data visualization",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "chart", "bar", "data", "visualization", "statistics", "data-viz"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-agenda",
-      "type": "registry:component",
-      "description": "Time-slot schedule overlay with vertical timeline for event agendas and daily routines",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "agenda", "schedule", "timeline", "event", "routine"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-{
-      "name": "magazine-location",
-      "type": "registry:component",
-      "description": "Location spotlight card with place name, coordinates, and key details",
-      "categories": ["overlay"],
-      "tags": ["magazine-theme", "overlay", "location", "place", "travel", "geography", "city"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "magazine-country",
-      "type": "registry:component",
-      "description": "Country polygon highlight on map tiles with camera zoom, city marker, and editorial label",
-      "categories": ["geographic"],
-      "tags": ["magazine-theme", "map", "country", "nation", "geography", "highlight", "cartography", "pin"],
-      "meta": { "stylePreset": "elegantEditorial", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-definition",
-      "type": "registry:component",
-      "description": "Term definition card with large word, pronunciation, and glow underline reveal",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "definition", "vocabulary", "educational"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-process",
-      "type": "registry:component",
-      "description": "Step-by-step process flow with glowing connecting lines and numbered nodes",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "process", "steps", "tutorial", "how-to"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-cause-effect",
-      "type": "registry:component",
-      "description": "Two panels showing cause and effect with animated arrow bridge and dual-color glow",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "cause-effect", "educational", "logic"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-analogy",
-      "type": "registry:component",
-      "description": "X is like Y split card with connector label and explanation reveal",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "analogy", "comparison", "educational"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-howitworks",
-      "type": "registry:component",
-      "description": "Numbered breakdown with expanding glow circles and staggered reveals",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "how-it-works", "breakdown", "educational"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-stats",
-      "type": "registry:component",
-      "description": "Big number count-up with Fira Code font and glow pulse on landing",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "stats", "numbers", "data", "metrics"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-barchart",
-      "type": "registry:component",
-      "description": "Horizontal bar chart with animated cyan fill bars and amber value labels",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "chart", "bar", "data", "data-viz"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-comparison",
-      "type": "registry:component",
-      "description": "Side-by-side comparison columns with dual-color amber and cyan glow accents",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "comparison", "versus", "side-by-side"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-ranking",
-      "type": "registry:component",
-      "description": "Numbered ranked list with large amber rank numbers and staggered glow reveals",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "ranking", "list", "top-list", "listicle"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
-    },
-    {
-      "name": "explainer-timeline",
-      "type": "registry:component",
-      "description": "Vertical or horizontal timeline with glowing amber line and cyan node dots",
-      "categories": ["overlay"],
-      "tags": ["blackboard-theme", "overlay", "explainer", "timeline", "history", "chronology", "dates"],
-      "meta": { "stylePreset": "cleanMinimal", "aspectRatio": "9:16", "estimatedDuration": "5s" }
+      "description": "Caution overlay with warning header and flagged bullet items for red flags and mistakes content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "warning",
+        "caution",
+        "red-flag",
+        "avoid",
+        "mistakes"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
     },
     {
       "name": "watercolor-map",

@@ -1,15 +1,11 @@
 import { interpolate, Easing } from 'remotion';
 
-export const blackboardEasing = Easing.bezier(0.25, 0.1, 0.25, 1.0);
+export const blackboardEasing = Easing.bezier(0.16, 1, 0.3, 1);
 
 export function glowFadeIn(frame: number, start: number, duration = 20) {
-  const glowProgress = interpolate(frame, [start, start + duration * 0.5], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
   const contentProgress = interpolate(
     frame,
-    [start + duration * 0.25, start + duration],
+    [start, start + duration],
     [0, 1],
     {
       extrapolateLeft: 'clamp',
@@ -17,11 +13,21 @@ export function glowFadeIn(frame: number, start: number, duration = 20) {
       easing: Easing.out(Easing.cubic),
     },
   );
-  const scale = interpolate(contentProgress, [0, 1], [0.97, 1], {
+  const scale = interpolate(contentProgress, [0, 1], [0.98, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  return { glowProgress, contentProgress, scale };
+  const translateY = interpolate(
+    frame,
+    [start, start + duration],
+    [15, 0],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.cubic),
+    },
+  );
+  return { glowProgress: contentProgress, contentProgress, scale, translateY };
 }
 
 export function glowPulse(frame: number, start: number, duration = 15) {
@@ -29,7 +35,7 @@ export function glowPulse(frame: number, start: number, duration = 15) {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const intensity = Math.sin(progress * Math.PI);
+  const intensity = Math.sin(progress * Math.PI) * 0.15;
   return { intensity, active: frame >= start && frame <= start + duration };
 }
 
