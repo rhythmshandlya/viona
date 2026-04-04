@@ -82,7 +82,10 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     // Resolve media URLs exactly like customStaticFile() in useWorkspaceComposition
     // so that preload hints match the actual <video>/<audio> element src.
     // URL mismatch between preload and element causes browser to ignore preloaded data.
+    const assets = (m as any)?.assets || {};
     const resolveMedia = (src: string) => {
+      // Check assets map first (presigned MinIO URLs)
+      if (assets[src]) return assets[src];
       if (/^https?:\/\/|^blob:/.test(src)) return src;
       if (src.startsWith('/api/')) return src;
       const cleanPath = src.startsWith('/') ? src.slice(1) : src;
@@ -193,10 +196,8 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   }, []);
 
   const inputProps = useMemo(() => {
-    // Strip sandbox assets map so resolveMediaSrc always falls through to
-    // staticFile(), returning the direct video URL for native streaming.
     const m = manifest as any;
-    const cleaned = m?.assets ? { ...m, assets: {} } : { ...m };
+    const cleaned = { ...m };
 
     // Phrase/karaoke/DH modes need multi-word caption items.
     // Merge single-word items into phrase groups right before passing to Player.
