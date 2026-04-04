@@ -13,8 +13,8 @@ import { Playhead } from './Playhead';
 import { TrackHeaders } from './track-headers';
 import { getAutoScroll } from './interactions/AutoScroll';
 import {
+  useEditorStore,
   useViewport,
-  useCurrentTimeMs,
   useIsPlaying,
   useViewportActions,
 } from '../store/use-editor-store';
@@ -33,7 +33,6 @@ export function Timeline({ className }: TimelineProps) {
 
   // State
   const viewport = useViewport();
-  const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
 
   // Actions
@@ -68,13 +67,22 @@ export function Timeline({ className }: TimelineProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showSnapSettings]);
 
-  // AutoScroll: keep playhead visible during playback
+  // AutoScroll: keep playhead visible during playback.
+  // Uses subscribe + throttle so this runs at most every 200ms instead of every 33ms frame.
   useEffect(() => {
     if (!isPlaying) return;
+    let lastScrollTime = 0;
     const autoScroll = getAutoScroll();
-    const canvasWidth = scrollContainerRef.current?.getBoundingClientRect().width || 0;
-    autoScroll.update(currentTimeMs, isPlaying, viewport, canvasWidth, setScrollX);
-  }, [currentTimeMs, isPlaying, viewport, setScrollX]);
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      if (!state.isPlaying) return;
+      const now = Date.now();
+      if (now - lastScrollTime < 200) return;
+      lastScrollTime = now;
+      const canvasWidth = scrollContainerRef.current?.getBoundingClientRect().width || 0;
+      autoScroll.update(state.currentTimeMs, state.isPlaying, state.viewport, canvasWidth, setScrollX);
+    });
+    return unsubscribe;
+  }, [isPlaying, setScrollX]);
 
   // Handle horizontal scroll
   const handleWheel = useCallback(

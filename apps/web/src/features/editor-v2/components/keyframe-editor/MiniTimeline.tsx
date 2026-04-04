@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import type { TimelineItem } from '../../store/types';
 import { useEditorStore } from '../../store/use-editor-store';
 import { PropertyLane } from './PropertyLane';
@@ -26,7 +26,7 @@ export const MiniTimeline: React.FC<MiniTimelineProps> = ({
   onSelectSegment,
 }) => {
   const rulerRef = useRef<HTMLDivElement>(null);
-  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
+  const playheadRef = useRef<HTMLDivElement>(null);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
 
   const duration = item.endMs - item.startMs;
@@ -36,11 +36,27 @@ export const MiniTimeline: React.FC<MiniTimelineProps> = ({
     (item.keyframes ?? []).some((kf) => prop in kf.props),
   );
 
-  // Playhead position relative to item (clamped 0-100%)
-  const relativeTime = currentTimeMs - item.startMs;
+  // Subscribe to currentTimeMs and update playhead position via DOM mutation.
+  // This avoids a React re-render every 33ms during playback.
+  useEffect(() => {
+    const startMs = item.startMs;
+    const dur = item.endMs - item.startMs;
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      if (!playheadRef.current) return;
+      const pct =
+        dur > 0
+          ? Math.max(0, Math.min(100, ((state.currentTimeMs - startMs) / dur) * 100))
+          : 0;
+      playheadRef.current.style.left = `${pct}%`;
+    });
+    return unsubscribe;
+  }, [item.startMs, item.endMs]);
+
+  // Initial playhead position from store (for first render)
+  const initialTimeMs = useEditorStore.getState().currentTimeMs;
   const playheadPct =
     duration > 0
-      ? Math.max(0, Math.min(100, (relativeTime / duration) * 100))
+      ? Math.max(0, Math.min(100, ((initialTimeMs - item.startMs) / duration) * 100))
       : 0;
 
   // Click ruler to seek
@@ -97,6 +113,7 @@ export const MiniTimeline: React.FC<MiniTimelineProps> = ({
 
         {/* Playhead */}
         <div
+          ref={playheadRef}
           className="absolute top-0 h-full w-px"
           style={{
             left: `${playheadPct}%`,

@@ -10,13 +10,13 @@ import { Film, Sparkles, Trash2, Volume2, Loader2, Upload, GripVertical } from '
 import { Slider } from '@/components/ui/slider';
 import { api, ProjectMediaAsset } from '@/lib/api';
 import {
+  useEditorStore,
   useProjectId,
   useItemIds,
   useItems,
   useTimelineActions,
   usePlaybackActions,
   useProjectActions,
-  useCurrentTimeMs,
 } from '../store/use-editor-store';
 import { BrollItemData } from '../store/types';
 
@@ -49,7 +49,17 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
   const projectId = useProjectId();
   const itemIds = useItemIds();
   const items = useItems();
-  const currentTimeMs = useCurrentTimeMs();
+  // Derived selector: only changes when the active broll clip boundary is crossed
+  const activeBrollId = useEditorStore((state) => {
+    const timeMs = state.currentTimeMs;
+    for (const id of state.itemIds) {
+      const item = state.items[id];
+      if (item?.type === 'broll' && item.startMs <= timeMs && item.endMs >= timeMs) {
+        return id;
+      }
+    }
+    return null;
+  });
   const { deleteItems, updateItemData } = useTimelineActions();
   const { pause, seek } = usePlaybackActions();
   const { loadProject } = useProjectActions();
@@ -310,7 +320,7 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
           <div className="overflow-y-auto max-h-[400px]">
             {brollItems.map((item) => {
               const data = item.data as BrollItemData;
-              const isActive = currentTimeMs >= item.startMs && currentTimeMs < item.endMs;
+              const isActive = item.id === activeBrollId;
               const label = data.sourceType === 'upload'
                 ? (data.filename || 'Upload')
                 : (data.photographer ? `by ${data.photographer}` : 'Stock footage');
