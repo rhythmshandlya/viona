@@ -112,7 +112,6 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
             startFrom={startFromFrames}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             pauseWhenBuffering
-            crossOrigin="anonymous"
           />
         </AbsoluteFill>
       )}
@@ -134,7 +133,6 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
           pauseWhenBuffering
           muted
           onLoadedData={renderCanvas}
-          crossOrigin="anonymous"
         />
         <Video
           ref={matteVideoRef}
@@ -144,7 +142,6 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
           pauseWhenBuffering
           muted
           onLoadedData={renderCanvas}
-          crossOrigin="anonymous"
         />
         <canvas
           ref={canvasRef}

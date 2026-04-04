@@ -798,7 +798,9 @@ export const useEditorStore = create<EditorStore>()(
         for (const itemId of bridgeResult.itemIds) {
           const item = bridgeResult.items[itemId];
           if (item?.type === 'video') {
-            (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+            // Use proxy from MinIO if available, fallback to media-proxy (same-origin for canvas)
+            const proxyUrl = manifestAssets?.['source-proxy.mp4'];
+            (item.data as VideoItemData).thumbnailSrc = proxyUrl || `/media-proxy/projects/${projectId}/video`;
           } else if (item?.type === 'audio') {
             const audioData = item.data as AudioItemData;
             // browserSrc = same-origin URL for waveform decoding; src is already resolved

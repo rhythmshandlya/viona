@@ -131,17 +131,35 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
       }
     }
 
-    // Preload video/audio — browser handles buffering with range requests
+    // Prefetch proxy files into blob URLs for instant seek (small files, ~5MB total).
+    // For full-res files (no proxy available), use preloadVideo/preloadAudio hints instead.
+    // Remotion auto-swaps original URLs with blob URLs when prefetch is used.
     for (const url of videoUrls) {
-      if (!preloadedRef.current.has(url)) {
-        try { preloadVideo(url); } catch { /* ignore */ }
-        preloadedRef.current.add(url);
+      if (!prefetchHandlesRef.current.has(url) && !preloadedRef.current.has(url)) {
+        if (url.includes('-proxy.') || url.includes('localhost:9000')) {
+          // Small proxy/MinIO files: full prefetch into blob URL for instant seeking
+          try {
+            const { free } = prefetch(url);
+            prefetchHandlesRef.current.set(url, free);
+          } catch { /* ignore */ }
+        } else {
+          // Large files: just hint, let browser manage buffering
+          try { preloadVideo(url); } catch { /* ignore */ }
+          preloadedRef.current.add(url);
+        }
       }
     }
     for (const url of audioUrls) {
-      if (!preloadedRef.current.has(url)) {
-        try { preloadAudio(url); } catch { /* ignore */ }
-        preloadedRef.current.add(url);
+      if (!prefetchHandlesRef.current.has(url) && !preloadedRef.current.has(url)) {
+        if (url.includes('-proxy.') || url.includes('localhost:9000')) {
+          try {
+            const { free } = prefetch(url);
+            prefetchHandlesRef.current.set(url, free);
+          } catch { /* ignore */ }
+        } else {
+          try { preloadAudio(url); } catch { /* ignore */ }
+          preloadedRef.current.add(url);
+        }
       }
     }
 

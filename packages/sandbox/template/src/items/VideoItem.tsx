@@ -54,7 +54,6 @@ export const VideoItem: React.FC<VideoItemProps> = React.memo(({
             objectPosition: `${crop.x}% ${crop.y}%`,
             transform: `scale(${crop.scale})`,
           }}
-          crossOrigin="anonymous"
         />
       </div>
     );

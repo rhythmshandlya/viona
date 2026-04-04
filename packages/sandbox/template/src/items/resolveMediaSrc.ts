@@ -61,8 +61,6 @@ export function resolveMediaSrc(
   }
 
   // Inside sandbox render (remotion render / remotion still): use local files.
-  // The assets map contains presigned MinIO URLs meant for browser access
-  // outside the container. Headless Chrome inside Docker can't reach them.
   if (isRendering) {
     if (/^https?:\/\/|^blob:/.test(src)) return src;
     return staticFile(src);
