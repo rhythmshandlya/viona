@@ -5,9 +5,9 @@
 
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
-  useCurrentTimeMs,
+  useEditorStore,
   useViewport,
   useDuration,
   usePlaybackActions,
@@ -20,11 +20,62 @@ interface PlayheadProps {
 }
 
 export function Playhead({ rulerHeight = 24, className }: PlayheadProps) {
-  const currentTimeMs = useCurrentTimeMs();
   const viewport = useViewport();
   const duration = useDuration();
   const { setCurrentTime } = usePlaybackActions();
   const { startDrag, updateDrag, endDrag } = useTimelineActions();
+
+  const playheadRef = useRef<HTMLDivElement>(null);
+
+  // Keep viewport in a ref so the subscribe callback always reads the latest values
+  // without needing to re-subscribe when viewport changes.
+  const viewportRef = useRef(viewport);
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
+
+  // Subscribe to currentTimeMs changes and mutate the DOM directly — no React re-render.
+  useEffect(() => {
+    const applyPosition = (timeMs: number) => {
+      if (!playheadRef.current) return;
+      const { zoom, scrollX } = viewportRef.current;
+      const x = timeMs * zoom - scrollX;
+      // Hide if off-screen (matching original render-null logic)
+      if (x < 0 || x > 10000) {
+        playheadRef.current.style.visibility = 'hidden';
+      } else {
+        playheadRef.current.style.visibility = 'visible';
+        playheadRef.current.style.left = `${x}px`;
+      }
+    };
+
+    // Set initial position immediately
+    applyPosition(useEditorStore.getState().currentTimeMs);
+
+    let prev = useEditorStore.getState().currentTimeMs;
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      if (state.currentTimeMs !== prev) {
+        prev = state.currentTimeMs;
+        applyPosition(state.currentTimeMs);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Re-apply position when viewport changes (zoom/scroll) so the playhead doesn't lag.
+  useEffect(() => {
+    if (!playheadRef.current) return;
+    const { zoom, scrollX } = viewport;
+    const timeMs = useEditorStore.getState().currentTimeMs;
+    const x = timeMs * zoom - scrollX;
+    if (x < 0 || x > 10000) {
+      playheadRef.current.style.visibility = 'hidden';
+    } else {
+      playheadRef.current.style.visibility = 'visible';
+      playheadRef.current.style.left = `${x}px`;
+    }
+  }, [viewport]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -65,21 +116,15 @@ export function Playhead({ rulerHeight = 24, className }: PlayheadProps) {
     [endDrag]
   );
 
-  // Calculate position
-  const x = currentTimeMs * viewport.zoom - viewport.scrollX;
-
-  // Don't render if off screen (after all hooks)
-  if (x < 0 || x > 10000) {
-    return null;
-  }
-
   return (
     <div
+      ref={playheadRef}
       className={`absolute top-0 bottom-0 pointer-events-none ${className || ''}`}
       style={{
-        left: x,
+        left: 0,
         transform: 'translateX(-50%)',
         zIndex: 20,
+        visibility: 'hidden',
       }}
     >
       {/* Playhead handle (draggable) */}

@@ -5,10 +5,10 @@
 
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Subtitles, MousePointerClick, Scissors } from 'lucide-react';
 import {
-  useCurrentTimeMs,
+  useEditorStore,
   useIsPlaying,
   useDuration,
   usePlaybackActions,
@@ -30,7 +30,6 @@ function formatTime(ms: number): string {
 }
 
 export function PlaybackBar() {
-  const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const duration = useDuration();
   const { togglePlayback, seek, pause } = usePlaybackActions();
@@ -42,7 +41,52 @@ export function PlaybackBar() {
   const splitMode = useSplitMode();
   const scrubberRef = useRef<HTMLDivElement>(null);
 
-  const progress = duration > 0 ? (currentTimeMs / duration) * 100 : 0;
+  // Refs for DOM mutation targets
+  const timeDisplayRef = useRef<HTMLSpanElement>(null);
+  const scrubberFillRef = useRef<HTMLDivElement>(null);
+
+  // Keep duration in a ref so subscribe callback always has the latest value
+  // without needing to re-subscribe when duration changes.
+  const durationRef = useRef(duration);
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+
+  // Subscribe to currentTimeMs and mutate the DOM directly — no React re-render.
+  useEffect(() => {
+    const applyTime = (timeMs: number) => {
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = formatTime(timeMs);
+      }
+      if (scrubberFillRef.current) {
+        const d = durationRef.current;
+        const progress = d > 0 ? (timeMs / d) * 100 : 0;
+        scrubberFillRef.current.style.width = `${progress}%`;
+      }
+    };
+
+    // Set initial values immediately
+    applyTime(useEditorStore.getState().currentTimeMs);
+
+    let prev = useEditorStore.getState().currentTimeMs;
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      if (state.currentTimeMs !== prev) {
+        prev = state.currentTimeMs;
+        applyTime(state.currentTimeMs);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Re-apply scrubber width when duration changes (e.g. on project load).
+  useEffect(() => {
+    if (scrubberFillRef.current) {
+      const timeMs = useEditorStore.getState().currentTimeMs;
+      const progress = duration > 0 ? (timeMs / duration) * 100 : 0;
+      scrubberFillRef.current.style.width = `${progress}%`;
+    }
+  }, [duration]);
 
   const handleScrubberClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -76,8 +120,12 @@ export function PlaybackBar() {
   return (
     <div className="h-12 flex items-center justify-center gap-4 px-6 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
       {/* Time display - left */}
-      <span className="text-sm font-mono text-[var(--editor-text-secondary)] w-20 text-right tabular-nums" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
-        {formatTime(currentTimeMs)}
+      <span
+        ref={timeDisplayRef}
+        className="text-sm font-mono text-[var(--editor-text-secondary)] w-20 text-right tabular-nums"
+        style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}
+      >
+        {formatTime(useEditorStore.getState().currentTimeMs)}
       </span>
 
       {/* Scrubber - increased hit area */}
@@ -89,8 +137,9 @@ export function PlaybackBar() {
       >
         <div className="w-full h-1.5 bg-[var(--editor-border-subtle)] rounded-full relative">
           <div
+            ref={scrubberFillRef}
             className="h-full bg-[var(--editor-accent)] rounded-full relative transition-all"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${duration > 0 ? (useEditorStore.getState().currentTimeMs / duration) * 100 : 0}%` }}
           >
             {/* Scrubber handle */}
             <div
