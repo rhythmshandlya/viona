@@ -99,21 +99,33 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       return;
     }
 
-    // Validate session token
-    const isJwt = token.startsWith('eyJ');
-    const session = isJwt
-      ? await validateSessionJwt(token)
-      : await validateSession(token);
-
-    if (!session) {
-      socket.close(4002, 'Invalid or expired session');
-      return;
+    // Dev bypass: token === 'dev-bypass' in non-production
+    let user: typeof import('../db/index.js').users.$inferSelect | undefined;
+    if (token === 'dev-bypass' && !process.env.RAILWAY_ENVIRONMENT) {
+      const { getDevBypassUser } = await import('../middleware/auth.js');
+      const bypassUser = await getDevBypassUser('armaanbgp@gmail.com');
+      if (bypassUser) {
+        user = bypassUser;
+      }
     }
 
-    // Find user in our database
-    const user = await db.query.users.findFirst({
-      where: eq(users.stytchUserId, session.userId),
-    });
+    if (!user) {
+      // Validate session token with Stytch
+      const isJwt = token.startsWith('eyJ');
+      const session = isJwt
+        ? await validateSessionJwt(token)
+        : await validateSession(token);
+
+      if (!session) {
+        socket.close(4002, 'Invalid or expired session');
+        return;
+      }
+
+      // Find user in our database
+      user = await db.query.users.findFirst({
+        where: eq(users.stytchUserId, session.userId),
+      }) ?? undefined;
+    }
 
     if (!user) {
       socket.close(4003, 'User not found');

@@ -102,19 +102,20 @@ export async function syncAssets(): Promise<void> {
     }
 
     try {
-      // Generate presigned URL using internal client (reachable from container),
-      // then rewrite the host to the public endpoint (reachable from browser)
-      let url = await minio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
-      // Rewrite internal hostname to public endpoint for browser access
       const publicBase = getPublicBaseUrl();
-      if (publicBase) {
+      const pubEndpoint = process.env.MINIO_PUBLIC_ENDPOINT;
+      if (publicBase && pubEndpoint !== 'localhost') {
+        // Production/staging: presigned URL with host rewrite
+        let url = await minio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
         const parsed = new URL(url);
-        const internalOrigin = parsed.origin;
-        url = url.replace(internalOrigin, publicBase);
+        url = url.replace(parsed.origin, publicBase);
+        assets[file] = url;
+      } else if (publicBase) {
+        // Local dev: direct URL (bucket has anonymous download policy)
+        assets[file] = `${publicBase}/${bucket}/${objectKey}`;
       }
-      assets[file] = url;
     } catch (err) {
-      logger.warn({ err, file }, 'Failed to generate presigned URL');
+      logger.warn({ err, file }, 'Failed to generate asset URL');
     }
   }
 
