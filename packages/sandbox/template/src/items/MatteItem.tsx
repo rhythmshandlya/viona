@@ -92,6 +92,10 @@ function initGL(canvas: HTMLCanvasElement): GLState | null {
   const uFgr = gl.getUniformLocation(program, "uFgr")!;
   const uMatte = gl.getUniformLocation(program, "uMatte")!;
 
+  gl.useProgram(program);
+  gl.uniform1i(uFgr, 0);   // texture unit 0
+  gl.uniform1i(uMatte, 1);  // texture unit 1
+
   const buf = gl.createBuffer()!;
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
@@ -130,6 +134,15 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
     return () => {
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
+      // Clean up GL resources
+      const ctx = glRef.current;
+      if (ctx) {
+        const { gl, program, fgrTex, matteTex, buf } = ctx;
+        gl.deleteTexture(fgrTex);
+        gl.deleteTexture(matteTex);
+        gl.deleteBuffer(buf);
+        gl.deleteProgram(program);
+      }
       glRef.current = null;
     };
   }, []);
@@ -175,12 +188,10 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, fgrTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fv);
-    gl.uniform1i(uFgr, 0);
 
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, matteTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mv);
-    gl.uniform1i(uMatte, 1);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.enableVertexAttribArray(aPos);
