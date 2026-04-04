@@ -9,7 +9,7 @@ import {
   useCaptionActions,
   useTimelineActions,
   useVideoUrl,
-  useCurrentTimeMs,
+  useEditorStore,
 } from '../store/use-editor-store';
 import {
   CaptionDisplayMode,
@@ -57,7 +57,6 @@ export function StylePanel() {
   const { clearSelection, selectAll } = useTimelineActions();
 
   const videoUrl = useVideoUrl();
-  const currentTimeMs = useCurrentTimeMs();
 
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoPalettes, setAutoPalettes] = useState<ColorPalette[] | null>(null);
@@ -82,7 +81,7 @@ export function StylePanel() {
     if (!videoUrl) return;
     setAutoLoading(true);
     try {
-      const avgColor = await sampleVideoFrame(videoUrl, currentTimeMs, 'bottom');
+      const avgColor = await sampleVideoFrame(videoUrl, useEditorStore.getState().currentTimeMs, 'bottom');
       const palettes = generateCaptionColors(avgColor);
       setAutoPalettes(palettes);
       if (palettes.length > 0) {
@@ -93,7 +92,7 @@ export function StylePanel() {
     } finally {
       setAutoLoading(false);
     }
-  }, [videoUrl, currentTimeMs, updateStyle]);
+  }, [videoUrl, updateStyle]);
 
   const isPaletteActive = (palette: ColorPalette) =>
     style?.color === palette.color && style?.activeColor === palette.activeColor;

@@ -37,7 +37,6 @@ import {
   useSelectedIds,
   useCanUndo,
   useCanRedo,
-  useCurrentTimeMs,
   useDuration,
   useFps,
   useSplitMode,
@@ -78,7 +77,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
   const selectedIds = useSelectedIds();
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
-  const currentTimeMs = useCurrentTimeMs();
   const duration = useDuration();
   const fps = useFps();
   const splitMode = useSplitMode();
@@ -189,7 +187,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       // Cmd/Ctrl + V: Paste at playhead (only intercept when clipboard has items)
       if (cmdOrCtrl && e.code === 'KeyV' && clipboard && clipboard.length > 0) {
         e.preventDefault();
-        pasteItems(currentTimeMs);
+        pasteItems(useEditorStore.getState().currentTimeMs);
         return;
       }
 
@@ -261,7 +259,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
           nudgeItems(selectedIds, delta);
         } else {
           // Frame-step backward
-          const newTime = Math.max(0, currentTimeMs - frameDurationMs);
+          const newTime = Math.max(0, useEditorStore.getState().currentTimeMs - frameDurationMs);
           seek(newTime);
         }
         return;
@@ -275,7 +273,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
           nudgeItems(selectedIds, delta);
         } else {
           // Frame-step forward
-          const newTime = Math.min(duration, currentTimeMs + frameDurationMs);
+          const newTime = Math.min(duration, useEditorStore.getState().currentTimeMs + frameDurationMs);
           seek(newTime);
         }
         return;
@@ -307,7 +305,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       selectedIds,
       canUndo,
       canRedo,
-      currentTimeMs,
       duration,
       fps,
       splitMode,

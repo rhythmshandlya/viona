@@ -10,7 +10,6 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   useViewport,
   useDuration,
-  useCurrentTimeMs,
   useSelectedTimeRange,
   usePlaybackActions,
   useAIActions,
@@ -60,7 +59,6 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewport = useViewport();
   const duration = useDuration();
-  const currentTimeMs = useCurrentTimeMs();
   const selectedTimeRange = useSelectedTimeRange();
   const { setCurrentTime } = usePlaybackActions();
   const { setSelectedTimeRange } = useAIActions();
@@ -165,7 +163,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     ctx.moveTo(0, height - 0.5);
     ctx.lineTo(width, height - 0.5);
     ctx.stroke();
-  }, [viewport, duration, currentTimeMs, height, selectedTimeRange, rangeDrag]);
+  }, [viewport, duration, height, selectedTimeRange, rangeDrag]);
 
   // Handle resize
   useEffect(() => {

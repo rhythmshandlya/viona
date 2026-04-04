@@ -51,7 +51,6 @@ export const KeyframeList: React.FC<KeyframeListProps> = ({
   const addKeyframeAtTime = useEditorStore((s) => s.addKeyframeAtTime);
   const deleteKeyframe = useEditorStore((s) => s.deleteKeyframe);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
-  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
 
   const keyframes = item.keyframes ?? [];
 
@@ -66,7 +65,7 @@ export const KeyframeList: React.FC<KeyframeListProps> = ({
 
   const handleAdd = () => {
     // Compute time relative to item start
-    const relativeMs = Math.max(0, currentTimeMs - item.startMs);
+    const relativeMs = Math.max(0, useEditorStore.getState().currentTimeMs - item.startMs);
     // Snapshot current transform (or empty)
     const currentTransform = item.transform ?? {
       x: 0,

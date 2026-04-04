@@ -8,12 +8,13 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
-import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying, useEditorStore, useCurrentTimeMs } from '../store/use-editor-store';
+import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying, useEditorStore } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { ElementInspectOverlay } from './ElementInspectOverlay';
 import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
 import { ItemDragOverlay } from '../components/ItemDragOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
+import { resolveTransformAtTime } from '../utils/transform';
 
 interface HighlightRect {
   left: number;
@@ -88,7 +89,6 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
   const elementPickerEnabled = useElementPickerEnabled();
   const inspectModeEnabled = useInspectModeEnabled();
   const isPlaying = useIsPlaying();
-  const currentTimeMs = useCurrentTimeMs();
   const select = useEditorStore((s) => s.select);
   const [scale, setScale] = useState(1);
   const [highlightRect, setHighlightRect] = useState<HighlightRect | null>(null);
@@ -107,6 +107,7 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
     const videoWidth = project.videoSettings.canvasWidth;
     const videoHeight = project.videoSettings.canvasHeight;
     const state = useEditorStore.getState();
+    const currentTimeMs = state.currentTimeMs;
 
     // Get items visible at current time, sorted by track position (highest = frontmost)
     const trackPositions = new Map<string, number>();
@@ -130,7 +131,9 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
       });
 
     for (const item of visibleItems) {
-      const t = item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 };
+      const baseT = item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 };
+      const relTime = currentTimeMs - item.startMs;
+      const t = resolveTransformAtTime(baseT, item.keyframes, relTime);
       const ix = resolveValue(t.x, videoWidth);
       const iy = resolveValue(t.y, videoHeight);
       const iw = resolveValue(t.width, videoWidth);
@@ -144,7 +147,7 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
 
     // Clicked on empty space — deselect
     select([], 'replace');
-  }, [project, currentTimeMs, elementPickerEnabled, select]);
+  }, [project, elementPickerEnabled, select]);
 
   // Calculate scale to fit player in container
   const calculateScale = useCallback(() => {

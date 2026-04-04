@@ -36,7 +36,6 @@ import {
   useSelectedIds,
   useItems,
   useTracks,
-  useCurrentTimeMs,
   useClipboard,
   useSelectedTimeRange,
   useEditorStore,
@@ -90,7 +89,6 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
   const selectedIds = useSelectedIds();
   const items = useItems();
   const tracks = useTracks();
-  const currentTimeMs = useCurrentTimeMs();
   const clipboard = useClipboard();
   const selectedTimeRange = useSelectedTimeRange();
 
@@ -203,7 +201,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             label: 'Split Here',
             shortcut: 'S',
             icon: Scissors,
-            action: withSelection(() => splitItem(itemId, currentTimeMs)),
+            action: withSelection(() => splitItem(itemId, useEditorStore.getState().currentTimeMs)),
           },
           { type: 'separator' as const },
           {
@@ -249,7 +247,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             action: withSelection(() => {
               const currentItem = items[itemId];
               if (!currentItem) return;
-              const relativeTime = currentTimeMs - currentItem.startMs;
+              const relativeTime = useEditorStore.getState().currentTimeMs - currentItem.startMs;
               const currentTransform = currentItem.transform || {
                 x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1,
               };
@@ -351,7 +349,6 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       selectedIds,
       items,
       tracks,
-      currentTimeMs,
       clipboard,
       selectedTimeRange,
       select,
