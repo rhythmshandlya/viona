@@ -1,5 +1,5 @@
 import { readdir, readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { Client as MinioClient } from 'minio';
 import pino from 'pino';
 import { withManifestLock } from './tools/manifest-ops.js';
@@ -9,9 +9,24 @@ const logger = pino({ name: 'asset-sync' });
 const WORKSPACE = '/workspace';
 const PUBLIC_DIR = join(WORKSPACE, 'public');
 const MANIFEST_PATH = join(WORKSPACE, 'manifest.json');
-const PRESIGNED_TTL = 8 * 60 * 60; // 8 hours in seconds
+const PRESIGNED_TTL = 24 * 60 * 60; // 24 hours in seconds
 
 const uploadedFiles = new Set<string>();
+
+async function walkDir(dir: string, baseDir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await walkDir(fullPath, baseDir));
+    } else if (entry.isFile()) {
+      // Relative path with forward slashes for manifest keys (e.g., "matte/scene-1.mp4")
+      files.push(relative(baseDir, fullPath).replace(/\\/g, '/'));
+    }
+  }
+  return files;
+}
 
 let _minioClient: MinioClient | null = null;
 let _presignedClient: MinioClient | null = null;
@@ -54,9 +69,7 @@ export async function syncAssets(): Promise<void> {
 
   let files: string[] = [];
   try {
-    // Use withFileTypes to distinguish files from directories (fixes EISDIR error)
-    const entries = await readdir(PUBLIC_DIR, { withFileTypes: true });
-    files = entries.filter(e => e.isFile()).map(e => e.name);
+    files = await walkDir(PUBLIC_DIR, PUBLIC_DIR);
   } catch {
     logger.debug('No public directory yet');
     return;
@@ -75,6 +88,9 @@ export async function syncAssets(): Promise<void> {
   const assets: Record<string, string> = {};
 
   for (const file of files) {
+    // Skip build artifacts and manifest symlinks
+    if (file.startsWith('.build/') || file === 'manifest.json') continue;
+
     const objectKey = `${projectPrefix}/${file}`;
     const filePath = join(PUBLIC_DIR, file);
 
