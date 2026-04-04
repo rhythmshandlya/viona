@@ -46,23 +46,17 @@ function getMinioClient(): MinioClient {
 
 /** Get a MinIO client configured with the public endpoint for generating
  *  browser-accessible presigned URLs. Falls back to the internal client. */
-function getPresignedClient(): MinioClient {
-  if (!_presignedClient) {
-    const publicEndpoint = process.env.MINIO_PUBLIC_ENDPOINT;
-    if (publicEndpoint) {
-      const publicSSL = process.env.MINIO_PUBLIC_USE_SSL === 'true';
-      _presignedClient = new MinioClient({
-        endPoint: publicEndpoint,
-        port: parseInt(process.env.MINIO_PUBLIC_PORT || process.env.MINIO_PORT || '9000', 10),
-        useSSL: publicSSL,
-        accessKey: process.env.MINIO_ACCESS_KEY || '',
-        secretKey: process.env.MINIO_SECRET_KEY || '',
-      });
-    } else {
-      _presignedClient = getMinioClient();
-    }
-  }
-  return _presignedClient;
+/** Build the public base URL for presigned URLs (what the browser sees).
+ *  Falls back to the internal endpoint if no public endpoint is configured. */
+function getPublicBaseUrl(): string | null {
+  const pub = process.env.MINIO_PUBLIC_ENDPOINT;
+  if (!pub) return null;
+  const ssl = process.env.MINIO_PUBLIC_USE_SSL === 'true';
+  const port = parseInt(process.env.MINIO_PUBLIC_PORT || process.env.MINIO_PORT || '9000', 10);
+  const scheme = ssl ? 'https' : 'http';
+  const defaultPort = ssl ? 443 : 80;
+  const portSuffix = port === defaultPort ? '' : `:${port}`;
+  return `${scheme}://${pub}${portSuffix}`;
 }
 
 export async function syncAssets(): Promise<void> {
@@ -108,8 +102,16 @@ export async function syncAssets(): Promise<void> {
     }
 
     try {
-      const presignedMinio = getPresignedClient();
-      const url = await presignedMinio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
+      // Generate presigned URL using internal client (reachable from container),
+      // then rewrite the host to the public endpoint (reachable from browser)
+      let url = await minio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
+      // Rewrite internal hostname to public endpoint for browser access
+      const publicBase = getPublicBaseUrl();
+      if (publicBase) {
+        const parsed = new URL(url);
+        const internalOrigin = parsed.origin;
+        url = url.replace(internalOrigin, publicBase);
+      }
       assets[file] = url;
     } catch (err) {
       logger.warn({ err, file }, 'Failed to generate presigned URL');
