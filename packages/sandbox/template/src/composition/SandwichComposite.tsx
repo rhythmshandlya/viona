@@ -4,9 +4,8 @@ import {
   Video,
   useCurrentFrame,
   useVideoConfig,
-  getRemotionEnvironment,
-  staticFile,
 } from 'remotion';
+import { resolveMediaSrc } from '../items/resolveMediaSrc';
 
 interface SandwichCompositeProps {
   videoSrc: string;
@@ -14,6 +13,7 @@ interface SandwichCompositeProps {
   startFrom: number;
   children: React.ReactNode;
   backgroundless?: boolean;
+  assets?: Record<string, string>;
 }
 
 /**
@@ -45,6 +45,7 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
   startFrom,
   children,
   backgroundless = false,
+  assets = {},
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
@@ -54,8 +55,8 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
   const sourceVideoRef = useRef<HTMLVideoElement>(null);
   const matteVideoRef = useRef<HTMLVideoElement>(null);
 
-  const resolvedVideoSrc = resolveSrc(videoSrc);
-  const resolvedMatteSrc = resolveSrc(matteSrc);
+  const resolvedVideoSrc = resolveMediaSrc(videoSrc, assets);
+  const resolvedMatteSrc = resolveMediaSrc(matteSrc, assets);
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -161,13 +162,5 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
     </AbsoluteFill>
   );
 };
-
-/** Resolve src path — in render mode use staticFile, otherwise pass through */
-function resolveSrc(src: string): string {
-  if (/^https?:\/\/|^blob:/.test(src)) return src;
-  const { isRendering } = getRemotionEnvironment();
-  if (isRendering) return staticFile(src);
-  return src;
-}
 
 export default SandwichComposite;
