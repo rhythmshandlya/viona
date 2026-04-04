@@ -21,8 +21,9 @@ import {
   Undo2,
   Redo2,
 } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
 import {
-  useCurrentTimeMs,
+  useEditorStore,
   useIsPlaying,
   useDuration,
   useEditorActions,
@@ -47,13 +48,32 @@ const BTN = "p-2 rounded-[10px] glass-btn text-[var(--editor-text-secondary)] ho
 const BTN_ACTIVE = "p-2 rounded-[10px] glass-btn active";
 
 export function PreviewControls() {
-  const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const duration = useDuration();
   const { togglePlayback, seek, setShowCaptions, setInspectModeEnabled, pause, splitAllAtPlayhead } = useEditorActions();
   const showCaptions = useShowCaptions();
   const inspectModeEnabled = useInspectModeEnabled();
   const splitMode = useSplitMode();
+
+  // Subscribe+ref pattern: update timecode DOM directly without React re-renders
+  const timecodeRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    // Apply initial value
+    if (timecodeRef.current) {
+      timecodeRef.current.textContent = formatTime(useEditorStore.getState().currentTimeMs);
+    }
+    let prev = useEditorStore.getState().currentTimeMs;
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      if (state.currentTimeMs !== prev) {
+        prev = state.currentTimeMs;
+        if (timecodeRef.current) {
+          timecodeRef.current.textContent = formatTime(state.currentTimeMs);
+        }
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <div className="flex flex-col flex-shrink-0">
       {/* Row 1: Play controls + Volume/Fullscreen */}
@@ -61,7 +81,10 @@ export function PreviewControls() {
         {/* Play controls — centered */}
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => seek(Math.max(0, currentTimeMs - 5000))}
+            onClick={() => {
+              const t = useEditorStore.getState().currentTimeMs;
+              seek(Math.max(0, t - 5000));
+            }}
             className={BTN}
             aria-label="Rewind 5s"
           >
@@ -90,7 +113,10 @@ export function PreviewControls() {
           </button>
 
           <button
-            onClick={() => seek(Math.min(duration, currentTimeMs + 5000))}
+            onClick={() => {
+              const t = useEditorStore.getState().currentTimeMs;
+              seek(Math.min(duration, t + 5000));
+            }}
             className={BTN}
             aria-label="Forward 5s"
           >
@@ -134,10 +160,10 @@ export function PreviewControls() {
           </button>
         </div>
 
-        {/* Center: time display */}
+        {/* Center: time display — timecodeRef updated via subscribe, no React re-render */}
         <div className="flex items-center gap-1.5" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
-          <span className="text-xs font-mono text-[var(--editor-text-primary)]">
-            {formatTime(currentTimeMs)}
+          <span ref={timecodeRef} className="text-xs font-mono text-[var(--editor-text-primary)]">
+            00:00
           </span>
           <span className="text-xs text-[var(--editor-text-muted)]">/</span>
           <span className="text-xs font-mono text-[var(--editor-text-muted)]">

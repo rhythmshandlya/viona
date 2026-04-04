@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AlignLeft, Search, LocateFixed, LocateOff, Layers } from 'lucide-react';
 import {
   useCaptionItems,
-  useCurrentTimeMs,
+  useEditorStore,
   usePlaybackActions,
   useCaptionActions,
   useTimelineActions,
@@ -36,13 +36,42 @@ export function TranscriptPanel() {
   const activeRef = useRef<HTMLDivElement>(null);
 
   const captionItems = useCaptionItems();
-  const currentTimeMs = useCurrentTimeMs();
   const project = useProject();
   const selectedSceneId = useSelectedSceneId();
   const { seek } = usePlaybackActions();
   const { updateCaptionText } = useCaptionActions();
   const { select } = useTimelineActions();
   const { setSelectedScene } = useAIActions();
+
+  // Derived selector: active caption ID — only changes at caption boundaries, not every frame.
+  // Returns the caption item ID when the playhead is within a caption, null otherwise.
+  const activeCaptionId = useEditorStore((state) => {
+    const t = state.currentTimeMs;
+    for (const id of state.itemIds) {
+      const item = state.items[id];
+      if (item?.type === 'caption' && t >= item.startMs && t < item.endMs) {
+        return item.id;
+      }
+    }
+    return null;
+  });
+
+  // Derived selector: active word key (captionId + wordIndex) — only changes at word
+  // boundaries (~200-500ms), not every 33ms frame.
+  const activeWordKey = useEditorStore((state) => {
+    if (!activeCaptionId) return null;
+    const t = state.currentTimeMs;
+    const caption = state.items[activeCaptionId];
+    if (!caption) return null;
+    const data = caption.data as CaptionItemData;
+    if (!data.words?.length) return null;
+    const idx = data.words.findIndex((w) => {
+      const absoluteStart = caption.startMs + w.startMs;
+      const absoluteEnd = caption.startMs + w.endMs;
+      return t >= absoluteStart && t < absoluteEnd;
+    });
+    return idx >= 0 ? `${activeCaptionId}:${idx}` : null;
+  });
 
   // Fetch scenes when project loads
   useEffect(() => {
@@ -58,10 +87,13 @@ export function TranscriptPanel() {
     return scenes.find(s => startMs >= s.startMs && startMs < s.endMs) || null;
   }, [scenes]);
 
-  // Get current scene based on playhead
+  // Get current scene based on playhead — keyed off activeCaptionId so it only updates
+  // at caption boundaries. For gaps between captions, read getState() once.
   const currentScene = React.useMemo(() => {
-    return scenes.find(s => currentTimeMs >= s.startMs && currentTimeMs < s.endMs) || null;
-  }, [scenes, currentTimeMs]);
+    const t = useEditorStore.getState().currentTimeMs;
+    return scenes.find(s => t >= s.startMs && t < s.endMs) || null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes, activeCaptionId]);
 
   // Filter by search
   const filteredCaptions = React.useMemo(() => {
@@ -72,16 +104,6 @@ export function TranscriptPanel() {
       return data.text.toLowerCase().includes(q);
     });
   }, [captionItems, searchQuery]);
-
-  // Find active caption
-  const activeCaptionId = React.useMemo(() => {
-    for (const item of captionItems) {
-      if (currentTimeMs >= item.startMs && currentTimeMs < item.endMs) {
-        return item.id;
-      }
-    }
-    return null;
-  }, [captionItems, currentTimeMs]);
 
   // Auto-follow scroll
   useEffect(() => {
@@ -277,9 +299,7 @@ export function TranscriptPanel() {
                     >
                       {data.words && data.words.length > 0 ? (
                         data.words.map((word, wi) => {
-                          const absoluteStart = item.startMs + word.startMs;
-                          const absoluteEnd = item.startMs + word.endMs;
-                          const isActiveWord = isActive && currentTimeMs >= absoluteStart && currentTimeMs < absoluteEnd;
+                          const isActiveWord = isActive && activeWordKey === `${item.id}:${wi}`;
                           const hasOverrides = word.styleOverrides && Object.keys(word.styleOverrides).length > 0;
                           const isSelected = selectedWord?.captionId === item.id && selectedWord?.wordIndex === wi;
 

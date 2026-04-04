@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   useSingleSelectedItem,
   useEditorStore,
-  useCurrentTimeMs,
 } from '../store/use-editor-store';
 import type { Transform } from '../store/types';
 import { resolveTransformAtTime } from '../utils/transform';
@@ -95,7 +94,16 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
   const selectedItem = useSingleSelectedItem();
   const updateTransform = useEditorStore((s) => s.updateTransform);
   const updateItemData = useEditorStore((s) => s.updateItemData);
-  const currentTimeMs = useCurrentTimeMs();
+
+  // Only subscribe to currentTimeMs when the selected item actually has keyframes.
+  // When there are no keyframes the transform is time-independent, so we use 0 as a
+  // stable sentinel — this avoids 30fps re-renders during normal playback.
+  const relativeTimeMs = useEditorStore((state) => {
+    if (!selectedItem) return 0;
+    const hasKeyframes = selectedItem.keyframes && Object.keys(selectedItem.keyframes).length > 0;
+    if (!hasKeyframes) return 0;
+    return state.currentTimeMs - selectedItem.startMs;
+  });
 
   const dragRef = useRef<DragState | null>(null);
   const [offset, setOffset] = useState<{ dx: number; dy: number; dw: number; dh: number }>({ dx: 0, dy: 0, dw: 0, dh: 0 });
@@ -111,7 +119,6 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
 
   // Resolve keyframed transform at current time (fixes stacked mode selection outline)
   const baseTransform = selectedItem.transform ?? DEFAULT_TRANSFORM;
-  const relativeTimeMs = currentTimeMs - selectedItem.startMs;
   const transform = resolveTransformAtTime(baseTransform, selectedItem.keyframes, relativeTimeMs);
 
   const itemX = resolveValue(transform.x, canvasWidth);
