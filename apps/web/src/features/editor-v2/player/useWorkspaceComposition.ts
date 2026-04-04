@@ -130,9 +130,6 @@ function createRequire(bundleBaseUrl: string) {
       return relativePath;
     }
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-    // Use direct API endpoint for source video — bypasses sandbox proxy for large files
-    const directUrl = resolveDirectMediaUrl(bundleBaseUrl, cleanPath);
-    if (directUrl) return directUrl;
     return `${publicBase}/${cleanPath}`;
   };
 
