@@ -145,13 +145,13 @@ def load_rvm_model(backbone: str, device: torch.device, dtype: torch.dtype):
     return model
 
 
-def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps_str: str):
+def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps_str: str, qp: int = 18):
     """Create FFmpeg encoder subprocess for RGB matte output (NVENC with libx264 fallback)."""
     use_nvenc = w <= 4096 and h <= 4096
     if use_nvenc:
-        codec_args = ["-c:v", "h264_nvenc", "-preset", "p1", "-rc", "constqp", "-qp", "18"]
+        codec_args = ["-c:v", "h264_nvenc", "-preset", "p1", "-rc", "constqp", "-qp", str(qp)]
     else:
-        codec_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "18"]
+        codec_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", str(qp)]
 
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -249,9 +249,11 @@ def process_video(
         bufsize=out_w * out_h * 3 * SEQ_CHUNK,
     )
 
-    encoder = make_ffmpeg_encoder(output_path, out_w, out_h, effective_fps_str)
+    # Matte: QP 24 — lower quality is fine for grayscale alpha mask
+    encoder = make_ffmpeg_encoder(output_path, out_w, out_h, effective_fps_str, qp=24)
     fgr_output_path = str(Path(output_path).with_suffix('')) + '-fgr.mp4'
-    fgr_encoder = make_ffmpeg_encoder(fgr_output_path, out_w, out_h, effective_fps_str)
+    # FGR: QP 21 — moderate savings, preserves person detail at edges
+    fgr_encoder = make_ffmpeg_encoder(fgr_output_path, out_w, out_h, effective_fps_str, qp=21)
 
     frame_size = out_w * out_h * 3
     black_frame = np.zeros((out_h, out_w, 3), dtype=np.uint8)
