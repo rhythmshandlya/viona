@@ -24,6 +24,8 @@ import { z } from "zod";
 import { writeFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { URL } from "node:url";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { Open as unzipOpen } from "unzipper";
 import { parseWorkspace } from "./lib/parse-args.js";
 import { errorMessage } from "./lib/errors.js";
@@ -32,6 +34,7 @@ import {
   computeCenterCrop,
   sourceToCanvas,
 } from './utils/cover-transform.js';
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1116,10 +1119,6 @@ server.registerTool(
 
           // Generate proxy files locally for editor preview (must happen before syncAssets)
           {
-            const { execFile } = await import('child_process');
-            const { promisify } = await import('util');
-            const execFileAsync = promisify(execFile);
-
             for (const fullPath of [localMattePath, localFgrPath]) {
               let exists = false;
               try { await stat(fullPath); exists = true; } catch { /* not yet downloaded */ }

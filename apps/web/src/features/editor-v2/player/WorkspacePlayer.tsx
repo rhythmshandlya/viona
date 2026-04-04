@@ -13,9 +13,10 @@ const PROXY_SUFFIXES: Record<string, string> = {
   '.png': '-proxy.webp', '.jpg': '-proxy.webp', '.jpeg': '-proxy.webp', '.webp': '-proxy.webp',
 };
 
+// Mirrors deriveProxyKey from packages/sandbox/template/src/items/resolveMediaSrc.ts
 function deriveProxyKey(src: string): string | null {
   if (!src || src.includes('-proxy.')) return null;
-  const ext = src.match(/\.\w+$/)?.[0];
+  const ext = src.match(/\.\w+$/)?.[0]?.toLowerCase();
   if (!ext || !PROXY_SUFFIXES[ext]) return null;
   return src.replace(/\.\w+$/, PROXY_SUFFIXES[ext]);
 }

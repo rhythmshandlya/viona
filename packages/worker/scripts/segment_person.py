@@ -151,7 +151,9 @@ def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps_str: str, qp: int 
     if use_nvenc:
         codec_args = ["-c:v", "h264_nvenc", "-preset", "p1", "-rc", "constqp", "-qp", str(qp)]
     else:
-        codec_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", str(qp)]
+        # libx264 CRF is ~2-3 points more aggressive than NVENC QP at the same value
+        crf = max(0, qp - 2)
+        codec_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", str(crf)]
 
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
