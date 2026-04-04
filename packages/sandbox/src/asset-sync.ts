@@ -50,7 +50,7 @@ function getPresignedClient(): MinioClient {
   if (!_presignedClient) {
     const publicEndpoint = process.env.MINIO_PUBLIC_ENDPOINT;
     if (publicEndpoint) {
-      const publicSSL = process.env.MINIO_PUBLIC_USE_SSL !== 'false';
+      const publicSSL = process.env.MINIO_PUBLIC_USE_SSL === 'true';
       _presignedClient = new MinioClient({
         endPoint: publicEndpoint,
         port: parseInt(process.env.MINIO_PUBLIC_PORT || process.env.MINIO_PORT || '9000', 10),

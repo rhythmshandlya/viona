@@ -801,9 +801,8 @@ export const useEditorStore = create<EditorStore>()(
             (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
           } else if (item?.type === 'audio') {
             const audioData = item.data as AudioItemData;
-            if (audioData.src) {
-              audioData.browserSrc = `${publicBaseUrl}/${audioData.src}`;
-            }
+            // browserSrc = same-origin URL for waveform decoding; src is already resolved
+            audioData.browserSrc = audioData.src;
           }
         }
 
@@ -2726,9 +2725,8 @@ export const useEditorStore = create<EditorStore>()(
           (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
         } else if (item?.type === 'audio') {
           const audioData = item.data as AudioItemData;
-          if (audioData.src) {
-            audioData.browserSrc = `${publicBaseUrl}/${audioData.src}`;
-          }
+          // browserSrc = same-origin URL for waveform decoding; src is already resolved
+          audioData.browserSrc = audioData.src;
         }
       }
 
