@@ -878,9 +878,12 @@ export const useEditorStore = create<EditorStore>()(
           state.assets = manifestAssets ?? {};
         });
 
-        // Rebuild workspaceManifest from store so resolved URLs (matte fgrSrc/matteSrc, etc.)
-        // reach the Remotion player instead of raw relative paths from the sandbox
-        syncWorkspaceManifest();
+        // Use the raw sandbox manifest as workspaceManifest (keeps relative paths like
+        // "source.mp4" so resolveMediaSrc can match them against asset keys for MinIO URLs).
+        // Inject assets map so the Remotion Player has presigned/direct URLs available.
+        useEditorStore.setState({
+          workspaceManifest: { ...(manifest as Record<string, unknown>), assets: manifestAssets ?? {} },
+        });
 
         get().pushHistory();
         cancelDebouncedSave();
