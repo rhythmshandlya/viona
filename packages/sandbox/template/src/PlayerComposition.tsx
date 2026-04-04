@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
 import { TransformWrapper } from './composition/TransformWrapper';
 import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, MatteItem } from './items';
@@ -99,11 +99,14 @@ function mergeCaptionPhrases(captionItems: ManifestItem[], wordsPerPhrase: numbe
   return merged;
 }
 
-export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }) => {
+export const PlayerComposition: React.FC<PlayerCompositionProps> = React.memo(({ manifest }) => {
   const { fps, canvas, items, assets } = manifest;
   const captionPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
   const captionAnalysis = (manifest as any).captionAnalysis ?? manifest.videoSettings?.captionAnalysis ?? {};
-  const sortedTracks = [...manifest.tracks].sort((a, b) => a.position - b.position);
+  const sortedTracks = useMemo(
+    () => [...(manifest.tracks || [])].sort((a, b) => a.position - b.position),
+    [manifest.tracks]
+  );
   const isDynamicHierarchy = !!captionPreset.typographyPairingId;
 
   // Load cinematic Google Fonts when preset uses them
@@ -168,7 +171,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
       })}
     </AbsoluteFill>
   );
-};
+});
 
 interface ItemRendererProps {
   item: ManifestItem;
@@ -180,7 +183,7 @@ interface ItemRendererProps {
   captionAnalysis?: Record<string, any>;
 }
 
-const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, durationInFrames, canvas, captionPreset, captionAnalysis }) => {
+const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fps, durationInFrames, canvas, captionPreset, captionAnalysis }) => {
   switch (item.type) {
     case 'video':
       return <VideoItem data={item.data} assets={assets} fps={fps} durationInFrames={durationInFrames} />;
@@ -245,4 +248,4 @@ const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, duration
     default:
       return null;
   }
-};
+});
