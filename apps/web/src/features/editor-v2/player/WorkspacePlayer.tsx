@@ -6,6 +6,20 @@ import { AbsoluteFill, prefetch } from 'remotion';
 import { preloadVideo, preloadAudio } from '@remotion/preload';
 import { useWorkspaceComposition, resolvePublicBase, resolveDirectMediaUrl } from './useWorkspaceComposition';
 
+// Proxy key derivation (matches resolveMediaSrc.ts PROXY_EXTENSIONS)
+const PROXY_SUFFIXES: Record<string, string> = {
+  '.mp4': '-proxy.mp4', '.webm': '-proxy.mp4',
+  '.aac': '-proxy.aac', '.mp3': '-proxy.aac', '.wav': '-proxy.aac', '.m4a': '-proxy.aac',
+  '.png': '-proxy.webp', '.jpg': '-proxy.webp', '.jpeg': '-proxy.webp', '.webp': '-proxy.webp',
+};
+
+function deriveProxyKey(src: string): string | null {
+  if (!src || src.includes('-proxy.')) return null;
+  const ext = src.match(/\.\w+$/)?.[0];
+  if (!ext || !PROXY_SUFFIXES[ext]) return null;
+  return src.replace(/\.\w+$/, PROXY_SUFFIXES[ext]);
+}
+
 interface WorkspacePlayerProps {
   manifest: Record<string, unknown>;
   bundleUrl: string | null;
@@ -84,7 +98,10 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     // URL mismatch between preload and element causes browser to ignore preloaded data.
     const assets = (m as any)?.assets || {};
     const resolveMedia = (src: string) => {
-      // Check assets map first (presigned MinIO URLs)
+      // Try proxy first for editor preview
+      const proxyKey = deriveProxyKey(src);
+      if (proxyKey && assets[proxyKey]) return assets[proxyKey];
+      // Fall back to full-res
       if (assets[src]) return assets[src];
       if (/^https?:\/\/|^blob:/.test(src)) return src;
       if (src.startsWith('/api/')) return src;

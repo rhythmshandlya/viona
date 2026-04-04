@@ -1114,6 +1114,30 @@ server.registerTool(
             }
           }
 
+          // Generate proxy files locally for editor preview (must happen before syncAssets)
+          {
+            const { execFile } = await import('child_process');
+            const { promisify } = await import('util');
+            const execFileAsync = promisify(execFile);
+
+            for (const fullPath of [localMattePath, localFgrPath]) {
+              let exists = false;
+              try { await stat(fullPath); exists = true; } catch { /* not yet downloaded */ }
+              if (!exists) continue;
+              const proxyPath = fullPath.replace('.mp4', '-proxy.mp4');
+              let proxyExists = false;
+              try { await stat(proxyPath); proxyExists = true; } catch { /* not yet generated */ }
+              if (proxyExists) continue;
+              try {
+                await execFileAsync('ffmpeg', [
+                  '-i', fullPath, '-vf', 'scale=-2:480',
+                  '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                  '-y', proxyPath,
+                ], { timeout: 30_000 });
+              } catch { /* non-critical */ }
+            }
+          }
+
           // Download per-scene background images
           for (const sid of allSceneIds) {
             const localBgPath = path.join(WORKSPACE, "public", `bg-${sid}.png`);
