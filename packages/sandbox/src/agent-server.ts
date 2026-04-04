@@ -6,11 +6,12 @@ import { startWatcher, onBundle, getBundleVersion } from './esbuild-watcher.js';
 import { checkpoint, startCheckpointWatcher } from './checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
 import { mountOpsEndpoint } from './ops-endpoint.js';
+import { syncAssets } from './asset-sync.js';
 import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
 import { renderVideo } from './tools/render-video.js';
 import {
-  startJob, getJobState, isJobBusy, onStateChange, failJob, updatePlan,
+  startJob, getJobState, isJobBusy, onStateChange, failJob, updatePlan, updateWidget,
 } from './job-state.js';
 import { pushState, flushCallbacks } from './api-callback.js';
 
@@ -36,6 +37,17 @@ export function startAgentServer(port = 8081): void {
     res.json({ status: 'ok', initialized });
   });
 
+  // Internal sync-assets endpoint — no auth (localhost only, called by MCP servers after matte download)
+  app.post('/sync-assets', async (_req, res) => {
+    try {
+      await syncAssets();
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error({ err }, 'Asset sync failed');
+      res.status(500).json({ error: 'sync failed' });
+    }
+  });
+
   // All other routes require auth
   app.use(authMiddleware);
 
@@ -43,12 +55,22 @@ export function startAgentServer(port = 8081): void {
   mountOpsEndpoint(app);
 
   // Init endpoint — first boot only
+  // Guard against concurrent init calls (retry logic can fire while init is running)
+  let initInProgress = false;
+
   app.post('/init', async (req, res) => {
     const already = await isInitialized();
     if (already) {
       res.status(409).json({ error: 'Already initialized' });
       return;
     }
+
+    if (initInProgress) {
+      res.status(409).json({ error: 'Init already in progress' });
+      return;
+    }
+
+    initInProgress = true;
 
     try {
       await initWorkspace(req.body);
@@ -74,6 +96,7 @@ export function startAgentServer(port = 8081): void {
       res.json({ ok: true });
     } catch (err: any) {
       logger.error({ err }, 'Init failed');
+      initInProgress = false;
       res.status(500).json({ error: err.message });
     }
   });
@@ -86,6 +109,15 @@ export function startAgentServer(port = 8081): void {
     const body = req.body as OrchestratorRequest;
     if (!body.prompt || typeof body.prompt !== 'string') {
       res.status(400).json({ error: 'prompt is required' });
+      return;
+    }
+
+    // Gate on workspace initialization — reject if init hasn't completed yet.
+    // The API fires /init as fire-and-forget so /prompt can arrive before
+    // the workspace is fully ready (video downloaded, git init, esbuild watcher).
+    const initialized = await isInitialized();
+    if (!initialized) {
+      res.status(503).json({ error: 'Workspace not initialized yet', retryAfter: 3 });
       return;
     }
 
@@ -147,9 +179,12 @@ export function startAgentServer(port = 8081): void {
       pushState(type, data);
 
       // Stream to connected SSE client
-      // Skip 'plan' — sent as 'agent_plan' via MCP callback
-      // Skip 'text' — sent directly via onText callback (avoids double-send)
-      if (type !== 'plan' && type !== 'text') {
+      // Skip 'plan'   — sent as 'agent_plan' via MCP callback
+      // Skip 'text'   — sent directly via onText callback (avoids double-send)
+      // Skip 'widget' — sent directly via onWidget callback (avoids double-send)
+      // Skip 'done'   — sent directly via onDone callback (avoids double-send)
+      // Skip 'error'  — sent directly via onError callback (avoids double-send)
+      if (type !== 'plan' && type !== 'text' && type !== 'widget' && type !== 'done' && type !== 'error') {
         sendSSE(type, data);
       }
 
@@ -166,7 +201,10 @@ export function startAgentServer(port = 8081): void {
     });
 
     const mcpServers = createMcpServers({
-      onWidget: (widget) => sendSSE('widget', widget),
+      onWidget: (widget) => {
+        updateWidget(widget);  // Tracks in job-state → triggers onStateChange → pushState to API
+        sendSSE('widget', widget);
+      },
       onProgress: (progress) => sendSSE('progress', progress),
       onPlan: (plan) => {
         updatePlan(plan);  // Tracks in job-state → triggers onStateChange → pushState to API
@@ -177,7 +215,10 @@ export function startAgentServer(port = 8081): void {
     try {
       await runOrchestrator(body, {
         onText: (text) => sendSSE('text', { text }),
-        onWidget: (widget) => sendSSE('widget', widget),
+        onWidget: (widget) => {
+          updateWidget(widget);  // Persist to job-state → pushState to API
+          sendSSE('widget', widget);
+        },
         onProgress: (progress) => sendSSE('progress', progress),
         onActivity: (activity) => {
           sendSSE('activity', activity);
@@ -188,6 +229,7 @@ export function startAgentServer(port = 8081): void {
         },
         onError: (error) => {
           sendSSE('error', { message: error });
+          failJob(error);
         },
         signal: abortController.signal,
       }, mcpServers);
@@ -250,6 +292,7 @@ export function startAgentServer(port = 8081): void {
       busy: state?.isBusy ?? false,
       activeTasks: state?.activeTasks.filter(t => t.status === 'active') ?? [],
       plan: state?.plan ?? null,
+      widget: state?.widget ?? null,
       startedAt: state?.startedAt ?? null,
       result: state?.result ?? null,
       error: state?.error ?? null,
@@ -365,12 +408,14 @@ export function startAgentServer(port = 8081): void {
       });
       logger.info({ bundleLocation }, 'Bundle created');
 
-      // Step 2: Tar the bundle (exclude large media — worker downloads separately)
+      // Step 2: Tar the bundle (exclude large source media — worker downloads separately)
+      // Keep matte/*.mp4 (small alpha videos needed for person compositing)
       const tarPath = '/tmp/export-bundle.tar.gz';
       await execFileAsync('tar', [
         '-czf', tarPath,
         '--dereference',
-        '--exclude=*.mp4', '--exclude=*.webm',
+        '--exclude=./public/source.mp4', '--exclude=./public/audio.aac',
+        '--exclude=*.webm',
         '-C', bundleLocation, '.',
       ], { timeout: 60_000 });
 

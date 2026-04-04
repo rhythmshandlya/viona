@@ -1145,6 +1145,18 @@ server.registerTool(
         }
       }
 
+      // Re-sync assets to MinIO so presigned URLs include newly downloaded matte files
+      if (downloaded.length > 0) {
+        try {
+          await fetch('http://localhost:8081/sync-assets', {
+            method: 'POST',
+            signal: AbortSignal.timeout(30_000),
+          });
+        } catch {
+          // Non-critical — editing still works via proxy fallback
+        }
+      }
+
       // Build response: all scenes reference the primary matte/fgr, own bg
       const primarySceneId = downloaded.length > 0
         ? (data.jobs.find(j => j.status === "complete")?.sceneId ?? downloaded[0])
