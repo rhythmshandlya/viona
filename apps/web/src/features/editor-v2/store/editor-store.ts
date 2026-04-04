@@ -784,11 +784,13 @@ export const useEditorStore = create<EditorStore>()(
         const manifest = await loadFromSandbox();
         const bundleBaseUrl = api.getSandboxBundleUrl(projectId);
 
+        const manifestAssets = (manifest as any).assets as Record<string, string> | undefined;
         const bridgeResult = manifestToStore(manifest, {
           videoUrl,
           bundleUrl: bundleBaseUrl,
           compositionId: (apiProject as any).compositionId ?? '',
           visualMeta: (apiProject as any).visualMeta,
+          assets: manifestAssets,
         });
 
         // Set same-origin proxy URLs on media items for timeline rendering (avoids CORS / relative path issues)
@@ -873,6 +875,8 @@ export const useEditorStore = create<EditorStore>()(
           state.history = [];
           state.historyIndex = -1;
           state.isDirty = false;
+          // Populate assets from manifest so syncWorkspaceManifest preserves presigned URLs
+          state.assets = manifestAssets ?? {};
         });
 
         // Rebuild workspaceManifest from store so resolved URLs (matte fgrSrc/matteSrc, etc.)

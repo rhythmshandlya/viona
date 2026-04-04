@@ -19,7 +19,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-viona}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-viona123}
-      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000,http://localhost:4000"
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGINS:-*}
     command: server /data --console-address ":9001"
     volumes:
       - ./.minio-data:/data

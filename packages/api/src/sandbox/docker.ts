@@ -83,6 +83,9 @@ export class DockerSandboxProvider implements SandboxProvider {
         MINIO_SECRET_KEY: config.storage.secretKey,
         MINIO_BUCKET: config.storage.bucket,
         MINIO_USE_SSL: 'false',
+        MINIO_PUBLIC_ENDPOINT: 'localhost',
+        MINIO_PUBLIC_USE_SSL: 'false',
+        MINIO_PUBLIC_PORT: String(config.storage.port),
         // Forward AI credentials to sandbox for Agent SDK
         ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
         ...(process.env.CLAUDE_CODE_OAUTH_TOKEN ? { CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN } : {}),
