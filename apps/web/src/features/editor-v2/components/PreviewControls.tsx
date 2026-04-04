@@ -163,7 +163,7 @@ export function PreviewControls() {
         {/* Center: time display — timecodeRef updated via subscribe, no React re-render */}
         <div className="flex items-center gap-1.5" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
           <span ref={timecodeRef} className="text-xs font-mono text-[var(--editor-text-primary)]">
-            00:00
+            {formatTime(useEditorStore.getState().currentTimeMs)}
           </span>
           <span className="text-xs text-[var(--editor-text-muted)]">/</span>
           <span className="text-xs font-mono text-[var(--editor-text-muted)]">

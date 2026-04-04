@@ -308,7 +308,7 @@ export function TranscriptPanel() {
                               key={wi}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleSeek(absoluteStart);
+                                handleSeek(item.startMs + word.startMs);
                                 handleSelect(item.id);
                                 setSelectedWord({ captionId: item.id, wordIndex: wi });
                               }}

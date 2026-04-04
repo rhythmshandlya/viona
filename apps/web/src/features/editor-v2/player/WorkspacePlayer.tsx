@@ -106,8 +106,6 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
       if (/^https?:\/\/|^blob:/.test(src)) return src;
       if (src.startsWith('/api/')) return src;
       const cleanPath = src.startsWith('/') ? src.slice(1) : src;
-      const directUrl = resolveDirectMediaUrl(bundleUrl, cleanPath);
-      if (directUrl) return directUrl;
       return `${publicBase}/${cleanPath}`;
     };
 

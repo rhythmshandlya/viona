@@ -142,7 +142,29 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
     lastTimeRef.current = fv.currentTime;
 
     const s = glRef.current;
-    if (!s) return;
+    if (!s) {
+      // Canvas2D fallback when WebGL is unavailable
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(fv, 0, 0, width, height);
+      const fgrData = ctx.getImageData(0, 0, width, height);
+      const fgrPx = fgrData.data;
+      const tmpCanvas = document.createElement("canvas");
+      tmpCanvas.width = width;
+      tmpCanvas.height = height;
+      const tmpCtx = tmpCanvas.getContext("2d", { willReadFrequently: true });
+      if (!tmpCtx) return;
+      tmpCtx.drawImage(mv, 0, 0, width, height);
+      const mattePx = tmpCtx.getImageData(0, 0, width, height).data;
+      for (let i = 0; i < fgrPx.length; i += 4) {
+        fgrPx[i + 3] = mattePx[i];
+      }
+      ctx.putImageData(fgrData, 0, 0);
+      return;
+    }
     const { gl, program, aPos, uFgr, uMatte, buf, fgrTex, matteTex } = s;
 
     gl.viewport(0, 0, width, height);
