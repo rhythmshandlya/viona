@@ -25,7 +25,6 @@ import { Timeline } from './timeline/Timeline';
 const AIAssistantPanel = lazy(() => import('./components/AIAssistantPanel').then(m => ({ default: m.AIAssistantPanel })));
 const StylePanel = lazy(() => import('./panels/StylePanel').then(m => ({ default: m.StylePanel })));
 const AssetsPanel = lazy(() => import('./panels/AssetsPanel').then(m => ({ default: m.AssetsPanel })));
-const ExportModal = lazy(() => import('./components/ExportModal').then(m => ({ default: m.ExportModal })));
 const TransitionPickerModal = lazy(() => import('./components/TransitionPickerModal').then(m => ({ default: m.TransitionPickerModal })));
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
@@ -87,8 +86,7 @@ export function Editor({ projectId }: EditorProps) {
   // Job logs panel state
   const [showLogsPanel, setShowLogsPanel] = useState(false);
 
-  // Export modal state
-  const [showExportModal, setShowExportModal] = useState(false);
+  // Export is now handled by ExportDropdown in Header (state lives in editor store)
 
   const handlePlatformChange = useCallback((platform: SocialPlatform | null) => {
     if (platform) lastPlatformRef.current = platform;
@@ -427,11 +425,7 @@ export function Editor({ projectId }: EditorProps) {
     });
   }, []);
 
-  // Handle export
-  const handleExport = () => {
-    if (!project) return;
-    setShowExportModal(true);
-  };
+  // Export is handled by ExportDropdown in Header
 
   // Generate visuals state (used by job WebSocket tracking and logs panel)
   const [visualsJobId, setVisualsJobId] = useState<string | null>(null);
@@ -598,7 +592,6 @@ export function Editor({ projectId }: EditorProps) {
       {/* Header */}
       <Header
         onOpenCommandPalette={commandPalette.open}
-        onExport={handleExport}
         onToggleLogs={() => setShowLogsPanel(!showLogsPanel)}
         isLogsActive={showLogsPanel}
         hasActiveJob={!!visualsJobId}
@@ -812,17 +805,6 @@ export function Editor({ projectId }: EditorProps) {
         isOpen={commandPalette.isOpen}
         onClose={commandPalette.close}
       />
-
-      {/* Export Modal */}
-      <Suspense fallback={null}>
-        <ExportModal
-          open={showExportModal}
-          onOpenChange={setShowExportModal}
-          projectId={project.id}
-          projectStatus={project.status}
-          hasOutputKey={!!project.outputKey}
-        />
-      </Suspense>
 
       {/* Transition Picker Modal */}
       <Suspense fallback={null}>

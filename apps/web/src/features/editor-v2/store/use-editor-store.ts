@@ -673,6 +673,38 @@ export function useSafeZoneActions() {
 }
 
 // ============================================
+// Export Selectors
+// ============================================
+
+export function useExportState() {
+  return useEditorStore((state) => state.exportState);
+}
+
+export function useExportProgress() {
+  return useEditorStore(
+    useShallow((state) => ({
+      progress: state.exportProgress,
+      message: state.exportStatusMessage,
+      error: state.exportError,
+      downloadUrl: state.exportDownloadUrl,
+      jobId: state.exportJobId,
+    }))
+  );
+}
+
+export function useExportActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      startExport: state.startExport,
+      resetExport: state.resetExport,
+      setExportProgress: state.setExportProgress,
+      setExportComplete: state.setExportComplete,
+      setExportError: state.setExportError,
+    }))
+  );
+}
+
+// ============================================
 // Computed Values
 // ============================================
 

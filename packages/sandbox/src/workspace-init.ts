@@ -178,9 +178,12 @@ async function generateProxies(publicDir: string): Promise<void> {
         logger.info({ file, output: `${base}${suffix}` }, 'Image proxy generated');
 
       } else if (AUDIO_EXTS.has(ext)) {
+        // Stream copy for audio — re-encoding AAC truncates the last ~6 seconds
+        // due to FFmpeg's native AAC encoder buffer flushing. Audio files are
+        // small enough (~2MB) that proxying doesn't save meaningful bandwidth.
         await execFileAsync('ffmpeg', [
           '-i', input,
-          '-c:a', 'aac', '-ac', '1', '-b:a', '64k',
+          '-c:a', 'copy',
           '-y', output,
         ], { timeout: 60_000 });
         logger.info({ file, output: `${base}${suffix}` }, 'Audio proxy generated');

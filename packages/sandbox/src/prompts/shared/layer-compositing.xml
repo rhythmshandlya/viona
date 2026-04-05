@@ -33,14 +33,37 @@
     - Use VISIBLE_ZONES.left and VISIBLE_ZONES.right for content that must be fully readable
   </spatial_rules>
 
+  <depth_techniques>
+    The 3-layer sandwich (background → V2 animation → speaker matte → V4 animation)
+    is what separates this from a slideshow. Use it deliberately.
+
+    HIGH IMPACT — use frequently:
+    - Hero text behind speaker: One large word/stat at shoulder height on V2,
+      partially occluded by the speaker. The partial hiding creates perceived 3D depth.
+    - Front label + back visual: Content card in front (V4 lower-third) while a
+      supporting visual fills V2 behind. Speaker becomes the midground.
+    - Parallax on punch-in: V4 items stay fixed while V1+V3 zoom in. Natural parallax.
+
+    MEDIUM IMPACT — use selectively:
+    - Split-depth: One element spans both layers (bars behind, labels in front).
+      Speaker appears to stand inside the data.
+    - Background wash: Subtle color/gradient on V2 behind the speaker. Ambient, not focal.
+    - Radial burst: Elements emanate from behind the speaker's center outward.
+
+    RULES:
+    - Default large typography and key stats to V2 (behind speaker)
+    - Default small labels and callouts to V4 (in front)
+    - One depth technique per scene — don't combine multiple
+    - Stagger entrances: only one element animates at a time
+    - At least half of overlay scenes should use V2 for depth
+  </depth_techniques>
+
   <multi_element_scenes>
-    Overlay scenes are no longer limited to a single floating card. With layers,
-    a scene can combine:
-    - Behind: background color wash or pattern
-    - Behind: large stat/text peeking from behind shoulders
-    - Front: lower third name bar
-    - Front: small callout card positioned in a visible zone
+    With layers, a scene can combine elements across V2 and V4:
+    - Behind (V2): background color wash, large stat peeking from shoulders
+    - Front (V4): lower third label, small callout card in a visible zone
     Stagger entrances so only one element animates at a time.
+    Keep it simple — one behind + one in front is the sweet spot.
   </multi_element_scenes>
 
   <face_avoidance>

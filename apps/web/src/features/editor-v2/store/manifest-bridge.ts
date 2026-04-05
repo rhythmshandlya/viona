@@ -317,6 +317,7 @@ function convertManifestItemV2(
         volume: d.volume ?? 1,
         playbackRate: d.playbackRate ?? 1,
         startFrom: d.startFrom ?? 0,
+        ...(d.crop ? { crop: d.crop } : {}),
       };
       return { ...base, data } as TimelineItem;
     }

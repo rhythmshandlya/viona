@@ -206,12 +206,14 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
       const audioPath = join(bundlePublicDir, 'audio.aac');
       if (!existsSync(audioPath)) {
         try {
+          // Stream copy audio track — re-encoding AAC truncates the last ~6 seconds
+          // due to FFmpeg's native AAC encoder buffer flushing bug.
           await execFileAsync('ffmpeg', [
             '-i', videoPath,
-            '-vn', '-acodec', 'aac', '-b:a', '128k',
+            '-vn', '-c:a', 'copy',
             '-y', audioPath,
           ], { timeout: 120_000 });
-          logger.info({ audioPath }, 'Audio track extracted via ffmpeg');
+          logger.info({ audioPath }, 'Audio track extracted via ffmpeg (stream copy)');
         } catch (err: any) {
           logger.warn({ err: err.message }, 'ffmpeg audio extraction failed — audio items may not render');
         }
@@ -220,6 +222,39 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
       }
     } else {
       logger.warn({ projectId }, 'No video_key or audio_key — skipping media download');
+    }
+
+    // Download matte files for depth compositing (MatteItem needs fgr + matte videos)
+    const matteItems = (manifest.items || []).filter((i: any) => i.type === 'matte');
+    if (matteItems.length > 0) {
+      await publishProgress(jobId, 20, 'Downloading matte files...');
+      const matteDir = join(bundlePublicDir, 'matte');
+      await mkdir(matteDir, { recursive: true });
+
+      for (const item of matteItems) {
+        const fgrSrc = item.data?.fgrSrc as string;
+        const matteSrc = item.data?.matteSrc as string;
+
+        for (const src of [fgrSrc, matteSrc].filter(Boolean)) {
+          // src is like "matte/scene-1-fgr.mp4" — download from MinIO projects/{projectId}/{src}
+          const cleanPath = src.startsWith('/') ? src.slice(1) : src;
+          const localPath = join(bundlePublicDir, cleanPath);
+          const minioKey = `projects/${projectId}/${cleanPath}`;
+
+          if (existsSync(localPath)) {
+            logger.info({ cleanPath }, 'Matte file already in bundle');
+            continue;
+          }
+
+          try {
+            await downloadFromMinio(minioKey, localPath);
+            const { size } = await fsStat(localPath);
+            logger.info({ minioKey, sizeBytes: size }, 'Matte file downloaded');
+          } catch (err: any) {
+            logger.warn({ minioKey, err: err.message }, 'Failed to download matte file — compositing may fail');
+          }
+        }
+      }
     }
 
     // Write manifest as a real file

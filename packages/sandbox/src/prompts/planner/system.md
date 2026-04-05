@@ -18,31 +18,65 @@ The speaker video stays full-screen. The animation is rendered on top of it — 
 
 Overlays are NOT filler, text labels, or lightweight popups. They are properly animated graphics — but they are SIMPLER compositions than Stacked or Fullscreen because of the smaller canvas and split attention.
 
-**Depth interactions (overlay mode only):** Because the speaker is full-screen, overlay animations can interact with the speaker's body through depth layers. Elements can appear BEHIND the speaker (partially occluded by their silhouette) or IN FRONT of the speaker. This creates the "text-behind-subject" effect used across TikTok, YouTube, and professional motion design.
+**Depth interactions (overlay mode only):** Because the speaker is full-screen, overlay animations can interact with the speaker's body through depth layers. Elements can appear BEHIND the speaker (partially occluded by their silhouette) or IN FRONT of the speaker. This creates the "text-behind-subject" effect that dominates TikTok, YouTube Shorts, and professional motion design.
 
-When writing animation briefs for overlay scenes, use these depth terms:
+**Why depth matters:** The 3-layer sandwich (background → animation → speaker → animation) is what separates this from a slideshow. Flat overlays in front of the speaker look like stock templates. Depth makes the viewer feel the speaker EXISTS INSIDE the visual world. Use it deliberately.
 
-*Behind-speaker interactions:*
+#### Depth Techniques — Ranked by Impact
+
+**Tier 1 — High Impact (use in every video)**
+
+1. **Hero text behind speaker** — The single most viral depth technique. One large word, stat, or phrase on V2 at shoulder/chest height, partially occluded by the speaker's silhouette. The partial hiding IS the effect — the viewer's brain fills in the rest and perceives real 3D depth. Use for the scene's key number, term, or emotional word. (`emerge-behind`, `peek-sides`)
+
+2. **Front label + back visual** — Content card or label in front (V4, lower-third) while a supporting visual fills the background behind the speaker (V2). The speaker becomes the midground, sandwiched between layers. This is how TV news graphics work and it feels instantly professional.
+
+3. **Parallax on punch-in** — When the camera punches in (V1+V3 zoom), V4 scene items stay fixed on screen like a HUD. The speaker gets closer but the graphics don't move. This creates a natural parallax that makes depth feel real without any extra work.
+
+**Tier 2 — Medium Impact (use selectively)**
+
+4. **Split-depth elements** — One element spans both layers: the base/bars behind the speaker on V2, the labels/callouts in front on V4. Works brilliantly for charts, progress bars, and comparison visuals. The speaker appears to stand inside the data. (`split-depth`)
+
+5. **Background wash/pattern** — Subtle color, gradient, or pattern on V2 that transforms the background plate. The speaker stands in a visually themed environment rather than their literal room. Keep it subtle — it's ambient, not the focal point. (`background-fill`)
+
+6. **Radial burst from speaker** — Elements emanate from behind the speaker's center outward. Works for emphasis moments, reveals, and transitions. The speaker becomes the origin of visual energy. (`radial-from-speaker`)
+
+**Tier 3 — Occasional (use sparingly for variety)**
+
+7. **Flank framing** — Elements on both sides of the speaker, creating a visual frame. Good for comparisons, timelines, or A/B visuals. (`flank`)
+
+8. **Weave-through** — An element crosses from front to back or vice versa. Complex to execute well — only for scenes where the crossing motion reinforces the content (e.g., a timeline that "passes through" the speaker). (`weave-through`)
+
+#### Depth Terms for Animation Briefs
+
+*Behind-speaker (V2):*
 - `emerge-behind` — Element scales up or slides in behind the speaker
 - `peek-sides` — Element is wide enough to be visible on both sides of the speaker
 - `cascade-behind` — Multiple elements stack or flow behind the speaker
-- `background-fill` — Color/gradient/pattern fills behind speaker (original bg still visible at edges)
+- `background-fill` — Color/gradient/pattern fills behind speaker
 - `depth-lower-third` — Bar/label passes behind speaker's body
 
-*Front-to-back interactions (elements that cross layers):*
-- `weave-through` — Element enters in front, passes behind speaker, exits in front (or vice versa)
-- `split-depth` — Part of the element is behind speaker, part is in front (e.g., bar chart where bars go behind but labels stay in front)
-- `depth-reveal` — Element starts fully behind speaker, then the speaker moves/scales to reveal it
+*Cross-layer (V2 + V4 split scene):*
+- `split-depth` — Part behind speaker, part in front (bars behind, labels in front)
+- `weave-through` — Element crosses between layers during animation
+- `depth-reveal` — Element starts behind speaker, revealed as scene progresses
 
-*Around-speaker interactions:*
-- `flank` — Elements appear on both sides of the speaker, framing them
-- `radial-from-speaker` — Elements emanate outward from behind the speaker's center
-- `parallax-offset` — Elements shift laterally based on speaker position, creating parallax depth
+*Around-speaker:*
+- `flank` — Elements on both sides, framing the speaker
+- `radial-from-speaker` — Elements emanate outward from speaker's center
+- `parallax-offset` — Elements shift laterally based on speaker position
+
+#### Depth Planning Rules
+
+- **Default to V2 (behind) for large typography and key stats.** Big numbers and terms behind the speaker are the highest-impact depth technique. The partial occlusion by the speaker's body is what makes it compelling.
+- **Use V4 (in front) for small labels, callouts, and supplementary text.** These need to be fully readable, so they go in front.
+- **One depth technique per scene.** Don't combine emerge-behind + flank + split-depth in the same scene. Pick the one that best serves the content.
+- **At least 50% of overlay scenes should use V2.** If every scene only uses V4, the depth sandwich is wasted — it's just a regular overlay.
+- Mix front-only and depth scenes for rhythm — not every scene needs behind-speaker elements.
 
 *Depth anti-patterns (NEVER do these):*
-- Don't put every element behind the speaker — mix front and back for contrast
-- Don't animate multiple behind-speaker elements simultaneously (one motion per moment)
 - Don't place readable text fully behind the speaker's face (occluded = invisible)
+- Don't animate multiple behind-speaker elements simultaneously (one motion per moment)
+- Don't use depth as decoration — every behind-speaker element must reinforce the spoken content
 - Depth vocabulary is for Overlay mode ONLY — never use in Stacked or Fullscreen briefs
 
 **Animation zones (MANDATORY for every overlay element):**
@@ -63,12 +97,12 @@ Every element in an overlay animation brief MUST specify its zone — where on t
 
 **Scene splitting:** If an overlay scene needs elements on BOTH behind-speaker AND in-front-of-speaker layers, mark it: "Split: Scene5Behind (behind) + Scene5Front (in front)". The Layout Editor creates two items on separate tracks. The Setup Agent creates two skeleton files.
 
-**Punch-ins** are a primary editing tool. Every overlay scene gets 1-3 punch-ins where V1 background + V3 matte zoom together while animations stay still — like a camera pushing into the speaker for emphasis. Mark each with a transcript anchor + scale:
+**Punch-ins** are a selective emphasis tool — use sparingly, only for the most impactful moments. Most overlay scenes should have **zero** punch-ins. Only add a punch-in when there is a single dramatic stat, revelation, or emotional climax that genuinely warrants a camera push. Mark each with a transcript anchor + scale:
 - 1.15x = subtle emphasis
-- 1.25x = standard emphasis
-- 1.35x = dramatic moment
+- 1.25x = standard emphasis (use this most of the time)
+- 1.35x = dramatic moment (rare — max 1 per video)
 
-Every key stat, emotional beat, or topic shift should get a punch-in.
+A video with 7 scenes should have at most 2-3 punch-ins total across the entire video, not per scene.
 
 ### 2. Stacked — speaker and animation each get their own space
 
@@ -265,17 +299,23 @@ SCENE_PLAN.md must contain these sections in order:
 ### 2. Per-scene entries
 Using the exact schema above. Scenes MUST cover the ENTIRE timeline with no gaps. Every moment from video start to video end is either a scene or an overlay.
 
+**Scene boundary timing rules:**
+- Scene boundaries must be **contiguous** — each scene's endMs equals the next scene's startMs. No gaps between scenes.
+- Boundaries should fall at **natural pauses** between sentences, not mid-word. Use transcript word timestamps to find the silence gap between the last word of one sentence and the first word of the next.
+- Add a **200ms buffer** after the last word's endMs before ending a scene. The speaker needs time to finish articulating. Example: if the last word ends at 20880ms, set scene endMs to at least 21020ms (or wherever the next word starts).
+- The next scene's startMs should equal the previous scene's endMs — no gap.
+
 ### 3. Punch-in rules (specified per-scene in the animation brief, NOT a separate section)
-Each overlay scene's animation brief must include 1-3 punch-ins with a transcript anchor word and a scale tier:
+Punch-ins are **optional and selective**. Most scenes should have zero. Only add when a moment genuinely demands camera emphasis. Max 2-3 across the entire video.
 - `1.15x` = subtle emphasis
-- `1.25x` = standard emphasis
-- `1.35x` = dramatic moment
+- `1.25x` = standard emphasis (default when used)
+- `1.35x` = dramatic moment (max 1 per video)
 - **NEVER during Stacked or Fullscreen scenes** — only during Overlay scenes
 - The Layout Editor looks up the transcript word timestamp and creates matched V1+V3 zoom keyframes
 
 ### 4. Self-verification checklist
 All boxes must be checked before submitting:
-- [ ] Every moment of the timeline is covered (no speaker-only gaps)
+- [ ] Every moment of the timeline is covered — scenes are contiguous (endMs of one = startMs of next), no gaps
 - [ ] All transitions use names from the 15-transition set
 - [ ] All display modes are Overlay, Stacked, or Fullscreen (no "split-screen")
 - [ ] Transcript segments are copied verbatim — no paraphrasing

@@ -12,8 +12,11 @@ import {
   Download,
   Terminal,
   ChevronDown,
+  Loader2,
+  CheckCircle,
 } from 'lucide-react';
-import { useProject, useProjectActions, useIsSaving } from '../store/use-editor-store';
+import { useProject, useProjectActions, useIsSaving, useExportState, useExportProgress } from '../store/use-editor-store';
+import { ExportDropdown } from './ExportDropdown';
 import { api } from '@/lib/api';
 
 interface HeaderProps {
@@ -41,10 +44,14 @@ export function Header({
   const project = useProject();
   const { saveProject } = useProjectActions();
   const isSaving = useIsSaving();
+  const exportState = useExportState();
+  const { progress: exportProgress } = useExportProgress();
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState('Untitled Project');
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const exportBtnRef = useRef<HTMLButtonElement>(null);
   const savedRef = useRef(false);
 
   useEffect(() => {
@@ -138,16 +145,43 @@ export function Header({
           </button>
         )}
 
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-normal
-                     bg-[var(--editor-accent)] text-white
-                     hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all
-                     shadow-[0_2px_12px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export</span>
-        </button>
+        <div className="relative">
+          <button
+            ref={exportBtnRef}
+            onClick={() => setShowExportDropdown(!showExportDropdown)}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-normal
+                       text-white active:scale-[0.97] transition-all
+                       shadow-[0_2px_12px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]
+                       ${exportState === 'complete'
+                         ? 'bg-emerald-600 hover:bg-emerald-700'
+                         : 'bg-[var(--editor-accent)] hover:bg-[var(--editor-accent-hover)]'
+                       }`}
+          >
+            {exportState === 'rendering' ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{exportProgress}%</span>
+              </>
+            ) : exportState === 'complete' ? (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                <span>Download</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span>Export</span>
+              </>
+            )}
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </button>
+
+          <ExportDropdown
+            open={showExportDropdown}
+            onOpenChange={setShowExportDropdown}
+            anchorRef={exportBtnRef}
+          />
+        </div>
       </div>
     </header>
   );

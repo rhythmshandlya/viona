@@ -198,6 +198,14 @@ const initialState: EditorState = {
   workspaceManifest: null,
   manifestSyncError: null,
 
+  // Export state
+  exportState: 'idle' as const,
+  exportJobId: null,
+  exportProgress: 0,
+  exportStatusMessage: '',
+  exportError: null,
+  exportDownloadUrl: null,
+
   // Caption style toggle
   applyStyleToAll: false,
 
@@ -870,7 +878,7 @@ export const useEditorStore = create<EditorStore>()(
               state.captionPreset.wordsPerPhrase ?? 6,
             );
           }
-          state.workspaceManifest = wsManifest;
+          // workspaceManifest is set below via syncWorkspaceManifest() after store is populated
           state.workspaceLockHolder = null;
           state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
           state.history = [];
@@ -880,12 +888,10 @@ export const useEditorStore = create<EditorStore>()(
           state.assets = manifestAssets ?? {};
         });
 
-        // Use the raw sandbox manifest as workspaceManifest (keeps relative paths like
-        // "source.mp4" so resolveMediaSrc can match them against asset keys for MinIO URLs).
-        // Inject assets map so the Remotion Player has presigned/direct URLs available.
-        useEditorStore.setState({
-          workspaceManifest: { ...(manifest as Record<string, unknown>), assets: manifestAssets ?? {} },
-        });
+        // Rebuild workspaceManifest from store state so the Remotion player sees
+        // the same cleaned keyframes as the editor (e.g. redundant spatial overrides
+        // on scene keyframes are stripped by manifestToStore → storeToManifest round-trip).
+        syncWorkspaceManifest();
 
         get().pushHistory();
         cancelDebouncedSave();
@@ -1431,6 +1437,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId: id, data: dataUpdates } }]);
       syncWorkspaceManifest();
+      debouncedSave(() => get().saveProject());
     },
 
     deleteItems: async (ids) => {
@@ -2761,7 +2768,9 @@ export const useEditorStore = create<EditorStore>()(
           cp.wordsPerPhrase ?? 6,
         );
       }
-      set((state) => { state.workspaceManifest = rawManifest; });
+      // Rebuild from store state so the Remotion player sees cleaned keyframes
+      // (e.g. redundant spatial overrides on scene keyframes are stripped).
+      syncWorkspaceManifest();
     },
 
     // ========================================
@@ -2867,6 +2876,67 @@ export const useEditorStore = create<EditorStore>()(
 
     setSandboxBundleVersion: (version) => {
       set({ sandboxBundleVersion: version });
+    },
+
+    // Export actions
+    startExport: async () => {
+      const { project, saveProject } = get();
+      if (!project) return;
+
+      set({
+        exportState: 'rendering',
+        exportProgress: 0,
+        exportStatusMessage: 'Saving project...',
+        exportError: null,
+        exportDownloadUrl: null,
+      });
+
+      try {
+        await saveProject();
+        set({ exportStatusMessage: 'Bundling & queuing render...' });
+
+        const { jobId } = await api.renderSandbox(project.id);
+        set({ exportJobId: jobId, exportStatusMessage: 'Render queued, waiting for worker...' });
+      } catch (err) {
+        set({
+          exportState: 'error',
+          exportError: err instanceof Error ? err.message : 'Failed to start export',
+        });
+      }
+    },
+
+    setExportProgress: (progress, message) => {
+      set((state) => {
+        state.exportProgress = progress;
+        if (message) state.exportStatusMessage = message;
+      });
+    },
+
+    setExportComplete: (downloadUrl) => {
+      set({
+        exportState: 'complete',
+        exportProgress: 100,
+        exportStatusMessage: 'Export complete!',
+        exportDownloadUrl: downloadUrl,
+      });
+    },
+
+    setExportError: (error) => {
+      set({
+        exportState: 'error',
+        exportError: error,
+      });
+    },
+
+    resetExport: () => {
+      set({
+        exportState: 'idle',
+        exportJobId: null,
+        exportProgress: 0,
+        exportStatusMessage: '',
+        exportError: null,
+        exportDownloadUrl: null,
+      });
     },
   }))
 );

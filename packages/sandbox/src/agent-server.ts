@@ -408,13 +408,16 @@ export function startAgentServer(port = 8081): void {
       });
       logger.info({ bundleLocation }, 'Bundle created');
 
-      // Step 2: Tar the bundle (exclude large source media — worker downloads separately)
-      // Keep matte/*.mp4 (small alpha videos needed for person compositing)
+      // Step 2: Tar the bundle (exclude large media — render service downloads separately)
+      // Exclude: source video/audio, ALL matte dir files (render service downloads from MinIO),
+      //          proxy files, webm. Keep: bg-scene-*.png, scene code, compiled JS.
       const tarPath = '/tmp/export-bundle.tar.gz';
       await execFileAsync('tar', [
         '-czf', tarPath,
         '--dereference',
         '--exclude=./public/source.mp4', '--exclude=./public/audio.aac',
+        '--exclude=./public/matte',
+        '--exclude=*-proxy.*',
         '--exclude=*.webm',
         '-C', bundleLocation, '.',
       ], { timeout: 60_000 });

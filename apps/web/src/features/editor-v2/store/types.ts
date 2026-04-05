@@ -73,6 +73,7 @@ export interface VideoItemData {
   muted?: boolean;
   separatedAudioItemId?: string;
   segmentation?: SegmentationData;  // NEW: speaker segmentation data
+  crop?: { x: number; y: number; scale: number };
 }
 
 export interface AudioItemData {
@@ -717,6 +718,14 @@ export interface EditorState {
   /** Raw workspace manifest JSON — source of truth for WorkspacePlayer */
   workspaceManifest: Record<string, unknown> | null;
 
+  // Export state — persists across dropdown open/close
+  exportState: 'idle' | 'rendering' | 'complete' | 'error';
+  exportJobId: string | null;
+  exportProgress: number;
+  exportStatusMessage: string;
+  exportError: string | null;
+  exportDownloadUrl: string | null;
+
   // Caption style toggle
   applyStyleToAll: boolean;
 
@@ -916,6 +925,13 @@ export interface EditorActions {
   createSandbox: (projectId: string) => Promise<void>;
   setSandboxStatus: (status: EditorState['sandboxStatus']) => void;
   setSandboxBundleVersion: (version: number) => void;
+
+  // Export actions
+  startExport: () => Promise<void>;
+  setExportProgress: (progress: number, message?: string) => void;
+  setExportComplete: (downloadUrl: string) => void;
+  setExportError: (error: string) => void;
+  resetExport: () => void;
 }
 
 export type EditorStore = EditorState & EditorActions;

@@ -111,12 +111,7 @@ add_item({
   trackId: v1TrackId, type: "image",   // v1TrackId from add_track Step 2
   startMs: sceneStartMs, endMs: sceneEndMs,
   transform: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, opacity: 1 },
-  keyframes: [
-    { timeMs: 0, props: { opacity: 0 } },
-    { timeMs: 300, props: { opacity: 1 } },
-    { timeMs: sceneDuration - 300, props: { opacity: 1 } },
-    { timeMs: sceneDuration, props: { opacity: 0 } },
-  ],
+  keyframes: [],   // No fade — hard cut transitions
   data: { src: depthAssets[sceneId].background }
 })
 ```
@@ -127,12 +122,7 @@ add_item({
   trackId: v3TrackId, type: "matte",   // v3TrackId from add_track Step 2
   startMs: sceneStartMs, endMs: sceneEndMs,
   transform: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, opacity: 1 },
-  keyframes: [
-    { timeMs: 0, props: { opacity: 0 } },
-    { timeMs: 300, props: { opacity: 1 } },
-    { timeMs: sceneDuration - 300, props: { opacity: 1 } },
-    { timeMs: sceneDuration, props: { opacity: 0 } },
-  ],
+  keyframes: [],   // No fade — hard cut transitions
   data: {
     fgrSrc: depthAssets[sceneId].fgrVideo,
     matteSrc: depthAssets[sceneId].matteVideo,
@@ -140,6 +130,8 @@ add_item({
   }
 })
 ```
+
+**CRITICAL: V1/V3 fade keyframes must ONLY contain `opacity`.** Never include `x`, `y`, `width`, `height`, or `rotation` in fade keyframes — the base `transform` handles positioning. If you include spatial values like `x: 0, y: 0, width: "100%"` in fade keyframes but the base transform is oversized (e.g. from Step 4b), TransformWrapper will interpolate between them, causing a slow visible drift across the entire scene.
 
 The `startFrom` field tells the matte item where in the full-length matte video this scene begins, since the matte covers the entire source video but the scene only covers a portion.
 
@@ -348,44 +340,28 @@ When the animation brief says "Split: Scene5Behind + Scene5Front":
 
 All transitions are 300ms. Every layer involved in the boundary gets synchronized opacity keyframes.
 
-**Scene Transitions — Coordinated Multi-Layer Fades:**
+**Scene Transitions — Hard Cuts:**
+
+All transitions are **hard cuts** — no opacity fades. Items appear instantly at their `startMs` and disappear at `endMs`. Do NOT add opacity keyframes for transitions.
 
 | Transition | V0 (video) | V1 (bg) | V3 (matte) | V2/V4 (scenes) |
 |---|---|---|---|---|
-| Stacked → Overlay (READY) | fade out 300ms | fade in 300ms | fade in 300ms | cross-fade |
-| Overlay (READY) → Stacked | fade in 300ms | fade out 300ms | fade out 300ms | cross-fade |
-| Stacked → Fullscreen | fade out 300ms | — | — | cross-fade |
-| Fullscreen → Stacked | fade in 300ms | — | — | cross-fade |
-| Overlay (READY) → Fullscreen | — | fade out 300ms | fade out 300ms | cross-fade |
-| Fullscreen → Overlay (READY) | — | fade in 300ms | fade in 300ms | cross-fade |
-| Overlay → Overlay | — | cross-fade if different bg | position morph | cross-fade |
-| Stacked → Stacked | transform anim | — | — | cross-fade |
-| Fullscreen → Fullscreen | — | — | — | cross-fade |
+| Any → Any | hard cut | hard cut | hard cut | hard cut |
 
 **Rules:**
-1. V0 segments bordering a cut gap get fade keyframes at the edge (fade out last 300ms before gap, fade in first 300ms after gap)
-2. V1 and V3 items always have 300ms fade in at start, fade out at end (already set in Step 4)
-3. Overlay→Overlay: if backgrounds differ, outgoing V1/V3 fade out and incoming V1/V3 fade in with 300ms overlap
-4. Scene items (V2/V4) always cross-fade: outgoing fades out last 300ms, incoming fades in first 300ms
+1. V1, V3, and scene items have **no fade keyframes** — they are visible for their full duration via the base transform's `opacity: 1`
+2. V0 segments at cut boundaries: hard cut (no fade keyframes)
+3. Scene items do NOT get opacity keyframes. The `startMs`/`endMs` boundaries handle timing.
 
-**CRITICAL: Scene keyframes must ONLY animate `opacity`.** Never include `x`, `y`, `width`, `height`, or `rotation` in scene keyframes. The base `transform` handles positioning — keyframes that include position/size values will override the base transform and break the layout. All spatial animation happens inside the scene component's own React code, not via manifest keyframes.
+**CRITICAL: Scene keyframes must ONLY animate `opacity` IF NEEDED (e.g. internal reveal effects).** Never include `x`, `y`, `width`, `height`, or `rotation` in scene keyframes. The base `transform` handles positioning — keyframes that include position/size values will override the base transform and break the layout. All spatial animation happens inside the scene component's own React code, not via manifest keyframes.
 
-**Entrance keyframes (at scene item's start, timeMs relative to item):**
-```
-{ timeMs: 0, props: { opacity: 0 } }
-{ timeMs: 300, props: { opacity: 1 } }
-```
+**Do NOT add entrance/exit fade keyframes to any items.** Hard cuts only.
 
-**Exit keyframes (at scene item's end, timeMs relative to item):**
-```
-// Scene duration = sceneDuration ms
-{ timeMs: sceneDuration - 300, props: { opacity: 1 } }
-{ timeMs: sceneDuration, props: { opacity: 0 } }
-```
+**CRITICAL: V1/V3 items must have NO opacity keyframes — hard cuts only.** The only keyframes allowed on V1/V3 are **punch-in spatial keyframes** (zoom effect). Never add fade keyframes.
 
 #### Punch-in keyframes (V1 + V3 matched zoom)
 
-**Note:** Punch-in keyframes animate `x`, `y`, `width`, `height` on **V1/V3 depth items** — this is allowed. The opacity-only restriction above applies only to **V2/V4 scene items**.
+Punch-in keyframes animate `x`, `y`, `width`, `height` on V1/V3 depth items — this is the only allowed keyframe type on these items.
 
 When the animation brief specifies punch-ins (e.g., "Punch-in 1.25x at '$390 million'"):
 
@@ -399,7 +375,7 @@ When the animation brief specifies punch-ins (e.g., "Punch-in 1.25x at '$390 mil
 const scale = 1.25;  // from the brief
 const anchorMs = wordTimestampMs - itemStartMs;  // relative to item
 
-// Calculate zoomed transform (zoom from center of current transform)
+// matteX/Y/W/H = the base transform values (same on V1 and V3)
 const currentCenterX = matteX + matteW / 2;
 const currentCenterY = matteY + matteH / 2;
 const punchW = Math.round(matteW * scale);
@@ -408,6 +384,7 @@ const punchX = Math.round(currentCenterX - punchW / 2);
 const punchY = Math.round(currentCenterY - punchH / 2);
 
 // Add to BOTH V1 and V3 items (identical keyframes):
+// The first keyframe HOLDS the resting position so there's no interpolation drift.
 { timeMs: anchorMs - 150, props: { x: matteX, y: matteY, width: matteW, height: matteH } }
 { timeMs: anchorMs + 150, props: { x: punchX, y: punchY, width: punchW, height: punchH } }
 { timeMs: anchorMs + 2150, props: { x: punchX, y: punchY, width: punchW, height: punchH } }
@@ -416,8 +393,10 @@ const punchY = Math.round(currentCenterY - punchH / 2);
 
 **Rules:**
 - V1 and V3 get IDENTICAL punch-in keyframes — they are one visual layer (background + person)
-- Never punch-in during the first or last 500ms of a scene (conflicts with fade transitions)
+- Never punch-in during the first or last 500ms of a scene
 - If multiple punch-ins in one scene, ensure at least 3 seconds between them
+- V1 and V3 must have the SAME base transform (centered 1.15x oversize)
+- NEVER add opacity keyframes to V1/V3 — only punch-in spatial keyframes
 
 ### Step 7: Verify with render_still
 Render stills at 2-3 scene boundary timestamps using `render_still`. Visually confirm:

@@ -27,11 +27,10 @@
 - Depth scenes (brief mentions "behind", "emerge-behind", "peek-sides", "cascade-behind", "background-fill", "depth-lower-third", "weave-through", "split-depth", "depth-reveal", "flank", "radial-from-speaker", "parallax-offset") go on V2. All other scenes go on V4. Sequential within each track, no overlap.
 - Scene keyframes must ONLY animate `opacity` (fade in/out). NEVER include x, y, width, height, or rotation — those override the base transform and break positioning.
 
-## Transitions — Coordinated Multi-Layer
-- All transitions are 300ms opacity fades, synchronized across layers.
-- V0 segments at cut edges: fade out/in 300ms.
-- V1 and V3 items: 300ms fade in at start, fade out at end.
-- V2/V4 scene items: cross-fade (outgoing fades out, incoming fades in, 300ms each).
+## Transitions — Hard Cuts
+- All transitions are **hard cuts** — NO opacity fades, no crossfades.
+- Items appear at startMs and disappear at endMs. Do NOT add opacity keyframes for transitions.
+- V1, V3, V0, and scene items get **no fade keyframes**.
 
 ## Speaker Spatial Data
 - Every OVERLAY scene item MUST have `data.speakerBbox` and `data.speakerCenter` (normalized 0-1 from `speaker.normalized`).
@@ -62,9 +61,9 @@
 - "Split: XBehind + XFront" → two scene items: XBehind.tsx on V2, XFront.tsx on V4.
 - Both share the same startMs/endMs and SPEAKER constants.
 
-## Punch-ins
-- V1 + V3 get IDENTICAL zoom keyframes — they are one visual layer.
-- 300ms ease-in, 2s hold, 300ms ease-out.
-- Never punch-in during first/last 500ms of a scene.
-- At least 3s between punch-ins in the same scene.
+## V1/V3 — Punch-in Only
+- V1 and V3 items: NO opacity keyframes (hard cuts). Only punch-in spatial keyframes allowed.
+- Base transform: centered 1.15x oversize, IDENTICAL on both V1 and V3.
+- Punch-in first keyframe must HOLD the resting position (= base transform values) to prevent drift.
+- V1 + V3 get IDENTICAL punch-in keyframes — they are one visual layer.
 </critical_reminder>

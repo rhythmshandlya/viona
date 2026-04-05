@@ -416,9 +416,8 @@ export async function buildOrchestratorOptions(
           '- For READY overlays: bg image on V1, matte item (fgrSrc + matteSrc) on V3, animation on V2 or V4.\n' +
           '- Track IDs are UUIDs returned by add_track — do NOT hardcode IDs like trk-V1.\n' +
           '- Call auto_center_speaker ONCE after all V0 cuts. Call get_speaker_position per overlay scene.\n' +
-          '- All transitions: 300ms synchronized opacity fades across layers.\n' +
-          '- Keyframe format: { timeMs, props: {...} } — NEVER flat { timeMs, opacity }.\n' +
-          '- timeMs is RELATIVE to the item\'s own startMs, not the absolute timeline.\n' +
+          '- All transitions are HARD CUTS — no opacity fades. Items appear at startMs, disappear at endMs.\n' +
+          '- V1/V3: NO opacity keyframes (hard cuts). Only punch-in spatial keyframes allowed. V1 and V3 must have IDENTICAL base transforms and IDENTICAL punch-in keyframes.\n' +
           '- Scene keyframes must ONLY animate opacity — NEVER x, y, width, height, rotation.\n' +
           '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName.\n' +
           '- ALWAYS read_manifest before and after major operations to verify state.',
