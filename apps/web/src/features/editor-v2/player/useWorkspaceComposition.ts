@@ -39,11 +39,21 @@ async function getRemotionThree() {
 
 function fixProps(props: any): any {
   if (props?.children && Array.isArray(props.children)) {
+    // First pass: auto-key null children, then deduplicate any colliding keys
+    const seen = new Map<string, number>();
     props = {
       ...props,
       children: props.children.map((child: any, i: number) => {
-        if (React.isValidElement(child) && child.key === null) {
-          return React.cloneElement(child, { key: `auto-${i}` });
+        if (!React.isValidElement(child)) return child;
+        let k = child.key;
+        if (k === null) {
+          k = `auto-${i}`;
+          child = React.cloneElement(child, { key: k });
+        }
+        const count = seen.get(k) ?? 0;
+        seen.set(k, count + 1);
+        if (count > 0) {
+          return React.cloneElement(child, { key: `${k}__dup${count}` });
         }
         return child;
       }),
@@ -174,12 +184,21 @@ function createRequire(bundleBaseUrl: string) {
       // event listener when the element fails to load (e.g., media not yet
       // available during sandbox init).
       const SafeVideo = (props: any) => {
-        return React.createElement(Remotion.Video, {
-          ...props,
-          onError: props.onError || ((err: Error) => {
-            console.warn('[WorkspacePlayer] Video load error (will retry on next seek):', err.message);
-          }),
-        });
+        try {
+          return React.createElement(Remotion.Video, {
+            ...props,
+            onError: props.onError || ((err: Error) => {
+              console.warn('[WorkspacePlayer] Video load error (will retry on next seek):', err.message);
+            }),
+          });
+        } catch (err: any) {
+          // Catch SecurityError from cross-origin texImage2D (WebGL matte compositing)
+          if (err?.name === 'SecurityError') {
+            console.warn('[WorkspacePlayer] Cross-origin video SecurityError (expected for WebGL matte):', err.message);
+            return null;
+          }
+          throw err;
+        }
       };
 
       const SafeAudio = (props: any) => {

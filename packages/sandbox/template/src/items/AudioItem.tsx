@@ -27,7 +27,6 @@ export const AudioItem: React.FC<AudioItemProps> = ({ data, assets, fps }) => {
     <Audio
       src={src}
       startFrom={startFrom}
-      pauseWhenBuffering
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}
     />

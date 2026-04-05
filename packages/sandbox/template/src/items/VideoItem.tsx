@@ -44,7 +44,6 @@ export const VideoItem: React.FC<VideoItemProps> = React.memo(({
         <Video
           src={src}
           startFrom={startFrom}
-          pauseWhenBuffering
           volume={data.volume ?? 1}
           playbackRate={data.playbackRate ?? 1}
           style={{
@@ -63,7 +62,6 @@ export const VideoItem: React.FC<VideoItemProps> = React.memo(({
     <Video
       src={src}
       startFrom={startFrom}
-      pauseWhenBuffering
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}
       style={{ width: '100%', height: '100%', objectFit: 'cover' }}

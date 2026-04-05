@@ -60,7 +60,9 @@ export function Player({ className }: PlayerProps) {
   useEffect(() => { pauseRef.current = pause; }, [pause]);
 
   // Sync store currentTimeMs → Remotion player (user drags timeline).
-  // Uses a store subscription so frame updates don't trigger re-renders.
+  // Only active when PAUSED — during playback the Player is the sole time
+  // authority. The isInternalUpdate guard has a rAF race window that causes
+  // stale store values to seekTo backwards, producing audio repeats.
   useEffect(() => {
     if (!playerInstance) return;
 
@@ -70,6 +72,7 @@ export function Player({ className }: PlayerProps) {
       if (timeMs === prevTimeMs) return;
       prevTimeMs = timeMs;
       if (isInternalUpdate.current) return;
+      if (playerInstance.isPlaying()) return; // Player drives time during playback
       const frame = Math.round((timeMs / 1000) * fps);
       playerInstance.seekTo(frame);
     });
@@ -110,16 +113,40 @@ export function Player({ className }: PlayerProps) {
       pauseRef.current();
     };
 
+    // Debug: log buffering stalls and seeks
+    const handleWaiting: CallbackListener<'waiting'> = () => {
+      const frame = playerInstance.getCurrentFrame();
+      console.warn(`[Player] WAITING (buffering) at frame ${frame} (${(frame / fps * 1000).toFixed(0)}ms)`);
+    };
+    const handleResume: CallbackListener<'resume'> = () => {
+      const frame = playerInstance.getCurrentFrame();
+      console.warn(`[Player] RESUME after buffer at frame ${frame}`);
+    };
+    const handleError: CallbackListener<'error'> = (e) => {
+      console.error('[Player] ERROR:', e.detail.error);
+    };
+    const handleSeeked: CallbackListener<'seeked'> = (e) => {
+      console.log(`[Player] seeked to frame ${e.detail.frame}`);
+    };
+
     playerInstance.addEventListener('frameupdate', handleFrameChange);
     playerInstance.addEventListener('play', handlePlay);
     playerInstance.addEventListener('pause', handlePause);
     playerInstance.addEventListener('ended', handleEnded);
+    playerInstance.addEventListener('waiting', handleWaiting);
+    playerInstance.addEventListener('resume', handleResume);
+    playerInstance.addEventListener('error', handleError);
+    playerInstance.addEventListener('seeked', handleSeeked);
 
     return () => {
       playerInstance.removeEventListener('frameupdate', handleFrameChange);
       playerInstance.removeEventListener('play', handlePlay);
       playerInstance.removeEventListener('pause', handlePause);
       playerInstance.removeEventListener('ended', handleEnded);
+      playerInstance.removeEventListener('waiting', handleWaiting);
+      playerInstance.removeEventListener('resume', handleResume);
+      playerInstance.removeEventListener('error', handleError);
+      playerInstance.removeEventListener('seeked', handleSeeked);
     };
   }, [playerInstance, fps]); // Only re-run when player or fps changes
 

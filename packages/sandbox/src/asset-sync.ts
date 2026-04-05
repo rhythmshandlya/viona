@@ -101,6 +101,11 @@ export async function syncAssets(): Promise<void> {
       }
     }
 
+    // Full-res matte files are large — skip from assets map (only needed for server-side render).
+    // Proxy matte files ARE included — served from MinIO with CORS headers.
+    // MatteItem sets crossOrigin="anonymous" so canvas pixel access works cross-origin.
+    if (file.startsWith('matte/') && !file.includes('-proxy.')) continue;
+
     try {
       const publicBase = getPublicBaseUrl();
       const pubEndpoint = process.env.MINIO_PUBLIC_ENDPOINT;

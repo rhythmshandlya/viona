@@ -157,6 +157,7 @@ async function generateProxies(publicDir: string): Promise<void> {
           '-i', input,
           '-vf', 'scale=-2:480',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+          '-force_key_frames', 'expr:gte(t,n_forced*1)',
           '-c:a', 'aac', '-b:a', '128k',
           '-y', output,
         ], { timeout: 120_000 });

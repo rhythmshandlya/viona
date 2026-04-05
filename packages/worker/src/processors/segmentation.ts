@@ -117,11 +117,12 @@ export async function processSegmentationJob(job: Job<SegmentationJobData>) {
     const fgrProxyKey = outputKey.replace(/\.mp4$/, '-fgr-proxy.mp4');
 
     try {
-      // Downscale matte to 480p proxy
+      // Downscale matte to 480p proxy — keyframe every 1s for fast seeking in editor
       await execFileAsync('ffmpeg', [
         '-i', mattePath,
         '-vf', 'scale=-2:480',
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+        '-force_key_frames', 'expr:gte(t,n_forced*1)',
         '-y', matteProxyPath,
       ], { timeout: 30_000, cwd: workDir });
 
@@ -135,11 +136,12 @@ export async function processSegmentationJob(job: Job<SegmentationJobData>) {
 
     if (existsSync(fgrPath)) {
       try {
-        // Downscale fgr to 480p proxy
+        // Downscale fgr to 480p proxy — keyframe every 1s for fast seeking in editor
         await execFileAsync('ffmpeg', [
           '-i', fgrPath,
           '-vf', 'scale=-2:480',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+          '-force_key_frames', 'expr:gte(t,n_forced*1)',
           '-y', fgrProxyPath,
         ], { timeout: 30_000, cwd: workDir });
 

@@ -59,9 +59,11 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   // -----------------------------------------------------------------------
   useEffect(() => {
     const handler = (e: ErrorEvent) => {
-      if (e.message?.includes('error while playing the video')) {
+      if (e.message?.includes('error while playing the video') ||
+          e.message?.includes('cross-origin data') ||
+          e.message?.includes('texImage2D')) {
         e.preventDefault();
-        console.warn('[WorkspacePlayer] Suppressed transient video error');
+        console.warn('[WorkspacePlayer] Suppressed video error:', e.message?.substring(0, 80));
       }
     };
     window.addEventListener('error', handler);
@@ -102,6 +104,11 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
       // Try proxy first for editor preview
       const proxyKey = deriveProxyKey(src);
       if (proxyKey && assets[proxyKey]) return assets[proxyKey];
+      // For video/audio not in assets (e.g. matte files), use proxy path via same-origin
+      if (proxyKey && /\.(mp4|webm|aac|mp3|wav|m4a)$/i.test(proxyKey) && !assets[src]) {
+        const cleanProxy = proxyKey.startsWith('/') ? proxyKey.slice(1) : proxyKey;
+        return `${publicBase}/${cleanProxy}`;
+      }
       // Fall back to full-res
       if (assets[src]) return assets[src];
       if (/^https?:\/\/|^blob:/.test(src)) return src;
@@ -344,8 +351,9 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
       loop={false}
       clickToPlay={false}
       acknowledgeRemotionLicense
-      numberOfSharedAudioTags={5}
+      numberOfSharedAudioTags={0}
       bufferStateDelayInMilliseconds={300}
+      logLevel="trace"
     />
   );
 });

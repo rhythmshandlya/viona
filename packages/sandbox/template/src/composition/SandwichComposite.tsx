@@ -111,7 +111,6 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
             src={resolvedVideoSrc}
             startFrom={startFromFrames}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            pauseWhenBuffering
           />
         </AbsoluteFill>
       )}
@@ -130,7 +129,6 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
           src={resolvedVideoSrc}
           startFrom={startFromFrames}
           style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-          pauseWhenBuffering
           muted
           onLoadedData={renderCanvas}
         />
@@ -139,7 +137,6 @@ export const SandwichComposite: React.FC<SandwichCompositeProps> = ({
           src={resolvedMatteSrc}
           startFrom={startFromFrames}
           style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-          pauseWhenBuffering
           muted
           onLoadedData={renderCanvas}
         />
