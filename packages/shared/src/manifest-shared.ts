@@ -7,6 +7,7 @@ export const captionWordSchema = z.object({
   text: z.string(),
   startMs: z.number().min(0),
   endMs: z.number().min(0),
+  hero: z.boolean().optional(),
   role: z.string().optional(),
   // Kept for backwards compatibility during migration
   classification: z.enum(['power', 'medium', 'filler']).optional(),

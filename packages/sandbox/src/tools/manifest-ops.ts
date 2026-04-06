@@ -12,6 +12,7 @@ const captionWordSchema = z.object({
   text: z.string(),
   startMs: z.number().min(0),
   endMs: z.number().min(0),
+  hero: z.boolean().optional(),
   classification: z.enum(['power', 'medium', 'filler']).optional(),
   styleOverrides: z.record(z.string(), z.unknown()).optional(),
 });
