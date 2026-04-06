@@ -63,7 +63,9 @@ function findBrowserExecutable(): string | null {
 const browserExecutable = findBrowserExecutable();
 
 const CONCURRENCY = parseInt(process.env.RENDER_CONCURRENCY || '1', 10);
-const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '8', 10);
+// Default 2 — 8 parallel Chrome tabs will max all CPU cores and cause thermal
+// throttling/shutdown on laptops. Override with REMOTION_CONCURRENCY env var.
+const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '2', 10);
 
 // ---- Clients ----
 
@@ -307,7 +309,8 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
       outputLocation: outputPath,
       crf: 18,
       concurrency: REMOTION_CONCURRENCY,
-      imageFormat: 'png',
+      imageFormat: 'jpeg',
+      jpegQuality: 90,
       x264Preset: 'faster',
       browserExecutable,
       inputProps,
