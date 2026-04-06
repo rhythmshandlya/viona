@@ -143,12 +143,22 @@ export async function syncTranscript(): Promise<void> {
  * Called after syncTranscript() to keep captions in sync with manifest edits.
  */
 export async function syncCaptions(): Promise<void> {
-  let transcriptRaw: string;
   try {
-    transcriptRaw = await readFile('/workspace/docs/transcript.json', 'utf-8');
-  } catch {
-    return; // no transcript → no captions to sync
-  }
+    // If captions are managed by the Caption Agent, skip automatic regeneration.
+    // The Caption Agent handles phrase grouping and hero selection — mechanical
+    // syncCaptions would destroy its work.
+    const guardManifestRaw = await readFile('/workspace/manifest.json', 'utf-8');
+    const guardManifest = JSON.parse(guardManifestRaw);
+    if (guardManifest.captionPreset?.managedByAgent) {
+      return;
+    }
+
+    let transcriptRaw: string;
+    try {
+      transcriptRaw = await readFile('/workspace/docs/transcript.json', 'utf-8');
+    } catch {
+      return; // no transcript → no captions to sync
+    }
 
   const transcript: Transcript = JSON.parse(transcriptRaw);
   if (!transcript.words || transcript.words.length === 0) return;
