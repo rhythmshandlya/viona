@@ -160,52 +160,55 @@ export async function syncCaptions(): Promise<void> {
       return; // no transcript → no captions to sync
     }
 
-  const transcript: Transcript = JSON.parse(transcriptRaw);
-  if (!transcript.words || transcript.words.length === 0) return;
+    const transcript: Transcript = JSON.parse(transcriptRaw);
+    if (!transcript.words || transcript.words.length === 0) return;
 
-  const manifestRaw = await readFile('/workspace/manifest.json', 'utf-8');
-  const manifest = JSON.parse(manifestRaw);
+    const manifestRaw = await readFile('/workspace/manifest.json', 'utf-8');
+    const manifest = JSON.parse(manifestRaw);
 
-  // Find the caption track
-  const captionTrack = (manifest.tracks ?? []).find((t: any) => t.type === 'caption');
-  if (!captionTrack) return; // no caption track — nothing to do
+    // Find the caption track
+    const captionTrack = (manifest.tracks ?? []).find((t: any) => t.type === 'caption');
+    if (!captionTrack) return; // no caption track — nothing to do
 
-  const wordsPerPhrase = manifest.captionPreset?.wordsPerPhrase ?? manifest.captionStyle?.wordsPerPhrase ?? 5;
+    const wordsPerPhrase = manifest.captionPreset?.wordsPerPhrase ?? manifest.captionStyle?.wordsPerPhrase ?? 5;
 
-  // Remove existing caption items
-  manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== captionTrack.id);
+    // Remove existing caption items
+    manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== captionTrack.id);
 
-  // Group synced words into phrases
-  const words = transcript.words.filter((w: Word) => w.endMs > w.startMs);
-  const newCaptionItems: any[] = [];
+    // Group synced words into phrases
+    const words = transcript.words.filter((w: Word) => w.endMs > w.startMs);
+    const newCaptionItems: any[] = [];
 
-  for (let i = 0; i < words.length; i += wordsPerPhrase) {
-    const chunk = words.slice(i, i + wordsPerPhrase);
-    if (chunk.length === 0) continue;
+    for (let i = 0; i < words.length; i += wordsPerPhrase) {
+      const chunk = words.slice(i, i + wordsPerPhrase);
+      if (chunk.length === 0) continue;
 
-    const startMs = chunk[0].startMs;
-    const endMs = chunk[chunk.length - 1].endMs;
+      const startMs = chunk[0].startMs;
+      const endMs = chunk[chunk.length - 1].endMs;
 
-    newCaptionItems.push({
-      id: randomUUID(),
-      type: 'caption',
-      trackId: captionTrack.id,
-      startMs,
-      endMs,
-      data: {
-        words: chunk.map(w => ({
-          text: w.text,
-          startMs: w.startMs,
-          endMs: w.endMs,
-        })),
-      },
-      keyframes: [],
-    });
+      newCaptionItems.push({
+        id: randomUUID(),
+        type: 'caption',
+        trackId: captionTrack.id,
+        startMs,
+        endMs,
+        data: {
+          words: chunk.map(w => ({
+            text: w.text,
+            startMs: w.startMs,
+            endMs: w.endMs,
+          })),
+        },
+        keyframes: [],
+      });
+    }
+
+    manifest.items.push(...newCaptionItems);
+    // Atomic write to prevent concurrent reads from seeing truncated JSON
+    const tmpPath = `/workspace/manifest.json.${randomUUID()}.tmp`;
+    await writeFile(tmpPath, JSON.stringify(manifest, null, 2));
+    await rename(tmpPath, '/workspace/manifest.json');
+  } catch (err) {
+    // Non-critical — caption sync failure shouldn't break the pipeline
   }
-
-  manifest.items.push(...newCaptionItems);
-  // Atomic write to prevent concurrent reads from seeing truncated JSON
-  const tmpPath = `/workspace/manifest.json.${randomUUID()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(manifest, null, 2));
-  await rename(tmpPath, '/workspace/manifest.json');
 }
