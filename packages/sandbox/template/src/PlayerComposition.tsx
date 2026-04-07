@@ -19,13 +19,22 @@ function usePresetFonts(captionPreset: any) {
     if (captionPreset?.displayFontFamily) families.add(captionPreset.displayFontFamily);
     if (captionPreset?.bodyFontFamily) families.add(captionPreset.bodyFontFamily);
 
+    // Kinetic Luxe hero font
+    if (captionPreset?.heroFontFamily) {
+      const primary = captionPreset.heroFontFamily.split(',')[0].trim();
+      if (primary) families.add(primary);
+    }
+
     // Base font
     if (captionPreset?.fontFamily) {
       const primary = captionPreset.fontFamily.split(',')[0].trim();
       if (primary) families.add(primary);
     }
 
-    for (const family of families) {
+    for (const rawFamily of families) {
+      // Strip CSS quotes — Google Fonts API rejects '%27Inter%27', needs 'Inter'
+      const family = rawFamily.replace(/^['"]|['"]$/g, '');
+      if (!family) continue;
       const id = `preset-font-${family.replace(/\s+/g, '-')}`;
       if (document.getElementById(id)) continue;
       const link = document.createElement('link');
@@ -34,7 +43,7 @@ function usePresetFonts(captionPreset: any) {
       link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@300;400;500;600;700;800;900&display=swap`;
       document.head.appendChild(link);
     }
-  }, [captionPreset?.cinematicFonts, captionPreset?.fontFamily, captionPreset?.displayFontFamily, captionPreset?.bodyFontFamily]);
+  }, [captionPreset?.cinematicFonts, captionPreset?.fontFamily, captionPreset?.heroFontFamily, captionPreset?.displayFontFamily, captionPreset?.bodyFontFamily]);
 }
 
 interface ManifestItem {

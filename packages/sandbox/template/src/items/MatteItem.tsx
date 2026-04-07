@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useCallback } from "react";
-import { Video, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { useRef, useEffect, useCallback, useState } from "react";
+import { Video, useCurrentFrame, useVideoConfig, delayRender, continueRender } from "remotion";
 import { resolveMediaSrc } from "./resolveMediaSrc";
 
 /**
@@ -111,10 +111,26 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
   const matteVideoRef = useRef<HTMLVideoElement>(null);
   const glRef = useRef<GLResources | null>(null);
   const lastTimeRef = useRef<number>(-1);
+  const [mediaError, setMediaError] = useState(false);
 
   const fgrSrc = resolveMediaSrc(data.fgrSrc, assets);
   const matteSrc = resolveMediaSrc(data.matteSrc, assets);
   const startFromFrames = Math.round(((data.startFrom ?? 0) / 1000) * fps);
+
+  const onVideoError = useCallback(() => { setMediaError(true); }, []);
+
+  // delayRender handle — holds Remotion frame until WebGL composite is done
+  const [renderHandle] = useState(() => delayRender('MatteItem: waiting for video frames'));
+  const hasRenderedRef = useRef(false);
+
+  // If matte videos failed to load, release handle and render nothing
+  if (mediaError) {
+    if (!hasRenderedRef.current) {
+      hasRenderedRef.current = true;
+      continueRender(renderHandle);
+    }
+    return null;
+  }
 
   // Init WebGL on mount
   useEffect(() => {
@@ -129,8 +145,6 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
     const res = glRef.current;
     if (!fv || !mv || !res) return;
     if (fv.readyState < 2 || mv.readyState < 2) return;
-    if (fv.currentTime === lastTimeRef.current) return;
-    lastTimeRef.current = fv.currentTime;
 
     const { gl, fgrTex, matteTex } = res;
     const cw = fv.videoWidth || width;
@@ -152,12 +166,32 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mv);
 
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    } catch {
-      // SecurityError fallback — shouldn't happen with CORS but safe guard
-    }
-  }, [width, height]);
 
-  useEffect(() => { doRender(); }, [frame, doRender]);
+      // Tell Remotion this frame is ready to screenshot
+      continueRender(renderHandle);
+    } catch {
+      // SecurityError fallback — still release the handle
+      continueRender(renderHandle);
+    }
+  }, [width, height, renderHandle]);
+
+  // Re-render on each frame; also poll until videos are ready
+  useEffect(() => {
+    doRender();
+
+    // If videos aren't ready yet, poll until they are
+    const fv = fgrVideoRef.current;
+    const mv = matteVideoRef.current;
+    if (fv && mv && (fv.readyState < 2 || mv.readyState < 2)) {
+      const interval = setInterval(() => {
+        if (fv.readyState >= 2 && mv.readyState >= 2) {
+          doRender();
+          clearInterval(interval);
+        }
+      }, 50);
+      return () => clearInterval(interval);
+    }
+  }, [frame, doRender]);
 
   return (
     <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
@@ -169,6 +203,7 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
         style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
         muted
         onLoadedData={doRender}
+        onError={onVideoError}
       />
       <Video
         ref={matteVideoRef}
@@ -178,6 +213,7 @@ export const MatteItem: React.FC<MatteItemProps> = React.memo(({ data, assets })
         style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
         muted
         onLoadedData={doRender}
+        onError={onVideoError}
       />
       <canvas
         ref={canvasRef}

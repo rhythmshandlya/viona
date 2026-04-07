@@ -17,8 +17,9 @@ The source video is physically CUT at scene boundaries. If the speaker video isn
 
 | Scene type | Depth status | Video action |
 |---|---|---|
-| **Overlay** | READY | Video **CUT OUT** — replaced by background image (V1) + matte item (V3). Animations on V2/V4. |
-| **Overlay** | FAILED | Video **KEPT** (no depth assets). Full canvas transform. Animations on V4 only. |
+| **Overlay** | READY (in depthAssets) | Video **CUT OUT** — replaced by background image (V1) + matte item (V3). Animations on V2/V4. |
+| **Overlay** | FAILED (in depthAssets) | Video **KEPT** (segmentation failed). Full canvas transform. Animations on V4 only. |
+| **Overlay** | Not in depthAssets | Video **KEPT** (no depth needed). Full canvas transform. Animations on V4 only. |
 | **Fullscreen** | n/a | Video **CUT OUT** — animations on V4 fill the canvas. |
 | **Stacked** | n/a | Video **KEPT** — transformed to bottom portion. Animations on V4 fill the top. |
 
@@ -87,10 +88,11 @@ Split source video at every scene boundary, then delete segments where the video
 2. List all scene boundaries from SCENE_PLAN.md (every startMs and endMs)
 3. Split video at every scene boundary using `split_item`
 4. Also split paired audio items at the same timestamps (but NEVER delete audio segments)
-5. Delete V0 segments that fall within **READY overlay** and **fullscreen** scenes
-6. Transform kept segments:
+5. Delete V0 segments that fall within **READY depth overlay** and **fullscreen** scenes only
+6. KEEP V0 segments for: **non-depth overlay**, **FAILED overlay**, and **stacked** scenes
+7. Transform kept segments:
    - **Stacked**: `{ x: 0, y: SCENE_H, width: CANVAS_W, height: CANVAS_H - SCENE_H }` (speaker in bottom portion)
-   - **FAILED overlay**: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` (full canvas, no depth)
+   - **Non-depth overlay / FAILED overlay**: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` (full canvas, speaker visible)
 7. Re-read manifest to verify V0 state after cuts
 
 **IMPORTANT:** After the Trim Editor runs, the video track may already contain MULTIPLE video segments (fillers were removed, leaving gaps). You must split all of them that span scene boundaries. `split_item` returns `{ originalId, newId }` — original is LEFT (earlier), newId is RIGHT (later). Note: `split_item` only works on `video` and `audio` items — other types cannot be split.
@@ -131,80 +133,13 @@ add_item({
 })
 ```
 
-**CRITICAL: V1/V3 fade keyframes must ONLY contain `opacity`.** Never include `x`, `y`, `width`, `height`, or `rotation` in fade keyframes — the base `transform` handles positioning. If you include spatial values like `x: 0, y: 0, width: "100%"` in fade keyframes but the base transform is oversized (e.g. from Step 4b), TransformWrapper will interpolate between them, causing a slow visible drift across the entire scene.
+**CRITICAL:** V1/V3 must ALWAYS use `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` — the exact same transform as the original video. The matte speaker must appear in the EXACT same position as in the unmatted video. No oversizing, no shifting, no offsets. The overlay animations work around the speaker's natural position, not the other way around.
 
 The `startFrom` field tells the matte item where in the full-length matte video this scene begins, since the matte covers the entire source video but the scene only covers a portion.
 
 Do NOT add V1/V3 items for FAILED overlay scenes — those keep the source video on V0 instead.
 
-### Step 4b: Calculate content-driven matte offset for READY overlay scenes
-
-The animation brief's zones determine whether the speaker's matte (V3) and background (V1) need to shift. Read the brief, understand what space the content needs, and adjust accordingly.
-
-**Principle:** The animation decides where it needs space. The speaker moves to accommodate.
-
-**CRITICAL — Subtlety over drama:** Matte shifts must be subtle, purposeful adjustments — NOT dramatic repositioning. A 200-350px shift on a 1920px canvas is ~10-18%, which is enough to create breathing room without making the composition feel artificial. If the speaker looks unnaturally displaced, the shift is too much. Every pixel of offset must have a clear reason (making room for specific content). When in doubt, shift less — a slightly tight composition is better than a speaker that looks pushed off-screen.
-
-**A. Read the animation brief's zones and determine the dominant spatial need:**
-
-| Zone in brief | Spatial need | Matte adjustment |
-|---|---|---|
-| `above-head` | Content needs space ABOVE speaker | Shift matte DOWN — `matteY = +200 to +350` depending on content height |
-| `top-enter` | Content enters from screen top, pushes everything down | Shift matte DOWN — `matteY = +150 to +300` |
-| `lower-third` | Content in bottom portion | No shift — `matteY = 0` |
-| `below-chest` | Content between chest and bottom | No shift — `matteY = 0` |
-| `flank-left` / `flank-right` | Content beside speaker | No shift — `matteY = 0` |
-| `full-behind` | Full canvas behind speaker | No shift — `matteY = 0` |
-
-If a scene has MULTIPLE zones (e.g., above-head + lower-third via split), use the zone that requires the largest shift.
-
-If no zone is specified in the brief, assume `full-behind` (no shift, `matteY = 0`).
-
-**B. Calculate matte and background transforms:**
-
-Always oversize V1/V3 by 15% for ALL overlay scenes (including no-shift ones) to prevent edge leaking at boundaries:
-```
-const oversize = 1.15;
-const matteW = Math.round(CANVAS_W * oversize);
-const matteH = Math.round(CANVAS_H * oversize);
-const matteX = Math.round(-(matteW - CANVAS_W) / 2);  // center horizontally
-// matteY determined by zone analysis above (0 for no-shift, positive for push-down)
-```
-
-Update the V3 matte item's transform:
-```
-update_item({
-  itemId: matteItemId,
-  transform: { x: matteX, y: matteY, width: matteW, height: matteH }
-})
-```
-
-Update the V1 background image's transform to match — BOTH shift together:
-```
-update_item({
-  itemId: bgItemId,
-  transform: { x: matteX, y: matteY, width: matteW, height: matteH }
-})
-```
-
-**C. Recalculate SPEAKER constants after matte offset:**
-
-After shifting the matte, the speaker's position in canvas space has changed. The SPEAKER constants written to scene files must reflect the post-offset position. Use `get_speaker_position` to get the natural speaker bbox (normalized 0-1), then apply the offset:
-
-```
-// Natural speaker position (normalized, from get_speaker_position)
-const norm = pos.speaker.normalized;
-
-// Convert to canvas pixels, then apply matte offset
-const speakerCanvasY = norm.bbox.y * matteH + matteY;
-const speakerCanvasX = norm.bbox.x * matteW + matteX;
-
-// Convert to scene-local pixels for the scene skeleton
-const sceneBboxX = Math.round((speakerCanvasX - sceneTransform.x) * (SCENE_WIDTH / sceneTransform.width));
-// ... similar for y, w, h
-```
-
-This ensures the Animator's SPEAKER constants accurately reflect where the speaker appears within the scene's local coordinate space after the matte has been shifted.
+**NEVER modify V1/V3 transforms after initial placement.** The speaker stays exactly where they are in the original video. Animation scenes (V2/V4) position their elements around the speaker using SPEAKER constants — the speaker does NOT move to accommodate content.
 
 ### Step 5: Place scene items
 
@@ -216,12 +151,13 @@ For each scene in the plan, add a scene item on the appropriate track (V2 or V4)
   - `sceneFile`: the scene filename from the plan (e.g., `'Scene1.tsx'`) — must include `.tsx` extension
   - `displayMode`: from the plan (`'fullscreen'`, `'split-screen'`, or `'overlay'`)
   - `sceneName`: scene name from the plan (for mockup display)
-- `transform`: from the plan's scene dimensions and placement:
+- `transform`: depends on scene type:
   - **Fullscreen**: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }`
   - **Stacked**: `{ x: 0, y: 0, width: CANVAS_W, height: SCENE_H }` (top portion — SCENE_H from plan's dimensions)
-  - **Overlay**: use the plan's placement preset to set exact pixel transform:
+  - **Non-depth Overlay (V4)**: use the plan's placement preset to set exact pixel transform
+  - **Depth Overlay (V2 behind-speaker)**: position based on speaker location (see below)
 
-**Overlay Placement Preset Map (1080×1920 canvas):**
+**Overlay Placement Preset Map (for non-depth V4 overlays, 1080×1920 canvas):**
 
 | Preset | x | y | width | height |
 |---|---|---|---|---|
@@ -234,9 +170,43 @@ For each scene in the plan, add a scene item on the appropriate track (V2 or V4)
 
 Read the preset name from the plan and map to exact pixels. Do NOT interpret natural language — the plan MUST use a preset name.
 
+**Depth Overlay Scene Placement (V2 behind-speaker):**
+
+V2 depth scenes must be positioned WHERE THE SPEAKER IS on canvas — not at preset positions. The scene box must cover the speaker's body so that behind-speaker content can reach them.
+
+1. Call `get_speaker_position({ startMs, endMs })` to get the speaker's canvas-space bounding box.
+2. Calculate a scene box that covers the speaker area plus padding for the animation content:
+
+```
+const pos = get_speaker_position({ startMs, endMs });
+const norm = pos.speaker.normalized;
+
+// Speaker canvas position
+const speakerX = Math.round(norm.bbox.x * CANVAS_W);
+const speakerY = Math.round(norm.bbox.y * CANVAS_H);
+const speakerW = Math.round(norm.bbox.w * CANVAS_W);
+const speakerH = Math.round(norm.bbox.h * CANVAS_H);
+
+// Scene box: cover the speaker + padding above head and below for content
+// Add 100px above speaker for content extending above head
+// Add 100px below for content below chest
+// Full width for content peeking from sides
+const padding = 100;
+const sceneX = 0;
+const sceneY = Math.max(0, speakerY - padding);
+const sceneW = CANVAS_W;
+const sceneH = Math.min(CANVAS_H - sceneY, speakerH + padding * 2);
+```
+
+3. Use this calculated box as the V2 scene's transform: `{ x: sceneX, y: sceneY, width: sceneW, height: sceneH }`
+4. Set SCENE_WIDTH and SCENE_HEIGHT in the scene skeleton to match
+5. Convert SPEAKER to scene-local coordinates relative to this box
+
+This ensures the scene is compact (easy to move/adjust in the editor) but positioned where the speaker actually is.
+
 Note: `displayMode` uses the manifest API value `"split-screen"` for Stacked layouts.
 
-#### Speaker spatial data (REQUIRED on every overlay scene item)
+#### Speaker spatial data (REQUIRED on every DEPTH overlay scene item)
 
 After creating each **overlay** scene item, call `get_speaker_position` with the scene's `{ startMs, endMs }` to get the speaker's full-body position. The tool returns both pixel bounds (canvas space) and `speaker.normalized` (0-1 range). Use the **normalized** values to compute **scene-local** coordinates.
 
@@ -260,11 +230,11 @@ update_item({
 
 If `get_speaker_position` returns `source: "defaults"` (no matte data), the bounds are approximate. Use them as-is.
 
-**Stacked and Fullscreen scenes:** Do NOT call `get_speaker_position` or add speaker data. These modes don't use overlay positioning.
+**Stacked, Fullscreen, and non-depth overlay scenes:** Do NOT call `get_speaker_position` or add speaker data. Only depth overlay scenes (those with READY depthAssets) use speaker positioning.
 
-#### Write SPEAKER constants to overlay scene files
+#### Write SPEAKER constants to depth overlay scene files
 
-After calling `get_speaker_position` for an overlay scene, write the SPEAKER and VISIBLE_ZONES constants directly into the scene skeleton file. **All values are in scene-local coordinates** — the Animator uses these directly with `position: absolute` inside the scene div.
+After calling `get_speaker_position` for a depth overlay scene, write the SPEAKER and VISIBLE_ZONES constants directly into the scene skeleton file. **All values are in scene-local coordinates** — the Animator uses these directly with `position: absolute` inside the scene div.
 
 Use the Edit tool to replace the existing SPEAKER/VISIBLE_ZONES block in the scene file:
 
@@ -313,7 +283,7 @@ centerPx.x = Math.round((canvasCenterX - sceneTransform.x) * scaleX)
 centerPx.y = Math.round((canvasCenterY - sceneTransform.y) * scaleY)
 ```
 
-If matte offset was applied (Step 4b), use the **post-offset** canvas positions from Step 4b's recalculation instead of raw `get_speaker_position` values.
+Since V1/V3 use full canvas transform (no offset), the speaker's canvas position matches the raw normalized values from `get_speaker_position` multiplied by CANVAS_W/CANVAS_H.
 
 VISIBLE_ZONES are derived from the scene-local bboxPx:
 ```
@@ -325,16 +295,16 @@ VISIBLE_ZONES.bottom.y = bboxPx.y + bboxPx.h
 VISIBLE_ZONES.bottom.h = SCENE_HEIGHT - VISIBLE_ZONES.bottom.y
 ```
 
-### Step 5b: Handle split overlay scenes
+### Step 5b: Handle split overlay scenes (RARE)
 
 When the animation brief says "Split: Scene5Behind + Scene5Front":
 
 1. Create TWO scene items for the same time range:
-   - `Scene5Behind.tsx` → **V2** track (behind speaker)
-   - `Scene5Front.tsx` → **V4** track (in front of speaker)
-2. Both items use the **same overlay preset transform** from the plan (same x, y, width, height). The Animator handles internal positioning within the scene — the manifest transform is identical for both.
+   - `Scene5Behind.tsx` → **V2** track (behind speaker) — positioned at the speaker using `get_speaker_position` (same as regular depth scenes)
+   - `Scene5Front.tsx` → **V4** track (in front of speaker) — uses overlay preset from the plan
+2. V2 and V4 items have DIFFERENT transforms: V2 is speaker-positioned, V4 uses the overlay preset.
 3. Both items share the same `startMs`/`endMs` and transition keyframes
-4. Both scene files get SPEAKER constants (same values — same matte offset applies to both)
+4. Both scene files get SPEAKER constants (same values)
 
 ### Step 6: Add transition keyframes
 
@@ -371,31 +341,41 @@ When the animation brief specifies punch-ins (e.g., "Punch-in 1.25x at '$390 mil
 4. V2/V4 animation items are NOT affected — they stay still while the "camera" pushes in, like a HUD
 
 ```
-// Punch-in: 300ms ease-in, 2s hold, 300ms ease-out
+// Punch-in: 300ms smooth zoom-in, 3s hold, INSTANT snap-out
 const scale = 1.25;  // from the brief
 const anchorMs = wordTimestampMs - itemStartMs;  // relative to item
+const sceneDuration = itemEndMs - itemStartMs;
 
-// matteX/Y/W/H = the base transform values (same on V1 and V3)
-const currentCenterX = matteX + matteW / 2;
-const currentCenterY = matteY + matteH / 2;
-const punchW = Math.round(matteW * scale);
-const punchH = Math.round(matteH * scale);
-const punchX = Math.round(currentCenterX - punchW / 2);
-const punchY = Math.round(currentCenterY - punchH / 2);
+// Base transform is always { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }
+const baseX = 0, baseY = 0, baseW = CANVAS_W, baseH = CANVAS_H;
+const centerX = baseW / 2;
+const centerY = baseH / 2;
+const punchW = Math.round(baseW * scale);
+const punchH = Math.round(baseH * scale);
+const punchX = Math.round(centerX - punchW / 2);
+const punchY = Math.round(centerY - punchH / 2);
+
+// Hold for 3 seconds (or until 500ms before scene end, whichever is less)
+const zoomInStart = anchorMs - 150;
+const zoomInEnd = anchorMs + 150;
+const holdEnd = Math.min(zoomInEnd + 3000, sceneDuration - 500);
+const snapOut = holdEnd + 1;  // INSTANT — 1ms snap back, no animated zoom-out
 
 // Add to BOTH V1 and V3 items (identical keyframes):
-// The first keyframe HOLDS the resting position so there's no interpolation drift.
-{ timeMs: anchorMs - 150, props: { x: matteX, y: matteY, width: matteW, height: matteH } }
-{ timeMs: anchorMs + 150, props: { x: punchX, y: punchY, width: punchW, height: punchH } }
-{ timeMs: anchorMs + 2150, props: { x: punchX, y: punchY, width: punchW, height: punchH } }
-{ timeMs: anchorMs + 2450, props: { x: matteX, y: matteY, width: matteW, height: matteH } }
+{ timeMs: zoomInStart, props: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H } }
+{ timeMs: zoomInEnd, props: { x: punchX, y: punchY, width: punchW, height: punchH } }
+{ timeMs: holdEnd, props: { x: punchX, y: punchY, width: punchW, height: punchH } }
+{ timeMs: snapOut, props: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H } }
 ```
 
 **Rules:**
 - V1 and V3 get IDENTICAL punch-in keyframes — they are one visual layer (background + person)
+- **Zoom-in: 300ms smooth animation** into the zoomed state
+- **Hold: 3 seconds minimum** (or until 500ms before scene end). The zoom should stay through the entire impactful moment, not snap back prematurely.
+- **Zoom-out: INSTANT hard cut** (1ms snap back to resting position). Never animate the zoom-out — it should be a clean reset.
 - Never punch-in during the first or last 500ms of a scene
 - If multiple punch-ins in one scene, ensure at least 3 seconds between them
-- V1 and V3 must have the SAME base transform (centered 1.15x oversize)
+- V1 and V3 base transform is always `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` — matching the original video
 - NEVER add opacity keyframes to V1/V3 — only punch-in spatial keyframes
 
 ### Step 7: Verify with render_still
@@ -435,13 +415,12 @@ Render stills at 2-3 scene boundary timestamps using `render_still`. Visually co
 4. Create V1-V4 tracks (`add_track`).
 5. Cut video at scene boundaries — split V0 items, split paired A0 items at same timestamps, delete V0 segments within READY overlay and fullscreen scenes, transform kept segments.
 6. Call `auto_center_speaker` — centers the speaker in remaining video segments using matte data.
-7. Place background images (V1) and matte items (V3) for each READY overlay scene.
-8. **Calculate content-driven matte offset** — read each overlay scene's animation brief zones, determine how much to shift V1+V3 to make room for content. Update V1 and V3 transforms.
-9. Place scene items on V2/V4 for all scenes (`add_item` type `scene`). Handle split scenes (two items on V2 + V4).
-10. Call `get_speaker_position` for each overlay scene. Recalculate SPEAKER constants accounting for matte offset. Update scene items with speaker spatial data. Write SPEAKER constants to scene skeleton files.
-11. Add transition keyframes across all layers (V0 fades, V1/V3 fades, V2/V4 scene cross-fades).
-12. Add **punch-in keyframes** to V1+V3 for each overlay scene's punch-in markers from the brief.
-13. Read manifest to verify — check item count, track structure, depth items, keyframes.
-14. Render 2-3 stills at scene boundaries and punch-in timestamps to visually verify layout.
-15. Report completion: number of scenes placed, video segments cut, depth items added, matte offsets applied, punch-ins added.
+7. Place background images (V1) and matte items (V3) for each READY overlay scene — always at `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` (matching the original video).
+8. Place scene items on V2/V4 for all scenes (`add_item` type `scene`). Handle split scenes (two items on V2 + V4).
+9. Call `get_speaker_position` for each overlay scene. Update scene items with speaker spatial data. Write SPEAKER constants to scene skeleton files.
+10. Add transition keyframes (hard cuts only — no fade keyframes).
+11. Add **punch-in keyframes** to V1+V3 for each overlay scene's punch-in markers from the brief.
+12. Read manifest to verify — check item count, track structure, depth items, keyframes.
+13. Render 2-3 stills at scene boundaries and punch-in timestamps to visually verify layout.
+14. Report completion: number of scenes placed, video segments cut, depth items added, punch-ins added.
 </task>

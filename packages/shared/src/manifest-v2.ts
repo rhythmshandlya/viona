@@ -109,7 +109,7 @@ export const captionItemDataV2Schema = z.object({
 
 // ---- Item (discriminated by type) ----
 
-export const itemTypeV2 = z.enum(['video', 'audio', 'text', 'image', 'scene', 'caption', 'shape']);
+export const itemTypeV2 = z.enum(['video', 'audio', 'text', 'image', 'scene', 'caption', 'shape', 'matte']);
 
 const itemBaseV2 = {
   id: z.string(),
@@ -121,6 +121,12 @@ const itemBaseV2 = {
   filters: filtersSchema.optional(),
 };
 
+export const matteItemDataV2Schema = z.object({
+  fgrSrc: z.string(),
+  matteSrc: z.string(),
+  startFrom: z.number().min(0).default(0),
+});
+
 export const manifestItemV2Schema = z.discriminatedUnion('type', [
   z.object({ ...itemBaseV2, type: z.literal('video'), data: videoItemDataV2Schema }),
   z.object({ ...itemBaseV2, type: z.literal('audio'), data: audioItemDataV2Schema }),
@@ -129,6 +135,7 @@ export const manifestItemV2Schema = z.discriminatedUnion('type', [
   z.object({ ...itemBaseV2, type: z.literal('scene'), data: sceneItemDataV2Schema }),
   z.object({ ...itemBaseV2, type: z.literal('caption'), data: captionItemDataV2Schema }),
   z.object({ ...itemBaseV2, type: z.literal('shape'), data: shapeItemDataV2Schema }),
+  z.object({ ...itemBaseV2, type: z.literal('matte'), data: matteItemDataV2Schema }),
 ]);
 
 // ---- Video Settings v2 (simplified — crop moved to per-item) ----

@@ -236,7 +236,7 @@ export const MAP_STYLES: Record<string, MapStyleConfig> = {
 
 function getTileUrl(tileX: number, tileY: number, zoom: number, style: string): string {
   const cfg = MAP_STYLES[style] ?? MAP_STYLES.osm;
-  return cfg.urlTemplate.replace('{z}', String(zoom)).replace('{x}', String(tileX)).replace('{y}', String(tileY));
+  return cfg.urlTemplate.replace('{z}', String(Math.floor(zoom))).replace('{x}', String(Math.floor(tileX))).replace('{y}', String(Math.floor(tileY)));
 }
 
 function getTilesForViewport(viewport: { zoom: number; offsetX: number; offsetY: number }, width: number, height: number, margin: number) {

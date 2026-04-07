@@ -575,6 +575,7 @@ export async function runOrchestrator(
   // the subagent label for the entire duration the Task is running.
   // Multiple subagents can run in parallel (e.g., parallel Animator dispatches).
   const activeSubagents = new Map<string, string>(); // tool_use_id → label
+  const subagentStartTimes = new Map<string, number>(); // tool_use_id → Date.now()
   // No queue needed — we match tool_result blocks by tool_use_id directly.
 
   async function processStream(iter: AsyncIterable<SDKMessage>): Promise<void> {
@@ -657,6 +658,7 @@ export async function runOrchestrator(
 
                   // Mark this subagent as actively running (supports parallel dispatches)
                   activeSubagents.set(block.id, label);
+                  subagentStartTimes.set(block.id, Date.now());
 
                   emitActivity(label, 'Starting...', 'working');
                   emitProgress('working', `${label} starting`, label);
@@ -708,10 +710,19 @@ export async function runOrchestrator(
                     completeTask(taskId);
                     subagentTaskIds.delete(block.tool_use_id);
                   }
-                  logger.info({ agent: finishedLabel, toolUseId: block.tool_use_id, messageCount }, 'Subagent completed');
+                  const startTime = subagentStartTimes.get(block.tool_use_id);
+                  const elapsedMs = startTime ? Date.now() - startTime : undefined;
+                  logger.info({ agent: finishedLabel, toolUseId: block.tool_use_id, messageCount, elapsedMs }, 'Subagent completed');
+
+                  // Caption Agent fast-failure detection: if it completed in < 5s, it likely failed silently
+                  if (finishedLabel === 'Caption Agent' && elapsedMs != null && elapsedMs < 5000) {
+                    logger.warn({ elapsedMs }, 'Caption Agent completed suspiciously fast (<5s) — likely failed silently');
+                  }
+
                   emitActivity(finishedLabel, 'Done', 'complete');
                   emitProgress('working', `${finishedLabel} finished`, finishedLabel);
                   activeSubagents.delete(block.tool_use_id);
+                  subagentStartTimes.delete(block.tool_use_id);
                   subagentLabels.delete(block.tool_use_id);
 
                   // Fire-and-forget checkpoint after subagent completes (mutex guards concurrency)

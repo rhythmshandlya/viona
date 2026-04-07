@@ -1,46 +1,50 @@
 <critical_reminder>
-## Core: WPM drives hero density
-- Compute WPM per 5-10s window BEFORE creating any captions
-- Fast (>200 WPM): mostly satellite, heroes only at rare pauses
-- Moderate (150-200): balanced, heroes at breath points
-- Slow (<150): more heroes, ~1 every 3-4 seconds
+## Default: ALL SATELLITE. Heroes are exceptions you spend budget on.
 
-## Phrase rules
-- Split at gaps ≥200ms in word timestamps
-- 3-5 words per phrase (WPM overrides)
-- Long phrases (6+ words with hero): split → setup (satellite) + payoff (hero)
-- Max 7 words. Hard cap.
-- Never span scene boundaries
+## Step 1: Hero budget (from transcript.json pacing data)
+- Read `pacing.overallWpm` — DO NOT recompute
+- Fast (>200): budget = 30-35% of phrases
+- Moderate (150-200): budget = 35-45%
+- Slow (<150): budget = 40-50%
+- Write caption-plan.json with budget BEFORE creating any items
 
-## Hero rules
-- First phrase: hero (opening hook)
-- After gap ≥300ms: hero (breath opener)
-- Before gap ≥300ms: hero (closing beat)
-- Fast sections: satellite-dominant
+## Grammar cleanup (transcript is raw ASR)
+- Capitalize first word of every phrase
+- Capitalize proper nouns, acronyms, place names
+- **HARD MAX 6 words per phrase** — 7+ MUST be split, no exceptions
+- Hero phrases should be SHORT (2-4 words) — split long phrases into setup (satellite) + payoff (hero)
+- Never split mid-clause — "the annual / baccalaureate" is WRONG
+- Keep numbers with context: "800,000 students" not "800,000 / students"
+- No sentence-ending punctuation mid-phrase — `.` `!` `?` must be last word
+- Add punctuation where delivery implies it (?, !, .)
+
+## Step 2: Spend budget in priority order (STOP when exhausted)
+1. Opening hook (first phrase)
+2. Single-word pivots ("Why?", "No.")
+3. Shocking stats on FIRST mention
+4. Key terms on FIRST mention (satellite on repeats!)
+5. Section climax (before gap ≥500ms)
+6. Breath openers in SLOW sections only (wpm <180)
+7. Emotional peaks — only if budget remains
+
+## Hard constraints
+- Fast windows (>200 WPM): max 1 hero per 5 seconds
+- 3+ consecutive hero phrases = BROKEN → insert satellite
+- Multi-word hero < 1000ms = demote to satellite (single-word pivots exempt)
+- Flow phrases (gap <150ms) = satellite by default
+- Repeated terms = NEVER hero after first mention
 - Max 2 heroes per phrase. Never 3.
-- Satellite-to-hero ratio: max 4:1 per phrase
-- Hero density: 40-50% of phrases, NEVER higher
-- 3+ consecutive hero phrases = too dense, insert satellite
+- **Max 6 words per phrase.** 7+ = always split.
 
-## Hero word priority
-1. Stats/numbers: always hero
-2. Action verbs at hooks
-3. Key terms on FIRST mention (satellite on repeat)
-4. Emotional peak words
-5. Hero ≤6 chars + ≥3 satellites → compound (pair with adjacent word)
+## Self-validation: FIX, don't just report
+- Over budget? → demote weakest heroes (shortest duration first) via update_item
+- **Under 90% of budget? → promote more phrases!** Find contrast pivots, section openers, dramatic reveals. Budget is a TARGET to hit, not just a ceiling.
+- 3+ consecutive? → demote middle ones
+- Under 1000ms? → demote (except single-word pivots)
+- Every word in exactly one phrase, no gaps, no overlaps
 
-## Duration
-- Multi-word hero: ≥1000ms or demote to satellite
-- Single-word pivots: exempt
-
-## Punctuation
-- `?` rhetorical questions, `!` shocking stats, `.` definitive closers
-- Don't over-punctuate
-
-## Required actions
-1. `add_track({ type: "caption", name: "Subtitles" })` — position = max + 10
-2. `add_item(...)` per phrase — words: `[{ text, startMs, endMs, hero }]`
-3. `update_caption_preset({ displayMode: "kinetic-luxe", managedByAgent: true, fontPairId: "classic", ... })`
-4. Write caption-plan.json
-5. Self-validate: no gaps, no overlaps, hero count 0-2, timing monotonic, ≤4:1 ratio, density 40-50%
+## Required outputs
+1. `/workspace/docs/caption-plan.json` — FIRST
+2. Caption track + items + preset
+3. Self-validate and fix violations
 </critical_reminder>

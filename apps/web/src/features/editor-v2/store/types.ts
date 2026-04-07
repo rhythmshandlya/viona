@@ -214,7 +214,7 @@ export interface CaptionWord {
   styleOverrides?: WordStyleOverrides;
 }
 
-export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase';
+export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'poster-staircase' | 'kinetic-luxe';
 
 // Legacy position type (for backward compatibility)
 export type CaptionPositionLegacy = 'top' | 'center' | 'bottom';
@@ -410,6 +410,12 @@ export interface CaptionStyle {
 
   // Poster staircase visual variant (bold-stack, impact-pop, elegant-script, mega-bold, script-accent, scattered-poster)
   staircaseVariant?: string;
+
+  // Kinetic Luxe — hero/satellite typography
+  heroFontFamily?: string;
+  heroColor?: string;
+  fontPairId?: string;
+  managedByAgent?: boolean;
 }
 
 export interface TextItemData {

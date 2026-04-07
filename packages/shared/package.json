@@ -35,6 +35,11 @@
       "types": "./dist/typography-pairings.d.ts",
       "import": "./dist/typography-pairings.mjs",
       "require": "./dist/typography-pairings.js"
+    },
+    "./caption-font-pairs": {
+      "types": "./dist/caption-font-pairs.d.ts",
+      "import": "./dist/caption-font-pairs.mjs",
+      "require": "./dist/caption-font-pairs.js"
     }
   },
   "scripts": {

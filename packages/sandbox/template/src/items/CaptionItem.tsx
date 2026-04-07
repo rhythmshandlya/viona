@@ -541,7 +541,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
       if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
       positionStyles.transform = transforms.join(' ');
     } else {
-      positionStyles.bottom = 40 - offsetY;
+      positionStyles.bottom = 40 + offsetY;
       if (rotation !== 0) {
         positionStyles.transform = `rotate(${rotation}deg)`;
       }

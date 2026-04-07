@@ -343,6 +343,8 @@ function convertManifestItemV2(
         // Convert absolute word timestamps to relative (matching store convention)
         startMs: w.startMs - item.startMs,
         endMs: w.endMs - item.startMs,
+        // Hero annotation from Caption Agent
+        ...(w.hero !== undefined ? { hero: w.hero } : {}),
         // Migrate classification → role
         ...(w.role ? { role: w.role } : w.classification ? { role: w.classification } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
@@ -433,11 +435,11 @@ function convertManifestItemV2(
     }
 
     case 'matte': {
-      const data = {
-        ...d,
-        fgrSrc: d.fgrSrc ? resolvedSrc(d.fgrSrc) : '',
-        matteSrc: d.matteSrc ? resolvedSrc(d.matteSrc) : '',
-      };
+      // Keep raw relative paths for fgrSrc/matteSrc — resolution happens at
+      // render time in resolveMediaSrc (inside the workspace bundle).
+      // Resolving here would store full proxy URLs in the store, preventing
+      // the bundle's assets map lookup from matching.
+      const data = { ...d };
       return { ...base, data } as TimelineItem;
     }
 
@@ -493,6 +495,8 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         text: w.text,
         startMs: w.startMs + item.startMs,
         endMs: w.endMs + item.startMs,
+        // Preserve hero annotation for Caption Agent round-trip
+        ...(w.hero !== undefined ? { hero: w.hero } : {}),
         ...(w.role ? { role: w.role } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
       }));
@@ -637,6 +641,12 @@ function convertStoreCaptionStyle(style: CaptionStyle): Record<string, unknown> 
   // Poster staircase alignment
   if (style.staircaseAlignment) result.staircaseAlignment = style.staircaseAlignment;
 
+  // Kinetic Luxe fields
+  if (style.heroFontFamily) result.heroFontFamily = style.heroFontFamily;
+  if (style.heroColor) result.heroColor = style.heroColor;
+  if (style.fontPairId) result.fontPairId = style.fontPairId;
+  if (style.managedByAgent) result.managedByAgent = style.managedByAgent;
+
   return result;
 }
 
@@ -701,6 +711,11 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
       cinematicColors: mcs.cinematicColors as CaptionStyle['cinematicColors'],
       cinematicScales: mcs.cinematicScales as CaptionStyle['cinematicScales'],
     } : {}),
+    // Kinetic Luxe
+    heroFontFamily: (mcs as any).heroFontFamily ?? undefined,
+    heroColor: (mcs as any).heroColor ?? undefined,
+    fontPairId: (mcs as any).fontPairId ?? undefined,
+    managedByAgent: (mcs as any).managedByAgent ?? undefined,
     // Poster staircase alignment — prefer new staircaseAlignment; fall back to mapping old staircaseVariant
     staircaseAlignment: (() => {
       const sa = (mcs as any).staircaseAlignment;

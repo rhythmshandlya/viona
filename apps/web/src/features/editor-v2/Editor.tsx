@@ -141,12 +141,17 @@ export function Editor({ projectId }: EditorProps) {
       } else {
         setPanelOpen(false);
       }
-      // Seek timeline to the midpoint of the first selected item
+      // Seek timeline to the midpoint of the first selected item — but only if
+      // the playhead is not already within the item's time range
       if (selectedIds.length === 1) {
         const item = state.items[selectedIds[0]];
         if (item) {
-          const midpoint = Math.round((item.startMs + item.endMs) / 2);
-          state.seek(midpoint);
+          const currentMs = state.currentTimeMs;
+          const isAlreadyOnItem = currentMs >= item.startMs && currentMs <= item.endMs;
+          if (!isAlreadyOnItem) {
+            const midpoint = Math.round((item.startMs + item.endMs) / 2);
+            state.seek(midpoint);
+          }
         }
       }
     } else {

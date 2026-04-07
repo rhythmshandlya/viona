@@ -65,7 +65,7 @@ const browserExecutable = findBrowserExecutable();
 const CONCURRENCY = parseInt(process.env.RENDER_CONCURRENCY || '1', 10);
 // Default 2 — 8 parallel Chrome tabs will max all CPU cores and cause thermal
 // throttling/shutdown on laptops. Override with REMOTION_CONCURRENCY env var.
-const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '2', 10);
+const REMOTION_CONCURRENCY = parseInt(process.env.REMOTION_CONCURRENCY || '5', 10);
 
 // ---- Clients ----
 
@@ -157,7 +157,10 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
   const { projectId, jobId, manifest, bundleMinioKey } = job.data;
   const workDir = join(tmpdir(), `render-${nanoid()}`);
 
-  logger.info({ projectId, jobId, bundleMinioKey }, 'Starting render job');
+  const durationSec = manifest?.durationMs ? (manifest.durationMs / 1000).toFixed(1) : '?';
+  const sceneCount = (manifest?.items || []).filter((i: any) => i.type === 'scene').length;
+  const matteCount = (manifest?.items || []).filter((i: any) => i.type === 'matte').length;
+  logger.info({ projectId, jobId, bundleMinioKey, durationSec, sceneCount, matteCount }, 'Starting render job');
 
   try {
     await mkdir(workDir, { recursive: true });
@@ -238,10 +241,10 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
         const matteSrc = item.data?.matteSrc as string;
 
         for (const src of [fgrSrc, matteSrc].filter(Boolean)) {
-          // src is like "matte/scene-1-fgr.mp4" — download from MinIO projects/{projectId}/{src}
+          // src is like "matte/scene-1-fgr.mp4" — download from MinIO {projectId}/{src}
           const cleanPath = src.startsWith('/') ? src.slice(1) : src;
           const localPath = join(bundlePublicDir, cleanPath);
-          const minioKey = `projects/${projectId}/${cleanPath}`;
+          const minioKey = `${projectId}/${cleanPath}`;
 
           if (existsSync(localPath)) {
             logger.info({ cleanPath }, 'Matte file already in bundle');
@@ -307,18 +310,24 @@ async function processRenderJob(job: Job<RenderJobData>): Promise<void> {
       serveUrl: bundlePath,
       codec: 'h264',
       outputLocation: outputPath,
-      crf: 18,
+      crf: 23,
       concurrency: REMOTION_CONCURRENCY,
       imageFormat: 'jpeg',
-      jpegQuality: 90,
-      x264Preset: 'faster',
+      jpegQuality: 80,
+      x264Preset: 'ultrafast',
       browserExecutable,
       inputProps,
       timeoutInMilliseconds: 120_000,
       onProgress: ({ progress }) => {
         const pct = 25 + Math.round(progress * 65);
-        publishProgress(jobId, pct, `Rendering: ${Math.round(progress * 100)}%`);
+        const renderPct = Math.round(progress * 100);
+        publishProgress(jobId, pct, `Rendering: ${renderPct}%`);
+        // Log every 10% for visibility
+        if (renderPct % 10 === 0) {
+          logger.info({ projectId, jobId, renderProgress: renderPct, overallProgress: pct }, `Rendering ${renderPct}%`);
+        }
       },
+      logLevel: 'warn',
     });
 
     // 4. Upload output

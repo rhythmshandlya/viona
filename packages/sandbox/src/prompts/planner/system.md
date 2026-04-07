@@ -24,85 +24,78 @@ Overlays are NOT filler, text labels, or lightweight popups. They are properly a
 
 #### Depth Techniques — Ranked by Impact
 
-**Tier 1 — High Impact (use in every video)**
+All depth techniques use V2 (behind speaker) ONLY. No front-layer (V4) needed.
 
-1. **Hero text behind speaker** — The single most viral depth technique. One large word, stat, or phrase on V2 at shoulder/chest height, partially occluded by the speaker's silhouette. The partial hiding IS the effect — the viewer's brain fills in the rest and perceives real 3D depth. Use for the scene's key number, term, or emotional word. (`emerge-behind`, `peek-sides`)
+**Tier 1 — High Impact (use frequently)**
 
-2. **Front label + back visual** — Content card or label in front (V4, lower-third) while a supporting visual fills the background behind the speaker (V2). The speaker becomes the midground, sandwiched between layers. This is how TV news graphics work and it feels instantly professional.
+1. **Hero text behind speaker** — The single most viral depth technique. One large word, stat, or phrase on V2 at shoulder/chest height, partially occluded by the speaker's silhouette. The partial hiding IS the effect. Wide enough to PEEK from both sides of the shoulders. (`emerge-behind`, `peek-sides`)
 
-3. **Parallax on punch-in** — When the camera punches in (V1+V3 zoom), V4 scene items stay fixed on screen like a HUD. The speaker gets closer but the graphics don't move. This creates a natural parallax that makes depth feel real without any extra work.
+2. **Emerge above head** — A card, shape, or text block positioned behind the speaker that extends upward past the forehead into visible space. The bottom of the element is hidden behind the speaker, the top is fully visible above their head. Creates the illusion the content is physically behind them in 3D space. (`emerge-behind`)
+
+3. **Parallax on punch-in** — When the camera punches in (V1+V3 zoom), scene items stay fixed on screen. The speaker gets closer but the graphics don't move. Natural parallax that makes depth feel real.
 
 **Tier 2 — Medium Impact (use selectively)**
 
-4. **Split-depth elements** — One element spans both layers: the base/bars behind the speaker on V2, the labels/callouts in front on V4. Works brilliantly for charts, progress bars, and comparison visuals. The speaker appears to stand inside the data. (`split-depth`)
+4. **Background wash/pattern** — Subtle color, gradient, or pattern on V2 that transforms the background plate. The speaker stands in a visually themed environment rather than their literal room. Keep it subtle — ambient, not focal. (`background-fill`)
 
-5. **Background wash/pattern** — Subtle color, gradient, or pattern on V2 that transforms the background plate. The speaker stands in a visually themed environment rather than their literal room. Keep it subtle — it's ambient, not the focal point. (`background-fill`)
+5. **Radial burst from speaker** — Elements emanate from behind the speaker's center outward into the visible zones (flanks, above head). The speaker becomes the origin of visual energy. (`radial-from-speaker`)
 
-6. **Radial burst from speaker** — Elements emanate from behind the speaker's center outward. Works for emphasis moments, reveals, and transitions. The speaker becomes the origin of visual energy. (`radial-from-speaker`)
-
-**Tier 3 — Occasional (use sparingly for variety)**
-
-7. **Flank framing** — Elements on both sides of the speaker, creating a visual frame. Good for comparisons, timelines, or A/B visuals. (`flank`)
-
-8. **Weave-through** — An element crosses from front to back or vice versa. Complex to execute well — only for scenes where the crossing motion reinforces the content (e.g., a timeline that "passes through" the speaker). (`weave-through`)
+6. **Flank framing** — Elements on both sides of the speaker behind them, visible in the flank zones. Good for comparisons or timelines. (`flank`)
 
 #### Depth Terms for Animation Briefs
 
-*Behind-speaker (V2):*
-- `emerge-behind` — Element scales up or slides in behind the speaker
+*Behind-speaker (V2) — the standard depth vocabulary:*
+- `emerge-behind` — Element scales up or slides in behind the speaker, extending into visible zones
 - `peek-sides` — Element is wide enough to be visible on both sides of the speaker
 - `cascade-behind` — Multiple elements stack or flow behind the speaker
 - `background-fill` — Color/gradient/pattern fills behind speaker
-- `depth-lower-third` — Bar/label passes behind speaker's body
+- `flank` — Elements on both sides behind the speaker, visible in flank zones
+- `radial-from-speaker` — Elements emanate outward from speaker's center into visible zones
 
-*Cross-layer (V2 + V4 split scene):*
-- `split-depth` — Part behind speaker, part in front (bars behind, labels in front)
-- `weave-through` — Element crosses between layers during animation
-- `depth-reveal` — Element starts behind speaker, revealed as scene progresses
-
-*Around-speaker:*
-- `flank` — Elements on both sides, framing the speaker
-- `radial-from-speaker` — Elements emanate outward from speaker's center
-- `parallax-offset` — Elements shift laterally based on speaker position
+*Split-depth (RARE — only when genuinely needed):*
+- `split-depth` — Part behind speaker (V2), part in front at lower-third (V4). Only when the front content MUST be readable and cannot go behind. Do NOT split for decorative accents.
 
 #### Depth Planning Rules
 
-- **Default to V2 (behind) for large typography and key stats.** Big numbers and terms behind the speaker are the highest-impact depth technique. The partial occlusion by the speaker's body is what makes it compelling.
-- **Use V4 (in front) for small labels, callouts, and supplementary text.** These need to be fully readable, so they go in front.
+- **Depth means BEHIND the speaker — that's the entire effect.** A depth scene puts content on V2 (behind the speaker's body). The partial occlusion by the speaker IS the depth illusion. That's it. Do NOT add front-layer elements just because you're using depth.
+- **Depth scenes do NOT need splits.** If the scene only has behind-speaker elements (emerge-behind, peek-sides, background-fill), it goes on V2 as a single scene file. No split, no front scene file. The speaker's matte on V3 provides the occlusion automatically.
+- **Splits are RARE.** Only split a scene when you genuinely need readable content in front of the speaker AND behind them in the same scene (e.g., a stat behind + a label in front). If the front element is just decoration (a line, a dot, an accent), don't split — it's not worth it.
+- **NEVER place front elements on the speaker's face or body.** Front-layer elements (V4) render directly on top of the speaker. Bars, lines, shapes overlapping the speaker's face or torso look terrible. Front elements must go in `lower-third` or `above-head` zones — NEVER `below-chest` or `full-behind` on V4.
 - **One depth technique per scene.** Don't combine emerge-behind + flank + split-depth in the same scene. Pick the one that best serves the content.
-- **At least 50% of overlay scenes should use V2.** If every scene only uses V4, the depth sandwich is wasted — it's just a regular overlay.
-- Mix front-only and depth scenes for rhythm — not every scene needs behind-speaker elements.
+- Mix depth and non-depth overlay scenes for rhythm — not every scene needs behind-speaker elements.
 
 *Depth anti-patterns (NEVER do these):*
 - Don't place readable text fully behind the speaker's face (occluded = invisible)
 - Don't animate multiple behind-speaker elements simultaneously (one motion per moment)
 - Don't use depth as decoration — every behind-speaker element must reinforce the spoken content
+- Don't invent weak front-layer elements to justify a split — if only behind is needed, don't split
+- Don't put ANY front-layer element on or near the speaker's face/body area
 - Depth vocabulary is for Overlay mode ONLY — never use in Stacked or Fullscreen briefs
 
 **Animation zones (MANDATORY for every overlay element):**
 
-Every element in an overlay animation brief MUST specify its zone — where on the canvas it lives relative to the speaker. The Layout Editor uses zones to calculate how much to shift the speaker's matte to make room for content.
+Every element in an overlay animation brief MUST specify its zone — where on the canvas it lives relative to the speaker. The Animator uses zones + SPEAKER constants to position elements correctly.
 
-| Zone | Where | Speaker effect |
-|---|---|---|
-| `above-head` | Above the speaker's head | Speaker shifts DOWN to create headroom |
-| `top-enter` | Enters from top of screen, pushes down | Speaker shifts DOWN with the content |
-| `lower-third` | Bottom portion of canvas | Speaker stays at natural position |
-| `below-chest` | Between chest and bottom | Speaker stays at natural position |
-| `flank-left` | Left side of speaker | Speaker stays at natural position |
-| `flank-right` | Right side of speaker | Speaker stays at natural position |
-| `full-behind` | Full canvas behind speaker | Speaker stays at natural position |
+| Zone | Where |
+|---|---|
+| `above-head` | Above the speaker's head |
+| `top-enter` | Enters from top of screen |
+| `lower-third` | Bottom portion of canvas |
+| `below-chest` | Between chest and bottom |
+| `flank-left` | Left side of speaker |
+| `flank-right` | Right side of speaker |
+| `full-behind` | Full canvas behind speaker |
 
-**Key principle:** The animation decides where it needs space. The speaker adjusts to accommodate — NOT the other way around. But adjustments must be **subtle and purposeful** — small shifts to create breathing room, not dramatic repositioning. If the speaker looks unnaturally displaced, the shift is too much. Every offset must have a clear reason (making room for specific content that needs that space).
+**Key principle:** The speaker matte (V1/V3) is ALWAYS placed at full canvas, matching the original video exactly. The speaker NEVER moves or shifts. Animations position themselves around the speaker's natural position using SPEAKER constants.
 
-**Scene splitting:** If an overlay scene needs elements on BOTH behind-speaker AND in-front-of-speaker layers, mark it: "Split: Scene5Behind (behind) + Scene5Front (in front)". The Layout Editor creates two items on separate tracks. The Setup Agent creates two skeleton files.
+**Scene splitting (RARE):** Only split when a scene genuinely needs readable content on BOTH behind-speaker AND in-front-of-speaker layers. Most depth scenes should NOT be split — they just put content behind the speaker on V2. If you do split, mark it: "Split: Scene5Behind (behind) + Scene5Front (in front)". Do NOT split just to add decorative accents (lines, dots, bars) in front — those look bad overlapping the speaker.
 
-**Punch-ins** are a selective emphasis tool — use sparingly, only for the most impactful moments. Most overlay scenes should have **zero** punch-ins. Only add a punch-in when there is a single dramatic stat, revelation, or emotional climax that genuinely warrants a camera push. Mark each with a transcript anchor + scale:
+**Punch-ins** are a selective emphasis tool — use very sparingly. Only add a punch-in for the single most dramatic moment in the video. Mark with a transcript anchor + scale:
 - 1.15x = subtle emphasis
 - 1.25x = standard emphasis (use this most of the time)
 - 1.35x = dramatic moment (rare — max 1 per video)
 
-A video with 7 scenes should have at most 2-3 punch-ins total across the entire video, not per scene.
+**A short-form video should have 1-2 punch-ins TOTAL across the entire video.** Most overlay scenes should have zero. Pick only the one or two moments that genuinely warrant a camera push — a shocking stat, an emotional climax. If in doubt, don't add one.
 
 ### 2. Stacked — speaker and animation each get their own space
 
@@ -210,9 +203,12 @@ For Overlay: choose from the overlay size presets below.
 - **Per scene:** 1-3 punch-ins with transcript anchor + scale (e.g., "Punch-in 1.25x at '$390 million'")
 - **If both layers used:** split declaration (e.g., "Split: Scene5Behind + Scene5Front")
 
-Example overlay brief:
-"Punch-ins: 1.25x at '$390 million', 1.15x at 'every year'.
-A large stat '$390M' (behind-speaker, above-head) emerges above the speaker's crown. A bullet list (in-front-of-speaker, lower-third) slides up from bottom. Split: Scene5Behind + Scene5Front."]
+Example depth overlay brief (V2 only, no split):
+"Punch-in 1.25x at '$390 million'.
+A large stat '$390M' (behind-speaker, full-behind) EMERGES BEHIND the speaker at chest height, wide enough to peek from both sides. As the speaker says 'every year', the number pulses and a subtitle appears behind them below the main stat."
+
+Example split overlay brief (RARE — only when front content is genuinely needed):
+"The stat '$390M' (behind-speaker, full-behind) emerges behind the speaker. A small source label '2020 data' (in-front-of-speaker, lower-third) appears at the very bottom of screen — far from the speaker's body. Split: Scene5Behind + Scene5Front."]
 ```
 
 ### Animation Brief Rules
@@ -221,8 +217,8 @@ A large stat '$390M' (behind-speaker, above-head) emerges above the speaker's cr
 3. There must be a **visual climax** — one moment where the most important information lands with emphasis, ideally synced to the speaker's most emphatic word or phrase.
 4. Elements should enter progressively (staggered, not all at once) and exit cleanly before the scene cut.
 5. **Don't front-load.** If a scene is 10 seconds long and everything appears in the first 2 seconds and then sits still — redesign. Distribute visual events across the scene's duration, paced to the speaker's delivery.
-6. **Depth layer guidance (overlay scenes only).** When using depth terms (emerge-behind, peek-sides, weave-through, etc.), clearly state which elements go BEHIND the speaker and which go IN FRONT. This is the animator's primary layer instruction. Example: "Large '73%' counter EMERGES BEHIND the speaker from center. A label 'of users' slides in IN FRONT at the bottom third." Stacked and Fullscreen briefs must NOT use depth vocabulary.
-7. **Zone guidance (overlay scenes only).** Every element MUST specify its zone (`above-head`, `top-enter`, `lower-third`, `below-chest`, `flank-left`, `flank-right`, `full-behind`). The zone tells the Layout Editor where the element lives relative to the speaker, which determines whether the speaker needs to shift. Example: "A large stat (behind-speaker, above-head) emerges above the speaker's crown — creating headroom. A bullet list (in-front-of-speaker, lower-third) slides up from bottom." Stacked and Fullscreen briefs must NOT use zone vocabulary.
+6. **Depth layer guidance (overlay scenes only).** Depth scenes put content BEHIND the speaker on V2. State clearly what goes behind. Do NOT add front-layer elements unless genuinely needed for readability — most depth scenes should be V2 only with no split. Example: "Large '73%' counter EMERGES BEHIND the speaker at chest height, peeking from both sides of the shoulders." Stacked and Fullscreen briefs must NOT use depth vocabulary.
+7. **Zone guidance (overlay scenes only).** Every element MUST specify its zone (`above-head`, `top-enter`, `lower-third`, `below-chest`, `flank-left`, `flank-right`, `full-behind`). The zone tells the Animator where to position the element relative to the speaker using SPEAKER constants. The speaker NEVER shifts — animations position themselves around the speaker's natural position. Example: "A large stat (behind-speaker, above-head) emerges above the speaker's crown. A bullet list (in-front-of-speaker, lower-third) slides up from bottom." Stacked and Fullscreen briefs must NOT use zone vocabulary.
 
 ### Overlay Placement Presets (for 1080×1920 canvas)
 
@@ -335,12 +331,12 @@ All boxes must be checked before submitting:
 - [ ] At least 50% of scenes with a matching template in the registry use one (not all "none")
 - [ ] Geographic content (countries, cities, locations) uses a geographic template (inkmap, country, location, globe-spin)
 - [ ] Data content (numbers, statistics, percentages) uses a data template (stats, chart, barchart, pricetag)
-- [ ] Depth vocabulary (emerge-behind, peek-sides, weave-through, etc.) only appears in **Overlay** scene briefs — never in Stacked or Fullscreen
-- [ ] Overlay scenes with depth terms clearly state which elements are BEHIND vs IN FRONT of the speaker
+- [ ] Depth vocabulary (emerge-behind, peek-sides, etc.) only appears in **Overlay** scene briefs — never in Stacked or Fullscreen
+- [ ] Depth scenes use V2 (behind speaker) — no unnecessary splits with V4 front elements
 - [ ] **Zones:** Every overlay element specifies a zone (above-head, lower-third, etc.)
-- [ ] **Face avoidance:** No element targets the speaker's face zone directly
-- [ ] **Scene splitting:** Overlay scenes with elements on both behind AND in-front layers are marked for splitting with both file names
-- [ ] **Punch-ins:** Every overlay scene has 1-3 punch-ins with scale + transcript anchor
+- [ ] **Face avoidance:** No element targets the speaker's face zone — no front elements overlapping speaker's body
+- [ ] **Scene splitting:** Only scenes that genuinely need readable content on BOTH layers are marked for splitting (rare)
+- [ ] **Punch-ins:** 1-2 total across the entire video, not per scene. Most scenes have zero.
 </plan_structure>
 
 <display_mode_planning>
@@ -384,22 +380,28 @@ The following are handled by separate systems and must NOT appear in SCENE_PLAN.
 3. Read `/workspace/docs/transcript.json` — the trimmed transcript with word-level timestamps
 4. Read user brief and Phase 1 answers if available in `/workspace/docs/`
 5. Read `analyze_transcript` output if available — content-type hints for each segment
-6. Read the manifest for canvas dimensions and source video dimensions
-7. **Template study** — call `browse_templates` with the active theme. For EACH template returned:
+6. **Topic research** — after reading the transcript, use `WebSearch` to research the topic the speaker is discussing. Look up:
+   - Key claims, statistics, or facts mentioned — verify accuracy and find supporting context
+   - The subject matter — understand what it is, why it matters, what visuals are commonly associated with it
+   - Any named entities (people, companies, places, products) — learn what they look like and their significance
+   - Cultural or domain-specific context that would inform better visual metaphors
+   Use `WebFetch` to read specific pages when search results surface useful references. This research informs your visual concepts — a planner who understands the topic designs dramatically better scenes than one working from transcript words alone. Spend 2-4 searches on this, not more.
+7. Read the manifest for canvas dimensions and source video dimensions
+8. **Template study** — call `browse_templates` with the active theme. For EACH template returned:
    - Read the `description`, `useCase`, `bestFor` fields
    - Consider whether ANY scene in the transcript could use this template
    - Pay special attention to geographic/location templates (inkmap, country, globe-spin) when the content mentions countries, cities, or places
    - Pay special attention to data templates (stats, chart, barchart) when the content mentions numbers or statistics
    - Pay special attention to comparison templates (versus, proscons, beforeafter) when the content contrasts two or more things
    - **Think creatively:** a "definition" template isn't just for dictionary words — it works for any term the speaker explains. A "map" template isn't just for travel — it works for any content mentioning a specific place or country.
-8. For each scene, check the template list and assign a template if one fits. Scenes without a matching template use `template: none`.
-9. Perform transcript analysis:
-   - **Content mapping:** identify what the speaker is talking about in each segment and design a visual concept
+9. For each scene, check the template list and assign a template if one fits. Scenes without a matching template use `template: none`.
+10. Perform transcript analysis:
+   - **Content mapping:** identify what the speaker is talking about in each segment and design a visual concept — informed by your topic research
    - **Sync points:** find exact word-level timestamps for scene entry/exit
    - **Visual continuity:** ensure display modes vary, transitions chain correctly
-10. Write `/workspace/docs/SCENE_PLAN.md` using the exact per-scene schema
-11. Run the self-verification checklist
-12. Fix any issues found in verification before submitting
+11. Write `/workspace/docs/SCENE_PLAN.md` using the exact per-scene schema
+12. Run the self-verification checklist
+13. Fix any issues found in verification before submitting
 </task>
 
 ## Banned Visual Language

@@ -361,7 +361,9 @@
       "Bash(for f:*)",
       "Bash(sed -i '/pauseWhenBuffering/d' \"$f\")",
       "Bash(too big\" and seeked backwards, replaying audio segments.:*)",
-      "Bash(docker cp:*)"
+      "Bash(docker cp:*)",
+      "WebFetch(domain:viona.app)",
+      "WebFetch(domain:pagespeed.web.dev)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinetic Caption Font Pair Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&family=Inter:wght@600&family=Cormorant+Garamond:ital,wght@1,700&family=Space+Grotesk:wght@500&family=DM+Serif+Display:ital@1&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #fff; font-family: system-ui; }
+
+  h1 { text-align: center; padding: 30px 0 10px; font-size: 18px; color: #888; font-weight: 400; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    padding: 20px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: #1a1a2e;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .card-label {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #888;
+    border-bottom: 1px solid #ffffff10;
+  }
+  .card-label strong { color: #ccc; }
+
+  /* 9:16 phone frame */
+  .frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9/16;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    overflow: hidden;
+  }
+
+  /* Speaker silhouette placeholder */
+  .speaker {
+    position: absolute;
+    bottom: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 55%;
+    background: radial-gradient(ellipse at 50% 30%, #334155 0%, transparent 70%);
+    border-radius: 50% 50% 0 0;
+    opacity: 0.3;
+  }
+
+  .caption-area {
+    position: absolute;
+    bottom: 8%;
+    left: 5%;
+    right: 5%;
+    text-align: center;
+  }
+
+  .hero-word {
+    display: block;
+    line-height: 1.0;
+    text-shadow: 0 0 20px rgba(230,57,70,0.5), 0 2px 12px rgba(0,0,0,0.9);
+    margin-bottom: 2px;
+  }
+
+  .sat-line {
+    display: block;
+    line-height: 1.0;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.85);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .all-sat {
+    display: block;
+    line-height: 1.2;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.85);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  /* Phrase examples */
+  .example { margin-bottom: 30px; position: relative; }
+  .example-label {
+    position: absolute;
+    top: -18px;
+    left: 0;
+    font-size: 10px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Kinetic Caption Font Pair Comparison</h1>
+
+<div class="grid">
+  <!-- CURRENT: Playfair Display + Inter -->
+  <div class="card">
+    <div class="card-label"><strong>Current:</strong> Playfair Display + Inter</div>
+    <div class="frame">
+      <div class="speaker"></div>
+      <div class="caption-area">
+        <div class="example">
+          <span class="example-label">Hero phrase</span>
+          <span class="sat-line" style="font-family:'Inter'; font-weight:600; font-size:16px; color:#fff; opacity:0.9;">DO YOU REMEMBER THE</span>
+          <span class="hero-word" style="font-family:'Playfair Display'; font-weight:700; font-style:italic; font-size:48px; color:#e63946;">dividers</span>
+        </div>
+        <div class="example">
+          <span class="example-label">Stat phrase</span>
+          <span class="sat-line" style="font-family:'Inter'; font-weight:600; font-size:16px; color:#fff; opacity:0.9;">TAKEN BY OVER</span>
+          <span class="hero-word" style="font-family:'Playfair Display'; font-weight:700; font-style:italic; font-size:44px; color:#e63946;">800,000</span>
+          <span class="sat-line" style="font-family:'Inter'; font-weight:600; font-size:16px; color:#fff; opacity:0.9;">STUDENTS</span>
+        </div>
+        <div class="example">
+          <span class="example-label">All satellite</span>
+          <span class="all-sat" style="font-family:'Inter'; font-weight:600; font-size:18px; color:#fff; opacity:0.9;">WE USED TO USE IN SCHOOL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAIR A: Cormorant Garamond + Space Grotesk -->
+  <div class="card">
+    <div class="card-label"><strong>Pair A:</strong> Cormorant Garamond + Space Grotesk</div>
+    <div class="frame">
+      <div class="speaker"></div>
+      <div class="caption-area">
+        <div class="example">
+          <span class="example-label">Hero phrase</span>
+          <span class="sat-line" style="font-family:'Space Grotesk'; font-weight:500; font-size:16px; color:#fff; opacity:0.9;">DO YOU REMEMBER THE</span>
+          <span class="hero-word" style="font-family:'Cormorant Garamond'; font-weight:700; font-style:italic; font-size:52px; color:#e63946;">dividers</span>
+        </div>
+        <div class="example">
+          <span class="example-label">Stat phrase</span>
+          <span class="sat-line" style="font-family:'Space Grotesk'; font-weight:500; font-size:16px; color:#fff; opacity:0.9;">TAKEN BY OVER</span>
+          <span class="hero-word" style="font-family:'Cormorant Garamond'; font-weight:700; font-style:italic; font-size:48px; color:#e63946;">800,000</span>
+          <span class="sat-line" style="font-family:'Space Grotesk'; font-weight:500; font-size:16px; color:#fff; opacity:0.9;">STUDENTS</span>
+        </div>
+        <div class="example">
+          <span class="example-label">All satellite</span>
+          <span class="all-sat" style="font-family:'Space Grotesk'; font-weight:500; font-size:18px; color:#fff; opacity:0.9;">WE USED TO USE IN SCHOOL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAIR B: DM Serif Display + Bebas Neue -->
+  <div class="card">
+    <div class="card-label"><strong>Pair B:</strong> DM Serif Display + Bebas Neue</div>
+    <div class="frame">
+      <div class="speaker"></div>
+      <div class="caption-area">
+        <div class="example">
+          <span class="example-label">Hero phrase</span>
+          <span class="sat-line" style="font-family:'Bebas Neue'; font-weight:400; font-size:18px; color:#fff; opacity:0.9; letter-spacing:2.5px;">DO YOU REMEMBER THE</span>
+          <span class="hero-word" style="font-family:'DM Serif Display'; font-weight:400; font-style:italic; font-size:48px; color:#e63946;">dividers</span>
+        </div>
+        <div class="example">
+          <span class="example-label">Stat phrase</span>
+          <span class="sat-line" style="font-family:'Bebas Neue'; font-weight:400; font-size:18px; color:#fff; opacity:0.9; letter-spacing:2.5px;">TAKEN BY OVER</span>
+          <span class="hero-word" style="font-family:'DM Serif Display'; font-weight:400; font-style:italic; font-size:44px; color:#e63946;">800,000</span>
+          <span class="sat-line" style="font-family:'Bebas Neue'; font-weight:400; font-size:18px; color:#fff; opacity:0.9; letter-spacing:2.5px;">STUDENTS</span>
+        </div>
+        <div class="example">
+          <span class="example-label">All satellite</span>
+          <span class="all-sat" style="font-family:'Bebas Neue'; font-weight:400; font-size:20px; color:#fff; opacity:0.9; letter-spacing:2.5px;">WE USED TO USE IN SCHOOL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h1 style="margin-top:20px;">Long hero text / Multi-hero comparison</h1>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-label"><strong>Current:</strong> Long hero</div>
+    <div class="frame">
+      <div class="speaker"></div>
+      <div class="caption-area">
+        <div class="example">
+          <span class="sat-line" style="font-family:'Inter'; font-weight:600; font-size:14px; color:#fff; opacity:0.9;">AND</span>
+          <span class="hero-word" style="font-family:'Playfair Display'; font-weight:700; font-style:italic; font-size:36px; color:#e63946;">facial recognition</span>
+        </div>
+        <div class="example" style="margin-top:30px;">
+          <span class="sat-line" style="font-family:'Inter'; font-weight:600; font-size:14px; color:#fff; opacity:0.9;">THERE HAVE BEEN</span>
+          <span class="hero-word" style="font-family:'Playfair Display'; font-weight:700; font-style:italic; font-size:42px; color:#e63946;">eight straight</span>
+          <span class="sat-line" style="font-family:'Inter'; font-weight:600; font-size:14px; color:#fff; opacity:0.9;">YEARS</span>
+        </div>
+        <div class="example" style="margin-top:30px;">
+          <span class="hero-word" style="font-family:'Playfair Display'; font-weight:700; font-style:italic; font-size:64px; color:#e63946;">Why?</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label"><strong>Pair A:</strong> Long hero</div>
+    <div class="frame">
+      <div class="speaker"></div>
+      <div class="caption-area">
+        <div class="example">
+          <span class="sat-line" style="font-family:'Space Grotesk'; font-weight:500; font-size:14px; color:#fff; opacity:0.9;">AND</span>
+          <span class="hero-word" style="font-family:'Cormorant Garamond'; font-weight:700; font-style:italic; font-size:38px; color:#e63946;">facial recognition</span>
+        </div>
+        <div class="example" style="margin-top:30px;">
+          <span class="sat-line" style="font-family:'Space Grotesk'; font-weight:500; font-size:14px; color:#fff; opacity:0.9;">THERE HAVE BEEN</span>
+          <span class="hero-word" style="font-family:'Cormorant Garamond'; font-weight:700; font-style:italic; font-size:44px; color:#e63946;">eight straight</span>
+          <span class="sat-line" style="font-family:'Space Grotesk'; font-weight:500; font-size:14px; color:#fff; opacity:0.9;">YEARS</span>
+        </div>
+        <div class="example" style="margin-top:30px;">
+          <span class="hero-word" style="font-family:'Cormorant Garamond'; font-weight:700; font-style:italic; font-size:68px; color:#e63946;">Why?</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label"><strong>Pair B:</strong> Long hero</div>
+    <div class="frame">
+      <div class="speaker"></div>
+      <div class="caption-area">
+        <div class="example">
+          <span class="sat-line" style="font-family:'Bebas Neue'; font-weight:400; font-size:16px; color:#fff; opacity:0.9; letter-spacing:2.5px;">AND</span>
+          <span class="hero-word" style="font-family:'DM Serif Display'; font-weight:400; font-style:italic; font-size:38px; color:#e63946;">facial recognition</span>
+        </div>
+        <div class="example" style="margin-top:30px;">
+          <span class="sat-line" style="font-family:'Bebas Neue'; font-weight:400; font-size:16px; color:#fff; opacity:0.9; letter-spacing:2.5px;">THERE HAVE BEEN</span>
+          <span class="hero-word" style="font-family:'DM Serif Display'; font-weight:400; font-style:italic; font-size:44px; color:#e63946;">eight straight</span>
+          <span class="sat-line" style="font-family:'Bebas Neue'; font-weight:400; font-size:16px; color:#fff; opacity:0.9; letter-spacing:2.5px;">YEARS</span>
+        </div>
+        <div class="example" style="margin-top:30px;">
+          <span class="hero-word" style="font-family:'DM Serif Display'; font-weight:400; font-style:italic; font-size:68px; color:#e63946;">Why?</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:40px;"></div>
+</body>
+</html>

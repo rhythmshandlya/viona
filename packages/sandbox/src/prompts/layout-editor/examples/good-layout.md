@@ -123,20 +123,7 @@ add_item({
 → matte-3
 ```
 
-### Step 4b: Calculate content-driven matte offset for Scene 3
-
-**Brief says zone: `above-head` → shift matte DOWN to create headroom.**
-```
-const oversize = 1.15;
-const matteW = Math.round(1080 * 1.15);   // 1242
-const matteH = Math.round(1920 * 1.15);   // 2208
-const matteX = Math.round(-(1242 - 1080) / 2);  // -81
-const matteY = 250;  // push down 250px for above-head content
-
-// Update BOTH V1 and V3 with same transform:
-update_item({ itemId: "bg-3", transform: { x: -81, y: 250, width: 1242, height: 2208 } })
-update_item({ itemId: "matte-3", transform: { x: -81, y: 250, width: 1242, height: 2208 } })
-```
+**V1/V3 use full canvas transform — no oversizing, no offsets. Speaker stays in natural position.**
 
 ### Step 5: Place scene items
 
@@ -160,11 +147,12 @@ add_item({
 → scene-2
 
 // Scene 3 — Overlay with depth (emerge-behind) → V2
+// Speaker is at canvas y=154, h=1574. Scene box covers speaker area + padding.
 add_item({
   type: "scene", trackId: "trk-abc2",
   startMs: 28000, endMs: 42000,
   data: { sceneFile: "Scene3.tsx", displayMode: "overlay", sceneName: "Stat Callout" },
-  transform: { x: 40, y: 880, width: 1000, height: 960 }
+  transform: { x: 0, y: 54, width: 1080, height: 1774 }
 })
 → scene-3
 
@@ -196,10 +184,11 @@ update_item({
   }
 })
 
-// Convert canvas-normalized to scene-local pixels (accounting for matte offset):
-// Post-offset canvas position: speakerCanvasX = 0.25 * 1242 + (-81) = 229.5
-// Scene transform: { x: 40, y: 880, width: 1000, height: 960 }
-// Scene-local: (229.5 - 40) * (1000 / 1000) = 189.5 → bboxPx.x = 190
+// Convert canvas-normalized to scene-local pixels:
+// Canvas position: speakerCanvasX = 0.25 * 1080 = 270, speakerCanvasY = 0.08 * 1920 = 154
+// V2 scene transform: { x: 0, y: 54, width: 1080, height: 1774 }
+// Scene-local: x = (270 - 0) * (1080/1080) = 270, y = (154 - 54) * (1774/1774) = 100
+// bboxPx = { x: 270, y: 100, w: 540, h: 1574 }
 
 // Write SPEAKER constants to Scene3.tsx skeleton file using Edit tool.
 ```
@@ -256,21 +245,19 @@ update_item({ itemId: "vid-3", keyframes: [
 // Relative to V1/V3 item startMs (28000): anchorMs = 35200 - 28000 = 7200
 
 const scale = 1.25;
-const punchW = Math.round(1242 * 1.25);  // 1553
-const punchH = Math.round(2208 * 1.25);  // 2760
-const punchX = Math.round((-81 + 1242/2) - 1553/2);  // -237
-const punchY = Math.round((250 + 2208/2) - 2760/2);  // -26
+// Base transform: { x: 0, y: 0, width: 1080, height: 1920 } (full canvas, no offset)
+const punchW = Math.round(1080 * 1.25);  // 1350
+const punchH = Math.round(1920 * 1.25);  // 2400
+const punchX = Math.round(540 - 1350/2);  // -135
+const punchY = Math.round(960 - 2400/2);  // -240
 
-// Add to BOTH bg-3 and matte-3 (identical keyframes):
-// Note: these are V1/V3 depth item keyframes — position animation is allowed here.
-// The opacity-only rule applies to V2/V4 scene items only.
+// Zoom-in: 300ms smooth. Hold: 3s. Zoom-out: INSTANT (1ms snap).
 const punchInKeyframes = [
-  { timeMs: 7050, props: { x: -81, y: 250, width: 1242, height: 2208 } },
-  { timeMs: 7350, props: { x: -237, y: -26, width: 1553, height: 2760 } },
-  { timeMs: 9350, props: { x: -237, y: -26, width: 1553, height: 2760 } },
-  { timeMs: 9650, props: { x: -81, y: 250, width: 1242, height: 2208 } }
+  { timeMs: 7050, props: { x: 0, y: 0, width: 1080, height: 1920 } },       // resting
+  { timeMs: 7350, props: { x: -135, y: -240, width: 1350, height: 2400 } },  // zoomed (300ms smooth)
+  { timeMs: 10350, props: { x: -135, y: -240, width: 1350, height: 2400 } }, // hold 3s
+  { timeMs: 10351, props: { x: 0, y: 0, width: 1080, height: 1920 } }        // instant snap out
 ];
-// Merge with existing opacity keyframes on bg-3 and matte-3
 ```
 
 ### Step 7: Verify
@@ -288,7 +275,8 @@ render_still({ atMs: 49000 })  → Scene 4: speaker bottom half, scene top half
 - **V3 items:** 1 (matte for Scene 3)
 - **Scene items:** 4 total — Scene 3 on V2, others on V4
 - **Speaker data:** Only Scene 3 (overlay) has speakerBbox and speakerCenter
-- **Matte offset:** Scene 3 V1+V3 shifted to { x: -81, y: 250, width: 1242, height: 2208 }
+- **Matte placement:** V1+V3 at full canvas { x: 0, y: 0, width: 1080, height: 1920 } — speaker in natural position
+- **V2 placement:** Scene 3 positioned at speaker location { x: 0, y: 54, width: 1080, height: 1774 }
 - **Punch-ins:** 1 punch-in on Scene 3 at 35200ms (V1+V3 zoom 1.25x)
 - **Audio:** All segments intact, split at 28000ms but never deleted
 </example>

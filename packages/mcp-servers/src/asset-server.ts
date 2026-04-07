@@ -992,12 +992,19 @@ server.registerTool(
     description:
       "Check the status of previously requested segmentation jobs. When a job completes, " +
       "the matte video is automatically downloaded to public/matte/{sceneId}.mp4. " +
-      "Returns per-job status, allComplete flag, and anyFailed flag.",
+      "Returns per-job status, allComplete flag, and anyFailed flag. " +
+      "Set waitForCompletion=true to poll with adaptive intervals until all jobs finish (max 180s). " +
+      "This avoids repeated tool calls — the tool handles polling internally.",
     inputSchema: {
       jobIds: z.array(z.string()).min(1).describe("Job IDs returned by request_segmentation"),
+      waitForCompletion: z.boolean().optional().default(false).describe(
+        "If true, poll internally with adaptive intervals until all jobs complete or 180s timeout. " +
+        "Intervals start at 5s, increase to 10s after 30s, then 15s after 60s."
+      ),
+      timeoutMs: z.number().optional().default(180_000).describe("Max wait time in ms when waitForCompletion=true (default 180s)"),
     },
   },
-  async ({ jobIds }: { jobIds: string[] }) => {
+  async ({ jobIds, waitForCompletion = false, timeoutMs = 180_000 }: { jobIds: string[]; waitForCompletion?: boolean; timeoutMs?: number }) => {
     try {
       if (!API_INTERNAL_URL || !PROJECT_ID) {
         return {
@@ -1008,6 +1015,18 @@ server.registerTool(
           isError: true,
         };
       }
+
+      // Adaptive polling: if waitForCompletion, loop with increasing intervals
+      // 0-30s: check every 5s, 30-60s: every 10s, 60s+: every 15s
+      const getInterval = (elapsedMs: number) =>
+        elapsedMs < 30_000 ? 5_000 : elapsedMs < 60_000 ? 10_000 : 15_000;
+
+      const startTime = Date.now();
+      let pollCount = 0;
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        pollCount++;
 
       const params = new URLSearchParams({ jobIds: jobIds.join(",") });
       const res = await fetch(
@@ -1185,25 +1204,41 @@ server.registerTool(
         ? (data.jobs.find(j => j.status === "complete")?.sceneId ?? downloaded[0])
         : null;
 
-      return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            ...data,
-            downloaded,
-            mattePaths: downloaded.map(id => ({
-              sceneId: id,
-              // All scenes share the primary scene's matte/fgr (full-video coverage)
-              mattePath: `public/matte/${primarySceneId}.mp4`,
-              fgrPath: `public/matte/${primarySceneId}-fgr.mp4`,
-              bgPath: `public/bg-${id}.png`,
-              staticFile: `matte/${primarySceneId}.mp4`,
-              fgrStaticFile: `matte/${primarySceneId}-fgr.mp4`,
-              bgStaticFile: `bg-${id}.png`,
-            })),
-          }),
-        }],
+      const result = {
+        ...data,
+        downloaded,
+        pollCount,
+        elapsedMs: Date.now() - startTime,
+        mattePaths: downloaded.map(id => ({
+          sceneId: id,
+          mattePath: `public/matte/${primarySceneId}.mp4`,
+          fgrPath: `public/matte/${primarySceneId}-fgr.mp4`,
+          bgPath: `public/bg-${id}.png`,
+          staticFile: `matte/${primarySceneId}.mp4`,
+          fgrStaticFile: `matte/${primarySceneId}-fgr.mp4`,
+          bgStaticFile: `bg-${id}.png`,
+        })),
       };
+
+      // If not waiting, or all complete/failed, return immediately
+      const allDone = data.allComplete || data.anyFailed;
+      if (!waitForCompletion || allDone) {
+        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      }
+
+      // Check timeout
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= timeoutMs) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ ...result, timedOut: true }) }],
+        };
+      }
+
+      // Adaptive sleep — increasing intervals
+      const interval = getInterval(elapsed);
+      await new Promise(resolve => setTimeout(resolve, interval));
+
+      } // end while(true)
     } catch (err) {
       return {
         content: [{

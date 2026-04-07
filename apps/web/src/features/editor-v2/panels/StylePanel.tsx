@@ -34,6 +34,11 @@ import {
   getPairing,
   type TypographyPairingId,
 } from '@viona/shared/typography-pairings';
+import {
+  CAPTION_FONT_PAIRS,
+  getFontPair,
+  type CaptionFontPair,
+} from '@viona/shared/caption-font-pairs';
 
 // ============================================
 // Mode abbreviation helper
@@ -44,7 +49,10 @@ const MODE_ABBREV: Record<CaptionDisplayMode, string> = {
   'phrase': 'P',
   'karaoke': 'K',
   'poster-staircase': 'S',
+  'kinetic-luxe': 'KL',
 };
+
+const FONT_PAIR_ORDER = ['classic', 'cinematic', 'poster'] as const;
 
 // ============================================
 // StylePanel
@@ -189,7 +197,24 @@ export function StylePanel() {
 
   // Display mode options filtered by active preset's supportedModes
   const activePreset = style.presetId ? SUBTITLE_PRESETS[style.presetId] : null;
-  const availableModes = activePreset?.supportedModes ?? ['word-by-word', 'phrase', 'karaoke'];
+  const baseModes = activePreset?.supportedModes ?? ['word-by-word', 'phrase', 'karaoke'];
+  // Always include kinetic-luxe as an option
+  const availableModes = baseModes.includes('kinetic-luxe' as any)
+    ? baseModes
+    : [...baseModes, 'kinetic-luxe' as CaptionDisplayMode];
+
+  const isKineticLuxe = style.displayMode === 'kinetic-luxe';
+  const activeFontPair = getFontPair(style.fontPairId);
+
+  const applyFontPair = (pair: CaptionFontPair) => {
+    customizeStyle({
+      fontPairId: pair.id,
+      heroFontFamily: pair.heroFontFamily,
+      fontFamily: pair.fontFamily,
+      heroColor: pair.heroColor,
+      color: pair.color,
+    });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -318,7 +343,7 @@ export function StylePanel() {
 
         <Divider />
 
-        {/* ===== 2. Display Mode + Words Per Phrase ===== */}
+        {/* ===== 2. Display Mode ===== */}
         <div className="px-4 py-3 space-y-3">
           <Section label="Display Mode">
             <SegmentedControl
@@ -328,28 +353,168 @@ export function StylePanel() {
                   label: m === 'word-by-word' ? 'Word'
                     : m === 'phrase' ? 'Phrase'
                     : m === 'karaoke' ? 'Karaoke'
+                    : m === 'kinetic-luxe' ? 'Kinetic'
                     : 'Staircase',
                 }))
               }
               value={style.displayMode}
-              onChange={(value) => customizeStyle({ displayMode: value as CaptionDisplayMode })}
+              onChange={(value) => {
+                const mode = value as CaptionDisplayMode;
+                if (mode === 'kinetic-luxe') {
+                  // Apply font pair defaults when switching to kinetic-luxe
+                  const pair = getFontPair(style.fontPairId);
+                  customizeStyle({
+                    displayMode: mode,
+                    fontPairId: pair.id,
+                    heroFontFamily: style.heroFontFamily || pair.heroFontFamily,
+                    fontFamily: style.fontPairId ? style.fontFamily : pair.fontFamily,
+                    heroColor: style.heroColor || pair.heroColor,
+                    color: style.fontPairId ? style.color : pair.color,
+                  });
+                } else {
+                  customizeStyle({ displayMode: mode });
+                }
+              }}
             />
-            {(style.displayMode === 'phrase' || style.displayMode === 'karaoke') && (
-              <div className="mt-3">
-                <span className="text-[10px] text-[var(--editor-text-secondary)] mb-1 block">Words per phrase</span>
-                <SliderRow
-                  value={style.wordsPerPhrase ?? 5}
-                  min={2}
-                  max={10}
-                  step={1}
-                  onChange={(v) => customizeStyle({ wordsPerPhrase: v })}
-                />
-              </div>
-            )}
           </Section>
 
+          {/* === Kinetic Luxe Panel === */}
+          {isKineticLuxe && (
+            <>
+              {/* AI-managed badge */}
+              {style.managedByAgent && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md
+                                bg-[var(--editor-accent)]/10 border border-[var(--editor-accent)]/20">
+                  <Wand2 className="w-3.5 h-3.5 text-[var(--editor-accent)]" />
+                  <span className="text-[11px] text-[var(--editor-accent)] font-medium">AI-managed captions</span>
+                </div>
+              )}
+
+              {/* Font Pair Picker */}
+              <Section label="Font Pair">
+                <div className="grid grid-cols-3 gap-2">
+                  {FONT_PAIR_ORDER.map((id) => {
+                    const pair = CAPTION_FONT_PAIRS[id];
+                    const active = (style.fontPairId || 'classic') === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => applyFontPair(pair)}
+                        className={`rounded-lg border transition-all overflow-hidden ${
+                          active
+                            ? 'border-[var(--editor-accent)] ring-1 ring-[var(--editor-accent)]'
+                            : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)]/30'
+                        }`}
+                      >
+                        <div className="relative h-14 bg-gradient-to-br from-[#1a1a2e] to-[#16213e] flex flex-col items-center justify-center gap-0.5 px-1">
+                          <span style={{
+                            fontFamily: pair.heroFontFamily,
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            color: pair.heroColor,
+                            lineHeight: 1.1,
+                          }}>
+                            Hero
+                          </span>
+                          <span style={{
+                            fontFamily: pair.fontFamily,
+                            fontSize: '9px',
+                            fontWeight: 600,
+                            color: pair.color,
+                            textTransform: 'uppercase',
+                            letterSpacing: '1.5px',
+                            lineHeight: 1.1,
+                          }}>
+                            SATELLITE
+                          </span>
+                        </div>
+                        <div className={`px-1.5 py-1 text-center ${
+                          active ? 'bg-[var(--editor-accent)]/10' : 'bg-[var(--editor-bg-elevated)]'
+                        }`}>
+                          <div className="text-[10px] text-[var(--editor-text-secondary)]">{pair.label}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Section>
+
+              {/* Hero + Satellite color pickers */}
+              <Section label="Colors">
+                <div className="space-y-2">
+                  <ColorRow
+                    label="Hero Color"
+                    value={style.heroColor || activeFontPair.heroColor}
+                    onChange={(heroColor) => customizeStyle({ heroColor })}
+                  />
+                  <ColorRow
+                    label="Satellite Color"
+                    value={style.color}
+                    onChange={(color) => customizeStyle({ color })}
+                  />
+                </div>
+              </Section>
+
+              {/* Position — reuse anchor control */}
+              <Section label="Position">
+                <SegmentedControl
+                  options={[
+                    { value: 'top', label: 'Top' },
+                    { value: 'center', label: 'Center' },
+                    { value: 'bottom', label: 'Bottom' },
+                  ]}
+                  value={(style.position as any)?.anchor || 'bottom'}
+                  onChange={(anchor) => customizeStyle({
+                    position: {
+                      ...(typeof style.position === 'object' ? style.position : {}),
+                      anchor: anchor as 'top' | 'center' | 'bottom',
+                      offsetX: (style.position as any)?.offsetX ?? 0,
+                      offsetY: (style.position as any)?.offsetY ?? 0,
+                      textAlign: (style.position as any)?.textAlign ?? 'center',
+                      rotation: (style.position as any)?.rotation ?? 0,
+                    },
+                  })}
+                />
+                <div className="mt-2">
+                  <span className="text-[10px] text-[var(--editor-text-secondary)] mb-1 block">Vertical offset</span>
+                  <SliderRow
+                    value={(style.position as any)?.offsetY ?? 0}
+                    min={-20}
+                    max={20}
+                    step={1}
+                    unit="%"
+                    onChange={(offsetY) => customizeStyle({
+                      position: {
+                        ...(typeof style.position === 'object' ? style.position : {}),
+                        anchor: (style.position as any)?.anchor ?? 'bottom',
+                        offsetX: (style.position as any)?.offsetX ?? 0,
+                        offsetY,
+                        textAlign: (style.position as any)?.textAlign ?? 'center',
+                        rotation: (style.position as any)?.rotation ?? 0,
+                      },
+                    })}
+                  />
+                </div>
+              </Section>
+            </>
+          )}
+
+          {/* Words per phrase — phrase/karaoke only (not kinetic-luxe) */}
+          {!isKineticLuxe && (style.displayMode === 'phrase' || style.displayMode === 'karaoke') && (
+            <div className="mt-3">
+              <span className="text-[10px] text-[var(--editor-text-secondary)] mb-1 block">Words per phrase</span>
+              <SliderRow
+                value={style.wordsPerPhrase ?? 5}
+                min={2}
+                max={10}
+                step={1}
+                onChange={(v) => customizeStyle({ wordsPerPhrase: v })}
+              />
+            </div>
+          )}
+
           {/* Staircase alignment picker — only shown for poster-staircase mode */}
-          {style.displayMode === 'poster-staircase' && (
+          {!isKineticLuxe && style.displayMode === 'poster-staircase' && (
             <Section label="Staircase Layout">
               <div className="grid grid-cols-4 gap-2">
                 {([
@@ -394,8 +559,8 @@ export function StylePanel() {
 
         <Divider />
 
-        {/* ===== 2.5 Typography Pairing (Dynamic Hierarchy) ===== */}
-        {style.typographyPairingId && (
+        {/* ===== 2.5 Typography Pairing (Dynamic Hierarchy) — hidden for kinetic-luxe ===== */}
+        {!isKineticLuxe && style.typographyPairingId && (
           <>
             <div className="px-4 py-3 space-y-3">
               <Section label="Typography Pairing">
@@ -459,199 +624,205 @@ export function StylePanel() {
           </>
         )}
 
-        {/* ===== 3. Typography Controls ===== */}
-        <div className="px-4 py-3 space-y-5">
-          {/* Font Family */}
-          <Section label="Font Family">
-            <FontFamilyDropdown
-              value={style.fontFamily}
-              onChange={(fontFamily) => customizeStyle({ fontFamily })}
-            />
-          </Section>
+        {/* ===== 3. Typography Controls — hidden for kinetic-luxe (renderer owns sizing) ===== */}
+        {!isKineticLuxe && (
+          <div className="px-4 py-3 space-y-5">
+            {/* Font Family */}
+            <Section label="Font Family">
+              <FontFamilyDropdown
+                value={style.fontFamily}
+                onChange={(fontFamily) => customizeStyle({ fontFamily })}
+              />
+            </Section>
 
-          {/* Font Size */}
-          <Section label="Font Size">
-            <SliderRow
-              value={style.fontSize}
-              min={24}
-              max={200}
-              step={2}
-              unit="px"
-              onChange={(fontSize) => customizeStyle({ fontSize })}
-            />
-          </Section>
+            {/* Font Size */}
+            <Section label="Font Size">
+              <SliderRow
+                value={style.fontSize}
+                min={24}
+                max={200}
+                step={2}
+                unit="px"
+                onChange={(fontSize) => customizeStyle({ fontSize })}
+              />
+            </Section>
 
-          {/* Font Weight */}
-          <Section label="Font Weight">
-            <SliderRow
-              value={style.fontWeight}
-              min={400}
-              max={900}
-              step={100}
-              onChange={(fontWeight) => customizeStyle({ fontWeight })}
-            />
-          </Section>
+            {/* Font Weight */}
+            <Section label="Font Weight">
+              <SliderRow
+                value={style.fontWeight}
+                min={400}
+                max={900}
+                step={100}
+                onChange={(fontWeight) => customizeStyle({ fontWeight })}
+              />
+            </Section>
 
-          {/* Letter Spacing */}
-          <Section label="Letter Spacing">
-            <SliderRow
-              value={style.letterSpacing ?? 0}
-              min={0}
-              max={10}
-              step={0.5}
-              unit="px"
-              onChange={(letterSpacing) => customizeStyle({ letterSpacing })}
-            />
-          </Section>
+            {/* Letter Spacing */}
+            <Section label="Letter Spacing">
+              <SliderRow
+                value={style.letterSpacing ?? 0}
+                min={0}
+                max={10}
+                step={0.5}
+                unit="px"
+                onChange={(letterSpacing) => customizeStyle({ letterSpacing })}
+              />
+            </Section>
 
-          {/* Line Height */}
-          <Section label="Line Height">
-            <SliderRow
-              value={style.lineHeight ?? 1.4}
-              min={1.0}
-              max={2.5}
-              step={0.1}
-              onChange={(lineHeight) => customizeStyle({ lineHeight })}
-            />
-          </Section>
+            {/* Line Height */}
+            <Section label="Line Height">
+              <SliderRow
+                value={style.lineHeight ?? 1.4}
+                min={1.0}
+                max={2.5}
+                step={0.1}
+                onChange={(lineHeight) => customizeStyle({ lineHeight })}
+              />
+            </Section>
 
-          {/* Text Transform */}
-          <Section label="Text Transform">
-            <SegmentedControl
-              options={[
-                { value: 'none', label: 'Aa' },
-                { value: 'uppercase', label: 'AA' },
-                { value: 'lowercase', label: 'aa' },
-              ]}
-              value={style.textTransform ?? 'none'}
-              onChange={(value) =>
-                customizeStyle({ textTransform: value as 'none' | 'uppercase' | 'lowercase' })
-              }
-            />
-          </Section>
-        </div>
-
-        <Divider />
-
-        {/* ===== 4. Colors ===== */}
-        <div className="px-4 py-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
-              Colors
-            </label>
-            {videoUrl && (
-              <button
-                onClick={handleAutoDetect}
-                disabled={autoLoading}
-                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md
-                           bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]
-                           hover:bg-[var(--editor-accent)]/20 transition-colors
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Wand2 className="w-3 h-3" />
-                {autoLoading ? 'Sampling...' : 'Auto'}
-              </button>
-            )}
+            {/* Text Transform */}
+            <Section label="Text Transform">
+              <SegmentedControl
+                options={[
+                  { value: 'none', label: 'Aa' },
+                  { value: 'uppercase', label: 'AA' },
+                  { value: 'lowercase', label: 'aa' },
+                ]}
+                value={style.textTransform ?? 'none'}
+                onChange={(value) =>
+                  customizeStyle({ textTransform: value as 'none' | 'uppercase' | 'lowercase' })
+                }
+              />
+            </Section>
           </div>
+        )}
 
-          {/* Quick palette swatches */}
-          <div className="flex flex-wrap gap-2">
-            {QUICK_COLOR_PALETTES.map((palette) => {
-              const active = isPaletteActive(palette);
-              return (
+        {!isKineticLuxe && <Divider />}
+
+        {/* ===== 4. Colors — hidden for kinetic-luxe (uses hero/satellite pickers above) ===== */}
+        {!isKineticLuxe && (
+          <div className="px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
+                Colors
+              </label>
+              {videoUrl && (
                 <button
-                  key={palette.name}
-                  title={palette.name}
-                  onClick={() => updateStyle({ color: palette.color, activeColor: palette.activeColor })}
-                  className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
-                    active
-                      ? 'border-[var(--editor-accent)] ring-2 ring-[var(--editor-accent)]/40 scale-110'
-                      : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)] hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: palette.activeColor }}
-                />
-              );
-            })}
-          </div>
-
-          {/* Auto-generated palettes */}
-          {autoPalettes && autoPalettes.length > 0 && (
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-[var(--editor-text-secondary)]">Suggested for this frame</span>
-              <div className="flex gap-2">
-                {autoPalettes.map((palette, i) => {
-                  const active = isPaletteActive(palette);
-                  return (
-                    <button
-                      key={i}
-                      title={palette.name}
-                      onClick={() => updateStyle({ color: palette.color, activeColor: palette.activeColor })}
-                      className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
-                        active
-                          ? 'border-[var(--editor-accent)] ring-2 ring-[var(--editor-accent)]/40 scale-110'
-                          : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)] hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: palette.activeColor }}
-                    />
-                  );
-                })}
-              </div>
+                  onClick={handleAutoDetect}
+                  disabled={autoLoading}
+                  className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md
+                             bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]
+                             hover:bg-[var(--editor-accent)]/20 transition-colors
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  {autoLoading ? 'Sampling...' : 'Auto'}
+                </button>
+              )}
             </div>
-          )}
 
-          <InlineDivider />
+            {/* Quick palette swatches */}
+            <div className="flex flex-wrap gap-2">
+              {QUICK_COLOR_PALETTES.map((palette) => {
+                const active = isPaletteActive(palette);
+                return (
+                  <button
+                    key={palette.name}
+                    title={palette.name}
+                    onClick={() => updateStyle({ color: palette.color, activeColor: palette.activeColor })}
+                    className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
+                      active
+                        ? 'border-[var(--editor-accent)] ring-2 ring-[var(--editor-accent)]/40 scale-110'
+                        : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)] hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: palette.activeColor }}
+                  />
+                );
+              })}
+            </div>
 
-          {/* Color pickers */}
-          <ColorRow
-            label="Text Color"
-            value={style.color}
-            onChange={(color) => customizeStyle({ color })}
-          />
-          <ColorRow
-            label="Active Color"
-            value={style.activeColor}
-            onChange={(activeColor) => customizeStyle({ activeColor })}
-          />
-          <ColorRow
-            label="Background"
-            value={style.backgroundColor}
-            onChange={(backgroundColor) => customizeStyle({ backgroundColor })}
-          />
-          <ColorRow
-            label="Active Background"
-            value={style.activeBackgroundColor}
-            onChange={(activeBackgroundColor) => customizeStyle({ activeBackgroundColor })}
-          />
-        </div>
+            {/* Auto-generated palettes */}
+            {autoPalettes && autoPalettes.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-[var(--editor-text-secondary)]">Suggested for this frame</span>
+                <div className="flex gap-2">
+                  {autoPalettes.map((palette, i) => {
+                    const active = isPaletteActive(palette);
+                    return (
+                      <button
+                        key={i}
+                        title={palette.name}
+                        onClick={() => updateStyle({ color: palette.color, activeColor: palette.activeColor })}
+                        className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
+                          active
+                            ? 'border-[var(--editor-accent)] ring-2 ring-[var(--editor-accent)]/40 scale-110'
+                            : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)] hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: palette.activeColor }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-        <Divider />
+            <InlineDivider />
 
-        {/* ===== 5. Background (Padding + Radius) ===== */}
-        <div className="px-4 py-3 space-y-5">
-          <Section label="Background Padding">
-            <SliderRow
-              value={style.backgroundPadding?.x ?? 4}
-              min={0}
-              max={24}
-              step={1}
-              unit="px"
-              onChange={(padding) =>
-                customizeStyle({ backgroundPadding: { x: padding, y: Math.round(padding / 2) } })
-              }
+            {/* Color pickers */}
+            <ColorRow
+              label="Text Color"
+              value={style.color}
+              onChange={(color) => customizeStyle({ color })}
             />
-          </Section>
-
-          <Section label="Background Radius">
-            <SliderRow
-              value={style.backgroundRadius ?? 0}
-              min={0}
-              max={24}
-              step={1}
-              unit="px"
-              onChange={(backgroundRadius) => customizeStyle({ backgroundRadius })}
+            <ColorRow
+              label="Active Color"
+              value={style.activeColor}
+              onChange={(activeColor) => customizeStyle({ activeColor })}
             />
-          </Section>
-        </div>
+            <ColorRow
+              label="Background"
+              value={style.backgroundColor}
+              onChange={(backgroundColor) => customizeStyle({ backgroundColor })}
+            />
+            <ColorRow
+              label="Active Background"
+              value={style.activeBackgroundColor}
+              onChange={(activeBackgroundColor) => customizeStyle({ activeBackgroundColor })}
+            />
+          </div>
+        )}
+
+        {!isKineticLuxe && <Divider />}
+
+        {/* ===== 5. Background (Padding + Radius) — hidden for kinetic-luxe ===== */}
+        {!isKineticLuxe && (
+          <div className="px-4 py-3 space-y-5">
+            <Section label="Background Padding">
+              <SliderRow
+                value={style.backgroundPadding?.x ?? 4}
+                min={0}
+                max={24}
+                step={1}
+                unit="px"
+                onChange={(padding) =>
+                  customizeStyle({ backgroundPadding: { x: padding, y: Math.round(padding / 2) } })
+                }
+              />
+            </Section>
+
+            <Section label="Background Radius">
+              <SliderRow
+                value={style.backgroundRadius ?? 0}
+                min={0}
+                max={24}
+                step={1}
+                unit="px"
+                onChange={(backgroundRadius) => customizeStyle({ backgroundRadius })}
+              />
+            </Section>
+          </div>
+        )}
       </div>
     </div>
   );

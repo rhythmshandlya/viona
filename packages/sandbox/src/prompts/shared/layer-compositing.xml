@@ -1,70 +1,97 @@
 <layer_compositing>
   <principle>
-    Every scene has two output layers: BehindSpeaker and InFrontOfSpeaker.
-    The person (extracted via matte) sits between them. You can place ANY
-    element on EITHER layer — mix and match for the best visual result.
+    Depth scenes use the BehindSpeaker layer (V2) to place content BEHIND the
+    speaker's body. The person matte (V3) sits on top, naturally occluding parts
+    of the V2 content — this partial hiding IS the depth effect. The viewer's
+    brain fills in the rest and perceives real 3D depth.
 
-    A single scene can have MULTIPLE animations across both layers:
-    - A stat counter emerging behind the speaker (BehindSpeaker)
-    - A label positioned as a lower third in front (InFrontOfSpeaker)
-    - A progress bar that starts behind, then a callout pops in front
-    - Background color wash behind + floating data card in front
+    The depth effect is simple: content behind the speaker, speaker's body hides
+    part of it. That's it. You do NOT need front-layer elements to make depth
+    work. Most depth scenes should ONLY use V2 (behind speaker).
 
-    The creative brief tells you what goes where. When it says "emerge behind"
-    or "peek from behind shoulders", use BehindSpeaker. When it says "overlay",
-    "lower third", "in front", use InFrontOfSpeaker. When it doesn't specify,
-    use your judgment — whatever makes the video look best.
+    The InFrontOfSpeaker layer (V4) is for NON-DEPTH overlay scenes — regular
+    floating graphics, cards, labels that render on top of the speaker video.
+    Depth scenes should rarely use V4. Never place decorative elements (lines,
+    bars, dots) in front of the speaker's face or body.
 
     These layers are for OVERLAY display mode only. Stacked and Fullscreen
-    scenes do not use depth layers (the speaker is either cropped to the bottom
-    half or hidden entirely — no full body to interact with).
+    scenes do not use depth layers.
   </principle>
+
+  <what_depth_looks_like>
+    Good depth effects — what the viewer sees:
+
+    1. A large stat/word at shoulder height, partially hidden by the speaker's
+       torso. The text PEEKS from both sides of the shoulders. The speaker
+       appears to stand IN FRONT of the text like a news anchor in front of
+       a graphic wall.
+
+    2. A card or shape that extends from behind the speaker's head upward into
+       the visible space above. The bottom of the card is hidden behind the
+       speaker, the top is fully visible. It looks like the card is physically
+       behind them in 3D space.
+
+    3. Content that EMERGES from behind the speaker — scaling up or sliding in
+       from behind the body into the visible zones (above head, flanks). The
+       motion of appearing from behind the silhouette creates the depth illusion.
+
+    4. A background color wash or pattern that fills the area behind the speaker,
+       giving them a themed environment instead of their literal room.
+
+    The KEY: the speaker's silhouette is the mask. Content positioned where the
+    body is gets hidden. Content positioned where the body ISN'T stays visible.
+    The boundary between hidden and visible is what creates the 3D feeling.
+  </what_depth_looks_like>
 
   <spatial_rules>
     - SPEAKER.bboxPx defines the person's silhouette rectangle on canvas
     - VISIBLE_ZONES are areas around the speaker (not occluded by the body)
     - BehindSpeaker elements behind SPEAKER.bboxPx are partially hidden = depth effect
     - BehindSpeaker elements in VISIBLE_ZONES are fully visible (no occlusion)
-    - InFrontOfSpeaker elements are always fully visible, rendered on top of person
     - Position key behind-speaker content to PEEK from edges (partially visible creates depth)
     - Do NOT put readable text fully behind the speaker's face (occluded = invisible)
     - Use SPEAKER.centerPx as origin for radial/burst effects behind the speaker
     - Elements at chest/shoulder height get the best partial-occlusion depth effect
     - Use VISIBLE_ZONES.left and VISIBLE_ZONES.right for content that must be fully readable
+    - Content can extend from behind the speaker UPWARD past the head into VISIBLE_ZONES.top
   </spatial_rules>
 
   <depth_techniques>
-    The 3-layer sandwich (background → V2 animation → speaker matte → V4 animation)
-    is what separates this from a slideshow. Use it deliberately.
+    ALL depth techniques use V2 (behind speaker) ONLY unless explicitly noted.
 
     HIGH IMPACT — use frequently:
     - Hero text behind speaker: One large word/stat at shoulder height on V2,
-      partially occluded by the speaker. The partial hiding creates perceived 3D depth.
-    - Front label + back visual: Content card in front (V4 lower-third) while a
-      supporting visual fills V2 behind. Speaker becomes the midground.
-    - Parallax on punch-in: V4 items stay fixed while V1+V3 zoom in. Natural parallax.
+      wide enough to peek from both sides. The partial hiding IS the effect.
+    - Emerge above head: A card or shape starts behind the speaker and extends
+      upward past the forehead into visible space. Bottom is hidden, top is visible.
+    - Parallax on punch-in: V1+V3 zoom in while scene items stay fixed. Natural parallax.
 
     MEDIUM IMPACT — use selectively:
-    - Split-depth: One element spans both layers (bars behind, labels in front).
-      Speaker appears to stand inside the data.
     - Background wash: Subtle color/gradient on V2 behind the speaker. Ambient, not focal.
-    - Radial burst: Elements emanate from behind the speaker's center outward.
+    - Radial burst: Elements emanate from behind the speaker's center outward into visible zones.
+    - Flank framing: Elements on both sides of the speaker behind them, visible in VISIBLE_ZONES.
 
     RULES:
-    - Default large typography and key stats to V2 (behind speaker)
-    - Default small labels and callouts to V4 (in front)
+    - Depth scenes use V2 only — do NOT split unless genuinely needed
     - One depth technique per scene — don't combine multiple
     - Stagger entrances: only one element animates at a time
-    - At least half of overlay scenes should use V2 for depth
+    - Content should be positioned to PEEK from behind the speaker, not fully hidden
   </depth_techniques>
 
-  <multi_element_scenes>
-    With layers, a scene can combine elements across V2 and V4:
-    - Behind (V2): background color wash, large stat peeking from shoulders
-    - Front (V4): lower third label, small callout card in a visible zone
-    Stagger entrances so only one element animates at a time.
-    Keep it simple — one behind + one in front is the sweet spot.
-  </multi_element_scenes>
+  <splitting_rules>
+    Splitting (V2 + V4 in same time range) is RARE and only for cases where you
+    genuinely need readable content in front of the speaker that CANNOT go behind.
+
+    Valid split: A large stat behind the speaker (V2) + a small label at the very
+    bottom of screen (V4 lower-third) that must be fully readable.
+
+    INVALID split: Adding a decorative line, dot, or accent bar in front of the
+    speaker just to "use both layers." This looks bad — random elements overlapping
+    the speaker's body are distracting, not professional.
+
+    Rule: If the front element wouldn't exist in a non-depth version of the scene,
+    don't add it just because you're using depth.
+  </splitting_rules>
 
   <face_avoidance>
     The speaker's face is the viewer's primary visual anchor. NEVER occlude it.
@@ -72,20 +99,13 @@
     Face region: SPEAKER.bboxPx.y to SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3
     This is approximately the top 30% of the speaker's bounding box.
 
-    Safe placement zones:
-    - ABOVE head: y less than SPEAKER.bboxPx.y (use VISIBLE_ZONES.top)
-    - BELOW chest: y greater than SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.6 (use VISIBLE_ZONES.bottom)
-    - LEFT flank: x less than SPEAKER.bboxPx.x (use VISIBLE_ZONES.left)
-    - RIGHT flank: x greater than SPEAKER.bboxPx.x + SPEAKER.bboxPx.w (use VISIBLE_ZONES.right)
+    Safe placement for behind-speaker content:
+    - SHOULDER/CHEST height: SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3 to 0.6
+    - EXTENDING ABOVE HEAD: content that starts at chest and reaches past the top
+    - FLANKS: VISIBLE_ZONES.left and VISIBLE_ZONES.right
 
-    Behind-speaker elements:
-    - Position at SHOULDER or CHEST height for the depth peek effect
-    - NOT at face height — even partially occluded face looks wrong
-    - Use SPEAKER.centerPx.y + offset to target below the chin
-
-    In-front-of-speaker elements:
-    - Upper zone (above head) and lower zone (below chest) ONLY
-    - NEVER overlay the face, even with semi-transparent elements
+    NEVER place content directly behind the face — even behind-speaker elements
+    at face height look wrong because the matte edge is imperfect near hair/face.
   </face_avoidance>
 
   <constants_reference>

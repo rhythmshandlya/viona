@@ -7,3 +7,4 @@ export { ShapeItem } from './ShapeItem';
 export { CaptionItem } from './CaptionItem';
 export { CinematicSubtitle } from './CinematicSubtitle';
 export { MatteItem } from './MatteItem';
+export { KineticLuxeCaption } from './KineticLuxeCaption';

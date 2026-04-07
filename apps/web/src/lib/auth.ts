@@ -15,5 +15,11 @@ export function getSessionToken(): string | null {
     return acc;
   }, {} as Record<string, string>);
 
+  // Dev bypass: when stytch_session cookie is 'dev-bypass', return it as the token
+  // so WebSocket and API calls can authenticate without Stytch
+  if (cookies['stytch_session'] === 'dev-bypass') {
+    return 'dev-bypass';
+  }
+
   return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
 }

@@ -16,6 +16,88 @@ const logger = pino({ name: 'workspace-init' });
 const WORKSPACE = '/workspace';
 const STAGING = join(WORKSPACE, '.staging');
 const TEMPLATE = '/app/template';
+
+// ── Pacing computation (deterministic, no LLM) ──────────────────────────
+
+interface TranscriptWord {
+  text: string;
+  startMs: number;
+  endMs: number;
+  confidence?: number;
+}
+
+interface PacingWindow {
+  startMs: number;
+  endMs: number;
+  wordCount: number;
+  wpm: number;
+}
+
+interface WordGap {
+  afterWordIndex: number;
+  gapMs: number;
+  /** The endMs of the word before the gap */
+  atMs: number;
+}
+
+interface PacingData {
+  overallWpm: number;
+  /** WPM computed per sliding window */
+  windows: PacingWindow[];
+  /** Gaps ≥150ms between consecutive words, sorted by size descending */
+  gaps: WordGap[];
+  totalWords: number;
+  totalDurationMs: number;
+}
+
+/**
+ * Compute pacing data from word-level timestamps.
+ * - WPM per 5-second sliding window (1s step)
+ * - All inter-word gaps ≥150ms
+ * - Overall WPM
+ *
+ * This is pure arithmetic on timestamps — the LLM interprets the results.
+ */
+function computePacing(words: TranscriptWord[]): PacingData {
+  if (!words || words.length === 0) {
+    return { overallWpm: 0, windows: [], gaps: [], totalWords: 0, totalDurationMs: 0 };
+  }
+
+  const firstMs = words[0].startMs;
+  const lastMs = words[words.length - 1].endMs;
+  const totalDurationMs = lastMs - firstMs;
+  const overallWpm = totalDurationMs > 0
+    ? Math.round((words.length / (totalDurationMs / 1000)) * 60)
+    : 0;
+
+  // Sliding window WPM (5s window, 1s step)
+  const WINDOW_MS = 5000;
+  const STEP_MS = 1000;
+  const windows: PacingWindow[] = [];
+
+  for (let start = firstMs; start + WINDOW_MS <= lastMs; start += STEP_MS) {
+    const end = start + WINDOW_MS;
+    const wordsInWindow = words.filter(w => w.startMs >= start && w.startMs < end);
+    const wpm = Math.round((wordsInWindow.length / (WINDOW_MS / 1000)) * 60);
+    windows.push({ startMs: start, endMs: end, wordCount: wordsInWindow.length, wpm });
+  }
+
+  // Inter-word gaps ≥150ms
+  const GAP_THRESHOLD_MS = 150;
+  const gaps: WordGap[] = [];
+
+  for (let i = 0; i < words.length - 1; i++) {
+    const gapMs = words[i + 1].startMs - words[i].endMs;
+    if (gapMs >= GAP_THRESHOLD_MS) {
+      gaps.push({ afterWordIndex: i, gapMs, atMs: words[i].endMs });
+    }
+  }
+
+  // Sort by gap size descending — biggest pauses first
+  gaps.sort((a, b) => b.gapMs - a.gapMs);
+
+  return { overallWpm, windows, gaps, totalWords: words.length, totalDurationMs };
+}
 // Workspace node_modules points to template deps (react 19, zod 3.22.3 for Remotion),
 // NOT /app/node_modules (sandbox deps: react 18, zod 4.x for claude-agent-sdk).
 const NODE_MODULES_SRC = '/app/template/node_modules';
@@ -301,9 +383,13 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
 
   // Copy template files (composition infra, .claude/, configs).
   // Exclude node_modules — the workspace uses a symlink to /app/template/node_modules instead.
+  // force: true so infrastructure files (TransformWrapper, CaptionItem, items/, composition/)
+  // always use the latest template version, even if a checkpoint restored older copies.
+  // Scene files (src/scenes/), constants, and user components are NOT in the template,
+  // so they won't be overwritten — only infrastructure that ships with the Docker image.
   await cp(TEMPLATE, baseDir, {
     recursive: true,
-    force: false,  // Don't overwrite existing files
+    force: true,
     filter: (src) => !src.includes('node_modules'),
   });
 
@@ -364,7 +450,12 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
 
   // Write transcript if provided
   if (payload.transcript) {
-    const transcriptStr = JSON.stringify(payload.transcript, null, 2);
+    // Compute pacing data from word timestamps (pure math — no LLM needed)
+    const enriched = {
+      ...payload.transcript,
+      pacing: computePacing(payload.transcript.words),
+    };
+    const transcriptStr = JSON.stringify(enriched, null, 2);
     await writeFile(
       join(baseDir, 'docs', 'transcript.json'),
       transcriptStr,
@@ -372,7 +463,7 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     // Preserve original transcript — never modified, used by sync_transcript
     await writeFile(
       join(baseDir, 'docs', 'transcript-original.json'),
-      transcriptStr,
+      JSON.stringify(payload.transcript, null, 2),
     );
   }
 

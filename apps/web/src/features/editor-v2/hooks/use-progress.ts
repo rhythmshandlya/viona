@@ -49,6 +49,7 @@ export function useActiveTasks(): UseActiveTasksResult {
   }, []);
 
   const restoreFromApi = useCallback((apiTasks: ActiveTask[], apiBusy: boolean) => {
+    if (!Array.isArray(apiTasks)) apiTasks = [];
     setTasks(prev => {
       // Filter out completed tasks from API (they should have been removed, but
       // Redis may still hold them if the Lua complete op races with a read)

@@ -421,65 +421,51 @@ The speaker video is full-screen behind your animation. Your scene renders on a 
 
 **Depth layers (overlay mode):**
 
-Your overlay skeleton includes `SPEAKER` and `VISIBLE_ZONES` constants in **scene-local** coordinates (relative to `SCENE_WIDTH × SCENE_HEIGHT`). These tell you exactly where the speaker's body is within your scene box and where you have space for content.
+Your overlay skeleton includes `SPEAKER` and `VISIBLE_ZONES` constants in **scene-local** coordinates (relative to `SCENE_WIDTH × SCENE_HEIGHT`). These tell you exactly where the speaker's body is and where you have space for content.
 
-**How to use layers:**
-- Elements in the `{/* BehindSpeaker layer */}` section render behind the person's body
-- Elements in the `{/* InFrontOfSpeaker layer */}` section render in front of the person
-- A single scene can have elements on BOTH layers — mix and match
-- The animation brief tells you which elements go where ("EMERGES BEHIND" = BehindSpeaker, "IN FRONT" = InFrontOfSpeaker)
+**How depth works:**
+- Your scene renders on V2 (behind the speaker). The speaker matte (V3) renders on top, naturally hiding parts of your content where the speaker's body is. The partial hiding IS the depth effect.
+- Position content so it PEEKS from behind the speaker's edges — shoulders, sides, above head. The boundary between hidden and visible creates the 3D illusion.
+- Most depth scenes only need the BehindSpeaker layer. Do NOT add front-layer elements unless the brief explicitly requires a split.
 
-**Spatial positioning with SPEAKER constants (MANDATORY for overlay scenes):**
+**Spatial positioning with SPEAKER constants (MANDATORY for depth scenes):**
 
-`SPEAKER.bboxPx` is in scene-local pixels — use it directly with `position: absolute` inside your scene div. No coordinate conversion needed.
+`SPEAKER.bboxPx` is in scene-local pixels — use it directly with `position: absolute` inside your scene div.
 
 - **SPEAKER.bboxPx** `{x, y, w, h}` — speaker's body rectangle in scene-local pixels
 - **SPEAKER.centerPx** `{x, y}` — speaker's body center in scene-local pixels
-- **VISIBLE_ZONES.left/right/top/bottom** `{x, y, w, h}` — areas NOT occluded by the speaker (scene-local pixels)
+- **VISIBLE_ZONES.left/right/top/bottom** `{x, y, w, h}` — areas NOT occluded by the speaker
 
 **Rules:**
-- Place behind-speaker elements so they PEEK from the edges of `SPEAKER.bboxPx` — partially visible creates the depth illusion
-- Position behind-speaker content at shoulder height (`SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.2` to `0.4`) for best partial-occlusion
-- Use `VISIBLE_ZONES.left` and `VISIBLE_ZONES.right` for behind-speaker content that must be readable
-- Use `SPEAKER.centerPx` as the origin for radial/burst effects behind the speaker
+- Place behind-speaker elements so they PEEK from the edges of `SPEAKER.bboxPx`
+- Content at shoulder height (`SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3` to `0.5`) gets the best partial-occlusion
+- Content can extend from behind the speaker UPWARD past the head into VISIBLE_ZONES.top
+- Use `VISIBLE_ZONES.left` and `VISIBLE_ZONES.right` for content that peeks from the sides
 - Never place readable text fully behind the speaker's face area (top 30% of bboxPx)
-- **ALWAYS position overlay elements relative to SPEAKER constants** — never hardcode absolute pixel positions without referencing SPEAKER
+- **ALWAYS position elements relative to SPEAKER constants** — never hardcode absolute pixel positions
 
-**Coding pattern:**
+**Coding pattern (depth scene — V2 behind speaker only):**
 ```tsx
 return (
   <div style={{ width: SCENE_WIDTH, height: SCENE_HEIGHT, overflow: 'hidden' }}>
-    {/* BehindSpeaker layer */}
+    {/* BehindSpeaker layer — content here is partially hidden by speaker matte on V3 */}
     <div style={{ position: 'absolute', inset: 0 }}>
-      {/* Large stat peeking from behind shoulders — positioned relative to speaker */}
+      {/* Large stat peeking from behind shoulders, extending above head */}
       <div style={{
         position: 'absolute',
         left: SPEAKER.centerPx.x - s(200),
-        top: SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.25,
+        top: SPEAKER.bboxPx.y + SPEAKER.bboxPx.h * 0.3,
         fontSize: s(120),
         transform: `scale(${heroScale})`,
       }}>
         73%
       </div>
     </div>
-
-    {/* InFrontOfSpeaker layer */}
-    <div style={{ position: 'absolute', inset: 0 }}>
-      {/* Lower third label — positioned in the bottom visible zone */}
-      <div style={{
-        position: 'absolute',
-        left: VISIBLE_ZONES.bottom.x + s(40),
-        top: VISIBLE_ZONES.bottom.y + s(20),
-        fontSize: s(28),
-      }}>
-        of users agree
-      </div>
-    </div>
   </div>
 );
 ```
 
-When the animation brief does NOT mention depth terms, place all elements in InFrontOfSpeaker (the traditional overlay behavior). The behind-speaker layer is used only when the brief explicitly calls for it.
+When the animation brief does NOT mention depth terms, place all elements in InFrontOfSpeaker (the traditional overlay behavior). The behind-speaker layer is used only when the brief explicitly calls for depth.
 
 ### Stacked — animation illustrates what the speaker explains
 

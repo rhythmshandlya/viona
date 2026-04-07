@@ -206,13 +206,14 @@ The Trim Editor will: trim fillers, verify audio/video marriage. Nothing else �
 
 After: Clean, trimmed timeline ready for planning.
 
-### Phase 2.5: Captions → dispatch **Caption Agent** (parallel with Planner)
+### Phase 2.5 + 3: Captions + Planning → dispatch **Caption Agent** AND **Planner** IN PARALLEL
 
-Report progress: `{ phase: "captions", message: "Creating captions..." }`
+Report progress: `{ phase: "captions", message: "Creating captions & planning scenes..." }`
 
-Dispatch Caption Agent AND Planner simultaneously — they are independent:
+**CRITICAL — SINGLE RESPONSE, TWO PARALLEL AGENT CALLS:**
+You MUST dispatch Caption Agent AND Planner in a SINGLE response containing TWO `Agent` tool calls. Do NOT dispatch one, wait for it, then dispatch the other. They are independent — dispatch both at once.
 
-The Caption Agent creates the caption track, all caption items with hero annotations, and sets the kinetic-luxe caption preset. It reads the transcript for word timestamps and the manifest for timeline context.
+**Caption Agent** creates the caption track, all caption items with hero annotations, and sets the kinetic-luxe caption preset.
 
 Pass to Caption Agent:
 - Theme slug: "Theme: {theme_slug}. Read /workspace/docs/guidelines/theme.md for design tokens."
@@ -220,16 +221,19 @@ Pass to Caption Agent:
 - "Read the manifest for timeline context (scene boundaries, video cuts)."
 - "Create caption track and items with kinetic-luxe styling."
 
-After BOTH Caption Agent and Planner return:
-1. Verify caption track exists in manifest
-2. If Caption Agent failed (no caption track): call `generate_captions` as degraded fallback, set `captionPreset.displayMode = "phrase"`
-3. Write phase marker: `echo "phase2.5-complete" > /workspace/.pipeline-phase`
+**After BOTH return — Caption Agent failure detection:**
+1. `read_manifest` — check for a caption track with items AND `captionPreset.managedByAgent === true`
+2. **If all present** → success, proceed
+3. **If missing** (Caption Agent likely failed silently):
+   a. Log: "Caption Agent failed — no caption track found. Retrying once."
+   b. Re-dispatch Caption Agent ONE more time with: "Previous attempt failed. Create caption track and items with kinetic-luxe styling. Read transcript.json, read manifest, create captions."
+   c. Check again after re-dispatch
+   d. If still missing → degraded fallback: call `generate_captions` tool, then `update_caption_preset({ displayMode: "phrase" })`
+4. Write phase marker: `echo "phase2.5-complete" > /workspace/.pipeline-phase`
 
-### Phase 3: Planning → dispatch **Planner**
+### Phase 3: Planning (dispatched above in parallel with Phase 2.5)
 
 Report progress: `{ phase: "planning", message: "Planning scenes..." }`
-
-**IMPORTANT:** Dispatch Caption Agent (Phase 2.5) AND Planner (Phase 3) simultaneously using parallel Agent calls. They are independent — neither waits for the other.
 
 Pass to Planner:
 - Content type, user's creative brief, canvas dimensions, constraints
@@ -300,9 +304,8 @@ The worker segmentation job (triggered after plan approval in Phase 3) produces 
 These files are served to the frontend through the existing proxy chain: file-server (port 8080) `/public/*` → API `/sandbox/public/*` → frontend `staticFile()`. No new proxy routes needed.
 
 **Polling:**
-- Call `check_segmentation_status({ jobIds })` every 10 seconds (use the jobIds returned by `request_segmentation` in Phase 3)
-- Timeout: 180 seconds
-- On timeout: treat unfinished scenes as failed
+- Call `check_segmentation_status({ jobIds, waitForCompletion: true })` — the tool polls internally with adaptive intervals (5s→10s→15s) and returns when all jobs complete or after 180s timeout. You do NOT need to loop or sleep.
+- On timeout (`timedOut: true` in response): treat unfinished scenes as failed
 - On all failed: pass empty depthAssets to Layout Editor (fallback mode)
 
 **Build depthAssets manifest** from the `check_segmentation_status` response. Use the `staticFile`/`fgrStaticFile`/`bgStaticFile` fields — these are the paths the Layout Editor puts directly into manifest item `data` fields:
@@ -345,12 +348,12 @@ Dispatch Layout Editor to build the timeline skeleton from `docs/SCENE_PLAN.md` 
 
 After Layout Editor completes, check if any captions span scene boundaries.
 
-Read the manifest. For each caption item, check if its time range crosses any scene boundary (where one scene's endMs meets the next scene's startMs).
-
-If boundary conflicts exist: re-dispatch Caption Agent with sync instructions:
-"Sync captions to scene boundaries. Split any captions that span these boundary timestamps: [list of boundary ms values]. Do not regenerate — only split/trim existing captions. Preserve hero annotations."
-
-If no conflicts: skip, proceed to Phase 7.
+1. `read_manifest` — collect all scene items (type `scene`) and their `startMs`/`endMs` to build a list of boundary timestamps (each scene's `startMs` is a boundary)
+2. Collect all caption items (type `caption`) with their `startMs`/`endMs`
+3. For each caption: does its time range contain a scene boundary? (caption.startMs < boundary < caption.endMs)
+4. **If conflicts exist:** re-dispatch Caption Agent with sync instructions:
+   "Sync captions to scene boundaries. Split any captions that span these boundary timestamps: [15000, 28000, ...]. Do not regenerate — only split/trim existing captions. Preserve hero annotations on both halves."
+5. **If no conflicts:** skip, proceed to Phase 7.
 
 ### Phase 7: Animation → dispatch multiple **Animators** IN PARALLEL
 
@@ -449,7 +452,7 @@ You MUST dispatch subagents for their designated phases. You are NOT allowed to:
 
 If you find yourself reading multiple files, browsing templates, or writing documents — STOP. You are doing a subagent's job. Dispatch the correct subagent instead.
 
-The orchestrator's job is: read transcript → brief analysis → dispatch Trim Editor → dispatch Caption Agent + Planner (parallel) → review plan → dispatch Setup → poll depth assets → dispatch Layout → caption sync check → dispatch Animators → dispatch Final Editor → done. That is ALL.
+The orchestrator's job is: read transcript → brief analysis → dispatch Trim Editor → dispatch Caption Agent + Planner (parallel, SINGLE response) → verify captions (retry once if failed, fallback to generate_captions) → review plan → dispatch Setup → poll depth assets → dispatch Layout → caption sync check (Phase 6.5) → dispatch Animators → dispatch Final Editor → done. That is ALL.
 
 ---
 

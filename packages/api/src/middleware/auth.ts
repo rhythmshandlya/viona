@@ -24,12 +24,15 @@ export async function getDevBypassUser(email?: string): Promise<User | null> {
   return null;
 }
 
-/** Check if a request has a dev bypass signal (cookie or header) */
+/** Check if a request has a dev bypass signal (cookie, header, or Bearer token) */
 function hasDevBypass(request: FastifyRequest): boolean {
   if (!isNonProduction) return false;
   const cookie = (request.cookies as Record<string, string>)?.stytch_session;
   if (cookie === 'dev-bypass') return true;
   if (request.headers['x-dev-bypass']) return true;
+  // Also check Authorization: Bearer dev-bypass (sent by frontend when dev cookie is set)
+  const authHeader = request.headers.authorization;
+  if (authHeader === 'Bearer dev-bypass') return true;
   return false;
 }
 

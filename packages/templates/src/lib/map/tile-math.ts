@@ -240,7 +240,7 @@ export function getTileUrl(
   style: MapStyle = 'watercolor'
 ): string {
   return MAP_STYLES[style].urlTemplate
-    .replace('{z}', String(zoom))
-    .replace('{x}', String(tileX))
-    .replace('{y}', String(tileY));
+    .replace('{z}', String(Math.floor(zoom)))
+    .replace('{x}', String(Math.floor(tileX)))
+    .replace('{y}', String(Math.floor(tileY)));
 }

@@ -56,6 +56,17 @@ export function ExportDropdown({ open, onOpenChange, anchorRef }: ExportDropdown
     }
   );
 
+  // Restore completed render state when project has an outputKey
+  const outputKey = useEditorStore((s) => s.outputKey ?? (s as any).project?.outputKey ?? null);
+  useEffect(() => {
+    if (!projectId || !outputKey || exportState !== 'idle') return;
+    api.getDownloadUrl(projectId).then(({ url }) => {
+      setExportComplete(url);
+    }).catch(() => {
+      setExportComplete('');
+    });
+  }, [projectId, outputKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Subscribe to job when it starts
   useEffect(() => {
     if (jobId && isConnected) {

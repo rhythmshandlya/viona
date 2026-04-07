@@ -1,16 +1,16 @@
 <critical_reminder>
 ## Video — Cut at Scene Boundaries
-- Source video is physically CUT: delete V0 segments for READY overlay and fullscreen scenes.
-- KEEP V0 segments for stacked and FAILED overlay scenes (transform accordingly).
+- Source video is physically CUT: delete V0 segments for READY **depth** overlay and fullscreen scenes only.
+- KEEP V0 segments for stacked, FAILED overlay, and **non-depth overlay** scenes (transform accordingly).
 - Audio is NEVER deleted. Split audio at same timestamps as video to keep alignment, but never remove audio segments.
 - After Trim Editor, V0 may already have multiple segments (fillers removed). Handle all of them.
 - `split_item` returns `{ originalId, newId }` — original is LEFT, newId is RIGHT.
 
 ## Depth Items (V1 + V3)
-- For each READY overlay scene: image on V1 (background), matte on V3 (fgr + matte).
+- Only for READY **depth** overlay scenes (scenes present in depthAssets with status "ready"): image on V1 (background), matte on V3 (fgr + matte).
 - Use depthAssets paths from orchestrator dispatch — do NOT hardcode file paths.
 - Matte item `data.startFrom` = scene startMs (offset into full-length matte video).
-- Do NOT add V1/V3 items for FAILED overlay scenes.
+- Do NOT add V1/V3 items for FAILED overlay scenes or non-depth overlay scenes (those not in depthAssets).
 
 ## Track Architecture — V0 through V4
 - V0: source video (cut for overlays/fullscreen, kept for stacked)
@@ -32,11 +32,12 @@
 - Items appear at startMs and disappear at endMs. Do NOT add opacity keyframes for transitions.
 - V1, V3, V0, and scene items get **no fade keyframes**.
 
-## Speaker Spatial Data
-- Every OVERLAY scene item MUST have `data.speakerBbox` and `data.speakerCenter` (normalized 0-1 from `speaker.normalized`).
-- Call `get_speaker_position` per overlay scene. Use `speaker.normalized` values directly.
-- Write SPEAKER/VISIBLE_ZONES constants to overlay scene files in **scene-local** pixels (multiply normalized values by SCENE_WIDTH/SCENE_HEIGHT, NOT canvas dimensions).
-- Do NOT write speaker data for stacked/fullscreen scenes.
+## Speaker Spatial Data & V2 Depth Scene Placement
+- V2 depth scenes MUST be positioned at the speaker's location using `get_speaker_position`. Do NOT use overlay presets for V2.
+- Calculate a scene box that covers the speaker area + padding (100px above/below) for animation content.
+- Every **depth** overlay scene item (READY in depthAssets) MUST have `data.speakerBbox` and `data.speakerCenter` (normalized 0-1 from `speaker.normalized`).
+- Write SPEAKER/VISIBLE_ZONES constants to depth overlay scene files in **scene-local** pixels (convert canvas coords to scene-local using the V2 scene's transform).
+- Do NOT write speaker data for stacked, fullscreen, or non-depth overlay scenes.
 
 ## Keyframes
 - Format: `{ timeMs: T, props: { ... } }` — NEVER flat format.
@@ -48,14 +49,10 @@
 ## Zero creative decisions
 - Execute the plan mechanically. Every value comes from SCENE_PLAN.md and depthAssets.
 
-## Content-Driven Matte Offset
-- Read overlay animation brief zones (above-head, top-enter, lower-third, etc.) to determine matte shift.
-- `above-head` / `top-enter` zones → shift V1+V3 DOWN (matteY = +200 to +350).
-- `lower-third`, `below-chest`, `flank-*`, `full-behind` zones → no shift (matteY = 0).
-- V1 and V3 always shift TOGETHER — same transform.
-- Oversize matte 15% (1.15x) to prevent edge leaking.
-- Shifts must be subtle and purposeful — not dramatic. When in doubt, shift less.
-- Recalculate SPEAKER constants AFTER applying matte offset.
+## V1/V3 Matte Placement
+- V1 and V3 ALWAYS use `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` — matching the original video exactly.
+- The speaker NEVER moves or shifts. No oversizing, no offsets.
+- Animations (V2/V4) position themselves around the speaker's natural position using SPEAKER constants.
 
 ## Scene Splitting
 - "Split: XBehind + XFront" → two scene items: XBehind.tsx on V2, XFront.tsx on V4.
@@ -63,7 +60,9 @@
 
 ## V1/V3 — Punch-in Only
 - V1 and V3 items: NO opacity keyframes (hard cuts). Only punch-in spatial keyframes allowed.
-- Base transform: centered 1.15x oversize, IDENTICAL on both V1 and V3.
-- Punch-in first keyframe must HOLD the resting position (= base transform values) to prevent drift.
+- Base transform: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }`, IDENTICAL on both V1 and V3.
+- **Zoom-in: 300ms smooth animation.** First keyframe holds resting position to prevent drift.
+- **Hold: 3 seconds minimum** (or until 500ms before scene end).
+- **Zoom-out: INSTANT** (1ms snap back). Never animate the zoom-out.
 - V1 + V3 get IDENTICAL punch-in keyframes — they are one visual layer.
 </critical_reminder>

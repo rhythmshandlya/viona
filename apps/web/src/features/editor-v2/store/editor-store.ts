@@ -2778,13 +2778,43 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
 
     updateTransform: (itemId: string, transform: Partial<Transform>) => {
+      const ops: Array<{ tool: string; input: any }> = [];
       set((draft) => {
         const item = draft.items[itemId];
         if (!item) return;
-        item.transform = { ...(item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 }), ...transform };
+        const oldTransform = item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 };
+
+        // When dragging an item that has spatial keyframes, propagate the delta
+        // to ALL keyframes so they stay consistent with the new position.
+        // This prevents drift between base transform and keyframe values.
+        const spatialProps: (keyof Transform)[] = ['x', 'y', 'width', 'height'];
+        const hasSpatialKeyframes = item.keyframes?.some(
+          (kf) => spatialProps.some((p) => kf.props[p] !== undefined)
+        );
+        if (hasSpatialKeyframes && item.keyframes) {
+          const deltas: Partial<Record<string, number>> = {};
+          for (const prop of spatialProps) {
+            if (transform[prop] !== undefined && typeof transform[prop] === 'number' && typeof oldTransform[prop] === 'number') {
+              deltas[prop] = (transform[prop] as number) - (oldTransform[prop] as number);
+            }
+          }
+          if (Object.keys(deltas).length > 0) {
+            for (const kf of item.keyframes) {
+              for (const [prop, delta] of Object.entries(deltas)) {
+                if (kf.props[prop as keyof Transform] !== undefined && typeof kf.props[prop as keyof Transform] === 'number') {
+                  (kf.props as any)[prop] = (kf.props[prop as keyof Transform] as number) + delta;
+                }
+              }
+            }
+            ops.push({ tool: 'updateItem', input: { itemId, keyframes: JSON.parse(JSON.stringify(item.keyframes)) } });
+          }
+        }
+
+        item.transform = { ...oldTransform, ...transform };
       });
       get().pushHistory();
-      dispatchOps([{ tool: 'updateItem', input: { itemId, transform } }]);
+      ops.push({ tool: 'updateItem', input: { itemId, transform } });
+      dispatchOps(ops);
       syncWorkspaceManifest();
     },
 
