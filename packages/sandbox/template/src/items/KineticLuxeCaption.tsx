@@ -61,16 +61,24 @@ function isHeroFallback(text: string): boolean {
 
 // ── Approximate text measurement ────────────────────────────────────────────
 // charWidthFactor: average character width as fraction of fontSize
-const SERIF_CWF = 0.52;
-const SANS_CWF = 0.55;
+// Per-font-pair values — different fonts have different average widths
+const FONT_PAIR_CWF: Record<string, { serif: number; sans: number }> = {
+  classic:   { serif: 0.43, sans: 0.48 },  // Playfair Display + Inter
+  cinematic: { serif: 0.40, sans: 0.46 },  // Cormorant Garamond + Space Grotesk
+  poster:    { serif: 0.42, sans: 0.35 },  // DM Serif Display + Bebas Neue (condensed)
+};
+const DEFAULT_CWF = { serif: 0.43, sans: 0.48 };
 
-function approxWidth(text: string, fontSize: number, isSerif: boolean): number {
-  return text.length * fontSize * (isSerif ? SERIF_CWF : SANS_CWF);
+const SAT_LETTER_SPACING = 1.5; // px — matches the render style
+function approxWidth(text: string, fontSize: number, isSerif: boolean, cwf: { serif: number; sans: number }): number {
+  const charW = text.length * fontSize * (isSerif ? cwf.serif : cwf.sans);
+  const spacing = isSerif ? 0 : text.length * SAT_LETTER_SPACING;
+  return charW + spacing;
 }
 
 // ── Algorithm constants ─────────────────────────────────────────────────────
 const HERO_SIZE_RATIO = 0.50;     // hero fills this fraction of container width
-const SAT_SIZE_RATIO = 0.35;      // satellite font = hero × this
+const SAT_SIZE_RATIO = 0.45;      // satellite font = hero × this
 const MAX_HERO_FONT = 160;
 const OVERFLOW_CLAMP = 0.90;
 const SAT_MAX_LINE_RATIO = 0.90;  // satellite lines wrap at 90% of hero width
@@ -99,33 +107,36 @@ interface Block {
   lineStartMs: number;
 }
 
-// ── Config ──────────────────────────────────────────────────────────────────
-interface KineticConfig {
-  hero?: { fontFamily?: string; color?: string; sizeMultiplier?: number };
-  satellite?: { fontFamily?: string; color?: string };
-  position?: { offsetY?: number };
-}
-
+// ── Props ────────────────────────────────────────────────────────────────────
 interface KineticLuxeCaptionProps {
   words: Array<{ text: string; startMs: number; endMs: number; hero?: boolean }>;
   itemStartMs: number;
-  config?: KineticConfig;
+  heroFontFamily?: string;
+  heroColor?: string;
+  satFontFamily?: string;
+  satColor?: string;
+  fontPairId?: string;
+  offsetY?: number;
+  /** @deprecated Use flat props instead */
+  config?: { hero?: { fontFamily?: string; color?: string }; satellite?: { fontFamily?: string; color?: string }; position?: { offsetY?: number } };
 }
 
-export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(({
-  words, itemStartMs, config,
-}) => {
+export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo((props) => {
+  const { words, itemStartMs, config } = props;
   const frame = useCurrentFrame();
   const { fps, width: canvasW, height: canvasH } = useVideoConfig();
 
-  const heroFontFamily = config?.hero?.fontFamily || "'Playfair Display', serif";
-  const heroColor = config?.hero?.color || '#e63946';
-  const satFontFamily = config?.satellite?.fontFamily || "'Inter', sans-serif";
-  const satColor = config?.satellite?.color || '#ffffff';
-  const offsetY = config?.position?.offsetY ?? 8;
+  // Read from flat props first, fall back to config object, then defaults
+  const heroFontFamily = props.heroFontFamily || config?.hero?.fontFamily || "'Playfair Display', serif";
+  const heroColor = props.heroColor || config?.hero?.color || '#e63946';
+  const satFontFamily = props.satFontFamily || config?.satellite?.fontFamily || "'Inter', sans-serif";
+  const satColor = props.satColor || config?.satellite?.color || '#ffffff';
+  const offsetY = props.offsetY ?? config?.position?.offsetY ?? 8;
   const containerW = canvasW * 0.90;
 
   const currentTimeMs = itemStartMs + (frame / fps) * 1000;
+
+  const cwf = FONT_PAIR_CWF[props.fontPairId || 'classic'] || DEFAULT_CWF;
 
   // ══════════════════════════════════════════════════════════════════════════
   // LAYOUT COMPUTATION (memoized — only recomputes when words change)
@@ -149,6 +160,59 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
     }
     const heroSet = new Set(heroIndices);
 
+    // ── All-satellite shortcut ──────────────────────────────────────────────
+    // When no heroes: render all words as a single centered satellite block.
+    // Use a comfortable font size and full container width for wrapping.
+    if (heroIndices.length === 0) {
+      const allSatFs = 42; // clean readable size for flow phrases
+      const maxLineW = containerW * 0.70; // conservative — accounts for uppercase + letter-spacing
+      const spaceW = allSatFs * 0.25;
+      const blocks: Block[] = [];
+      let line: string[] = [];
+      let lineW = 0;
+      for (let si = 0; si < wordList.length; si++) {
+        const ww = approxWidth(wordList[si], allSatFs, false, cwf);
+        const needed = ww + (line.length > 0 ? spaceW : 0);
+        if (lineW + needed > maxLineW && line.length > 0) {
+          const text = line.join(' ');
+          blocks.push({
+            type: 'satellite', text, fontSize: allSatFs, isSerif: false,
+            width: approxWidth(text, allSatFs, false, cwf),
+            spaceAbove: 0, spaceBelow: 0,
+            totalHeight: allSatFs * SAT_HEIGHT_RATIO,
+            x: 0, y: 0,
+            lineStartMs: words[0].startMs,
+          });
+          line = []; lineW = 0;
+        }
+        lineW += needed;
+        line.push(wordList[si]);
+      }
+      if (line.length > 0) {
+        const text = line.join(' ');
+        blocks.push({
+          type: 'satellite', text, fontSize: allSatFs, isSerif: false,
+          width: approxWidth(text, allSatFs, false, cwf),
+          spaceAbove: 0, spaceBelow: 0,
+          totalHeight: allSatFs * SAT_HEIGHT_RATIO,
+          x: 0, y: 0,
+          lineStartMs: words[0].startMs,
+        });
+      }
+      // Center each line horizontally, stack vertically from y=0
+      const maxW = Math.max(...blocks.map(b => b.width));
+      for (const b of blocks) { b.x = (maxW - b.width) / 2; }
+      let curY = 0;
+      for (let bi = 0; bi < blocks.length; bi++) {
+        if (bi > 0) curY += INK_GAP;
+        blocks[bi].y = curY;
+        curY += blocks[bi].totalHeight;
+      }
+      const clusterW = maxW;
+      const clusterH = curY;
+      return { blocks, clusterW, clusterH };
+    }
+
     // Merge consecutive heroes into runs
     const heroRuns: number[][] = [];
     const sorted = [...heroIndices].sort((a, b) => a - b);
@@ -160,19 +224,27 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
     heroRuns.push(run);
 
     // Phase 2: Compute hero font size
+    // Size hero to fill HERO_SIZE_RATIO of container, but never below MIN_HERO_FONT.
+    // Long hero text (e.g. "facial recognition") is allowed to overflow past the
+    // target width — capped at full container — rather than shrinking to tiny sizes.
+    const MIN_HERO_FONT = 90;
     let longestHeroText = '';
     for (const r of heroRuns) {
       const t = r.map(i => wordList[i]).join(' ');
       if (t.length > longestHeroText.length) longestHeroText = t;
     }
     const targetW = containerW * HERO_SIZE_RATIO;
-    let heroFs = Math.round(targetW / (longestHeroText.length * SERIF_CWF));
+    let heroFs = Math.round(targetW / (longestHeroText.length * cwf.serif));
     heroFs = Math.min(heroFs, MAX_HERO_FONT);
+    heroFs = Math.max(heroFs, MIN_HERO_FONT);
     const heroW = approxWidth(longestHeroText, heroFs, true);
     if (heroW > containerW * OVERFLOW_CLAMP) {
-      heroFs = Math.round(heroFs * (containerW * OVERFLOW_CLAMP) / heroW);
+      // Clamp to fit, but only override MIN if text physically can't fit at MIN size
+      const clampedFs = Math.round(heroFs * (containerW * OVERFLOW_CLAMP) / heroW);
+      const minFits = approxWidth(longestHeroText, MIN_HERO_FONT, true, cwf) <= containerW;
+      heroFs = minFits ? Math.max(clampedFs, MIN_HERO_FONT) : clampedFs;
     }
-    const satFs = Math.round(heroFs * SAT_SIZE_RATIO);
+    const satFs = Math.max(Math.round(heroFs * SAT_SIZE_RATIO), 32);
     const maxSatLineW = Math.min(approxWidth(longestHeroText, heroFs, true) * SAT_MAX_LINE_RATIO, containerW);
 
     // Phase 3: Build blocks in transcript order
@@ -184,7 +256,7 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
         const text = r.map(i => wordList[i]).join(' ');
         blocks.push({
           type: 'hero', text, fontSize: heroFs, isSerif: true,
-          width: approxWidth(text, heroFs, true),
+          width: approxWidth(text, heroFs, true, cwf),
           spaceAbove: 0, // computed per-pair in stacking phase based on poke avoidance
           spaceBelow: 0,
           totalHeight: heroFs * 1.2,  // Playfair Display actual rendered height > em square
@@ -205,13 +277,13 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
         let lineW = 0;
         const spaceW = satFs * 0.25;
         for (let si = 0; si < satWords.length; si++) {
-          const ww = approxWidth(satWords[si], satFs, false);
+          const ww = approxWidth(satWords[si], satFs, false, cwf);
           const needed = ww + (line.length > 0 ? spaceW : 0);
           if (lineW + needed > maxSatLineW && line.length > 0) {
             const text = line.join(' ');
             blocks.push({
               type: 'satellite', text, fontSize: satFs, isSerif: false,
-              width: approxWidth(text, satFs, false),
+              width: approxWidth(text, satFs, false, cwf),
               // Satellite (uppercase): no ascenders/descenders, just cap height
               spaceAbove: 0,
               spaceBelow: 0,
@@ -228,7 +300,7 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
           const text = line.join(' ');
           blocks.push({
             type: 'satellite', text, fontSize: satFs, isSerif: false,
-            width: approxWidth(text, satFs, false),
+            width: approxWidth(text, satFs, false, cwf),
             spaceAbove: 0,
             spaceBelow: 0,
             totalHeight: satFs * SAT_HEIGHT_RATIO,
@@ -333,24 +405,17 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
       curY += blocks[bi].totalHeight;
     }
 
-    // Phase 5: Horizontal — poke-aware alignment
-    // Center heroes first
+    // Phase 5: Horizontal — center heroes, offset satellites
     const centerX = containerW / 2;
     for (const b of blocks) {
       b.x = centerX - b.width / 2;
     }
 
-    // For each satellite, position relative to adjacent hero avoiding ascender pokes.
-    // Ascender letters (b,d,f,h,k,l,t) poke above the hero's x-height.
-    // Satellite BEFORE hero: position so right edge ends before the first poke.
-    // Satellite AFTER hero: position so left edge starts after the last poke.
-    // If too many pokes (>50% of hero text), just left/right align to hero edge.
+    // Poke-aware satellite alignment
     const heroBlocks = blocks.filter(b => b.type === 'hero');
     if (heroBlocks.length > 0) {
       for (let i = 0; i < blocks.length; i++) {
         if (blocks[i].type !== 'satellite') continue;
-
-        // Find nearest hero
         let nearestHeroIdx = 0;
         let minDist = Infinity;
         for (let h = 0; h < blocks.length; h++) {
@@ -358,107 +423,70 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
           if (Math.abs(h - i) < minDist) { minDist = Math.abs(h - i); nearestHeroIdx = h; }
         }
         const hero = blocks[nearestHeroIdx];
-        const heroText = hero.text.toLowerCase();
-        const charW = hero.width / hero.text.length; // approx width per char
-
-        // Satellite stays within hero's horizontal bounds.
-        // Default: before-hero → left-align, after-hero → right-align.
-        // Poke avoidance: if the default position overlaps a poke letter,
-        // nudge slightly to dodge it. Never move more than a few chars.
         const hL = hero.x;
         const hR = hero.x + hero.width;
         const sat = blocks[i];
 
-        // Find poke positions (ascenders for above, descenders for below)
-        const pokeChars = i < nearestHeroIdx ? ASCENDER_CHARS : DESCENDER_CHARS;
-        const pokes: number[] = [];
-        for (let c = 0; c < heroText.length; c++) {
-          if (pokeChars.has(heroText[c])) pokes.push(c);
-        }
-
-        // Find the widest gap between pokes where the satellite fits.
-        // Gaps are ranges of consecutive non-poke characters.
-        // Include edges: start-of-hero to first poke, last poke to end-of-hero.
-        const satWidthInChars = Math.ceil(sat.width / charW);
-        const gaps: Array<{ startChar: number; endChar: number; width: number }> = [];
-
-        if (pokes.length === 0) {
-          // No pokes — entire hero width is a gap
-          gaps.push({ startChar: 0, endChar: heroText.length, width: heroText.length });
+        // Default: center satellite under/over hero
+        // Then nudge based on whether it's before or after hero in transcript
+        if (i < nearestHeroIdx) {
+          // Satellite before hero — left-align to hero
+          sat.x = hL;
         } else {
-          // Before first poke
-          if (pokes[0] > 0) gaps.push({ startChar: 0, endChar: pokes[0], width: pokes[0] });
-          // Between pokes
-          for (let p = 0; p < pokes.length - 1; p++) {
-            const gapStart = pokes[p] + 1;
-            const gapEnd = pokes[p + 1];
-            if (gapEnd > gapStart) gaps.push({ startChar: gapStart, endChar: gapEnd, width: gapEnd - gapStart });
-          }
-          // After last poke
-          const lastPoke = pokes[pokes.length - 1];
-          if (lastPoke < heroText.length - 1) {
-            gaps.push({ startChar: lastPoke + 1, endChar: heroText.length, width: heroText.length - lastPoke - 1 });
-          }
+          // Satellite after hero — right-align to hero
+          sat.x = hR - sat.width;
         }
-
-        // Sort gaps by width (largest first) — prefer the widest gap
-        gaps.sort((a, b) => b.width - a.width);
-
-        // Try to fit satellite in the best gap
-        let placed = false;
-        for (const gap of gaps) {
-          if (gap.width >= satWidthInChars) {
-            // Satellite fits in this gap — center it within the gap
-            const gapLeftX = hL + gap.startChar * charW;
-            const gapRightX = hL + gap.endChar * charW;
-            const gapCenterX = (gapLeftX + gapRightX) / 2;
-            sat.x = gapCenterX - sat.width / 2;
-            placed = true;
-            break;
-          }
-        }
-
-        if (!placed) {
-          // Satellite doesn't fit in any gap — use default alignment
-          if (i < nearestHeroIdx) {
-            sat.x = hL; // left-align
-          } else {
-            sat.x = hR - sat.width; // right-align
-          }
-        }
-
-        // Final clamp — stay mostly within hero bounds
-        sat.x = Math.max(hL - sat.width * 0.15, Math.min(sat.x, hR - sat.width * 0.15));
+        // Clamp within hero bounds
+        sat.x = Math.max(hL, Math.min(sat.x, hR - sat.width));
       }
     }
 
-    return blocks;
-  }, [words, containerW, canvasH, offsetY]);
+    // Phase 6: Normalize to relative coords.
+    // Horizontal: compute cluster midpoint and re-center so the visual center
+    // of the cluster aligns with containerW/2. This corrects approxWidth drift
+    // while preserving the relative offsets between hero and satellites.
+    const minX = Math.min(...blocks.map(b => b.x));
+    const maxX = Math.max(...blocks.map(b => b.x + b.width));
+    const clusterMidX = (minX + maxX) / 2;
+    const shiftX = centerX - clusterMidX;
+    for (const b of blocks) { b.x += shiftX; }
 
-  if (!layout || layout.length === 0) return null;
+    // Vertical: normalize so y=0 at top of cluster
+    const minY = Math.min(...blocks.map(b => b.y));
+    const maxY = Math.max(...blocks.map(b => b.y + b.totalHeight));
+    for (const b of blocks) { b.y -= minY; }
+    const clusterH = maxY - minY;
 
-  // Hero ascender compensation — shift the entire group up so the satellite
-  // above the hero sits at x-height level. Applied to all blocks equally
-  // so relative spacing is preserved.
-  const heroShift = 0; // stacking handles tight spacing via x-height totalHeight
+    return { blocks, clusterW: containerW, clusterH };
+  }, [words, containerW, canvasH, offsetY, cwf]);
+
+  if (!layout || layout.blocks.length === 0) return null;
+
+  const { blocks, clusterW, clusterH } = layout;
+
+  // Caption zone: center the bounding box horizontally and position in lower portion
+  const bottomY = canvasH * (1 - offsetY / 100);
+  const captionZoneCenter = bottomY - (canvasH * 0.06);
+  const boxTop = captionZoneCenter - clusterH / 2;
+  const boxLeft = (canvasW - clusterW) / 2;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // RENDER — absolute positioned divs at computed coordinates
+  // RENDER — bounding box div wraps all blocks. Blocks use relative coords.
+  // The bounding box is the draggable/movable element for the frontend.
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div
       style={{
         position: 'absolute',
-        left: (canvasW - containerW) / 2,
-        top: 0,
-        width: containerW,
-        height: canvasH,
+        left: boxLeft,
+        top: boxTop,
+        width: clusterW,
+        height: clusterH,
         pointerEvents: 'none',
-        overflow: 'hidden',
       }}
       data-caption-overlay
     >
-      {layout.map((block, i) => {
+      {blocks.map((block, i) => {
         const appeared = currentTimeMs >= block.lineStartMs;
 
         // Hero spring animation
@@ -474,9 +502,7 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
             style={{
               position: 'absolute',
               left: block.x,
-              // Hero: shift up by ascender overshoot so satellite above sits at x-height
-              // The browser's lineHeight:1 still includes the full ascender — compensate.
-              top: block.y - heroShift,
+              top: block.y,
               fontFamily: block.type === 'hero' ? heroFontFamily : satFontFamily,
               fontSize: block.fontSize,
               fontWeight: block.type === 'hero' ? 700 : 600,
@@ -490,7 +516,7 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
                 : '0 1px 8px rgba(0,0,0,0.85)',
               opacity: appeared ? (block.type === 'satellite' ? 0.9 : 1) : 0,
               transform: block.type === 'hero' ? `scale(${appeared ? scaleVal : 1})` : undefined,
-              transformOrigin: 'left top',
+              transformOrigin: 'center top',
               whiteSpace: 'nowrap',
             }}
           >

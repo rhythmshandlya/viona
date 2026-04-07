@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
 import { TransformWrapper } from './composition/TransformWrapper';
-import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, MatteItem } from './items';
+import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, MatteItem, KineticLuxeCaption } from './items';
 import { sceneRegistry } from './scene-registry';
 
 /** Load Google Fonts via <link> tags for preset fonts */
@@ -219,6 +219,21 @@ const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fp
       return <ShapeItem data={item.data} />;
     case 'caption': {
       const analysis = captionAnalysis?.[item.id];
+      // Kinetic Luxe — hero/satellite typography engine
+      if (captionPreset?.displayMode === 'kinetic-luxe') {
+        return (
+          <KineticLuxeCaption
+            words={item.data.words}
+            itemStartMs={item.startMs}
+            heroFontFamily={captionPreset.heroFontFamily}
+            heroColor={captionPreset.heroColor}
+            satFontFamily={captionPreset.fontFamily}
+            satColor={captionPreset.color}
+            fontPairId={captionPreset.fontPairId}
+            offsetY={captionPreset.position?.offsetY}
+          />
+        );
+      }
       if (captionPreset?.useCinematicRenderer && analysis) {
         return (
           <CinematicSubtitle
