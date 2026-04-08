@@ -155,7 +155,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const decrementStreaming = useCallback(() => {
     streamingCountRef.current = Math.max(0, streamingCountRef.current - 1);
     if (streamingCountRef.current <= 0) {
-      decrementStreaming();
+      setIsStreaming(false);
     }
   }, []);
 

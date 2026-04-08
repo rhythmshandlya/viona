@@ -45,6 +45,9 @@ interface TurnEntry {
   userMessage: string;
   turn: TurnState;
   startedAt: number;
+  /** Resolves when this turn's processing completes (done or error). */
+  resolve: () => void;
+  reject: (err: Error) => void;
 }
 
 // ---- QuerySession ----
@@ -69,74 +72,81 @@ export class QuerySession {
    * Submit a new turn. If the query exists, injects via streamInput().
    * If not, creates a fresh query.
    */
-  async submitTurn(
+  /**
+   * Submit a new turn. Returns a Promise that resolves when the turn
+   * completes (done or error), keeping the SSE connection alive.
+   */
+  submitTurn(
     turnId: string,
     request: OrchestratorRequest,
     callbacks: OrchestratorCallbacks,
   ): Promise<void> {
     if (this.destroyed) {
       callbacks.onError('Session has been destroyed');
-      return;
+      return Promise.resolve();
     }
 
     const isResuming = !!this.sessionId || !!request.sessionId;
     const userMessage = buildUserMessage(request, isResuming);
-    const entry: TurnEntry = {
-      turnId,
-      request,
-      callbacks,
-      userMessage,
-      turn: createTurnState(),
-      startedAt: Date.now(),
-    };
 
-    if (!this.activeQuery) {
-      // First turn — create the query
-      this.currentTurn = entry;
-      startJob(turnId);
-      await this.createAndDrain(entry);
-    } else {
-      // Query alive — inject message for next turn
-      this.pendingTurns.push(entry);
-      logger.info({ turnId, queueDepth: this.pendingTurns.length }, 'Turn queued for injection');
+    return new Promise<void>((resolve, reject) => {
+      const entry: TurnEntry = {
+        turnId,
+        request,
+        callbacks,
+        userMessage,
+        turn: createTurnState(),
+        startedAt: Date.now(),
+        resolve,
+        reject,
+      };
 
-      try {
+      if (!this.activeQuery) {
+        // First turn — create the query
+        this.currentTurn = entry;
+        startJob(turnId);
+        this.createAndDrain(entry).catch(reject);
+      } else {
+        // Query alive — inject message for next turn
+        this.pendingTurns.push(entry);
+        logger.info({ turnId, queueDepth: this.pendingTurns.length }, 'Turn queued for injection');
+
         const sdkMsg = this.buildSDKUserMessage(userMessage, 'next');
-        await this.activeQuery.streamInput(singleMessage(sdkMsg));
-        logger.info({ turnId }, 'Message injected via streamInput');
-      } catch (err) {
-        logger.error({ err, turnId }, 'streamInput failed — will retry on next drain');
-        // The turn is still in pendingTurns — handleQueryDeath will pick it up
+        this.activeQuery.streamInput(singleMessage(sdkMsg)).then(() => {
+          logger.info({ turnId }, 'Message injected via streamInput');
+        }).catch((err) => {
+          logger.error({ err, turnId }, 'streamInput failed — will retry on next drain');
+        });
+        // Promise resolves later via finishCurrentTurn() or handleQueryDeath()
       }
-    }
+    });
   }
 
   /**
    * Cancel the current turn. Uses interrupt() to stop processing.
    */
   async cancel(): Promise<void> {
+    if (this.destroyed) return;
     if (!this.activeQuery) return;
 
-    try {
-      await this.activeQuery.interrupt();
-      logger.info('Query interrupted');
-    } catch (err) {
-      logger.warn({ err }, 'interrupt() failed — closing query');
-      this.activeQuery.close();
-      this.activeQuery = null;
-    }
+    // Close the query — interrupt can leave the drain loop hanging
+    this.activeQuery.close();
+    this.activeQuery = null;
+    logger.info('Query closed for cancellation');
 
-    // Error current turn
+    // Error current turn and release its SSE connection
     if (this.currentTurn) {
       failJob('Cancelled by user');
       flushCallbacks();
       this.currentTurn.callbacks.onError('Cancelled by user');
+      this.currentTurn.resolve();
       this.currentTurn = null;
     }
 
     // Error pending turns
     for (const pending of this.pendingTurns) {
       pending.callbacks.onError('Cancelled — previous turn was cancelled');
+      pending.resolve();
     }
     this.pendingTurns = [];
   }
@@ -153,10 +163,12 @@ export class QuerySession {
     if (this.currentTurn) {
       failJob('Session destroyed');
       flushCallbacks();
+      this.currentTurn.resolve();
       this.currentTurn = null;
     }
     for (const pending of this.pendingTurns) {
       pending.callbacks.onError('Session destroyed');
+      pending.resolve();
     }
     this.pendingTurns = [];
     this.cachedOptions = null;
@@ -349,7 +361,10 @@ export class QuerySession {
       logger.warn({ err }, 'Turn-end checkpoint failed');
     });
 
+    // Resolve the submitTurn() promise so the SSE handler can close
+    const { resolve } = this.currentTurn;
     this.currentTurn = null;
+    resolve();
   }
 
   private advanceToNextTurn(): void {
@@ -373,11 +388,12 @@ export class QuerySession {
     logger.error({ err: error.message }, 'Query died');
     this.activeQuery = null;
 
-    // Error current turn
+    // Error current turn — resolve its promise so SSE handler can close
     if (this.currentTurn) {
       failJob(error.message);
       flushCallbacks();
       this.currentTurn.callbacks.onError(error.message);
+      this.currentTurn.resolve(); // Resolve (not reject) — error already sent via onError callback
       this.currentTurn = null;
     }
 
@@ -394,6 +410,7 @@ export class QuerySession {
       // Error remaining pending turns
       for (const remaining of this.pendingTurns) {
         remaining.callbacks.onError('Query died — please retry');
+        remaining.resolve(); // Release their SSE connections
       }
       this.pendingTurns = [];
     }
