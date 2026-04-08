@@ -7,13 +7,15 @@ import { checkpoint, startCheckpointWatcher } from './checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
 import { mountOpsEndpoint } from './ops-endpoint.js';
 import { syncAssets } from './asset-sync.js';
-import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
+import { type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
+import { QuerySession } from './query-session.js';
 import { renderVideo } from './tools/render-video.js';
 import {
-  startJob, getJobState, isJobBusy, onStateChange, failJob, updatePlan, updateWidget,
+  getJobState, onStateChange, failJob, updatePlan, updateWidget,
 } from './job-state.js';
 import { pushState, flushCallbacks } from './api-callback.js';
+import { randomUUID } from 'crypto';
 
 const logger = pino({ name: 'agent-server' });
 
@@ -21,7 +23,10 @@ const API_CALLBACK_URL = process.env.API_CALLBACK_URL;
 const SANDBOX_ID = process.env.SANDBOX_ID;
 const SANDBOX_SECRET = process.env.SANDBOX_SECRET;
 
-let currentAbortController: AbortController | null = null;
+// Persistent query session — survives across /prompt calls
+let querySession: QuerySession | null = null;
+// Cached MCP servers — created once on first /prompt, reused across turns
+let cachedMcpServers: Record<string, unknown> | null = null;
 
 /**
  * Start the agent HTTP server on the given port.
@@ -102,9 +107,9 @@ export function startAgentServer(port = 8081): void {
   });
 
   // Prompt endpoint — streams orchestrator output via SSE
-  // The orchestrator runs independently of the SSE connection: if the client
-  // disconnects (page refresh, tab close) the orchestrator keeps running and
-  // state is pushed to the API via callbacks.  Only /cancel stops it.
+  // Uses a persistent QuerySession: first call creates the SDK query,
+  // subsequent calls inject messages via streamInput() — no queueing,
+  // no session resume overhead.
   app.post('/prompt', async (req: express.Request, res: express.Response) => {
     const body = req.body as OrchestratorRequest;
     if (!body.prompt || typeof body.prompt !== 'string') {
@@ -112,23 +117,33 @@ export function startAgentServer(port = 8081): void {
       return;
     }
 
-    // Gate on workspace initialization — reject if init hasn't completed yet.
-    // The API fires /init as fire-and-forget so /prompt can arrive before
-    // the workspace is fully ready (video downloaded, git init, esbuild watcher).
+    // Gate on workspace initialization
     const initialized = await isInitialized();
     if (!initialized) {
       res.status(503).json({ error: 'Workspace not initialized yet', retryAfter: 3 });
       return;
     }
 
-    // R1.6: reject if already busy
-    if (isJobBusy()) {
-      res.status(409).json({ error: 'Agent is already busy', busy: true });
-      return;
+    // Generate a unique turn ID for this request
+    const turnId = randomUUID();
+
+    // Lazy-init MCP servers (created once, reused across turns)
+    if (!cachedMcpServers) {
+      cachedMcpServers = createMcpServers({
+        onWidget: (widget) => {
+          updateWidget(widget);
+        },
+        onProgress: () => {},
+        onPlan: (plan) => {
+          updatePlan(plan);
+        },
+      });
     }
 
-    // Initialize ground-truth job state
-    startJob();
+    // Lazy-init query session
+    if (!querySession) {
+      querySession = new QuerySession(cachedMcpServers);
+    }
 
     // Set SSE headers
     res.writeHead(200, {
@@ -150,45 +165,36 @@ export function startAgentServer(port = 8081): void {
       }
     };
 
-    // R1.3 / R1.4: disconnect does NOT abort the orchestrator
+    // Send turn ID to client
+    sendSSE('turn_id', { turnId });
+
     res.on('close', () => {
       connectionAlive = false;
-      logger.info('SSE client disconnected — orchestrator continues');
+      logger.info({ turnId }, 'SSE client disconnected — query continues');
     });
     res.on('error', () => {
       connectionAlive = false;
-      logger.warn('SSE connection error — orchestrator continues');
+      logger.warn({ turnId }, 'SSE connection error — query continues');
     });
 
-    // R5.1: Heartbeat with activeTasks snapshot
+    // Heartbeat
     const heartbeat = setInterval(() => {
       const state = getJobState();
       sendSSE('heartbeat', {
         activeTasks: state?.activeTasks.filter(t => t.status === 'active') ?? [],
         busy: state?.isBusy ?? false,
+        queueDepth: querySession?.queueDepth ?? 0,
       });
     }, 15000);
 
-    // R1.5: AbortController only triggered by /cancel
-    const abortController = new AbortController();
-    currentAbortController = abortController;
-
     // Wire job-state changes → SSE stream + API callback
     const unsubscribe = onStateChange((type, data) => {
-      // Push to API regardless of SSE connection
       pushState(type, data);
 
-      // Stream to connected SSE client
-      // Skip 'plan'   — sent as 'agent_plan' via MCP callback
-      // Skip 'text'   — sent directly via onText callback (avoids double-send)
-      // Skip 'widget' — sent directly via onWidget callback (avoids double-send)
-      // Skip 'done'   — sent directly via onDone callback (avoids double-send)
-      // Skip 'error'  — sent directly via onError callback (avoids double-send)
       if (type !== 'plan' && type !== 'text' && type !== 'widget' && type !== 'done' && type !== 'error') {
         sendSSE(type, data);
       }
 
-      // R5.4: Backward-compatible progress/activity events
       if (type === 'task_started') {
         const task = data as { agent: string; action: string; phase?: string; startedAt?: number };
         sendSSE('activity', { agent: task.agent, action: task.action, phase: task.phase, startedAt: task.startedAt });
@@ -200,23 +206,12 @@ export function startAgentServer(port = 8081): void {
       }
     });
 
-    const mcpServers = createMcpServers({
-      onWidget: (widget) => {
-        updateWidget(widget);  // Tracks in job-state → triggers onStateChange → pushState to API
-        sendSSE('widget', widget);
-      },
-      onProgress: (progress) => sendSSE('progress', progress),
-      onPlan: (plan) => {
-        updatePlan(plan);  // Tracks in job-state → triggers onStateChange → pushState to API
-        sendSSE('agent_plan', plan);
-      },
-    });
-
     try {
-      await runOrchestrator(body, {
+      // Submit the turn — QuerySession handles creation vs injection
+      await querySession.submitTurn(turnId, body, {
         onText: (text) => sendSSE('text', { text }),
         onWidget: (widget) => {
-          updateWidget(widget);  // Persist to job-state → pushState to API
+          updateWidget(widget);
           sendSSE('widget', widget);
         },
         onProgress: (progress) => sendSSE('progress', progress),
@@ -225,14 +220,11 @@ export function startAgentServer(port = 8081): void {
         },
         onDone: async (result) => {
           sendSSE('done', result);
-          await checkpoint();
         },
         onError: (error) => {
           sendSSE('error', { message: error });
-          failJob(error);
         },
-        signal: abortController.signal,
-      }, mcpServers);
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Internal error';
       sendSSE('error', { message: msg });
@@ -241,40 +233,31 @@ export function startAgentServer(port = 8081): void {
       clearInterval(heartbeat);
       unsubscribe();
       flushCallbacks();
-      currentAbortController = null;
 
-      // Safely close SSE if client is still connected
       if (connectionAlive) {
         try { res.end(); } catch { /* already closed */ }
       }
     }
   });
 
-  // Cancel endpoint — the ONLY way to stop a running orchestrator (R1.5)
-  app.post('/cancel', (_req, res) => {
-    if (currentAbortController) {
-      currentAbortController.abort();
-      failJob('Cancelled by user');
-      flushCallbacks();
-      currentAbortController = null;
+  // Cancel endpoint — interrupts current turn
+  app.post('/cancel', async (_req, res) => {
+    if (querySession) {
+      await querySession.cancel();
     }
     res.json({ ok: true });
   });
 
-  // Reset endpoint — clears workspace back to post-init state, triggers rebuild
+  // Reset endpoint — destroys query session, clears workspace
   app.post('/reset', async (_req, res) => {
     try {
-      // Cancel active orchestrator first
-      if (currentAbortController) {
-        currentAbortController.abort();
-        failJob('Reset by user');
-        flushCallbacks();
-        currentAbortController = null;
+      if (querySession) {
+        querySession.destroy();
+        querySession = null;
       }
+      cachedMcpServers = null;
 
       await resetWorkspace();
-
-      // Trigger esbuild rebuild with clean workspace
       await startWatcher();
 
       res.json({ ok: true });
@@ -296,6 +279,8 @@ export function startAgentServer(port = 8081): void {
       startedAt: state?.startedAt ?? null,
       result: state?.result ?? null,
       error: state?.error ?? null,
+      queryAlive: querySession?.isAlive ?? false,
+      queueDepth: querySession?.queueDepth ?? 0,
     });
   });
 

@@ -12,6 +12,7 @@ export interface ActiveTask {
 export interface JobState {
   isBusy: boolean;
   startedAt: number;
+  turnId: string | null;
   activeTasks: ActiveTask[];
   plan: { title: string; tasks: unknown[] } | null;
   widget: unknown | null;
@@ -40,7 +41,7 @@ export function isJobBusy(): boolean {
   return !!currentJob?.isBusy;
 }
 
-export function startJob(): void {
+export function startJob(turnId?: string): void {
   // Clear any lingering removal timers
   for (const timer of removalTimers.values()) clearTimeout(timer);
   removalTimers.clear();
@@ -49,6 +50,7 @@ export function startJob(): void {
   currentJob = {
     isBusy: true,
     startedAt: Date.now(),
+    turnId: turnId ?? null,
     activeTasks: [],
     plan: null,
     widget: null,

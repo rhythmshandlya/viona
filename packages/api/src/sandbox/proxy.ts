@@ -239,18 +239,6 @@ export async function proxyPromptWithIntercept(
     if (!res!.ok) {
       logger.warn({ ...logCtx, status: res!.status }, 'Proxy: sandbox returned non-OK');
 
-      if (res!.status === 409) {
-        // Agent busy — send as SSE error so frontend can show a friendly message
-        const errorStream = new PassThrough();
-        reply
-          .header('Content-Type', 'text/event-stream')
-          .header('Cache-Control', 'no-cache')
-          .send(errorStream);
-        errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Agent is busy processing another request. Please wait.', busy: true, recoverable: true })}\n\n`);
-        errorStream.end();
-        return;
-      }
-
       if (res!.status === 503) {
         // Still not ready after all retries
         const errorStream = new PassThrough();

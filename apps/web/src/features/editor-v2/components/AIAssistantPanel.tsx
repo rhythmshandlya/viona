@@ -98,16 +98,6 @@ interface SceneTag {
   planJobId: string;
 }
 
-interface QueuedMessage {
-  id: string;
-  text: string;
-  fullMessage: string;
-  context: {
-    sceneTags: SceneTag[];
-    selectedTimeRange: { startMs: number; endMs: number } | null;
-  };
-}
-
 interface AIAssistantPanelProps {
   projectId: string;
   onEditComplete?: () => void;
@@ -144,8 +134,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [sceneTags, setSceneTags] = useState<SceneTag[]>([]);
-  const messageQueueRef = useRef<QueuedMessage[]>([]);
-  const [queueSize, setQueueSize] = useState(0);
+  const streamingCountRef = useRef(0);
   const [failedMessageId, setFailedMessageId] = useState<string | null>(null);
   const lastFailedPayload = useRef<{ message: string; widgetResponse?: { widgetId: string; value: unknown } } | null>(null);
   const [currentProgress, setCurrentProgress] = useState<ProgressState | null>(null);
@@ -161,6 +150,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     try { return sessionStorage.getItem(`viona:activeJobId:${projectId}`) || null; }
     catch { return null; }
   });
+
+  // Helper: decrement streaming counter, only clear isStreaming when all turns done
+  const decrementStreaming = useCallback(() => {
+    streamingCountRef.current = Math.max(0, streamingCountRef.current - 1);
+    if (streamingCountRef.current <= 0) {
+      decrementStreaming();
+    }
+  }, []);
 
   // -- Refs ----------------------------------------------------------------
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -474,7 +471,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     recoveryTimerRef.current = setInterval(async () => {
       if (Date.now() - startedAt > MAX_POLL_MS) {
         stopRecoveryPolling();
-        setIsStreaming(false);
+        decrementStreaming();
         setCurrentProgress(null);
         activeTasksState.onDone();
         activityState.reset();
@@ -490,7 +487,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           activeTasksState.onDone();
           activityState.reset();
           setCurrentProgress(null);
-          setIsStreaming(false);
+          decrementStreaming();
           setLastError(null);
           // Reload messages from server
           try {
@@ -661,7 +658,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         stopRecoveryPolling();
         const doneData = data as { conversationId?: string };
         if (doneData.conversationId) setConversationId(doneData.conversationId);
-        setIsStreaming(false);
+        decrementStreaming();
         setCurrentProgress(null);
         activeTasksState.onDone();
         activityState.reset();
@@ -679,7 +676,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           startRecoveryPolling();
           return;
         }
-        setIsStreaming(false);
+        decrementStreaming();
         setActiveJobId(null);
         setCurrentProgress(null);
         activeTasksState.onDone();
@@ -710,6 +707,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       const assistantId = generateId();
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: [], createdAt: new Date().toISOString() }]);
+      streamingCountRef.current++;
       setIsStreaming(true);
       lastTextDedupRef.current = { text: '', time: 0 }; // Reset dedup for new message
       textBoundaryRef.current = false; // Reset boundary for new message
@@ -757,7 +755,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             console.warn('SSE stream ended without done event — attempting recovery');
             startRecoveryPolling();
           } else {
-            setIsStreaming(false);
+            decrementStreaming();
           }
         } finally {
           clearTimeout(safetyTimeout);
@@ -765,7 +763,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       } catch (err) {
         const isAbort = (err instanceof DOMException && err.name === 'AbortError')
           || (err instanceof Error && (err.message.includes('aborted') || err.message.includes('abort')));
-        if (isAbort) { setIsStreaming(false); return; }
+        if (isAbort) { decrementStreaming(); return; }
 
         const isTimeout = err instanceof SSETimeoutError;
         console.error('Chat error:', isTimeout ? 'SSE stream timed out' : err);
@@ -801,7 +799,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             if (data.conversationId) setConversationId(data.conversationId);
             clearCompositionCache();
             if (reloadVisuals) reloadVisuals(projectId);
-            setIsStreaming(false);
+            decrementStreaming();
             return;
           }
         } catch { /* recovery failed */ }
@@ -818,7 +816,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         }));
         setFailedMessageId(assistantId);
         lastFailedPayload.current = { message: fullMessage, widgetResponse };
-        setIsStreaming(false);
+        decrementStreaming();
       }
     },
     [projectId, aiContext, handleSSEEvent, reloadVisuals, selectedTimeRange, setSelectedTimeRange]
@@ -851,7 +849,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         }
         return prev;
       });
-      setIsStreaming(false);
+      decrementStreaming();
     }
   }, [projectId, _executeMessage]);
   bootAndRetryRef.current = bootAndRetry;
@@ -889,35 +887,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         fullMessage = `[Edit scenes: ${tagMeta} | planJobId: ${planJobId}]\n${messageText}`;
       }
 
-      // Queue if streaming
-      if (isStreaming && messageText.trim() && !widgetResponse && !options?.hidden) {
-        const userMsgId = generateId();
-        const userMsg: Message = {
-          id: userMsgId, role: 'user', createdAt: new Date().toISOString(), queued: true,
-          content: [{ type: 'text', text: messageText }],
-        };
-        if (currentTags.length > 0) {
-          const tagLabels = currentTags.map((t) => `Scene ${t.sceneIndex}`).join(', ');
-          userMsg.content = [{ type: 'text', text: `**Editing ${tagLabels}:** ${messageText}` }];
-        } else if (currentTimeRange) {
-          const rangeLabel = `${formatTimeChip(currentTimeRange.startMs)} \u2013 ${formatTimeChip(currentTimeRange.endMs)}`;
-          userMsg.content = [{ type: 'text', text: `**Editing ${rangeLabel}:** ${messageText}` }];
-        }
-        setMessages((prev) => [...prev, userMsg]);
-        messageQueueRef.current.push({
-          id: userMsgId, text: messageText, fullMessage,
-          context: { sceneTags: [...currentTags], selectedTimeRange: currentTimeRange ? { ...currentTimeRange } : null },
-        });
-        setQueueSize(messageQueueRef.current.length);
-        setInput('');
-        setSceneTags([]);
-        if (currentTimeRange) setSelectedTimeRange(null);
-        return;
-      }
-
-      if (isStreaming) return;
-
-      // Add user message to UI
+      // Add user message to UI — messages are always sent immediately (no queueing)
       if (messageText.trim() && !widgetResponse && !options?.hidden) {
         const userMsg: Message = {
           id: generateId(), role: 'user',
@@ -978,15 +948,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     }
   }, [isStreaming, handleWidgetResponse, projectId]);
 
-  // Flush queued user messages
-  useEffect(() => {
-    if (!isStreaming && getPendingWidgetResponses(projectId).length === 0 && messageQueueRef.current.length > 0) {
-      const next = messageQueueRef.current.shift()!;
-      setQueueSize(messageQueueRef.current.length);
-      _executeMessage({ messageText: next.text, fullMessage: next.fullMessage, existingUserMsgId: next.id, snapshotContext: next.context });
-    }
-  }, [isStreaming, _executeMessage, projectId]);
-
   // Auto-send pending AI message (from "Change & AI Adapt" context menu)
   useEffect(() => {
     if (pendingAIMessage && !isStreaming && historyLoaded) {
@@ -994,23 +955,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       sendMessage(pendingAIMessage);
     }
   }, [pendingAIMessage, isStreaming, historyLoaded, sendMessage, setPendingAIMessage]);
-
-  // -----------------------------------------------------------------------
-  // Queue management
-  // -----------------------------------------------------------------------
-
-  const handleRemoveQueued = useCallback((messageId: string) => {
-    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== messageId);
-    setQueueSize(messageQueueRef.current.length);
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
-  }, []);
-
-  const handleClearQueue = useCallback(() => {
-    const queuedIds = new Set(messageQueueRef.current.map((m) => m.id));
-    messageQueueRef.current = [];
-    setQueueSize(0);
-    setMessages((prev) => prev.filter((m) => !queuedIds.has(m.id)));
-  }, []);
 
   // -----------------------------------------------------------------------
   // Retry, cancel, reset
@@ -1029,7 +973,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     abortRef.current?.abort();
     stopRecoveryPolling();
     try { await api.cancelAgent(projectId); } catch { /* best-effort */ }
-    setIsStreaming(false);
+    decrementStreaming();
     setActiveJobId(null);
     setCurrentProgress(null);
     activeTasksState.onDone();
@@ -1066,15 +1010,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     }
 
     // Clear all local UI state
-    setIsStreaming(false);
+    decrementStreaming();
     setActiveJobId(null);
     sessionStorage.removeItem(`viona:activeJobId:${projectId}`);
     setPendingWidgetResponses(projectId, []);
     setMessages([]);
     setConversationId(null);
     setSceneTags([]);
-    messageQueueRef.current = [];
-    setQueueSize(0);
+    streamingCountRef.current = 0;
     setCurrentProgress(null);
     activeTasksState.onDone();
     activityState.reset();
@@ -1425,8 +1368,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         contextChips={contextChips}
         attachmentChips={inputAttachmentChips}
         attachmentUploading={attachmentUploading}
-        queueSize={queueSize}
-        onClearQueue={handleClearQueue}
         canSend={canSend}
         disabled={!sandboxReady}
       />
