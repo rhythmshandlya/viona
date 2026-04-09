@@ -7,7 +7,7 @@
  *   download_file             - fetch any URL -> save to public/assets/{filename}
  *   search_unsplash           - search Unsplash API, return results
  *   search_pexels             - search Pexels API, return results
- *   download_stock_photo      - download from Unsplash/Pexels with attribution headers
+ *   download_stock_asset      - download photo or video from Pexels with attribution headers
  *   auto_center_speaker       - adjust video crop to center the speaker's face
  *   get_speaker_position      - canvas-space speaker coordinates for overlay placement
  *   request_segmentation      - queue person matte extraction for time ranges
@@ -172,6 +172,47 @@ async function extractImageFromZip(buf: Buffer): Promise<Buffer> {
     console.error(`[asset-server] ZIP extraction failed: ${message}`);
     throw err;
   }
+}
+
+/** Probe width/height of an image or video file via ffprobe. Returns null on failure. */
+async function probeDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height',
+      '-of', 'json',
+      filePath,
+    ], { timeout: 15_000 });
+    const json = JSON.parse(stdout);
+    const stream = json?.streams?.[0];
+    if (stream?.width && stream?.height) {
+      return { width: stream.width, height: stream.height };
+    }
+  } catch {
+    // ffprobe not available or failed — return null
+  }
+  return null;
+}
+
+/** Probe duration of a video file via ffprobe. Returns null on failure. */
+async function probeVideoDurationMs(filePath: string): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'json',
+      filePath,
+    ], { timeout: 15_000 });
+    const json = JSON.parse(stdout);
+    const duration = parseFloat(json?.format?.duration);
+    if (!isNaN(duration)) {
+      return Math.round(duration * 1000);
+    }
+  } catch {
+    // ffprobe not available or failed — return null
+  }
+  return null;
 }
 
 /** Fetch a URL with size and timeout guards. */
@@ -377,7 +418,7 @@ server.registerTool(
   "search_pexels",
   {
     description:
-      "Search Pexels for stock photos. Returns a list of results with download URLs. Requires PEXELS_API_KEY env var.",
+      "Search Pexels for stock photos or videos. Returns a list of results with download URLs. Requires PEXELS_API_KEY env var.",
     inputSchema: {
       query: z
         .string()
@@ -390,9 +431,14 @@ server.registerTool(
         .optional()
         .default(5)
         .describe("Number of results (default 5, max 10)"),
+      mediaType: z
+        .enum(["photo", "video"])
+        .optional()
+        .default("photo")
+        .describe("Whether to search for photos or videos (default: photo)"),
     },
   },
-  async ({ query, count }: { query: string; count: number }) => {
+  async ({ query, count, mediaType }: { query: string; count: number; mediaType: "photo" | "video" }) => {
     try {
       if (!PEXELS_API_KEY) {
         return {
@@ -411,42 +457,102 @@ server.registerTool(
         per_page: String(count || 5),
         orientation: "landscape",
       });
-      const res = await fetch(`https://api.pexels.com/v1/search?${params}`, {
-        headers: { Authorization: PEXELS_API_KEY },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT),
-      });
 
-      if (!res.ok)
-        throw new Error(`Pexels API ${res.status}: ${res.statusText}`);
-      const data = (await res.json()) as {
-        photos?: Array<{
-          id: number;
-          alt?: string;
-          src?: { original?: string; large?: string; medium?: string };
-          photographer?: string;
-          width: number;
-          height: number;
-        }>;
-      };
+      if (mediaType === "video") {
+        const res = await fetch(`https://api.pexels.com/videos/search?${params}`, {
+          headers: { Authorization: PEXELS_API_KEY },
+          signal: AbortSignal.timeout(FETCH_TIMEOUT),
+        });
 
-      const results = (data.photos || []).map((photo) => ({
-        id: photo.id,
-        description: photo.alt || "No description",
-        urls: {
-          original: photo.src?.original,
-          large: photo.src?.large,
-          medium: photo.src?.medium,
-        },
-        photographer: photo.photographer || "Unknown",
-        width: photo.width,
-        height: photo.height,
-      }));
+        if (!res.ok)
+          throw new Error(`Pexels Videos API ${res.status}: ${res.statusText}`);
 
-      return {
-        content: [
-          { type: "text" as const, text: JSON.stringify(results, null, 2) },
-        ],
-      };
+        const data = (await res.json()) as {
+          videos?: Array<{
+            id: number;
+            url?: string;
+            width: number;
+            height: number;
+            duration: number;
+            user?: { name?: string };
+            video_files?: Array<{
+              id: number;
+              quality?: string;
+              file_type?: string;
+              width?: number;
+              height?: number;
+              link?: string;
+            }>;
+          }>;
+        };
+
+        const results = (data.videos || []).map((video) => {
+          // Pick best HD mp4: filter to video/mp4, sort by width descending
+          const mp4Files = (video.video_files || [])
+            .filter((f) => f.file_type === "video/mp4" && f.link)
+            .sort((a, b) => (b.width ?? 0) - (a.width ?? 0));
+          const hdFile = mp4Files.find((f) => (f.width ?? 0) >= 1280) ?? mp4Files[0];
+          const sdFile = mp4Files[mp4Files.length - 1]; // lowest quality as fallback
+          return {
+            id: video.id,
+            description: video.url || "No description",
+            urls: {
+              original: hdFile?.link,
+              hd: hdFile?.link,
+              sd: sdFile?.link,
+            },
+            photographer: video.user?.name || "Unknown",
+            width: video.width,
+            height: video.height,
+            duration: video.duration,
+            mediaType: "video" as const,
+          };
+        });
+
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify(results, null, 2) },
+          ],
+        };
+      } else {
+        const res = await fetch(`https://api.pexels.com/v1/search?${params}`, {
+          headers: { Authorization: PEXELS_API_KEY },
+          signal: AbortSignal.timeout(FETCH_TIMEOUT),
+        });
+
+        if (!res.ok)
+          throw new Error(`Pexels API ${res.status}: ${res.statusText}`);
+        const data = (await res.json()) as {
+          photos?: Array<{
+            id: number;
+            alt?: string;
+            src?: { original?: string; large?: string; medium?: string };
+            photographer?: string;
+            width: number;
+            height: number;
+          }>;
+        };
+
+        const results = (data.photos || []).map((photo) => ({
+          id: photo.id,
+          description: photo.alt || "No description",
+          urls: {
+            original: photo.src?.original,
+            large: photo.src?.large,
+            medium: photo.src?.medium,
+          },
+          photographer: photo.photographer || "Unknown",
+          width: photo.width,
+          height: photo.height,
+          mediaType: "photo" as const,
+        }));
+
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify(results, null, 2) },
+          ],
+        };
+      }
     } catch (err) {
       return {
         content: [
@@ -461,57 +567,63 @@ server.registerTool(
   }
 );
 
-// -- download_stock_photo ---------------------------------------------------
+// -- download_stock_asset ---------------------------------------------------
 server.registerTool(
-  "download_stock_photo",
+  "download_stock_asset",
   {
     description:
-      "Download a stock photo from Unsplash or Pexels with proper attribution headers and save to public/assets/. Use after search_unsplash or search_pexels to download a chosen photo.",
+      "Download a stock photo or video from Pexels with proper attribution and save to public/assets/broll/. Use after search_pexels to download a chosen photo or video.",
     inputSchema: {
       url: z
         .string()
         .url()
-        .describe("The photo download URL from search results"),
+        .describe("The asset download URL from search results"),
       filename: z
         .string()
-        .describe("Target filename (e.g. 'hero-photo.jpg')"),
+        .describe("Target filename (e.g. 'hero-photo.jpg' or 'broll-city.mp4')"),
       source: z
-        .enum(["unsplash", "pexels"])
-        .describe("Which stock photo service the URL is from"),
+        .enum(["pexels"])
+        .describe("Stock media service the URL is from"),
+      photographer: z
+        .string()
+        .optional()
+        .describe("Photographer or creator name for attribution (from search results)"),
     },
   },
   async ({
     url,
     filename,
     source,
+    photographer,
   }: {
     url: string;
     filename: string;
-    source: "unsplash" | "pexels";
+    source: "pexels";
+    photographer?: string;
   }) => {
     try {
       const validUrl = validateUrl(url);
       const safeName = sanitizeFilename(filename);
-      await ensureAssetsDir();
+      const brollDir = path.join(ASSETS_DIR, "broll");
+      await mkdir(brollDir, { recursive: true });
 
       const headers: FetchHeaders = {};
-      if (source === "unsplash" && UNSPLASH_ACCESS_KEY) {
-        // Trigger Unsplash download tracking endpoint if it's a download_location URL
-        if (validUrl.includes("api.unsplash.com")) {
-          await fetch(validUrl, {
-            headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
-            signal: AbortSignal.timeout(FETCH_TIMEOUT),
-          }).catch(() => {});
-        }
-        headers["Authorization"] = `Client-ID ${UNSPLASH_ACCESS_KEY}`;
-      }
       if (source === "pexels" && PEXELS_API_KEY) {
         headers["Authorization"] = PEXELS_API_KEY;
       }
 
       const buf = await safeFetch(validUrl, headers);
-      const dest = path.join(ASSETS_DIR, safeName);
+      const dest = path.join(brollDir, safeName);
       await writeFile(dest, buf);
+
+      // Detect media type from extension
+      const ext = path.extname(safeName).toLowerCase();
+      const isVideo = [".mp4", ".webm", ".mov"].includes(ext);
+      const mediaType = isVideo ? "video" : "image";
+
+      // Probe dimensions and duration
+      const dims = await probeDimensions(dest);
+      const durationMs = isVideo ? await probeVideoDurationMs(dest) : null;
 
       return {
         content: [
@@ -519,14 +631,16 @@ server.registerTool(
             type: "text" as const,
             text: JSON.stringify({
               success: true,
-              path: `public/assets/${safeName}`,
-              staticFile: `assets/${safeName}`,
+              path: `public/assets/broll/${safeName}`,
+              staticFile: `assets/broll/${safeName}`,
               size: buf.length,
               source,
-              attribution:
-                source === "unsplash"
-                  ? "Photo from Unsplash (https://unsplash.com)"
-                  : "Photo from Pexels (https://pexels.com)",
+              mediaType,
+              width: dims?.width ?? null,
+              height: dims?.height ?? null,
+              durationMs,
+              photographer: photographer || "Unknown",
+              attribution: `${isVideo ? "Video" : "Photo"} from Pexels (https://pexels.com)${photographer ? ` by ${photographer}` : ""}`,
             }),
           },
         ],
@@ -536,7 +650,7 @@ server.registerTool(
         content: [
           {
             type: "text" as const,
-            text: `Error downloading stock photo: ${errorMessage(err)}`,
+            text: `Error downloading stock asset: ${errorMessage(err)}`,
           },
         ],
         isError: true,
