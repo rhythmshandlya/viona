@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
 import { TransformWrapper } from './composition/TransformWrapper';
-import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, MatteItem, KineticLuxeCaption } from './items';
+import { VideoItem, AudioItem, TextItem, ImageItem, SceneItem as SceneItemComponent, ShapeItem, CaptionItem, CinematicSubtitle, MatteItem, KineticLuxeCaption, BrollItem } from './items';
 import { sceneRegistry } from './scene-registry';
 
 /** Load Google Fonts via <link> tags for preset fonts */
@@ -160,7 +160,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = React.memo(({
               // - text/shape/caption: lightweight, small premount is enough
               const premountFrames = (item.type === 'matte')
                 ? fps * 3   // 3s — matte needs both fgr + matte videos decoded
-                : (item.type === 'video' || item.type === 'image')
+                : (item.type === 'video' || item.type === 'image' || item.type === 'broll')
                 ? fps * 2   // 2s — video decode needs seek time
                 : (item.type === 'scene')
                   ? fps * 1 // 1s — scene component mount + initial React render
@@ -240,6 +240,9 @@ const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fp
             satColor={captionPreset.color}
             fontPairId={captionPreset.fontPairId}
             offsetY={captionPreset.position?.offsetY}
+            positionX={item.data.positionOverride?.x ?? captionPreset.position?.x}
+            positionY={item.data.positionOverride?.y ?? captionPreset.position?.y}
+            positionMode={item.data.positionOverride ? 'free' : captionPreset.position?.mode}
           />
         );
       }
@@ -267,6 +270,8 @@ const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fp
       }
       return <CaptionItem data={item.data} captionStyle={captionPreset || {}} fps={fps} itemStartMs={item.startMs} />;
     }
+    case 'broll':
+      return <BrollItem data={item.data} assets={assets} />;
     case 'matte':
       return <MatteItem data={item.data} assets={assets} fps={fps} />;
     default:
