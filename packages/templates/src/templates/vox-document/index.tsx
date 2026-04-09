@@ -114,11 +114,13 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
       })
     : 0;
 
-  // Ken Burns drift
-  const driftStart = timing.zoomEnd > 0 ? timing.zoomEnd : 40;
-  const driftY = interpolate(frame, [driftStart, durationInFrames - 30], [0, -s(12)], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
+  // Ken Burns drift (disabled for overview — static full page)
+  const driftY = mode === 'overview' ? 0 : interpolate(
+    frame,
+    [timing.zoomEnd > 0 ? timing.zoomEnd : 40, durationInFrames - 30],
+    [0, -s(12)],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+  );
 
   return (
     <AbsoluteFill style={{ backgroundColor: VOX_COLORS.warmBlack, overflow: 'hidden' }}>
