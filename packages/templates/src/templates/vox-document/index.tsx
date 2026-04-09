@@ -54,7 +54,6 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
 
   // ── Resolve mode timing ──
   const timing = MODE_DEFAULTS[mode];
-  const targetZoom = zoomOverride ?? timing.zoom;
 
   // ── Paper dimensions — fit full page within viewport ──
   const pageRatio = textMap.pageRatio; // height / width (e.g. 1.414 for A4)
@@ -69,6 +68,10 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
   }
   const paperX = (W - paperW) / 2;
   const paperY = (H - paperH) / 2;
+
+  // ── Zoom guardrail: never zoom past paper width = viewport width ──
+  const maxZoom = W / paperW;
+  const targetZoom = Math.min(zoomOverride ?? timing.zoom, maxZoom);
 
   // ── Find focus region from text ──
   const focusBounds = focusText ? textMap.findBounds(focusText) : null;
