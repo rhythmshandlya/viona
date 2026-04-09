@@ -306,6 +306,31 @@ When the animation brief says "Split: Scene5Behind + Scene5Front":
 3. Both items share the same `startMs`/`endMs` and transition keyframes
 4. Both scene files get SPEAKER constants (same values)
 
+### B-Roll Item Placement
+
+Broll items are already added to the manifest by the Setup Agent. The Layout Editor must:
+
+1. Read `ASSET_MANIFEST.md` to verify assets exist
+2. For broll items already in the manifest, apply the correct **transform** based on display mode:
+   - `fullscreen-cutaway`: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }`
+   - `letterboxed` / `letterboxed-captions`: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` (component handles internal layout)
+   - `rounded-float` / `polaroid` / `film-treatment`: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }`
+   - `stacked-50`: broll item gets `{ x: 0, y: 0, width: CANVAS_W, height: 960 }`, speaker video gets `{ y: 960, height: 960 }`
+   - `stacked-70`: broll item gets `{ x: 0, y: 0, width: CANVAS_W, height: 1344 }`, speaker video gets `{ y: 1344, height: 576 }`
+   - `speaker-pip`: broll item gets `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }`, speaker video gets `{ x: 780, y: 1560, width: 240, height: 320 }` with borderRadius
+   - `greenscreen-bg`: broll item goes on V1 (background layer), matte on V3, same as depth overlay handling
+   - `triple-stack` / `grid-2x2`: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H }` (component handles internal grid)
+
+3. **Video cutting for broll scenes:** Same rules as animation scenes:
+   - `fullscreen-cutaway` / `film-treatment`: CUT source video (same as fullscreen animation)
+   - `stacked-50` / `stacked-70`: KEEP source video, reposition to bottom
+   - `speaker-pip`: KEEP source video, resize to PiP dimensions
+   - `greenscreen-bg`: CUT source video, use matte system
+   - `letterboxed` / `letterboxed-captions` / `rounded-float` / `polaroid`: CUT source video (broll replaces the visual)
+   - `triple-stack` / `grid-2x2`: CUT source video (full-screen multi-clip)
+
+4. Broll items go on **V4** track (same as non-depth scene items), EXCEPT `greenscreen-bg` which goes on **V1**.
+
 ### Step 6: Add transition keyframes
 
 All transitions are 300ms. Every layer involved in the boundary gets synchronized opacity keyframes.

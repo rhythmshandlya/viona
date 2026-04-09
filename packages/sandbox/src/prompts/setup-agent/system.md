@@ -379,6 +379,36 @@ export default Scene8;
 <task>
 ## Your Workflow
 
+### Handling Visual Modes
+
+When reading SCENE_PLAN.md, check each scene's **Visual mode**:
+
+- **`animation`:** Create scene skeleton .tsx file as normal (current behavior)
+- **`broll`:** Do NOT create a .tsx skeleton. Instead, add a broll manifest item using `add_item`:
+  ```json
+  {
+    "type": "broll",
+    "trackId": "overlay-track-id",
+    "startMs": sceneStartMs,
+    "endMs": sceneEndMs,
+    "data": {
+      "src": "/assets/broll/scene-name.ext",
+      "mediaType": "video or image",
+      "displayMode": "from SCENE_PLAN.md",
+      "treatment": { "from SCENE_PLAN.md or theme defaults" }
+    }
+  }
+  ```
+  Read ASSET_MANIFEST.md first to get the actual file paths and metadata for each broll scene.
+- **`hybrid`:** Create scene skeleton .tsx file as normal, but include downloaded asset paths in the DATA object:
+  ```typescript
+  const DATA = {
+    photos: ['/assets/broll/scene5-photo1.jpg', '/assets/broll/scene5-photo2.jpg'],
+    // ... other template data
+  };
+  ```
+  Read ASSET_MANIFEST.md to get the file paths.
+
 1. Read `/workspace/docs/guidelines/theme.md` — absorb every design token.
 2. Read `/workspace/docs/SCENE_PLAN.md` — parse all scenes: names, display modes, dimensions, key data, visual concepts, **and template slugs**.
 3. Read the manifest (`read_manifest`) — extract speaker spatial data from scene items for overlay scene skeletons.
