@@ -135,7 +135,7 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
             position: 'absolute',
             left: paperX, top: paperY,
             width: paperW, height: paperH,
-            transform: 'rotate(1.2deg)',
+            transform: 'rotate(0deg)',
             transformOrigin: 'center center',
             borderRadius: s(4),
             overflow: 'hidden',
