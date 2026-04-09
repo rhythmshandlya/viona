@@ -1,9 +1,9 @@
 {
   "slug": "vox-document",
   "name": "Vox Document",
-  "description": "Legal document close-up with camera zoom, yellow highlights on key passages, and aged paper texture — for citing sources, constitutional text, government documents, and legal analysis",
+  "description": "Renders a real PDF page with camera zoom/pan into specific sections and animated yellow highlight sweeps — for citing research papers, legal documents, reports, and source material",
   "category": "overlay",
-  "tags": ["vox-theme", "overlay", "narrative", "document", "legal", "source", "highlight", "evidence"],
+  "tags": ["vox-theme", "overlay", "narrative", "document", "pdf", "research", "legal", "source", "highlight", "evidence", "paper"],
   "stylePreset": "voxDocumentary",
   "aspectRatio": "9:16",
   "sceneCount": 1,

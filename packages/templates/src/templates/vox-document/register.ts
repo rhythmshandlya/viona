@@ -16,7 +16,7 @@ registerTemplate({
     const dir = path.dirname(new URL(import.meta.url).pathname);
     const voxDir = path.join(dir, '../../vox');
 
-    const ownFileNames = ['meta.json', 'metadata.json', 'schema.ts', 'index.tsx', 'register.ts'];
+    const ownFileNames = ['meta.json', 'metadata.json', 'schema.ts', 'index.tsx', 'register.ts', 'components/PdfPage.tsx'];
     const sharedFileNames = ['constants.ts', 'textures.tsx', 'effects.tsx', 'typography.tsx', 'animations.ts', 'decorations.tsx'];
 
     const ownFiles = ownFileNames.map((f) => ({

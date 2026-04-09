@@ -16,7 +16,8 @@ import {
   type SDKUserMessage,
   type Query,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { MessageParam } from '@anthropic-ai/sdk/resources';
+// MessageParam type — inline since @anthropic-ai/sdk/resources may not be installed
+type MessageParam = { role: 'user' | 'assistant'; content: string };
 import pino from 'pino';
 import {
   startJob, finishJob, failJob, completeTask, getJobState,
