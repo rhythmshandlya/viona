@@ -44,3 +44,19 @@ When choosing visual approaches for scenes:
 - Default: **jump cut** (hard cut, no transition effect)
 - Between major sections: blur-bridge (4-6 frame gaussian blur peaking at cut)
 - NEVER: dissolves, wipes, or any "transition effect" look
+
+## B-Roll Scene Vocabulary
+
+When the transcript references concrete real-world subjects, use `broll` visual mode instead of animation. The contrast between smooth footage and stuttered graphics IS the Vox feel.
+
+| Signal in transcript | Visual mode | Display mode |
+|---|---|---|
+| Speaker references a real place or object | broll | fullscreen-cutaway or letterboxed |
+| "Look at this" / evidence citation / source document | broll | letterboxed-captions |
+| Montage of real-world examples | broll | triple-stack or grid-2x2 |
+| Photo that needs annotation, circling, highlighting | hybrid | vox-spotlight or vox-annotation template |
+| Collage of people, products, or evidence | hybrid | vox-collage or vox-filmstrip template |
+| Speaker should feel "on location" | broll | greenscreen-bg |
+| Abstract concept, data, process, system | animation | (current behavior — never use broll for abstractions) |
+
+Read `/workspace/docs/guidelines/broll-dna.md` for treatment and search guidance.
