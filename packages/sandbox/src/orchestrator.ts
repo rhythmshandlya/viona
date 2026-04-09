@@ -1,8 +1,8 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions (6 agents: Trim Editor, Planner, Setup Agent,
-// Layout Editor, Animator, Final Editor), manages session resume,
+// subagent definitions (8 agents: Trim Editor, Planner, Asset Scout,
+// Caption Agent, Setup Agent, Layout Editor, Animator, Final Editor), manages session resume,
 // and streams events back to the caller via callbacks.
 //
 // Pipeline phases:
@@ -220,6 +220,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
 const SUBAGENT_LABELS: Record<string, string> = {
   trim_editor: 'Trim Editor',
   planner: 'Planner',
+  asset_scout: 'Asset Scout',
   caption_agent: 'Caption Agent',
   setup_agent: 'Setup Agent',
   layout_editor: 'Layout Editor',
@@ -241,11 +242,12 @@ export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, captionAgentPrompt, setupAgentPrompt, layoutEditorPrompt, animatorPrompt, finalEditorPrompt] =
+  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, assetScoutPrompt, captionAgentPrompt, setupAgentPrompt, layoutEditorPrompt, animatorPrompt, finalEditorPrompt] =
     await Promise.all([
       loadPrompt('orchestrator/system'),
       assembleAgentPrompt('trim-editor', ctx),
       assembleAgentPrompt('planner', ctx),
+      assembleAgentPrompt('asset-scout', ctx),
       assembleAgentPrompt('caption-agent', ctx),
       assembleAgentPrompt('setup-agent', ctx),
       assembleAgentPrompt('layout-editor', ctx),
@@ -372,6 +374,19 @@ export async function buildOrchestratorOptions(
           '- ALWAYS read the manifest and transcript before planning.\n' +
           '- Scene durations: min 210 frames, max 450 frames. Auto-split longer scenes at largest sync gap.\n' +
           '- Include self-verification table in SCENE_PLAN.md before writing scenes.json.',
+      },
+
+      // ---- Asset Scout (Phase 3.5) ----
+      asset_scout: {
+        description: 'Searches Pexels for stock footage/images needed by broll and hybrid scenes in SCENE_PLAN.md, downloads assets to workspace.',
+        prompt: assetScoutPrompt,
+        tools: [
+          'Read', 'Write', 'Glob', 'Grep',
+          'mcp__assets__search_pexels',
+          'mcp__assets__download_stock_asset',
+        ],
+        model: 'opus',
+        maxTurns: 30,
       },
 
       // ---- Caption Agent ----
