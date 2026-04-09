@@ -29,12 +29,12 @@ const VoxGrid: React.FC<{ width: number; height: number; s: (px: number) => numb
   );
 };
 
-// fillAmount: 0 = paper at 75% width, 1 = paper at 98% width
+// fillAmount: 0 = 75% width (lots of background), 1 = 98% width (paper fills frame)
 const MODE_DEFAULTS = {
-  overview:  { fillAmount: 0,   zoomStart: 0,  zoomEnd: 0,   hlStart: 20, groupStagger: 10, lineStagger: 3 },
-  zoom:      { fillAmount: 0.6, zoomStart: 25, zoomEnd: 80,  hlStart: 85, groupStagger: 10, lineStagger: 3 },
-  figure:    { fillAmount: 0.8, zoomStart: 20, zoomEnd: 70,  hlStart: 999, groupStagger: 0, lineStagger: 0 },
-  paragraph: { fillAmount: 0.5, zoomStart: 20, zoomEnd: 65,  hlStart: 70, groupStagger: 10, lineStagger: 8 },
+  overview:  { fillAmount: 0,   hlStart: 20, groupStagger: 10, lineStagger: 3 },
+  zoom:      { fillAmount: 0.6, hlStart: 40, groupStagger: 10, lineStagger: 3 },
+  figure:    { fillAmount: 0.8, hlStart: 999, groupStagger: 0, lineStagger: 0 },
+  paragraph: { fillAmount: 0.5, hlStart: 40, groupStagger: 10, lineStagger: 8 },
 } as const;
 
 const MIN_FILL = 0.75;
@@ -59,7 +59,7 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
     ? Math.min(Math.max((zoomOverride - 1) / 0.5, 0), 1)
     : timing.fillAmount;
 
-  // ── Paper: render at FIXED size (target fill), never changes per-frame ──
+  // ── Paper size — fixed, determined by fillAmount ──
   const pageRatio = textMap.pageRatio;
   const targetFraction = MIN_FILL + fillAmount * (MAX_FILL - MIN_FILL);
   let paperW = W * targetFraction;
@@ -71,44 +71,26 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
   const paperX = (W - paperW) / 2;
   const paperY = (H - paperH) / 2;
 
-  // ── CSS scale animation: start small (overview), grow to 1.0 (target) ──
-  const startScale = (() => {
-    if (timing.zoomEnd <= timing.zoomStart) return 1; // overview: no animation
-    const overviewW = W * MIN_FILL;
-    let ow = overviewW;
-    let oh = ow * pageRatio;
-    if (oh > H * 0.95) { oh = H * 0.95; ow = oh / pageRatio; }
-    return ow / paperW; // ratio of overview size to target size (< 1)
-  })();
-
-  const cssScale = timing.zoomEnd > timing.zoomStart
-    ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [startScale, 1], {
-        extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
-      })
-    : 1;
-
   // ── Focus region for vertical pan ──
   const focusBounds = focusText ? textMap.findBounds(focusText) : null;
   const focusCenterY = focusBounds
     ? paperY + ((focusBounds.y + focusBounds.h / 2) / 100) * paperH
     : H / 2;
 
-  // Vertical pan to focus region
-  const panY = timing.zoomEnd > timing.zoomStart
-    ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [0, H / 2 - focusCenterY], {
+  // ── Vertical pan (non-overview modes only) ──
+  const panY = mode !== 'overview' && focusBounds
+    ? interpolate(frame, [15, 50], [0, H / 2 - focusCenterY], {
         extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
       })
     : 0;
 
-  // Ken Burns drift (disabled for overview)
+  // ── Ken Burns drift (disabled for overview) ──
   const driftY = mode === 'overview' ? 0 : interpolate(
-    frame,
-    [timing.zoomEnd > 0 ? timing.zoomEnd : 40, durationInFrames - 30],
-    [0, -s(8)],
+    frame, [50, durationInFrames - 30], [0, -s(8)],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
-  // ── Highlight groups ──
+  // ── Highlights ──
   const highlightGroups = textMap.ready
     ? (highlights || []).map((q) => textMap.findText(q))
     : [];
@@ -129,14 +111,12 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
         <VoxGrid width={W} height={H} s={s} />
       </div>
 
-      {/* Paper + camera */}
+      {/* Paper + vertical pan */}
       <div style={{
         position: 'absolute', inset: 0,
-        transform: `translate(0px, ${panY + driftY}px) scale(${cssScale})`,
-        transformOrigin: `${W / 2}px ${H / 2}px`,
+        transform: `translateY(${panY + driftY}px)`,
         opacity: fadeIn * fadeOut,
       }}>
-        {/* Paper container — fixed size, never re-renders */}
         <div style={{
           position: 'absolute',
           left: paperX, top: paperY,
@@ -155,7 +135,7 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
             }} />
           </div>
 
-          {/* PDF canvas — fixed width, rendered once */}
+          {/* PDF canvas */}
           <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
             <PdfPage
               src={pdfFile}
