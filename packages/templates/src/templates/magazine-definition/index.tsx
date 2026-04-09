@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineDefinitionProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
@@ -22,7 +23,7 @@ const MagazineDefinition: React.FC<MagazineDefinitionProps> = ({
   const definitionReveal = editorialReveal(frame, 40, 18);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{
         width: '100%', height: '100%',
         opacity: slide.opacity,
@@ -99,7 +100,7 @@ const MagazineDefinition: React.FC<MagazineDefinitionProps> = ({
           </div>
         </div>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

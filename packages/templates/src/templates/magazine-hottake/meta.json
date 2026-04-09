@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-hottake",
+  "name": "Magazine Hot Take",
+  "description": "Bold editorial opinion card with accent label, large statement on torn paper, and attribution — for opinion and editorial content",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "opinion", "hottake", "editorial", "statement", "bold"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

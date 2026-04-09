@@ -37,417 +37,6 @@
       }
     },
     {
-      "name": "explainer-analogy",
-      "type": "registry:component",
-      "description": "X is like Y split card with connector label and explanation reveal",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "analogy",
-        "comparison",
-        "educational"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-barchart",
-      "type": "registry:component",
-      "description": "Horizontal bar chart with animated cyan fill bars and amber value labels",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "chart",
-        "bar",
-        "data",
-        "data-viz"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-cause-effect",
-      "type": "registry:component",
-      "description": "Two panels showing cause and effect with animated arrow bridge and dual-color glow",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "cause-effect",
-        "educational",
-        "logic"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-comparison",
-      "type": "registry:component",
-      "description": "Side-by-side comparison columns with dual-color amber and cyan glow accents",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "comparison",
-        "versus",
-        "side-by-side"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-cycle",
-      "type": "registry:component",
-      "description": "Animated circular process diagram with orbiting indicator and sequential arc reveals",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "cycle",
-        "process",
-        "lifecycle",
-        "diagram"
-      ],
-      "meta": {
-        "stylePreset": "blackboardClean",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-definition",
-      "type": "registry:component",
-      "description": "Term definition card with large word, pronunciation, and glow underline reveal",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "definition",
-        "vocabulary",
-        "educational"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-flow",
-      "type": "registry:component",
-      "description": "Animated vertical data flow with traveling particles between connected nodes",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "flow",
-        "pipeline",
-        "diagram"
-      ],
-      "meta": {
-        "stylePreset": "blackboardClean",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-funnel",
-      "type": "registry:component",
-      "description": "Animated funnel/pipeline diagram with flowing particles that filter through narrowing stages — ideal for sales, conversion, and process visualization",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "funnel",
-        "conversion",
-        "pipeline",
-        "diagram",
-        "sales",
-        "data-visualization"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-howitworks",
-      "type": "registry:component",
-      "description": "Numbered breakdown with expanding glow circles and staggered reveals",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "how-it-works",
-        "breakdown",
-        "educational"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-layers",
-      "type": "registry:component",
-      "description": "Animated layered architecture diagram with stacking layers, depth shadows, and pulsing data-flow arrows",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "layers",
-        "stack",
-        "architecture",
-        "diagram",
-        "tech"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-matrix",
-      "type": "registry:component",
-      "description": "Animated 2x2 quadrant matrix diagram with axis draw-in, staggered cell reveals, and pulsing cursor dot",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "matrix",
-        "quadrant",
-        "grid",
-        "priority",
-        "categorization",
-        "diagram"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-network",
-      "type": "registry:component",
-      "description": "Animated radial network graph with pulsing connections and traveling data particles",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "network",
-        "graph",
-        "diagram",
-        "architecture"
-      ],
-      "meta": {
-        "stylePreset": "blackboardClean",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-orbit",
-      "type": "registry:component",
-      "description": "Animated solar-system orbit diagram with concentric rings and continuously orbiting labeled elements",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "orbit",
-        "ecosystem",
-        "solar",
-        "relationships",
-        "diagram"
-      ],
-      "meta": {
-        "stylePreset": "blackboardClean",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-process",
-      "type": "registry:component",
-      "description": "Step-by-step process flow with glowing connecting lines and numbered nodes",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "process",
-        "steps",
-        "tutorial",
-        "how-to"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-ranking",
-      "type": "registry:component",
-      "description": "Numbered ranked list with large amber rank numbers and staggered glow reveals",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "ranking",
-        "list",
-        "top-list",
-        "listicle"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-stats",
-      "type": "registry:component",
-      "description": "Big number count-up with Fira Code font and glow pulse on landing",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "stats",
-        "numbers",
-        "data",
-        "metrics"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-timeline",
-      "type": "registry:component",
-      "description": "Vertical or horizontal timeline with glowing amber line and cyan node dots",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "timeline",
-        "history",
-        "chronology",
-        "dates"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-tree",
-      "type": "registry:component",
-      "description": "Animated hierarchy tree with growing branches and node reveals",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "tree",
-        "hierarchy",
-        "diagram"
-      ],
-      "meta": {
-        "stylePreset": "blackboardClean",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
-      "name": "explainer-venn",
-      "type": "registry:component",
-      "description": "Animated two-circle Venn diagram with sliding circles, labeled intersection, orbiting dots, and pulsing overlap highlight",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "blackboard-theme",
-        "overlay",
-        "explainer",
-        "venn",
-        "diagram",
-        "comparison",
-        "data-visualization"
-      ],
-      "meta": {
-        "stylePreset": "cleanMinimal",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "5s"
-      }
-    },
-    {
       "name": "globe-spin",
       "type": "registry:component",
       "description": "3D rotating globe with a glowing arc connecting two cities, cinematic camera orbit and zoom",
@@ -718,28 +307,6 @@
       }
     },
     {
-      "name": "magazine-inkmap",
-      "type": "registry:component",
-      "description": "Editorial location indicator with animated pin, coordinates display, and radar pulse — ideal for travel, news, and documentary overlays",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "magazine-theme",
-        "overlay",
-        "map",
-        "geographic",
-        "location",
-        "travel",
-        "news"
-      ],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "4s"
-      }
-    },
-    {
       "name": "magazine-location",
       "type": "registry:component",
       "description": "Location spotlight card with place name, coordinates, and key details for travel and geography content",
@@ -783,30 +350,7 @@
         "estimatedDuration": "5s"
       }
     },
-    {
-      "name": "magazine-newspaper",
-      "type": "registry:component",
-      "description": "Newspaper front page unfolds with 3D perspective, zooms into headline, then tears away",
-      "categories": [
-        "overlay"
-      ],
-      "tags": [
-        "magazine-theme",
-        "overlay",
-        "newspaper",
-        "headline",
-        "editorial",
-        "paper",
-        "serif",
-        "news"
-      ],
-      "meta": {
-        "stylePreset": "elegantEditorial",
-        "aspectRatio": "9:16",
-        "estimatedDuration": "4s"
-      }
-    },
-    {
+{
       "name": "magazine-pricetag",
       "type": "registry:component",
       "description": "Large price figure with cost breakdown items for price reveals and financial content",
@@ -1114,6 +658,94 @@
       }
     },
     {
+      "name": "magazine-headline",
+      "type": "registry:component",
+      "description": "Cinematic editorial title card with large serif headline, accent rule, and category label — ideal for intros and section breaks",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "headline",
+        "title",
+        "intro",
+        "section",
+        "editorial"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-splitquote",
+      "type": "registry:component",
+      "description": "Landscape split-screen with large pull number on left and editorial quote on right, separated by accent divider",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "quote",
+        "split",
+        "number",
+        "pullquote",
+        "landscape"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-countdown",
+      "type": "registry:component",
+      "description": "Numbered countdown list with large rank numbers on torn paper strips, revealed sequentially with stagger animation",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "countdown",
+        "list",
+        "numbered",
+        "reveal",
+        "top5"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-hottake",
+      "type": "registry:component",
+      "description": "Bold editorial opinion card with accent label, large statement on torn paper, and attribution — for opinion and editorial content",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "opinion",
+        "hottake",
+        "editorial",
+        "statement",
+        "bold"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "watercolor-map",
       "type": "registry:component",
       "description": "Animated travel route between two locations on a watercolor-style map with markers and a connecting line",
@@ -1145,6 +777,558 @@
         "stylePreset": "elegantEditorial",
         "aspectRatio": "1:1",
         "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "vox-headline",
+      "type": "registry:component",
+      "description": "Full-screen bold statement card with large serif text, yellow accent bar, and film grain",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "headline", "statement"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-highlight",
+      "type": "registry:component",
+      "description": "Text card with animated yellow highlighter sweep across a key phrase — for evidence, statistics, and emphasis",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "highlight", "evidence"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-definition",
+      "type": "registry:component",
+      "description": "Key term card with typewriter reveal and yellow underline — for introducing concepts and vocabulary",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "definition", "term"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-quote",
+      "type": "registry:component",
+      "description": "Pull quote card with yellow accent bar and speaker attribution — for expert opinions and key statements",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "quote", "pullquote"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-question",
+      "type": "registry:component",
+      "description": "Centered rhetorical question card on deep purple — for pivots, hooks, and thought-provoking moments",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "question", "pivot"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "3s"
+      }
+    },
+    {
+      "name": "vox-label",
+      "type": "registry:component",
+      "description": "Contextual label card for location and date — for scene-setting, geographic context, and timestamps",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "label", "context"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "3s"
+      }
+    },
+    {
+      "name": "vox-stats",
+      "type": "registry:component",
+      "description": "Hero number with counter animation and contextual comparison — for impactful data reveals and big-number moments",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "stats", "number"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-barchart",
+      "type": "registry:component",
+      "description": "Animated horizontal bar chart with sequential entry and highlighted bars — for data comparisons and rankings",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "chart", "barchart"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-linechart",
+      "type": "registry:component",
+      "description": "Animated line graph with progressive draw-on and shaded area — for trends and time series data",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "chart", "linechart", "trend"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-counter",
+      "type": "registry:component",
+      "description": "Large ticking number with comparison context — for percentage reveals, milestone moments, and scale demonstrations",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "counter", "number", "scale"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-ranking",
+      "type": "registry:component",
+      "description": "Ranked list with staggered entry and highlighted top item — for top-N lists, leaderboards, and ordered comparisons",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "ranking", "list", "topn"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-timeline",
+      "type": "registry:component",
+      "description": "Historical timeline with progressive date reveals and draw-on line — for chronologies, milestones, and historical context",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "timeline", "history", "chronology"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-map",
+      "type": "registry:component",
+      "description": "Simplified map region with animated borders and pins — for geographic context, location reveals, and multi-city stories",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "geographic", "map", "location"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-country",
+      "type": "registry:component",
+      "description": "Country profile with key stats — for nation overviews, economic data, and comparative country coverage",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "geographic", "country", "profile", "stats"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-versus",
+      "type": "registry:component",
+      "description": "A vs B split comparison with rough divider, staggered side entries, and winner highlight — for head-to-head comparisons, data matchups, and competitive context",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "comparison", "versus"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-beforeafter",
+      "type": "registry:component",
+      "description": "Before and after split with date labels and sequential entry — for change over time, progress reveals, and transformation comparisons",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "comparison", "beforeafter", "change"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-factcheck",
+      "type": "registry:component",
+      "description": "Claim with animated strikethrough followed by highlighted correction — for debunking myths, correcting misconceptions, and fact vs fiction reveals",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "comparison", "factcheck", "debunk"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-proscons",
+      "type": "registry:component",
+      "description": "Two-column pros and cons with alternating staggered entry and rough divider — for tradeoffs, decision analysis, and policy breakdowns",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "comparison", "proscons", "tradeoff"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-spectrum",
+      "type": "registry:component",
+      "description": "Continuous scale bar with positioned markers and endpoint labels — for policy comparisons, political spectrums, and relative positioning",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "comparison", "spectrum", "scale"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-process",
+      "type": "registry:component",
+      "description": "Numbered step sequence with connecting lines — for procedures, workflows, and how-things-work explanations",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "process", "steps"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-causeeffect",
+      "type": "registry:component",
+      "description": "Chain of cause and effect with arrow connectors — for cascading consequences, chain reactions, and causal explanations",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "causeeffect", "chain"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-funnel",
+      "type": "registry:component",
+      "description": "Narrowing stages with proportional bars — for conversion funnels, reduction sequences, and filtering processes",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "funnel", "reduction"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-checklist",
+      "type": "registry:component",
+      "description": "Items with check and cross marks — for criteria, requirements, policy evaluation, and pass/fail comparisons",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "checklist", "criteria"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-cycle",
+      "type": "registry:component",
+      "description": "Circular process loop with animated arrow arcs — for recurring systems, feedback loops, and cyclical processes",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "cycle", "loop", "recurring"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-tree",
+      "type": "registry:component",
+      "description": "Hierarchical branching diagram with draw-on lines — for taxonomies, org charts, decision trees, and category breakdowns",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "tree", "hierarchy", "branching"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-alert",
+      "type": "registry:component",
+      "description": "Full-width alert bar with bold text, severity-coded color — for breaking news, warnings, and critical emphasis",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "emphasis", "alert", "warning"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "3s"
+      }
+    },
+    {
+      "name": "vox-callout",
+      "type": "registry:component",
+      "description": "Boxed callout card with icon and text, slightly rotated for a handcrafted feel — for fun facts, sidenotes, and asides",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "emphasis", "callout", "sidenote"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-takeaway",
+      "type": "registry:component",
+      "description": "Numbered key takeaways with progressive build and highlighted numbering — for summaries, conclusions, and key points",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "emphasis", "takeaway", "summary"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-verdict",
+      "type": "registry:component",
+      "description": "Final judgment card with bold verdict text and confidence-coded underline — for conclusions, rulings, and definitive statements",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "emphasis", "verdict", "conclusion"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-bullets",
+      "type": "registry:component",
+      "description": "Bulleted list with progressive reveal and yellow dot markers — for key points, features, and structured lists",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "list", "bullets", "points"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-wordswap",
+      "type": "registry:component",
+      "description": "Sentence with a key word that swaps at midpoint — for contrasts, reframes, and rhetorical juxtapositions",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "wordswap", "contrast"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-collage",
+      "type": "registry:component",
+      "description": "Cutout images with rough edges arranged in an overlapping grid — for visual collections, comparisons, and multi-image narratives",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "collage", "cutout"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-profile",
+      "type": "registry:component",
+      "description": "Person name, title, and key fact card with yellow accent — for expert introductions, speaker IDs, and source attributions",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "profile", "person"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-source",
+      "type": "registry:component",
+      "description": "Document frame with excerpt and attribution — for citations, reports, and primary source references",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "source", "document", "citation"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-evidence",
+      "type": "registry:component",
+      "description": "Split evidence and interpretation panels — for data analysis, fact presentation, and explaining what findings mean",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "evidence", "split", "proof"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-filmstrip",
+      "type": "registry:component",
+      "description": "Contact sheet layout of frames building in sequence — for before/after, progression, and multi-stage visual narratives",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "filmstrip", "sequence"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-metaphor",
+      "type": "registry:component",
+      "description": "Concept with visual proxy that reveals a data point — for making abstract numbers tangible and relatable",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "metaphor", "concept", "abstract"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-areachart",
+      "type": "registry:component",
+      "description": "Stacked area chart showing composition over time — for energy mix, market share, and multi-layer trends",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "areachart", "composition", "stacked"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-blueprint",
+      "type": "registry:component",
+      "description": "Technical schematic with dimension lines — for explaining designs, systems, and specifications",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "blueprint", "schematic", "design"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-diverging",
+      "type": "registry:component",
+      "description": "Two trend lines that separate over time — for showing growing inequality, diverging outcomes, or bifurcation points",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "diverging", "trend", "separation"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-donut",
+      "type": "registry:component",
+      "description": "Animated donut chart with proportional segments — for showing breakdown of categories as percentages",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "donut", "pie", "proportion"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-supercut",
+      "type": "registry:component",
+      "description": "Rapid text montage flickering at 2-3 frames — for breaking news, alerts, and high-energy narrative moments",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "supercut", "montage"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-systemdiagram",
+      "type": "registry:component",
+      "description": "Stakeholder system map with connected actor nodes — for showing power structures, relationships, and policy flows",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "structure", "system", "diagram", "stakeholders"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    },
+    {
+      "name": "vox-thennow",
+      "type": "registry:component",
+      "description": "Split-screen historical comparison showing how things changed between two points in time",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "comparison", "thennow", "historical"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-treemap",
+      "type": "registry:component",
+      "description": "Proportional block chart for showing relative sizes — for emissions by country, market share, or budget allocation",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "treemap", "blocks", "proportion"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-unitchart",
+      "type": "registry:component",
+      "description": "Dot/unit isotype visualization — each dot represents one unit, highlighted dots show the affected portion",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "data", "unitchart", "isotype", "dots"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
       }
     }
   ]

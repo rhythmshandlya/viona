@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, random } from 'remotion';
+import { useCurrentFrame, random } from 'remotion';
 import type { MagazineChecklistProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
@@ -30,7 +31,7 @@ const MagazineChecklist: React.FC<MagazineChecklistProps> = ({ items, title }) =
   const titleSlide = paperSlide(frame, 0, 20, 'down');
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       {/* Title scrap */}
       <div style={{
         position: 'absolute',
@@ -93,7 +94,7 @@ const MagazineChecklist: React.FC<MagazineChecklistProps> = ({ items, title }) =
           </div>
         );
       })}
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

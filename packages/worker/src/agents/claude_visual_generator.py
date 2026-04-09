@@ -166,7 +166,7 @@ async def main():
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--style-guide", help="Path to user style guide text file")
-    parser.add_argument("--style-preset", default="blackboard", help="Visual style preset (blackboard, magazine)")
+    parser.add_argument("--style-preset", default="magazine", help="Visual style preset (magazine)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, stacked)")
     parser.add_argument("--width", type=int, default=1080, help="Video width")
     parser.add_argument("--height", type=int, default=1920, help="Video height")

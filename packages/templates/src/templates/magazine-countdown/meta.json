@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-countdown",
+  "name": "Magazine Countdown",
+  "description": "Numbered countdown list with large rank numbers on torn paper strips, revealed sequentially with stagger animation",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "countdown", "list", "numbered", "reveal", "top5"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

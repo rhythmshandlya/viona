@@ -290,8 +290,7 @@ graph TB
 ```
 
 **`STYLE_GUIDELINES`** map (loaded via theme loader):
-- `blackboard` → `getTheme('blackboard')` — dark mode color tokens, DotGrid background, card layouts
-- `magazine` → `getTheme('magazine')` — light mode equivalent
+- `magazine` → `getTheme('magazine')` — light mode, editorial styling
 
 **`buildReferenceExamplesSection(projectId)`** composes few-shot examples:
 1. `references/common-patterns.md` — shared responsive sizing, spring configs, physics helpers

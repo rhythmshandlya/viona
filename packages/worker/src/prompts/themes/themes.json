@@ -1,18 +1,5 @@
 {
   "themes": {
-    "blackboard": {
-      "family": "blackboard",
-      "label": "Blackboard Glow",
-      "genre": "explainer-videos",
-      "templateTags": ["blackboard-theme"],
-      "colors": {
-        "background": "#0a0a14",
-        "text": "#f1f5f9",
-        "textMuted": "rgba(241,245,249,0.45)",
-        "accent": "#f59e0b",
-        "secondary": "#06b6d4"
-      }
-    },
     "magazine": {
       "family": "magazine",
       "label": "Magazine",
@@ -24,6 +11,19 @@
         "textMuted": "rgba(15,23,42,0.45)",
         "accent": "#e11d48",
         "secondary": "#64748b"
+      }
+    },
+    "vox": {
+      "family": "vox",
+      "label": "Vox Explainer",
+      "genre": "informative-media",
+      "templateTags": ["vox-theme"],
+      "colors": {
+        "background": "#F1F3F2",
+        "text": "#4C4E4D",
+        "textMuted": "rgba(76,78,77,0.5)",
+        "accent": "#FFEB00",
+        "secondary": "#6D98A8"
       }
     }
   }

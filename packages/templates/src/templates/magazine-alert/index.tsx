@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineAlertProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
@@ -45,7 +46,7 @@ const MagazineAlert: React.FC<MagazineAlertProps> = ({ label, headline, source, 
   const sourceReveal = editorialReveal(frame, 38, 12);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       {/* Red flash overlay */}
       {flashOpacity > 0 && (
         <AbsoluteFill style={{ backgroundColor: MAGAZINE_COLORS.accent, opacity: flashOpacity }} />
@@ -136,7 +137,7 @@ const MagazineAlert: React.FC<MagazineAlertProps> = ({ label, headline, source, 
           </div>
         </div>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

@@ -177,9 +177,9 @@ async function buildTemplate(slug: string): Promise<ManifestEntry> {
     copyDirRecursive(magazineDir, join(resolvedDir, 'magazine'));
   }
 
-  const blackboardDir = join(SRC_DIR, 'blackboard');
-  if (existsSync(blackboardDir)) {
-    copyDirRecursive(blackboardDir, join(resolvedDir, 'blackboard'));
+  const voxDir = join(SRC_DIR, 'vox');
+  if (existsSync(voxDir)) {
+    copyDirRecursive(voxDir, join(resolvedDir, 'vox'));
   }
 
   // ── 1b. Copy sibling template dependencies ────────────────────────

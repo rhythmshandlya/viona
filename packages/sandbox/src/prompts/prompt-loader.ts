@@ -108,7 +108,7 @@ export function injectContext(prompt: string, ctx: PromptContext): string {
     .replaceAll('{{CANVAS_HEIGHT}}', String(ctx.canvasHeight))
     .replaceAll('{{FPS}}', String(ctx.fps))
     .replaceAll('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
-    .replaceAll('{{THEME}}', ctx.theme ?? 'blackboard')
+    .replaceAll('{{THEME}}', ctx.theme ?? 'magazine')
     .replaceAll('{{PROJECT_TYPE}}', ctx.projectType ?? 'video')
     .replaceAll('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
     .replaceAll('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))

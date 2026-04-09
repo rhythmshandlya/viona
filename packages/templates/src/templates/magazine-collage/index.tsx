@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, random } from 'remotion';
+import { useCurrentFrame, interpolate, random } from 'remotion';
 import type { MagazineCollageProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide, magazineEasing } from '../../magazine/animations';
 import { PaperClipping } from './components/PaperClipping';
 import { TapeMark } from '../../magazine/decorations';
@@ -71,7 +72,7 @@ const MagazineCollage: React.FC<MagazineCollageProps> = (props) => {
   const { fragments, topic } = props;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       {/* ── Fragment clippings ──────────────────────────────────────────────── */}
       {fragments.map((frag, i) => {
         const pos = getFragmentPosition(i);
@@ -190,7 +191,7 @@ const MagazineCollage: React.FC<MagazineCollageProps> = (props) => {
           </div>
         );
       })()}
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

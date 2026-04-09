@@ -173,7 +173,6 @@ Phase markers: `phase2-complete`, `phase2.5-complete`, `phase3-complete`, `phase
 
 After reading the transcript and brief, determine if the user has a theme preference:
 - If the brief explicitly mentions "magazine" (e.g., "use magazine style", "editorial look") → active theme is `magazine`
-- If the brief explicitly mentions "blackboard" or "chalkboard" (e.g., "explainer style", "dark theme") → active theme is `blackboard`
 - If no theme preference is clear from the brief → **show the `theme_picker` widget and STOP until user responds**:
   `show_widget({ kind: "theme_picker", id: "theme-select", data: {} })`
   Wait for the user to pick a theme before proceeding to Phase 2.
@@ -217,6 +216,7 @@ You MUST dispatch Caption Agent AND Planner in a SINGLE response containing TWO 
 
 Pass to Caption Agent:
 - Theme slug: "Theme: {theme_slug}. Read /workspace/docs/guidelines/theme.md for design tokens."
+- "If /workspace/docs/guidelines/caption-dna.md exists, read it for theme-specific caption styling. If /workspace/docs/guidelines/anti-patterns.md exists, read it for theme-specific constraints."
 - "Read /workspace/docs/transcript.json for word-level timestamps."
 - "Read the manifest for timeline context (scene boundaries, video cuts)."
 - "Create caption track and items with kinetic-luxe styling."
@@ -237,7 +237,7 @@ Report progress: `{ phase: "planning", message: "Planning scenes..." }`
 
 Pass to Planner:
 - Content type, user's creative brief, canvas dimensions, constraints
-- **Theme slug** — ALWAYS include: "Theme: {theme_slug}. Call browse_templates with theme: \"{theme_slug}\". Read /workspace/docs/guidelines/theme.md for design tokens."
+- **Theme slug** — ALWAYS include: "Theme: {theme_slug}. Call browse_templates with theme: \"{theme_slug}\". Read /workspace/docs/guidelines/theme.md for design tokens. If /workspace/docs/guidelines/planner-dna.md exists, read it for theme-specific storytelling structure and scene vocabulary. If /workspace/docs/guidelines/anti-patterns.md exists, read it for what NOT to do."
 
 Example dispatch: "Plan scenes for this video. Theme: magazine. Call browse_templates with theme: \"magazine\". Read /workspace/docs/guidelines/theme.md for design tokens."
 
@@ -287,7 +287,7 @@ Report progress: `{ phase: "setup", message: "Setting up workspace..." }`
 
 Dispatch Setup Agent to scaffold the workspace: constants.ts, Background.tsx, any plan-specific shared components, AND scene file skeletons for every scene in the plan. Each skeleton has all imports wired, dimensions set, and a DATA object pre-filled with content from the plan. This enables parallel Animator dispatch — every Animator opens their file and finds everything ready. Do NOT request a generic card component — each scene builds its own visual structure.
 
-**Include theme in dispatch:** "Theme: {theme_slug}. Read /workspace/docs/guidelines/theme.md for design tokens."
+**Include theme in dispatch:** "Theme: {theme_slug}. Read /workspace/docs/guidelines/theme.md for design tokens. If /workspace/docs/guidelines/anti-patterns.md exists, read it for theme-specific constraints."
 
 ### Phase 5: Wait for Depth Assets (no subagent — you do this directly)
 
@@ -365,7 +365,7 @@ For each scene in the plan, dispatch an Animator with:
 - Exact dimensions (sceneWidth × sceneHeight)
 - Display mode (fullscreen, stacked, overlay)
 - Duration in frames and sync points
-- **Theme slug** — "Theme: {theme_slug}."
+- **Theme slug** — "Theme: {theme_slug}. If /workspace/docs/guidelines/animator-dna.md exists, read it FIRST for theme-specific motion rules. If /workspace/docs/guidelines/anti-patterns.md exists, read it for what NOT to do."
 - **Template slug** — if the plan specifies `template: <slug>` for this scene, include it: "Template: <slug> — already forked by Setup Agent to src/components/templates/<slug>/. Import utilities (effects, textures, animations, fonts) from the forked shared library."
 
 The Animator will READ the skeleton, then EDIT it to fill in animation code. They do NOT create files from scratch.

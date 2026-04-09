@@ -419,16 +419,16 @@ Instead use: "solid filled shapes", "clip-path reveal", "scale-in", "gradient fi
 You MUST call `browse_templates` with the active theme before writing ANY scene plans. Templates are production-quality, pre-tested components that save animation time and ensure visual consistency.
 
 ### Template Study Protocol
-1. Call `browse_templates` with the theme slug specified in your task prompt (e.g., `browse_templates(theme: "magazine")` or `browse_templates(theme: "blackboard")`) — ONE call returns all templates
+1. Call `browse_templates` with the theme slug specified in your task prompt (e.g., `browse_templates(theme: "magazine")`) — ONE call returns all templates
 2. Read EVERY template's description, useCase, and bestFor fields carefully
 3. For EACH scene you're planning, check if a template matches the content
 4. **Default is to USE a template.** Only set `template: none` when no template is even close to the scene's content.
 
 ### Template Selection Criteria
 
-**Templates are adaptable starting points, not rigid molds.** The Animator will study the template's animation patterns, shared library (effects, textures, typography, springs), and layout approach — then adapt them for the scene's specific content and dimensions. A `magazine-stats` template can power a fuel gauge scene. A `magazine-inkmap` can show any location, not just travel. Recommend a template whenever its patterns or utilities would give the Animator a head start.
+**Templates are adaptable starting points, not rigid molds.** The Animator will study the template's animation patterns, shared library (effects, textures, typography, springs), and layout approach — then adapt them for the scene's specific content and dimensions. A `magazine-stats` template can power a fuel gauge scene. Recommend a template whenever its patterns or utilities would give the Animator a head start.
 
-- Match by **content**. A video mentioning "Algeria" should use `magazine-country` or `magazine-inkmap`.
+- Match by **content**. A video mentioning "Algeria" should use `magazine-country` or `magazine-location`.
 - Match by **visual need**. If the scene needs a big number, use `magazine-stats` or `explainer-stats`.
 - Match by **structure**. If the scene compares things, check `magazine-versus`, `magazine-comparison`, `magazine-proscons`, `magazine-beforeafter`.
 - Match by **adaptability**. Ask: "Does this template have animation patterns, utilities, or a shared library the Animator can reuse?" If yes, recommend it even if the visual concept differs from the template's default layout.

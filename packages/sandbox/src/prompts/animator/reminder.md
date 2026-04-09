@@ -9,7 +9,7 @@
   - Hardcode the scene's DATA, replace dimensions, adapt layout and choreography.
   - **KEEP ALL sub-components** from the template's `components/` dir — use them, don't replace with inline code.
   - **KEEP ALL texture/effect/typography components** — removing them produces flat slideshow results.
-  - **KEEP ALL shared library imports** (`./magazine/*` or `./blackboard/*`) — do NOT strip any.
+  - **KEEP ALL shared library imports** (`./magazine/*`) — do NOT strip any.
   - The scene file re-exports the template: `export { default } from '../components/templates/<slug>';`
   - **Size check:** If your file is 2x+ longer than the original, you are rewriting not adapting → REJECTED.
 - If no template (Template: none), write animation code directly in the skeleton file.

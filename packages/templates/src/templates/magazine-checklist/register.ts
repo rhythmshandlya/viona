@@ -22,7 +22,7 @@ registerTemplate({
     ];
 
     const sharedFileNames = [
-      'constants.ts', 'textures.tsx', 'effects.tsx', 'typography.tsx', 'animations.ts', 'decorations.tsx',
+      'constants.ts', 'textures.tsx', 'effects.tsx', 'typography.tsx', 'animations.ts', 'ScaledContainer.tsx', 'paper-texture-data.ts', 'decorations.tsx',
     ];
 
     const ownFiles = ownFileNames.map((f) => ({

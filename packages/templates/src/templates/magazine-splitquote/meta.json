@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-splitquote",
+  "name": "Magazine Split Quote",
+  "description": "Landscape split-screen with large pull number on left and editorial quote on right, separated by accent divider",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "quote", "split", "number", "pullquote", "landscape"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

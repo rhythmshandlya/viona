@@ -1,0 +1,14 @@
+{
+  "slug": "vox-source",
+  "name": "Vox Source",
+  "description": "Document frame with excerpt and attribution — for citations, reports, and primary source references",
+  "category": "overlay",
+  "tags": ["vox-theme", "overlay", "narrative", "source", "document", "citation"],
+  "stylePreset": "voxDocumentary",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "",
+  "type": "scene",
+  "themes": ["vox"]
+}

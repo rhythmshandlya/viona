@@ -1,11 +1,12 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineLocationProps } from './schema';
 import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SectionLabel } from '../../magazine/typography';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
 const CANVAS_H = 1920;
@@ -40,7 +41,7 @@ const MagazineLocation: React.FC<MagazineLocationProps> = ({ place, region, coor
   const cardY = (CANVAS_H - CARD_H) / 2 + cardSlide.translateY;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: cardSlide.opacity }}>
         <TornEdge edges={['top', 'bottom', 'left', 'right']} roughness={0.5} seed={370} width={CARD_W} height={CARD_H}>
           <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
@@ -158,7 +159,7 @@ const MagazineLocation: React.FC<MagazineLocationProps> = ({ place, region, coor
           </div>
         </TornEdge>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

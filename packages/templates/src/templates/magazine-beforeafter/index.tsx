@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineBeforeafterProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
@@ -10,7 +11,7 @@ import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/cons
 const CANVAS_W = 1080;
 const CARD_W = 880;
 const SECTION_H = 500;
-const GAP = 160;
+const GAP = 30;
 
 const MagazineBeforeafter: React.FC<MagazineBeforeafterProps> = ({
   title, before, after, beforeLabel, afterLabel,
@@ -30,11 +31,11 @@ const MagazineBeforeafter: React.FC<MagazineBeforeafterProps> = ({
 
   const centerX = (CANVAS_W - CARD_W) / 2;
   const topSectionY = 320;
-  const arrowY = topSectionY + SECTION_H + (GAP - 60) / 2;
+  const arrowY = topSectionY + SECTION_H + GAP / 2;
   const bottomSectionY = topSectionY + SECTION_H + GAP;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{
         position: 'absolute', left: 0, top: 160, width: CANVAS_W,
         display: 'flex', justifyContent: 'center',
@@ -116,7 +117,7 @@ const MagazineBeforeafter: React.FC<MagazineBeforeafterProps> = ({
           </div>
         </TornEdge>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

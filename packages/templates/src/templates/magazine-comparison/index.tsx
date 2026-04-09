@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { useCurrentFrame } from 'remotion';
 import type { MagazineComparisonProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide, editorialReveal } from '../../magazine/animations';
 import { SectionLabel } from '../../magazine/typography';
 import { TapeMark } from '../../magazine/decorations';
@@ -29,7 +30,7 @@ const MagazineComparison: React.FC<MagazineComparisonProps> = ({ leftLabel, righ
   const dividerEndY = lastRowY + 200;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{
         position: 'absolute',
         left: (CANVAS_W - HEADER_W) / 2 + headerSlide.translateX,
@@ -94,7 +95,7 @@ const MagazineComparison: React.FC<MagazineComparisonProps> = ({ leftLabel, righ
           </React.Fragment>
         );
       })}
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

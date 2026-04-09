@@ -7,6 +7,7 @@ import { TornEdge } from '../../magazine/effects';
 import { SectionLabel } from '../../magazine/typography';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
 import { VsBadge } from './components/VsBadge';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
 const CANVAS_H = 1920;
@@ -29,7 +30,7 @@ const MagazineVersus: React.FC<MagazineVersusProps> = ({
   const rightNameReveal = editorialReveal(frame, 30, 15);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       {/* Title */}
       {title && (
         <div style={{
@@ -168,7 +169,7 @@ const MagazineVersus: React.FC<MagazineVersusProps> = ({
           </div>
         </TornEdge>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

@@ -22,7 +22,7 @@ class PipelineMixin:
         fps: int = 30,
         timeout_seconds: int = 2400,
         max_retries: int = 2,
-        style_preset: str = "blackboard",
+        style_preset: str = "magazine",
         layout_mode: str = "pip",
         style_guide: str | None = None,
         source_width: int | None = None,

@@ -32,7 +32,7 @@ registerTemplate({
       'textures.tsx',
       'effects.tsx',
       'typography.tsx',
-      'animations.ts',
+      'animations.ts', 'ScaledContainer.tsx', 'paper-texture-data.ts',
       'decorations.tsx',
     ];
 

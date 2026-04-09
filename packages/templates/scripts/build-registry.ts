@@ -73,13 +73,9 @@ function detectSharedDeps(files: RegistryFile[]): string[] {
     if (f.content.match(/from\s+['"]\.\.?\/[^'"]*fonts['"]/)) deps.add('fonts');
     // Match pre-rewritten paths: ./magazine/ or ../magazine/
     if (f.content.match(/from\s+['"]\.\.?\/[^'"]*magazine\//)) deps.add('magazine');
-    // Match pre-rewritten paths: ./blackboard/ or ../blackboard/
-    if (f.content.match(/from\s+['"]\.\.?\/[^'"]*blackboard\//)) deps.add('blackboard');
   }
   // Magazine shared library depends on fonts
   if (deps.has('magazine')) deps.add('fonts');
-  // Blackboard shared library depends on fonts (constants.ts imports FONTS)
-  if (deps.has('blackboard')) deps.add('fonts');
   return Array.from(deps);
 }
 
@@ -111,29 +107,6 @@ function getMagazineSharedFiles(): RegistryFile[] {
 }
 
 const magazineSharedFiles = getMagazineSharedFiles();
-
-/**
- * Read all files from the shared blackboard library and return them with blackboard/ paths.
- */
-function getBlackboardSharedFiles(): RegistryFile[] {
-  const blackboardDir = join(SRC_DIR, 'blackboard');
-  if (!existsSync(blackboardDir)) return [];
-  const files: RegistryFile[] = [];
-  for (const entry of readdirSync(blackboardDir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    let content = readFileSync(join(blackboardDir, entry.name), 'utf-8');
-    // ../fonts → ./fonts (fonts is already a registryDep)
-    content = content.replace(/from\s+['"]\.\.\/fonts['"]/g, `from '../fonts'`);
-    files.push({
-      path: `blackboard/${entry.name}`,
-      content,
-      type: 'registry:lib',
-    });
-  }
-  return files;
-}
-
-const blackboardSharedFiles = getBlackboardSharedFiles();
 
 const catalogItems: RegistryCatalogItem[] = [];
 let templateCount = 0;
@@ -189,10 +162,6 @@ for (const dir of readdirSync(TEMPLATES_DIR, { withFileTypes: true }).sort((a, b
   if (registryDeps.includes('magazine')) {
     allFiles = [...allFiles, ...magazineSharedFiles];
   }
-  if (registryDeps.includes('blackboard')) {
-    allFiles = [...allFiles, ...blackboardSharedFiles];
-  }
-
   const item: RegistryItem = {
     name: meta.slug as string,
     type: 'registry:component',

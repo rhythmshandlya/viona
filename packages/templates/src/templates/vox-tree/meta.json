@@ -1,0 +1,14 @@
+{
+  "slug": "vox-tree",
+  "name": "Vox Tree",
+  "description": "Hierarchical branching diagram with draw-on lines — for taxonomies, org charts, decision trees, and category breakdowns",
+  "category": "overlay",
+  "tags": ["vox-theme", "overlay", "structure", "tree", "hierarchy", "branching"],
+  "stylePreset": "voxDocumentary",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "6s",
+  "thumbnail": "",
+  "type": "scene",
+  "themes": ["vox"]
+}

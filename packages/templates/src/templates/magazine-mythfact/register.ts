@@ -21,7 +21,7 @@ registerTemplate({
     ];
 
     const sharedFileNames = [
-      'constants.ts', 'textures.tsx', 'effects.tsx', 'typography.tsx', 'animations.ts',
+      'constants.ts', 'textures.tsx', 'effects.tsx', 'typography.tsx', 'animations.ts', 'ScaledContainer.tsx', 'paper-texture-data.ts',
     ];
 
     const ownFiles = ownFileNames.map((f) => ({

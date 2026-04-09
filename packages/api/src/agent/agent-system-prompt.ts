@@ -20,7 +20,7 @@ export function buildProjectContext(project: Record<string, unknown>): ProjectCo
     fps: (project.fps as number) || 30,
     durationMs: (project.durationMs as number) || null,
     hasTranscript: !!(project.transcriptId),
-    theme: (project.theme as string) || 'blackboard',
+    theme: (project.theme as string) || 'magazine',
     projectType: (project.projectType as string) || 'video',
   };
 }

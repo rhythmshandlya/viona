@@ -49,7 +49,7 @@ def get_youtube_clip_section(has_youtube_clip_scenes: bool) -> str:
 ANIMATOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('animator/system')
 
 
-def build_animator_user_message(project_id: str, style_preset: str = "blackboard") -> str:
+def build_animator_user_message(project_id: str, style_preset: str = "magazine") -> str:
     """Build the user message for the Animator agent."""
     # Composition ID must use dashes (Remotion requirement), folder uses underscores
     composition_id = project_id.replace("_", "-")
@@ -639,7 +639,7 @@ def build_scene_task_prompt(
     scene_number: int,
     display_mode: str,
     scene_data: dict,
-    style_preset: str = "blackboard",
+    style_preset: str = "magazine",
 ) -> str:
     """Build a Task prompt with scene data embedded inline.
 

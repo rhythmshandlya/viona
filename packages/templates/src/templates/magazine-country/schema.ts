@@ -9,6 +9,9 @@ export const schema = z.object({
   showCityMarker: z.boolean().default(true),
   showCountryName: z.boolean().default(true),
   countryNameSize: z.number().min(30).max(200).default(100),
+  capital: z.string().optional().default('London'),
+  population: z.string().optional().default('67.7 million'),
+  region: z.string().optional().default('Western Europe'),
   mapStyle: z
     .enum(['satellite', 'watercolor', 'toner', 'tonerLite', 'terrain', 'osm'])
     .default('tonerLite'),

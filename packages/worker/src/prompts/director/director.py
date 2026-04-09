@@ -171,7 +171,7 @@ def build_director_user_message(
     height: int,
     duration_frames: int,
     fps: int,
-    style_preset: str = "blackboard",
+    style_preset: str = "magazine",
     layout_mode: str = "pip",
     style_guide: str | None = None,
     output_dir: str | None = None,

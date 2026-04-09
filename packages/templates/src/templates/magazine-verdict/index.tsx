@@ -6,6 +6,7 @@ import { SerifHeadline, SectionLabel } from '../../magazine/typography';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
 import { VerdictCard } from './components/VerdictCard';
 import { RatingRing } from './components/RatingRing';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
 const CANVAS_H = 1920;
@@ -29,7 +30,7 @@ const MagazineVerdict: React.FC<MagazineVerdictProps> = ({
   const cardY = (CANVAS_H - CARD_H) / 2 + cardSlide.translateY;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: cardSlide.opacity }}>
         <VerdictCard>
           <div style={{
@@ -94,7 +95,7 @@ const MagazineVerdict: React.FC<MagazineVerdictProps> = ({
           </div>
         </VerdictCard>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

@@ -9,18 +9,19 @@ interface TypewriterCursorProps {
   isPaused: boolean;
 }
 
+const LINE_HEIGHT = 1.45;
+const GAP = 44;
+const PAD_LEFT = 120;
+const PAD_TOP = 80;
+
 /**
- * Thin vertical cursor bar (2px wide) that tracks the next-to-type character position.
- * Blinks (opacity toggles 1 <-> 0.3) every 15 frames during line pauses.
+ * Thin cursor bar that tracks typing position.
+ * Uses same layout constants as TypewriterText for alignment.
+ * Blinks during pauses.
  */
 export function TypewriterCursor({
-  lines,
-  emphasis,
-  visibleCharIndex,
-  frame,
-  isPaused,
+  lines, emphasis, visibleCharIndex, frame, isPaused,
 }: TypewriterCursorProps) {
-  // Determine which line and character position the cursor is at
   let charCount = 0;
   let cursorLine = 0;
   let cursorCharInLine = 0;
@@ -37,37 +38,29 @@ export function TypewriterCursor({
   }
 
   const isEmphasis = cursorLine === emphasis;
-  const fontSize = isEmphasis ? FONT_SIZES.h2 * 1.3 : FONT_SIZES.h3;
+  const fontSize = isEmphasis ? FONT_SIZES.h2 : FONT_SIZES.h3;
+  const avgCharWidth = fontSize * 0.52;
+  const cursorX = PAD_LEFT + cursorCharInLine * avgCharWidth;
 
-  // Approximate character width: use 0.55 of font size as average char width for serif fonts
-  const avgCharWidth = fontSize * 0.55;
-  const cursorX = 80 + cursorCharInLine * avgCharWidth;
-
-  // Y position: 120px top padding + line index * (fontSize * lineHeight + gap)
-  const lineHeight = 1.4;
-  const gap = 40;
-  let cursorY = 120;
+  let cursorY = PAD_TOP;
   for (let i = 0; i < cursorLine; i++) {
-    const lineFontSize = i === emphasis ? FONT_SIZES.h2 * 1.3 : FONT_SIZES.h3;
-    cursorY += lineFontSize * lineHeight + gap;
+    const lineFontSize = i === emphasis ? FONT_SIZES.h2 : FONT_SIZES.h3;
+    cursorY += lineFontSize * LINE_HEIGHT + GAP;
   }
 
-  // Blink during pauses: toggle opacity 1 <-> 0.3 every 15 frames
   const blinkCycle = Math.floor(frame / 15) % 2;
-  const cursorOpacity = isPaused ? (blinkCycle === 0 ? 1 : 0.3) : 1;
+  const cursorOpacity = isPaused ? (blinkCycle === 0 ? 1 : 0.2) : 1;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: cursorX,
-        top: cursorY,
-        width: 2,
-        height: fontSize * lineHeight,
-        backgroundColor: MAGAZINE_COLORS.inkBlack,
-        opacity: cursorOpacity,
-        pointerEvents: 'none',
-      }}
-    />
+    <div style={{
+      position: 'absolute',
+      left: cursorX,
+      top: cursorY,
+      width: 2.5,
+      height: fontSize * LINE_HEIGHT,
+      backgroundColor: MAGAZINE_COLORS.inkBlack,
+      opacity: cursorOpacity,
+      pointerEvents: 'none',
+    }} />
   );
 }

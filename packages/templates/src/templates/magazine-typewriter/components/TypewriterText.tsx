@@ -5,60 +5,48 @@ import { MAGAZINE_COLORS, MAGAZINE_FONTS, FONT_SIZES } from '../../../magazine/c
 interface TypewriterTextProps {
   lines: string[];
   emphasis: number;
-  /** The global character index up to which text is visible. */
   visibleCharIndex: number;
 }
 
+const LINE_HEIGHT = 1.45;
+const GAP = 44;
+const PAD_LEFT = 120;
+const PAD_TOP = 80;
+
 /**
- * Character-by-character typewriter text reveal.
- *
- * Typing schedule algorithm:
- * 1. Total char count = sum of all line lengths
- * 2. Typing window = 85 frames (frame 15-100)
- * 3. Pause between lines = 8 frames
- * 4. Available typing frames = 85 - (pause * (lines.length - 1))
- * 5. Frames per char = available / total chars, emphasis line gets 1.3x multiplier
- * 6. For each frame, compute which char index is visible.
+ * Character-by-character typewriter text reveal with ink jitter.
+ * Emphasis line uses headline font at larger size with accent color.
  */
 export function TypewriterText({ lines, emphasis, visibleCharIndex }: TypewriterTextProps) {
   let globalIndex = 0;
 
   return (
-    <div
-      style={{
-        padding: '120px 80px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 40,
-      }}
-    >
+    <div style={{ padding: `${PAD_TOP}px ${60}px ${40}px ${PAD_LEFT}px` }}>
       {lines.map((line, lineIndex) => {
         const lineStartIndex = globalIndex;
         globalIndex += line.length;
         const isEmphasis = lineIndex === emphasis;
-
-        const fontSize = isEmphasis ? FONT_SIZES.h2 * 1.3 : FONT_SIZES.h3;
+        const fontSize = isEmphasis ? FONT_SIZES.h2 : FONT_SIZES.h3;
         const fontFamily = isEmphasis ? MAGAZINE_FONTS.headline : MAGAZINE_FONTS.accent;
         const fontWeight = isEmphasis ? 700 : 400;
+        const color = isEmphasis ? MAGAZINE_COLORS.accent : MAGAZINE_COLORS.inkBlack;
 
         return (
           <div
             key={lineIndex}
             style={{
-              fontFamily,
-              fontSize,
-              fontWeight,
-              color: MAGAZINE_COLORS.inkBlack,
-              lineHeight: 1.4,
-              letterSpacing: isEmphasis ? '-0.01em' : '0.01em',
+              fontFamily, fontSize, fontWeight, color,
+              lineHeight: LINE_HEIGHT,
+              letterSpacing: isEmphasis ? '-0.015em' : '0.005em',
+              marginBottom: lineIndex < lines.length - 1 ? GAP : 0,
               position: 'relative',
+              minHeight: fontSize * LINE_HEIGHT,
             }}
           >
             {line.split('').map((char, charIdx) => {
               const charGlobalIndex = lineStartIndex + charIdx;
               const isVisible = charGlobalIndex < visibleCharIndex;
-              // Deterministic vertical jitter +/- 1px based on char index
-              const jitterY = (random(`char-jitter-${charGlobalIndex}`) * 2 - 1);
+              const jitterY = (random(`tw-${charGlobalIndex}`) * 1.6 - 0.8);
 
               return (
                 <span
@@ -67,7 +55,6 @@ export function TypewriterText({ lines, emphasis, visibleCharIndex }: Typewriter
                     opacity: isVisible ? 1 : 0,
                     display: 'inline-block',
                     transform: `translateY(${jitterY}px)`,
-                    // Preserve spaces
                     whiteSpace: 'pre',
                   }}
                 >
@@ -100,7 +87,6 @@ export function computeVisibleCharIndex(
   const totalChars = lines.reduce((sum, line) => sum + line.length, 0);
   if (totalChars === 0) return 0;
 
-  // Calculate weighted char counts (emphasis line gets 1.3x time multiplier)
   const weightedChars = lines.reduce((sum, line, i) => {
     const weight = i === emphasis ? 1.3 : 1.0;
     return sum + line.length * weight;
@@ -120,7 +106,6 @@ export function computeVisibleCharIndex(
     const framesForLine = line.length * baseFramesPerChar * weight;
 
     if (elapsed <= framesForLine) {
-      // We're typing within this line
       const charsTyped = Math.floor(elapsed / (baseFramesPerChar * weight));
       return charIndex + Math.min(charsTyped, line.length);
     }
@@ -128,11 +113,8 @@ export function computeVisibleCharIndex(
     elapsed -= framesForLine;
     charIndex += line.length;
 
-    // Apply pause between lines (not after last line)
     if (lineIdx < lines.length - 1) {
-      if (elapsed <= pauseFrames) {
-        return charIndex; // In a pause — no new chars
-      }
+      if (elapsed <= pauseFrames) return charIndex;
       elapsed -= pauseFrames;
     }
   }
@@ -141,7 +123,7 @@ export function computeVisibleCharIndex(
 }
 
 /**
- * Returns which line is currently being typed (or -1 if not typing yet).
+ * Returns which line is currently being typed.
  */
 export function getCurrentTypingLine(
   visibleCharIndex: number,
@@ -182,7 +164,6 @@ export function isInPause(
   }, 0);
 
   const baseFramesPerChar = availableTypingFrames / weightedChars;
-
   let elapsed = frame - typingStart;
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {

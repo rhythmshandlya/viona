@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-headline",
+  "name": "Magazine Headline",
+  "description": "Cinematic editorial title card with large serif headline, accent rule, and category label — ideal for intros and section breaks",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "headline", "title", "intro", "section", "editorial"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}

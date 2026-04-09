@@ -587,7 +587,7 @@ In every previous run, animators:
 
 1. **Read the template's `index.tsx`** — understand its structure, what components it uses, what props it takes
 2. **Read the sub-components** in the template's `components/` dir — these are your building blocks
-3. **Read the shared library** (`magazine/` or `blackboard/`) — textures, effects, typography, animations
+3. **Read the shared library** (`magazine/`) — textures, effects, typography, animations
 4. **Make SURGICAL edits:**
    a. Change the props interface to hardcoded DATA
    b. Change dimension constants to SCENE_WIDTH/SCENE_HEIGHT
@@ -612,7 +612,7 @@ In every previous run, animators:
 
 ### What you MUST KEEP
 
-- **ALL imports from the shared library** (paths like `../../../theme/magazine/*` or `../../../theme/blackboard/*`) — do NOT remove any
+- **ALL imports from the shared library** (paths like `../../../theme/magazine/*`) — do NOT remove any
 - **ALL sub-components** from the template's `components/` dir — use them, don't replace them with inline code
 - **ALL texture/effect components** in the JSX (`PaperTexture`, `NewsprintGrain`, `TornEdge`, `FoldShadow`, `BurnEdge`, etc.)
 - **ALL typography components** (`SectionLabel`, `SerifHeadline`, etc.)

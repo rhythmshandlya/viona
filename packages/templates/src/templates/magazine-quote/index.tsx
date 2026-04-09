@@ -1,9 +1,10 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineQuoteProps } from './schema';
 import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const MagazineQuote: React.FC<MagazineQuoteProps> = ({ quote, author, role, context }) => {
   const frame = useCurrentFrame();
@@ -22,7 +23,7 @@ const MagazineQuote: React.FC<MagazineQuoteProps> = ({ quote, author, role, cont
   const contextReveal = editorialReveal(frame, 68, 15);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{
         width: '100%', height: '100%',
         opacity: slide.opacity,
@@ -118,7 +119,7 @@ const MagazineQuote: React.FC<MagazineQuoteProps> = ({ quote, author, role, cont
           )}
         </div>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

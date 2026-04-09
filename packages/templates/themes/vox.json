@@ -1,0 +1,21 @@
+{
+  "slug": "vox",
+  "name": "Vox Explainer",
+  "description": "Documentary editorial style with 12fps stuttered graphics, yellow highlighter accents, rough-edged collage aesthetic, and film grain texture — inspired by Vox Media's explainer video format",
+  "colorPalette": {
+    "primary": "#4C4E4D",
+    "secondary": "#6D98A8",
+    "accent": "#FFEB00",
+    "background": "#F1F3F2",
+    "text": "#4C4E4D",
+    "deepPurple": "#35313F",
+    "mutedRed": "#C84B4B",
+    "mutedGreen": "#5B8A72"
+  },
+  "fontRecommendations": {
+    "heading": "Playfair Display",
+    "body": "Inter",
+    "mono": "JetBrains Mono"
+  },
+  "styleGuidance": "Vox documentary — deliberate imperfection over polish. Graphics stutter at 12fps within 30fps timelines. Yellow highlighter (#FFEB00) is the signature accent — sweep it across key text. Film grain on everything (25-35% opacity). Rough edges via feTurbulence displacement on shapes. No drop shadows, no gradients on text, no glossy surfaces. Evidence-first storytelling: every visual serves the argument. Progressive information disclosure — nothing appears all at once. Collage-style cutouts with intentionally imperfect edges. Flat 2D design, never 3D. Jump cuts preferred over transitions."
+}

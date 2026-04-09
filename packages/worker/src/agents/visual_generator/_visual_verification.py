@@ -173,7 +173,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         scene_data: dict,
         plan_content: str,
         composition_id: str,
-        style_preset: str = "blackboard",
+        style_preset: str = "magazine",
     ) -> None:
         """Per-scene verify → fix → re-verify loop."""
         from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, get_animator_prompt, get_theme_section
@@ -288,7 +288,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         composition_id: str,
         scenes_data: dict,
         plan_content: str,
-        style_preset: str = "blackboard",
+        style_preset: str = "magazine",
         width: int = 1080,
         height: int = 1920,
         fps: int = 60,

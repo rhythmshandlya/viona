@@ -17,6 +17,10 @@ Workspace layout:
 - /workspace/docs/SCENE_PLAN.md — scene plan with spatial layout
 - /workspace/docs/guidelines/editing-style.md — editing style guide (techniques, pacing, display modes)
 - /workspace/docs/guidelines/theme.md — visual theme (colors, fonts, animations)
+- /workspace/docs/guidelines/planner-dna.md — (optional) theme-specific storytelling structure
+- /workspace/docs/guidelines/animator-dna.md — (optional) theme-specific motion rules
+- /workspace/docs/guidelines/caption-dna.md — (optional) theme-specific caption styling
+- /workspace/docs/guidelines/anti-patterns.md — (optional) theme-specific constraints
 - /workspace/src/scenes/ — Remotion .tsx scene files
 - /workspace/src/constants.ts — shared COLORS, TIMING, SPRING_CONFIG
 - /workspace/src/components/Background.tsx — shared animated background

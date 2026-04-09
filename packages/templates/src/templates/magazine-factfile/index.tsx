@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { useCurrentFrame } from 'remotion';
 import type { MagazineFactfileProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide, editorialReveal } from '../../magazine/animations';
 import { SerifHeadline, SectionLabel } from '../../magazine/typography';
 import { MAGAZINE_COLORS } from '../../magazine/constants';
@@ -28,7 +29,7 @@ const MagazineFactfile: React.FC<MagazineFactfileProps> = ({ title, subtitle, fi
   const cardOpacity = cardSlide.opacity;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: cardOpacity }}>
         <DossierCard>
           <div style={{ opacity: titleReveal.opacity, transform: `translateY(${titleReveal.translateY}px)` }}>
@@ -44,7 +45,7 @@ const MagazineFactfile: React.FC<MagazineFactfileProps> = ({ title, subtitle, fi
           </div>
         </DossierCard>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

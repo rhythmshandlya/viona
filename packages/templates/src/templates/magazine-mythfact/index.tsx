@@ -1,11 +1,12 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineMythfactProps } from './schema';
 import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
 import { SectionLabel } from '../../magazine/typography';
 import { MAGAZINE_FONTS, MAGAZINE_COLORS, FONT_SIZES } from '../../magazine/constants';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
 const CANVAS_H = 1920;
@@ -38,7 +39,7 @@ const MagazineMythfact: React.FC<MagazineMythfactProps> = ({ topic, myth, fact }
   const cardY = (CANVAS_H - CARD_H) / 2 + cardSlide.translateY;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: cardSlide.opacity }}>
         <TornEdge edges={['top', 'bottom', 'left', 'right']} roughness={0.5} seed={240} width={CARD_W} height={CARD_H}>
           <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
@@ -64,6 +65,9 @@ const MagazineMythfact: React.FC<MagazineMythfactProps> = ({ topic, myth, fact }
                   fontFamily: MAGAZINE_FONTS.accent, fontSize: FONT_SIZES.small,
                   fontWeight: 700, color: MAGAZINE_COLORS.accent,
                   letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 16,
+                  display: 'inline-block',
+                  borderBottom: `3px solid ${MAGAZINE_COLORS.accent}`,
+                  paddingBottom: 4,
                 }}>
                   MYTH
                 </div>
@@ -100,6 +104,9 @@ const MagazineMythfact: React.FC<MagazineMythfactProps> = ({ topic, myth, fact }
                   fontFamily: MAGAZINE_FONTS.accent, fontSize: FONT_SIZES.small,
                   fontWeight: 700, color: '#16a34a',
                   letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 16,
+                  display: 'inline-block',
+                  borderBottom: '3px solid #16a34a',
+                  paddingBottom: 4,
                 }}>
                   FACT
                 </div>
@@ -119,7 +126,7 @@ const MagazineMythfact: React.FC<MagazineMythfactProps> = ({ topic, myth, fact }
           </div>
         </TornEdge>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

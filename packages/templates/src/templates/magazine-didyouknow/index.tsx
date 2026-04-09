@@ -1,6 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineDidyouknowProps } from './schema';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
@@ -36,7 +37,7 @@ const MagazineDidyouknow: React.FC<MagazineDidyouknowProps> = ({ fact, source })
   const cardY = (CANVAS_H - CARD_H) / 2 + cardSlide.translateY;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: cardSlide.opacity }}>
         <TornEdge edges={['top', 'bottom', 'left', 'right']} roughness={0.5} seed={300} width={CARD_W} height={CARD_H}>
           <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
@@ -106,7 +107,7 @@ const MagazineDidyouknow: React.FC<MagazineDidyouknowProps> = ({ fact, source })
           </div>
         </TornEdge>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

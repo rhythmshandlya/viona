@@ -25,8 +25,38 @@ Each beat in scenes.json specifies its display mode. Consecutive beats with the 
 Each scene can also specify a `transition` for smooth mode changes:
 - `"cut"` (instant, 0ms) — default, clean and fast
 - `"fade"` (300-500ms) — smooth opacity transition, good for mood changes
-- `"zoom-in"` (200-400ms) — draws attention inward, good for reveals
-- `"zoom-out"` (200-400ms) — pulls back, good for context shifts
+- `"zoom-in"` — cinematic push-in for reveals and emphasis moments. See mechanics below.
+
+### Zoom-In Transition Mechanics
+
+The zoom-in is a camera push-in that draws attention to the content, holds through the hook/emphasis moment, then hard-cuts back to normal framing. It has three phases:
+
+**Phase 1 — Push-in (500-700ms / 15-21 frames @30fps)**
+- Scale from `1.0` to `1.25` (subtle) or `1.30` (dramatic)
+- Easing: **ease-out** `cubic-bezier(0, 0, 0.2, 1)` — starts fast, decelerates as the camera "lands"
+- NEVER use linear easing — linear scale reads as unnatural because area grows quadratically
+- The push-in should BEGIN slightly before the emphasis word/moment (2-3 frames lead-in)
+
+**Phase 2 — Hold (duration of the hook)**
+- Stay at the zoomed scale for the ENTIRE duration of the hook or emphasis moment
+- This is NOT optional — punching in and immediately out feels twitchy
+- Hold until the speaker finishes the key phrase or the visual payoff completes
+
+**Phase 3 — Snap-out (instant, 1 frame)**
+- Hard cut back to `1.0` scale — no easing, no animation
+- The abrupt reset creates deliberate editorial contrast with the smooth push-in
+- Time the snap-out to a natural breath or topic shift, never mid-sentence
+
+```
+Timeline:
+[——— normal 1.0x ———][—push-in 500-700ms—][——— hold at 1.25x through hook ———][snap][ normal 1.0x ]
+                       ↑ ease-out curve      ↑ stay zoomed, don't rush           ↑ instant 1-frame cut
+```
+
+**Scale guidance:**
+- `1.20x` — subtle, viewer barely notices consciously but it adds emphasis
+- `1.25x` — standard punch-in, good default
+- `1.30x` — dramatic, use for big reveals only
 
 INFORMATION DENSITY BREATHING:
 After a complex scene, follow with a simpler beat (stat reveal, metaphor, pause-and-reflect). Alternate dense and sparse beats throughout.

@@ -1,7 +1,6 @@
 import React from 'react';
 
 const themes = [
-  { id: 'blackboard', label: 'Blackboard Glow', description: 'Dark explainer with amber glow accents', colors: ['#0a0a14', '#f59e0b', '#06b6d4'] },
   { id: 'magazine', label: 'Magazine', description: 'Clean editorial with serif typography', colors: ['#ffffff', '#e11d48', '#0f172a'] },
 ];
 

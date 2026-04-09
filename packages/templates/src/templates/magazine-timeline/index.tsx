@@ -8,6 +8,7 @@ import { SerifHeadline } from '../../magazine/typography';
 import { TapeMark } from '../../magazine/decorations';
 import { TimelineThread } from './components/TimelineThread';
 import { EventCard } from './components/EventCard';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
 const TITLE_Y = 120;
@@ -33,7 +34,7 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) =>
   const nodeYPositions = eventYPositions.map((y) => y + CARD_H / 2);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{
         position: 'absolute',
         left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
@@ -86,7 +87,7 @@ const MagazineTimeline: React.FC<MagazineTimelineProps> = ({ events, title }) =>
           </div>
         );
       })}
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

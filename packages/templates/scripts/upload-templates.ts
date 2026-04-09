@@ -176,7 +176,6 @@ async function uploadTemplate(
     .map(fp => readFileSync(fp, 'utf-8'));
 
   const usesMagazine = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}magazine\//.test(c));
-  const usesBlackboard = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}blackboard\//.test(c));
   const usesFonts = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}fonts['"]/.test(c));
   const usesScale = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}use-scale['"]/.test(c));
   const usesLib = allSourceContent.some(c => /from\s+['"](?:\.\.\/){2,}lib\//.test(c));
@@ -194,22 +193,8 @@ async function uploadTemplate(
     }
   }
 
-  // ── 2d. Upload shared blackboard library (if used) ────────────────
-  const blackboardDir = join(SRC_DIR, 'blackboard');
-  if (usesBlackboard && existsSync(blackboardDir)) {
-    const blackboardFiles = getAllFiles(blackboardDir);
-    console.log(`  Uploading ${blackboardFiles.length} shared blackboard library files...`);
-    for (const filePath of blackboardFiles) {
-      const relativePath = filePath.substring(blackboardDir.length + 1);
-      const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/blackboard/${relativePath}`);
-      const contentType = getContentType(filePath);
-      await uploadFileToS3(client, filePath, s3Key, contentType);
-    }
-  }
-
-  // ── 2e. Upload shared root files (fonts.ts, use-scale.ts) ─────────
-  // These are uploaded when ANY template needs them, not just magazine/blackboard
-  if (usesFonts || usesMagazine || usesBlackboard) {
+  // ── 2d. Upload shared root files (fonts.ts, use-scale.ts) ──────────
+  if (usesFonts || usesMagazine) {
     const fontsPath = join(SRC_DIR, 'fonts.ts');
     if (existsSync(fontsPath)) {
       const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/fonts.ts`);

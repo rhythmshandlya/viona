@@ -1,0 +1,14 @@
+{
+  "slug": "vox-versus",
+  "name": "Vox Versus",
+  "description": "A vs B split comparison with rough divider, staggered side entries, and winner highlight — for head-to-head comparisons, data matchups, and competitive context",
+  "category": "overlay",
+  "tags": ["vox-theme", "overlay", "comparison", "versus"],
+  "stylePreset": "voxDocumentary",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "",
+  "type": "scene",
+  "themes": ["vox"]
+}

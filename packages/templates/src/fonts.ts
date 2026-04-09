@@ -122,6 +122,11 @@ export const FONT_PAIRS = {
     body: FONTS.inter,
     mood: "Clean Minimal",
   },
+  voxDocumentary: {
+    headline: FONTS.playfairDisplay,
+    body: FONTS.inter,
+    mood: "Documentary Editorial",
+  },
 } as const;
 
 export const FONT_WEIGHTS = {

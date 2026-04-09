@@ -11,9 +11,9 @@ const WORKSPACE = process.env.WORKSPACE_DIR || '/workspace';
 const forkedSlugs = new Set<string>();
 
 // Shared modules extracted to src/theme/ (one canonical copy, not per-fork)
-// Theme libraries: magazine/, blackboard/
+// Theme libraries: magazine/
 // Shared utilities: fonts.ts, use-scale.ts, lib/ (map utilities etc.)
-const SHARED_LIB_DIRS = ['magazine', 'blackboard'];
+const SHARED_LIB_DIRS = ['magazine', 'vox'];
 const SHARED_ROOT_FILES = ['fonts', 'use-scale'];
 
 function isSharedLibFile(relativePath: string): boolean {
@@ -229,7 +229,7 @@ export const forkTemplateTool = {
         if (isTextFile) {
           const content = rawBuffer.toString('utf-8');
           // Rewrite deep relative imports:
-          // - Shared lib imports (magazine/, blackboard/, fonts) → point to src/theme/
+          // - Shared lib imports (magazine/, fonts) → point to src/theme/
           // - Other ../../+ imports → relative to fork root (cross-template deps)
           const fileDepth = relativePath.split('/').length - 1;
           const prefixForDepth = fileDepth === 0 ? './' : '../'.repeat(fileDepth);
@@ -305,7 +305,7 @@ export const forkTemplateTool = {
           for (const match of importMatches) {
             const depSlug = match[1];
             // Ignore self-references and common non-template directories
-            const NON_TEMPLATE_DIRS = ['magazine', 'blackboard', 'theme', 'fonts', 'use-scale', 'node_modules', 'components', 'constants', 'scenes', 'utils', 'shared', 'lib', 'styles', 'assets'];
+            const NON_TEMPLATE_DIRS = ['magazine', 'theme', 'fonts', 'use-scale', 'node_modules', 'components', 'constants', 'scenes', 'utils', 'shared', 'lib', 'styles', 'assets'];
             if (depSlug === slug || NON_TEMPLATE_DIRS.includes(depSlug)) continue;
             crossTemplateDeps.add(depSlug);
           }

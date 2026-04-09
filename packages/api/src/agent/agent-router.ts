@@ -102,7 +102,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       fps: project.fps ?? 30,
       durationMs: project.durationMs,
       hasTranscript: !!transcript,
-      theme: (videoSettings.theme as string) || 'blackboard',
+      theme: (videoSettings.theme as string) || 'magazine',
       projectType: project.projectType || 'video',
     };
 

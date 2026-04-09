@@ -1,0 +1,14 @@
+{
+  "slug": "vox-supercut",
+  "name": "Vox Supercut",
+  "description": "Rapid text montage flickering at 2-3 frames — for breaking news, alerts, and high-energy narrative moments",
+  "category": "overlay",
+  "tags": ["vox-theme", "overlay", "narrative", "supercut", "montage"],
+  "stylePreset": "voxDocumentary",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "4s",
+  "thumbnail": "",
+  "type": "scene",
+  "themes": ["vox"]
+}

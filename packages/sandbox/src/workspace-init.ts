@@ -140,7 +140,7 @@ export interface InitPayload {
     fps: number;
     durationMs: number;
   };
-  theme?: string;  // Active theme preset slug (e.g. 'blackboard', 'magazine')
+  theme?: string;  // Active theme preset slug (e.g. 'magazine')
 }
 
 function getMinioClient(): MinioClient {
@@ -418,7 +418,7 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   // can switch themes at runtime with a simple file copy (no placeholder logic needed).
   const guidelinesDir = join(baseDir, 'docs', 'guidelines');
   await mkdir(guidelinesDir, { recursive: true });
-  const activeTheme = payload.theme || 'blackboard';
+  const activeTheme = payload.theme || 'magazine';
   try {
     const manifest = JSON.parse(await readFile(join(themesDst, 'themes.json'), 'utf-8'));
     for (const [themeSlug, themeConfig] of Object.entries(manifest.themes || {})) {
@@ -439,6 +439,18 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
         // Write the active theme as the default guidelines/theme.md
         if (themeSlug === activeTheme) {
           await writeFile(join(guidelinesDir, 'theme.md'), designSystem);
+
+          // Copy theme DNA files if they exist for this theme
+          const dnaFileNames = ['planner-dna.md', 'animator-dna.md', 'caption-dna.md', 'anti-patterns.md'];
+          for (const dnaFile of dnaFileNames) {
+            const dnaSrc = join(themesSrc, config.family, dnaFile);
+            try {
+              const dnaContent = await readFile(dnaSrc, 'utf-8');
+              await writeFile(join(guidelinesDir, dnaFile), dnaContent);
+            } catch {
+              // DNA file doesn't exist for this theme — skip silently
+            }
+          }
         }
       } catch {
         logger.warn({ themeSlug }, 'Design system file not found for theme — skipping');

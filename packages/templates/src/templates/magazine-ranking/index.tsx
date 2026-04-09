@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, random } from 'remotion';
+import { useCurrentFrame, random } from 'remotion';
 import type { MagazineRankingProps } from './schema';
 import { paperSlide } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
@@ -7,6 +7,7 @@ import { TornEdge } from '../../magazine/effects';
 import { SerifHeadline } from '../../magazine/typography';
 import { TapeMark, PinMark } from '../../magazine/decorations';
 import { RankItem } from './components/RankItem';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
 const TITLE_Y = 140;
@@ -28,7 +29,7 @@ const MagazineRanking: React.FC<MagazineRankingProps> = ({ title, items = [] }) 
   const titleSlide = paperSlide(frame, 0, 15, 'down');
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
       <div style={{
         position: 'absolute',
         left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
@@ -87,7 +88,7 @@ const MagazineRanking: React.FC<MagazineRankingProps> = ({ title, items = [] }) 
           </div>
         );
       })}
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

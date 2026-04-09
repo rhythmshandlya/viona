@@ -101,7 +101,7 @@ class AnimatorMixin:
         height: int,
         duration_frames: int,
         fps: int,
-        style_preset: str = "blackboard",
+        style_preset: str = "magazine",
         skip_scenes: set[int] | None = None,
     ) -> dict[str, Any]:
         """Phase 2 (Parallel): Implement scenes via SDK subagents.

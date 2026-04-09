@@ -1,96 +1,111 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineProsconsProps } from './schema';
-import { paperSlide, editorialReveal, magazineEasing } from '../../magazine/animations';
+import { editorialReveal, magazineEasing } from '../../magazine/animations';
 import { PaperTexture } from '../../magazine/textures';
 import { TornEdge } from '../../magazine/effects';
-import { SerifHeadline, SectionLabel } from '../../magazine/typography';
-import { MAGAZINE_COLORS } from '../../magazine/constants';
+import { SerifHeadline } from '../../magazine/typography';
+import { MAGAZINE_COLORS, MAGAZINE_FONTS, FONT_SIZES } from '../../magazine/constants';
 import { ProConItem } from './components/ProConItem';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
 
 const CANVAS_W = 1080;
-const TITLE_Y = 140;
-const TITLE_W = 800;
-const TITLE_H = 140;
-const COLUMNS_Y = 380;
-const COL_WIDTH = 460;
+const COL_WIDTH = 470;
+const ITEM_W = COL_WIDTH - 40;
 const LEFT_X = 40;
-const RIGHT_X = 580;
-const STAGGER = 10;
+const RIGHT_X = CANVAS_W - COL_WIDTH - 40;
+const HEADER_Y = 340;
+const ITEMS_Y = 420;
+const STAGGER = 8;
 
 const MagazineProscons: React.FC<MagazineProsconsProps> = ({ title, pros = [], cons = [] }) => {
   const frame = useCurrentFrame();
 
-  const titleSlide = paperSlide(frame, 0, 15, 'down');
+  const titleReveal = editorialReveal(frame, 3, 14);
 
-  const dividerProgress = interpolate(frame, [10, 30], [0, 1], {
+  // Center divider
+  const dividerProgress = interpolate(frame, [8, 28], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
   });
-  const dividerHeight = 1200 * dividerProgress;
 
-  const prosHeaderReveal = editorialReveal(frame, 15, 12);
-  const consHeaderReveal = editorialReveal(frame, 18, 12);
+  const prosHeaderReveal = editorialReveal(frame, 12, 10);
+  const consHeaderReveal = editorialReveal(frame, 15, 10);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
+      {/* Title */}
       <div style={{
-        position: 'absolute',
-        left: (CANVAS_W - TITLE_W) / 2 + titleSlide.translateX,
-        top: TITLE_Y + titleSlide.translateY,
-        opacity: titleSlide.opacity,
-        filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4))',
+        position: 'absolute', left: 0, top: 160, width: CANVAS_W,
+        display: 'flex', justifyContent: 'center',
+        opacity: titleReveal.opacity,
+        transform: `translateY(${titleReveal.translateY}px)`,
       }}>
-        <TornEdge edges={['top', 'bottom', 'left', 'right']} roughness={0.4} seed={220} width={TITLE_W} height={TITLE_H}>
-          <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
-            <PaperTexture age={0.15} seed="proscons-title" />
-            <div style={{
-              position: 'relative', zIndex: 1, width: '100%', height: '100%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: 24, boxSizing: 'border-box',
-            }}>
-              <SerifHeadline text={title} size={39} />
-            </div>
-          </div>
-        </TornEdge>
+        <SerifHeadline text={title} size={FONT_SIZES.h1} />
       </div>
 
+      {/* Accent rule under title */}
       <div style={{
-        position: 'absolute', left: CANVAS_W / 2 - 1.5, top: COLUMNS_Y - 40,
-        width: 3, height: dividerHeight,
+        position: 'absolute', left: CANVAS_W / 2 - 40, top: 250,
+        width: 80, height: 3, borderRadius: 1.5,
         backgroundColor: MAGAZINE_COLORS.accent,
-        borderRadius: 1.5, opacity: 0.5,
+        opacity: titleReveal.opacity,
       }} />
 
+      {/* Center divider */}
       <div style={{
-        position: 'absolute', left: LEFT_X, top: COLUMNS_Y - 50,
-        width: COL_WIDTH, textAlign: 'center',
+        position: 'absolute', left: CANVAS_W / 2 - 1, top: HEADER_Y - 10,
+        width: 2, height: 1300 * dividerProgress,
+        backgroundColor: MAGAZINE_COLORS.text, opacity: 0.1,
+      }} />
+
+      {/* Pros header */}
+      <div style={{
+        position: 'absolute', left: LEFT_X, top: HEADER_Y, width: COL_WIDTH,
+        display: 'flex', alignItems: 'center', gap: 10,
         opacity: prosHeaderReveal.opacity,
         transform: `translateY(${prosHeaderReveal.translateY}px)`,
       }}>
-        <SectionLabel label="Pros" color="#16a34a" />
+        <div style={{
+          fontFamily: MAGAZINE_FONTS.accent, fontSize: FONT_SIZES.h3,
+          fontWeight: 700, color: '#16a34a', letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+        }}>
+          Pros
+        </div>
+        <div style={{ flex: 1, height: 1, backgroundColor: '#16a34a', opacity: 0.3 }} />
       </div>
 
+      {/* Cons header */}
       <div style={{
-        position: 'absolute', left: RIGHT_X, top: COLUMNS_Y - 50,
-        width: COL_WIDTH, textAlign: 'center',
+        position: 'absolute', left: RIGHT_X, top: HEADER_Y, width: COL_WIDTH,
+        display: 'flex', alignItems: 'center', gap: 10,
         opacity: consHeaderReveal.opacity,
         transform: `translateY(${consHeaderReveal.translateY}px)`,
       }}>
-        <SectionLabel label="Cons" color={MAGAZINE_COLORS.accent} />
+        <div style={{
+          fontFamily: MAGAZINE_FONTS.accent, fontSize: FONT_SIZES.h3,
+          fontWeight: 700, color: MAGAZINE_COLORS.accent, letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+        }}>
+          Cons
+        </div>
+        <div style={{ flex: 1, height: 1, backgroundColor: MAGAZINE_COLORS.accent, opacity: 0.3 }} />
       </div>
 
-      <div style={{ position: 'absolute', left: LEFT_X + 20, top: COLUMNS_Y + 20, width: COL_WIDTH - 40 }}>
+      {/* Pros items */}
+      <div style={{ position: 'absolute', left: LEFT_X + 20, top: ITEMS_Y }}>
         {pros.map((text, i) => (
-          <ProConItem key={i} text={text} type="pro" revealFrame={25 + i * STAGGER} />
+          <ProConItem key={i} text={text} type="pro" revealFrame={20 + i * STAGGER} width={ITEM_W} index={i} />
         ))}
       </div>
 
-      <div style={{ position: 'absolute', left: RIGHT_X + 20, top: COLUMNS_Y + 20, width: COL_WIDTH - 40 }}>
+      {/* Cons items */}
+      <div style={{ position: 'absolute', left: RIGHT_X + 20, top: ITEMS_Y }}>
         {cons.map((text, i) => (
-          <ProConItem key={i} text={text} type="con" revealFrame={25 + i * STAGGER} />
+          <ProConItem key={i} text={text} type="con" revealFrame={20 + i * STAGGER} width={ITEM_W} index={i} />
         ))}
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 

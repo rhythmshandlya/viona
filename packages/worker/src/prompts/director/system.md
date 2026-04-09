@@ -221,8 +221,8 @@ If any check fails, FIX the plan before writing scenes.json.
   "totalFrames": 1800,
   "effectiveWidth": 1080,
   "effectiveHeight": 1920,
-  "theme": "blackboard",
-  "colorPalette": "blackboard (accent: #f59e0b, secondary: #06b6d4)",
+  "theme": "magazine",
+  "colorPalette": "magazine (accent: #e11d48, secondary: #64748b)",
   "iconStyle": { "shape": "outline", "color": "white" },
   "segments": [
     {
@@ -386,9 +386,9 @@ Additionally verify:
 </quality_criteria>
 
 <color_palettes>
-**THEME COLOR RULE:** Default to blackboard or magazine. The theme provides background, text, etc. automatically. You only customize `accent` and `secondary` colors.
+**THEME COLOR RULE:** Default to magazine. The theme provides background, text, etc. automatically. You only customize `accent` and `secondary` colors.
 
-Example: `"blackboard (accent: #f59e0b, secondary: #06b6d4)"`
+Example: `"magazine (accent: #e11d48, secondary: #64748b)"`
 </color_palettes>
 
 <visual_requirements>

@@ -6,7 +6,7 @@
 - **Source video:** 1080x1920
 - **Total duration:** 68000ms
 - **Total scenes:** 6
-- **Theme:** blackboard
+- **Theme:** magazine
 
 ---
 

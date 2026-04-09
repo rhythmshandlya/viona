@@ -1,103 +1,72 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
 import type { MagazineTypewriterProps } from './schema';
-import { paperSlide } from '../../magazine/animations';
-import { MAGAZINE_COLORS } from '../../magazine/constants';
+import { editorialReveal, magazineEasing } from '../../magazine/animations';
+import { MAGAZINE_COLORS, MAGAZINE_FONTS, FONT_SIZES } from '../../magazine/constants';
 import { TypewriterPaper } from './components/TypewriterPaper';
 import { TypewriterText, computeVisibleCharIndex, getCurrentTypingLine, isInPause } from './components/TypewriterText';
 import { TypewriterCursor } from './components/TypewriterCursor';
+import { ScaledContainer } from '../../magazine/ScaledContainer';
+
+const CANVAS_W = 1080;
 
 const MagazineTypewriter: React.FC<MagazineTypewriterProps> = (props) => {
   const frame = useCurrentFrame();
   const { lines, emphasis } = props;
 
-  // ── Phase 1: Paper slide in + cursor appears (0-15) ─────────────────────
-  const slide = paperSlide(frame, 0, 15, 'up');
+  // ── Phase 1: Card reveal (0-15) ───────────────────────────────────
+  const cardReveal = editorialReveal(frame, 0, 15);
 
-  // ── Phase 2: Typing (15-100) ────────────────────────────────────────────
+  // ── Phase 2: Typing (15-100) ──────────────────────────────────────
   const visibleCharIndex = computeVisibleCharIndex(frame, lines, emphasis);
   const currentLine = getCurrentTypingLine(visibleCharIndex, lines);
   const paused = isInPause(frame, lines, emphasis);
 
-  // Paper scrolls up as lines complete — shift up per completed line
-  const lineScrollOffset = (() => {
-    if (frame < 15) return 0;
-    // Scroll by ~100px per completed line to keep text centered
-    const completedLines = currentLine;
-    return interpolate(completedLines, [0, lines.length - 1], [0, -120 * (lines.length - 1)], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
-  })();
-
-  // ── Phase 3: Hold + emphasis underline draws in (100-130) ───────────────
-  const underlineProgress = interpolate(frame, [100, 120], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // ── Phase 3: Emphasis accent line draws in (100-118) ──────────────
+  const accentLineWidth = interpolate(frame, [100, 118], [0, 200], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
   });
 
-  // Combined paper translateY
-  const paperTranslateY = slide.translateY + lineScrollOffset;
-
-  // Cursor visibility: show from frame 5 onwards
-  const cursorOpacity = interpolate(frame, [5, 10], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // Cursor visible from frame 10
+  const cursorOpacity = interpolate(frame, [10, 14], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
-  // Compute emphasis underline position
-  const emphasisUnderline = (() => {
-    if (underlineProgress <= 0 || emphasis < 0 || emphasis >= lines.length) return null;
-
-    // Calculate Y position of emphasis line
-    const emphasisFontSize = 39 * 1.3; // FONT_SIZES.h2 * 1.3
-    const normalFontSize = 31; // FONT_SIZES.h3
-    const lineHeight = 1.4;
-    const gap = 40;
-
-    let y = 120; // top padding
-    for (let i = 0; i < emphasis; i++) {
-      y += normalFontSize * lineHeight + gap;
-    }
-    y += emphasisFontSize * lineHeight + 4; // below the text
-
-    // Approximate line width
-    const lineWidth = lines[emphasis].length * emphasisFontSize * 0.55;
-    const drawWidth = lineWidth * underlineProgress;
-
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          left: 80,
-          top: y,
-          width: drawWidth,
-          height: 3,
-          backgroundColor: MAGAZINE_COLORS.accent,
-        }}
-      />
-    );
-  })();
+  // Quotation mark reveal
+  const quoteReveal = editorialReveal(frame, 3, 12);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          opacity: slide.opacity,
-        }}
-      >
-        <TypewriterPaper
-          translateY={paperTranslateY}
-          lineCount={lines.length}
-        >
+    <ScaledContainer baseWidth={1080} baseHeight={1920}>
+      {/* Large decorative quotation mark */}
+      <div style={{
+        position: 'absolute', left: 100, top: 240,
+        fontFamily: MAGAZINE_FONTS.headline, fontSize: 200,
+        color: MAGAZINE_COLORS.accent, opacity: quoteReveal.opacity * 0.15,
+        lineHeight: 1,
+        transform: `translateY(${quoteReveal.translateY}px)`,
+      }}>
+        {'\u201C'}
+      </div>
+
+      {/* Paper card */}
+      <div style={{
+        opacity: cardReveal.opacity,
+        transform: `translateY(${cardReveal.translateY}px)`,
+      }}>
+        <TypewriterPaper translateY={0}>
           <TypewriterText
             lines={lines}
             emphasis={emphasis}
             visibleCharIndex={visibleCharIndex}
           />
-          {emphasisUnderline}
+
+          {/* Accent line under emphasis after typing */}
+          <div style={{
+            position: 'absolute', left: 120, bottom: 60,
+            width: accentLineWidth, height: 3, borderRadius: 1.5,
+            backgroundColor: MAGAZINE_COLORS.accent,
+          }} />
+
           <div style={{ opacity: cursorOpacity }}>
             <TypewriterCursor
               lines={lines}
@@ -109,7 +78,7 @@ const MagazineTypewriter: React.FC<MagazineTypewriterProps> = (props) => {
           </div>
         </TypewriterPaper>
       </div>
-    </AbsoluteFill>
+    </ScaledContainer>
   );
 };
 
