@@ -95,6 +95,8 @@ export interface CaptionItemData {
   text: string;   // Kept for search/display
   words: CaptionWord[];
   aiWordOverrides?: Record<number, WordStyleOverrides>;
+  /** Per-phrase position override — set when user drags an individual caption phrase */
+  positionOverride?: { x: number; y: number };
   // style field REMOVED — lives at store.captionPreset
 }
 
@@ -527,13 +529,49 @@ export interface VisualItemData {
   beatCount?: number;
 }
 
+export type BrollDisplayMode =
+  | 'fullscreen-cutaway'
+  | 'letterboxed'
+  | 'letterboxed-captions'
+  | 'rounded-float'
+  | 'polaroid'
+  | 'film-treatment'
+  | 'stacked-50'
+  | 'stacked-70'
+  | 'speaker-pip'
+  | 'triple-stack'
+  | 'grid-2x2'
+  | 'greenscreen-bg';
+
+export interface BrollTreatment {
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  tilt?: number;
+  filter?: 'none' | 'grain' | 'vhs' | 'desaturated' | 'duotone';
+  filterIntensity?: number;
+  roughEdges?: boolean;
+}
+
+export interface BrollAttribution {
+  photographer: string;
+  source: 'pexels';
+  url: string;
+}
+
 export interface BrollItemData {
-  sourceType: 'upload' | 'pexels';
   src: string;
+  mediaType: 'image' | 'video';
+  displayMode: BrollDisplayMode;
+  treatment: BrollTreatment;
+  attribution?: BrollAttribution;
+  additionalSrcs?: string[];
+  // Legacy fields (kept for backward compat with existing broll items)
+  sourceType?: 'upload' | 'pexels';
   filename?: string;
   photographer?: string;
   previewUrl?: string;
-  volume: number;
+  volume?: number;
   fileSize?: number;
 }
 
@@ -800,6 +838,7 @@ export interface EditorActions {
   // Caption style actions
   updateCaptionPreset: (updates: Partial<CaptionStyle>) => void;
   updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => void;
+  updateCaptionItemPosition: (captionId: string, position: { x: number; y: number } | null) => void;
   setApplyStyleToAll: (value: boolean) => void;
   setShowCaptions: (value: boolean) => void;
   selectAllCaptionsOnTrack: (trackId: string) => void;
