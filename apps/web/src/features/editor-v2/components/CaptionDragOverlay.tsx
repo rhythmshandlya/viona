@@ -158,20 +158,35 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const [isDragging, setIsDragging] = useState(false);
   const [snapState, setSnapState] = useState<SnapState>({ snappedVertical: null, snappedHorizontal: null });
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  // During move drag: overlay handles/border track this box (computed from drag delta, not DOM)
+  const [dragRenderBox, setDragRenderBox] = useState<BoundingBox | null>(null);
+  // Store the last computed position during move drag so pointer-up can commit it
+  const lastMovePositionRef = useRef<CaptionPosition | null>(null);
+  // Which caption item is being moved (for per-phrase positioning)
+  const draggedCaptionIdRef = useRef<string | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<BoundingBox | null>(null);
 
   // Get the current caption style from the store's captionPreset
   const captionPreset = useEditorStore((s) => s.captionPreset);
+  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
+  const updateCaptionItemPosition = useEditorStore((s) => s.updateCaptionItemPosition);
   const getCaptionStyle = useCallback((): CaptionStyle | null => {
     if (!captionItems.length) return null;
     return captionPreset;
   }, [captionItems, captionPreset]);
 
-  // Caption position, fontSize, and rotation are global properties shared by ALL
-  // captions, so always use the global update path. This also avoids ID mismatches
-  // between the frontend store (DB IDs) and the sandbox manifest (agent-generated IDs).
+  /** Find the caption item visible at the current playhead time */
+  const getVisibleCaptionId = useCallback((): string | null => {
+    const t = useEditorStore.getState().currentTimeMs;
+    for (const item of captionItems) {
+      if (t >= item.startMs && t < item.endMs) return item.id;
+    }
+    return null;
+  }, [captionItems]);
+
+  // Global style updates (fontSize, rotation, width — shared by all captions)
   const updateStyle = useCallback(
     (updates: Partial<CaptionStyle>) => {
       updateCaptionPreset(updates);
@@ -255,6 +270,12 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         startWidth: pos.width ?? 90,
         startPosition: pos,
       };
+
+      // Track which caption phrase is being moved
+      if (mode === 'move') {
+        draggedCaptionIdRef.current = getVisibleCaptionId();
+      }
+
       setIsDragging(true);
       setSnapState({ snappedVertical: null, snappedHorizontal: null });
     },
@@ -334,14 +355,29 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         setSnapState({ snappedVertical: snappedV, snappedHorizontal: snappedH });
         setDragPosition({ x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
 
-        updateStyle({
-          position: {
-            ...startPosition,
-            mode: 'free',
-            x: Math.round(newX * 10) / 10,
-            y: Math.round(newY * 10) / 10,
-          },
+        // Instant visual feedback: move overlay handles to track the pointer
+        setDragRenderBox({
+          left: startBox.left + dx,
+          top: startBox.top + dy,
+          width: startBox.width,
+          height: startBox.height,
         });
+
+        // Instant visual feedback: translate caption elements in the DOM
+        const container2 = containerRef.current;
+        if (container2) {
+          container2.querySelectorAll<HTMLElement>('[data-caption-overlay]').forEach((el) => {
+            el.style.translate = `${dx}px ${dy}px`;
+          });
+        }
+
+        // Store final position for commit on pointer up (not dispatched during drag)
+        lastMovePositionRef.current = {
+          ...startPosition,
+          mode: 'free',
+          x: Math.round(newX * 10) / 10,
+          y: Math.round(newY * 10) / 10,
+        };
       } else if (mode === 'resize-width' && handle) {
         // E/W handles change caption width
         const deltaPercent = (dx / canvasWidth) * 100;
@@ -407,12 +443,39 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       } catch {
         // Pointer already released
       }
+
+      // Commit the final move position
+      if (lastMovePositionRef.current) {
+        const captionId = draggedCaptionIdRef.current;
+        if (captionId) {
+          // Per-phrase position: update this specific caption item
+          const pos = lastMovePositionRef.current;
+          updateCaptionItemPosition(captionId, { x: pos.x ?? 50, y: pos.y ?? 85 });
+        } else {
+          // Fallback: update global preset
+          updateStyle({ position: lastMovePositionRef.current });
+        }
+        lastMovePositionRef.current = null;
+        draggedCaptionIdRef.current = null;
+      }
+
+      // Clear DOM translate after Remotion re-renders at the new position
+      const container = containerRef.current;
+      if (container) {
+        setTimeout(() => {
+          container.querySelectorAll<HTMLElement>('[data-caption-overlay]').forEach((el) => {
+            el.style.translate = '';
+          });
+        }, 600);
+      }
+
       dragRef.current = null;
       setIsDragging(false);
+      setDragRenderBox(null);
       setSnapState({ snappedVertical: null, snappedHorizontal: null });
       setDragPosition(null);
     }
-  }, []);
+  }, [containerRef, updateStyle, updateCaptionItemPosition, getVisibleCaptionId]);
 
   // Sync local isSelected with store — clear when caption deselected externally
   const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
@@ -425,6 +488,10 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   // --- Render ---
 
   if (!box || !showCaptions || captionItems.length === 0) return null;
+
+  // During move drag, use the drag-computed box for instant visual feedback;
+  // otherwise use the DOM-measured box.
+  const renderBox = dragRenderBox ?? box;
 
   const currentStyle = getCaptionStyle();
   const currentPosition = resolvePosition(currentStyle?.position ?? 'bottom');
@@ -484,10 +551,10 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       <div
         style={{
           position: 'absolute',
-          left: box.left - HANDLE_HIT_AREA / 2,
-          top: box.top - ROTATION_HANDLE_DISTANCE - ROTATION_HANDLE_SIZE,
-          width: box.width + HANDLE_HIT_AREA,
-          height: box.height + HANDLE_HIT_AREA / 2 + ROTATION_HANDLE_DISTANCE + ROTATION_HANDLE_SIZE,
+          left: renderBox.left - HANDLE_HIT_AREA / 2,
+          top: renderBox.top - ROTATION_HANDLE_DISTANCE - ROTATION_HANDLE_SIZE,
+          width: renderBox.width + HANDLE_HIT_AREA,
+          height: renderBox.height + HANDLE_HIT_AREA / 2 + ROTATION_HANDLE_DISTANCE + ROTATION_HANDLE_SIZE,
           pointerEvents: 'auto',
           cursor: 'default',
         }}
@@ -500,10 +567,10 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       <div
         style={{
           position: 'absolute',
-          left: box.left,
-          top: box.top,
-          width: box.width,
-          height: box.height,
+          left: renderBox.left,
+          top: renderBox.top,
+          width: renderBox.width,
+          height: renderBox.height,
           border: isActive ? `1.5px solid ${ACCENT_COLOR_ALPHA}` : '1.5px solid transparent',
           cursor: 'move',
           pointerEvents: 'auto',
@@ -525,8 +592,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         <div
           style={{
             position: 'absolute',
-            left: box.left + box.width / 2,
-            top: box.top - 28,
+            left: renderBox.left + renderBox.width / 2,
+            top: renderBox.top - 28,
             transform: 'translateX(-50%)',
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
             color: '#fff',
@@ -546,7 +613,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       {/* Resize handles */}
       {isActive &&
         HANDLE_POSITIONS.map((handle) => {
-          const offset = getHandleOffset(handle, box);
+          const offset = getHandleOffset(handle, renderBox);
           const dragMode = getDragModeForHandle(handle);
           const isWidthHandle = dragMode === 'resize-width';
           const isCorner = handle.length === 2;
@@ -560,8 +627,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
               key={handle}
               style={{
                 position: 'absolute',
-                left: box.left + offset.x - HANDLE_HIT_AREA / 2,
-                top: box.top + offset.y - HANDLE_HIT_AREA / 2,
+                left: renderBox.left + offset.x - HANDLE_HIT_AREA / 2,
+                top: renderBox.top + offset.y - HANDLE_HIT_AREA / 2,
                 width: HANDLE_HIT_AREA,
                 height: HANDLE_HIT_AREA,
                 cursor: isWidthHandle ? 'ew-resize' : getRotatedCursor(handle, currentRotation),
@@ -593,8 +660,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           <div
             style={{
               position: 'absolute',
-              left: box.left + box.width / 2,
-              top: box.top - ROTATION_HANDLE_DISTANCE,
+              left: renderBox.left + renderBox.width / 2,
+              top: renderBox.top - ROTATION_HANDLE_DISTANCE,
               width: 1,
               height: ROTATION_HANDLE_DISTANCE,
               backgroundColor: ACCENT_COLOR_ALPHA,
@@ -604,8 +671,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           <div
             style={{
               position: 'absolute',
-              left: box.left + box.width / 2 - ROTATION_HANDLE_SIZE / 2,
-              top: box.top - ROTATION_HANDLE_DISTANCE - ROTATION_HANDLE_SIZE / 2,
+              left: renderBox.left + renderBox.width / 2 - ROTATION_HANDLE_SIZE / 2,
+              top: renderBox.top - ROTATION_HANDLE_DISTANCE - ROTATION_HANDLE_SIZE / 2,
               width: ROTATION_HANDLE_SIZE,
               height: ROTATION_HANDLE_SIZE,
               backgroundColor: '#ffffff',

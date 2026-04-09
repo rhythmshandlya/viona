@@ -118,6 +118,10 @@ interface KineticLuxeCaptionProps {
   satColor?: string;
   fontPairId?: string;
   offsetY?: number;
+  /** Free position: x/y as percentage of canvas (0-100). Used when user drags caption. */
+  positionX?: number;
+  positionY?: number;
+  positionMode?: string;
   /** @deprecated Use flat props instead */
   config?: { hero?: { fontFamily?: string; color?: string }; satellite?: { fontFamily?: string; color?: string }; position?: { offsetY?: number } };
 }
@@ -495,11 +499,21 @@ export const KineticLuxeCaption: React.FC<KineticLuxeCaptionProps> = React.memo(
 
   const { blocks, clusterW, clusterH } = layout;
 
-  // Caption zone: center the bounding box horizontally and position in lower portion
-  const bottomY = canvasH * (1 - offsetY / 100);
-  const captionZoneCenter = bottomY - (canvasH * 0.06);
-  const boxTop = captionZoneCenter - clusterH / 2;
-  const boxLeft = (canvasW - clusterW) / 2;
+  // Caption zone positioning
+  let boxTop: number;
+  let boxLeft: number;
+
+  if (props.positionMode === 'free' && props.positionX != null && props.positionY != null) {
+    // Free position mode — user dragged the caption. x/y are percentage of canvas.
+    boxLeft = (props.positionX / 100) * canvasW - clusterW / 2;
+    boxTop = (props.positionY / 100) * canvasH - clusterH / 2;
+  } else {
+    // Default: center horizontally, position in lower portion based on offsetY
+    const bottomY = canvasH * (1 - offsetY / 100);
+    const captionZoneCenter = bottomY - (canvasH * 0.06);
+    boxTop = captionZoneCenter - clusterH / 2;
+    boxLeft = (canvasW - clusterW) / 2;
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER — bounding box div wraps all blocks. Blocks use relative coords.

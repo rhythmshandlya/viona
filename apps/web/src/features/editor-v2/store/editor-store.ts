@@ -98,7 +98,7 @@ function mergeSingleWordCaptions(manifestItems: any[], wordsPerPhrase: number): 
  * Rebuild workspaceManifest from current store state so the Remotion player
  * reflects local edits (shape props, transforms, filters, added/removed items).
  */
-const syncWorkspaceManifest = () => {
+export const syncWorkspaceManifest = () => {
   const state = useEditorStore.getState();
   if (!state.project) return;
 
@@ -1328,6 +1328,21 @@ export const useEditorStore = create<EditorStore>()(
 
           word.styleOverrides = Object.keys(cleaned).length > 0 ? cleaned : undefined;
         }
+      });
+      get().pushHistory();
+      syncWorkspaceManifest();
+      const updatedItem = get().items[captionId];
+      if (updatedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: updatedItem.data } }]);
+      }
+    },
+
+    updateCaptionItemPosition: (captionId: string, position: { x: number; y: number } | null) => {
+      set((state) => {
+        const item = state.items[captionId];
+        if (!item || item.type !== 'caption') return;
+        const data = item.data as CaptionItemData;
+        data.positionOverride = position ?? undefined;
       });
       get().pushHistory();
       syncWorkspaceManifest();

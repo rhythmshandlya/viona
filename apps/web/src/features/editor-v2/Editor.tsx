@@ -347,22 +347,17 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-switch to Style tab when a single item is selected
+  // Auto-switch to Style tab only when a caption is selected
   useEffect(() => {
     if (selectedIds.length === 1) {
       const state = useEditorStore.getState();
       const item = state.items[selectedIds[0]];
-      if (item && item.type !== 'visual' && item.type !== 'scene') {
-        // For captions, always open sidebar and switch to Style tab
-        if (item.type === 'caption') {
-          setLeftSidebarOpen(true);
-          setLeftSidebarTab('style');
-        } else if (leftSidebarOpen) {
-          setLeftSidebarTab('style');
-        }
+      if (item?.type === 'caption') {
+        setLeftSidebarOpen(true);
+        setLeftSidebarTab('style');
       }
     }
-  }, [selectedIds, leftSidebarOpen]);
+  }, [selectedIds]);
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {

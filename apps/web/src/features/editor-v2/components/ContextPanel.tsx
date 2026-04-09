@@ -242,10 +242,9 @@ function CaptionStylePanel() {
           value={typeof style.position === 'object' ? style.position.anchor : style.position}
           onChange={(value) => {
             const anchor = value as 'top' | 'center' | 'bottom';
-            // If current position is already an object, update just the anchor
-            // Otherwise create a new position object
+            // Reset to anchor mode (clears free mode set by drag overlay)
             if (typeof style.position === 'object') {
-              updateStyle({ position: { ...style.position, anchor } });
+              updateStyle({ position: { ...style.position, anchor, mode: 'anchor', x: undefined, y: undefined } });
             } else {
               updateStyle({ position: { anchor, offsetX: 0, offsetY: 0, rotation: 0, textAlign: 'center' } });
             }
