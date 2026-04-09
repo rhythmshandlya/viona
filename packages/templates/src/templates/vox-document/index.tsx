@@ -45,7 +45,6 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
   focusText,
   highlights,
   zoomLevel: zoomOverride,
-  renderScale,
   source,
 }) => {
   const frame = useCurrentFrame();
@@ -166,7 +165,7 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
                 src={pdfFile}
                 pageNumber={page}
                 width={paperW}
-                renderScale={renderScale}
+                renderScale={1}
               />
             </div>
 

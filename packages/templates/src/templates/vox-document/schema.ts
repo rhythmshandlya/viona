@@ -13,10 +13,8 @@ export const schema = z.object({
   highlights: z.array(z.string()).default([
     'Nemotron 3 Super: Open, Efficient Mixture-of-Experts Hybrid Mamba-Transformer Model for Agentic Reasoning',
   ]),
-  /** Override zoom level (defaults per mode: overview=1, zoom=1.6, figure=2.2, paragraph=1.5) */
+  /** Override zoom level (defaults per mode: overview=1, zoom=1.3, figure=1.6, paragraph=1.25) */
   zoomLevel: z.number().min(1).max(4).optional(),
-  /** PDF canvas resolution multiplier */
-  renderScale: z.number().min(1).max(4).default(2),
   /** Source citation badge */
   source: z.string().optional().default('NVIDIA Nemotron Technical Report, 2024'),
 });
