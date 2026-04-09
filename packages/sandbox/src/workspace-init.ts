@@ -441,7 +441,7 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
           await writeFile(join(guidelinesDir, 'theme.md'), designSystem);
 
           // Copy theme DNA files if they exist for this theme
-          const dnaFileNames = ['planner-dna.md', 'animator-dna.md', 'caption-dna.md', 'anti-patterns.md'];
+          const dnaFileNames = ['planner-dna.md', 'animator-dna.md', 'caption-dna.md', 'anti-patterns.md', 'broll-dna.md'];
           for (const dnaFile of dnaFileNames) {
             const dnaSrc = join(themesSrc, config.family, dnaFile);
             try {
