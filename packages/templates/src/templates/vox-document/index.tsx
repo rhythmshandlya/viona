@@ -104,12 +104,8 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
       })
     : targetZoom;
 
-  // Camera pan to focus region
-  const panX = timing.zoomEnd > timing.zoomStart
-    ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [0, W / 2 - focusCenterX], {
-        extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
-      })
-    : 0;
+  // Camera pan — vertical only, keep paper horizontally centered
+  const panX = 0;
   const panY = timing.zoomEnd > timing.zoomStart
     ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [0, H / 2 - focusCenterY], {
         extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
