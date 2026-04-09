@@ -16,31 +16,8 @@ registerTemplate({
     const dir = path.dirname(new URL(import.meta.url).pathname);
     const voxDir = path.join(dir, '../../vox');
 
-    const ownFileNames = [
-      'meta.json',
-      'metadata.json',
-      'schema.ts',
-      'constants.ts',
-      'index.tsx',
-      'register.ts',
-      'components/MapTileGrid.tsx',
-      'components/CountryOverlay.tsx',
-      'components/CountryLabel.tsx',
-      'components/CityMarker.tsx',
-      'lib/tile-math.ts',
-      'lib/camera.ts',
-      'lib/geo-utils.ts',
-      'data/countries.ts',
-    ];
-
-    const sharedFileNames = [
-      'constants.ts',
-      'textures.tsx',
-      'effects.tsx',
-      'typography.tsx',
-      'animations.ts',
-      'decorations.tsx',
-    ];
+    const ownFileNames = ['meta.json', 'metadata.json', 'schema.ts', 'index.tsx', 'register.ts'];
+    const sharedFileNames = ['constants.ts', 'textures.tsx', 'effects.tsx', 'typography.tsx', 'animations.ts', 'decorations.tsx'];
 
     const ownFiles = ownFileNames.map((f) => ({
       path: f,

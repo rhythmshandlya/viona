@@ -1330,6 +1330,42 @@
         "aspectRatio": "9:16",
         "estimatedDuration": "6s"
       }
+    },
+    {
+      "name": "vox-agenda",
+      "type": "registry:component",
+      "description": "Table of contents / section navigation card with yellow-highlighted active item and faded inactive items — for video chapters, topic lists, and navigation overlays",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "agenda", "contents", "navigation"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "vox-newscard",
+      "type": "registry:component",
+      "description": "Breaking news / headline card with source attribution, massive bold headline with yellow highlight, and excerpt — for news stories, announcements, and document references",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "text", "news", "headline", "source", "breaking"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "vox-document",
+      "type": "registry:component",
+      "description": "Legal document close-up with camera zoom, yellow highlights on key passages, and aged paper texture — for citing sources, constitutional text, government documents, and legal analysis",
+      "categories": ["overlay"],
+      "tags": ["vox-theme", "overlay", "narrative", "document", "legal", "source", "highlight", "evidence"],
+      "meta": {
+        "stylePreset": "voxDocumentary",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
     }
   ]
 }

@@ -110,3 +110,6 @@ import './templates/vox-areachart/register';
 import './templates/vox-donut/register';
 import './templates/vox-diverging/register';
 import './templates/vox-treemap/register';
+import './templates/vox-agenda/register';
+import './templates/vox-newscard/register';
+import './templates/vox-document/register';

@@ -20,17 +20,8 @@ registerTemplate({
       'meta.json',
       'metadata.json',
       'schema.ts',
-      'constants.ts',
       'index.tsx',
       'register.ts',
-      'components/MapTileGrid.tsx',
-      'components/CountryOverlay.tsx',
-      'components/CountryLabel.tsx',
-      'components/CityMarker.tsx',
-      'lib/tile-math.ts',
-      'lib/camera.ts',
-      'lib/geo-utils.ts',
-      'data/countries.ts',
     ];
 
     const sharedFileNames = [
