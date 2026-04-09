@@ -29,8 +29,7 @@ const VoxGrid: React.FC<{ width: number; height: number; s: (px: number) => numb
   );
 };
 
-// ── Mode-specific timing constants ───────────────────────────────────
-// fillAmount: 0 = paper at minimum size (lots of background), 1 = paper fills viewport width
+// fillAmount: 0 = paper at 75% width, 1 = paper at 98% width
 const MODE_DEFAULTS = {
   overview:  { fillAmount: 0,   zoomStart: 0,  zoomEnd: 0,   hlStart: 20, groupStagger: 10, lineStagger: 3 },
   zoom:      { fillAmount: 0.6, zoomStart: 25, zoomEnd: 80,  hlStart: 85, groupStagger: 10, lineStagger: 3 },
@@ -38,7 +37,9 @@ const MODE_DEFAULTS = {
   paragraph: { fillAmount: 0.5, zoomStart: 20, zoomEnd: 65,  hlStart: 70, groupStagger: 10, lineStagger: 8 },
 } as const;
 
-// ── Main component ───────────────────────────────────────────────────
+const MIN_FILL = 0.75;
+const MAX_FILL = 0.98;
+
 const VoxDocument: React.FC<VoxDocumentProps> = ({
   pdfFile,
   page,
@@ -53,76 +54,46 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
   const s = useScale();
   const textMap = usePdfTextMap(pdfFile, page);
 
-  // ── Resolve mode timing ──
   const timing = MODE_DEFAULTS[mode];
   const fillAmount = zoomOverride != null
-    ? Math.min(Math.max((zoomOverride - 1) / 0.5, 0), 1) // map zoomLevel 1-1.5 → fillAmount 0-1
+    ? Math.min(Math.max((zoomOverride - 1) / 0.5, 0), 1)
     : timing.fillAmount;
 
-  // ── Paper dimensions — fit full page within viewport ──
-  // fillAmount 0 = 75% width (lots of background), fillAmount 1 = 98% width (minimal background)
+  // ── Paper: render at FIXED size (target fill), never changes per-frame ──
   const pageRatio = textMap.pageRatio;
-  const minFill = 0.75;
-  const maxFill = 0.98;
-  const baseFraction = minFill + fillAmount * (maxFill - minFill);
-
-  let paperW = W * baseFraction;
+  const targetFraction = MIN_FILL + fillAmount * (MAX_FILL - MIN_FILL);
+  let paperW = W * targetFraction;
   let paperH = paperW * pageRatio;
-  // Constrain by height so full page is always visible
-  const maxH = H * 0.95;
-  if (paperH > maxH) {
-    paperH = maxH;
+  if (paperH > H * 0.95) {
+    paperH = H * 0.95;
     paperW = paperH / pageRatio;
   }
   const paperX = (W - paperW) / 2;
   const paperY = (H - paperH) / 2;
 
-  // ── Find focus region from text ──
+  // ── CSS scale animation: start small (overview), grow to 1.0 (target) ──
+  const startScale = (() => {
+    if (timing.zoomEnd <= timing.zoomStart) return 1; // overview: no animation
+    const overviewW = W * MIN_FILL;
+    let ow = overviewW;
+    let oh = ow * pageRatio;
+    if (oh > H * 0.95) { oh = H * 0.95; ow = oh / pageRatio; }
+    return ow / paperW; // ratio of overview size to target size (< 1)
+  })();
+
+  const cssScale = timing.zoomEnd > timing.zoomStart
+    ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [startScale, 1], {
+        extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
+      })
+    : 1;
+
+  // ── Focus region for vertical pan ──
   const focusBounds = focusText ? textMap.findBounds(focusText) : null;
-  const focusCenterX = focusBounds
-    ? paperX + ((focusBounds.x + focusBounds.w / 2) / 100) * paperW
-    : W / 2;
   const focusCenterY = focusBounds
     ? paperY + ((focusBounds.y + focusBounds.h / 2) / 100) * paperH
     : H / 2;
 
-  // ── Find highlight regions from text ──
-  const highlightGroups = textMap.ready
-    ? (highlights || []).map((q) => textMap.findText(q))
-    : [];
-
-  // ── Animation phases ──
-  const exitStart = durationInFrames - 25;
-
-  const fadeIn = interpolate(frame, [0, 20], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
-  });
-  const fadeOut = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseIn,
-  });
-
-  // Camera zoom — animate paper from overview size to target fill size
-  // This is a scale factor applied to the paper container (1.0 = overview size, >1.0 = fills more)
-  const zoomScale = (() => {
-    if (timing.zoomEnd <= timing.zoomStart) return 1; // no animation (overview)
-    // Ratio between target paper size and overview paper size
-    const overviewW = W * minFill;
-    const targetW = paperW;
-    const scaleTarget = targetW / overviewW;
-    return interpolate(frame, [timing.zoomStart, timing.zoomEnd], [1, scaleTarget], {
-      extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
-    });
-  })();
-
-  // Effective paper dimensions during animation
-  const overviewPaperW = W * minFill;
-  const overviewPaperH = overviewPaperW * pageRatio;
-  const animPaperW = overviewPaperW * zoomScale;
-  const animPaperH = overviewPaperH * zoomScale;
-  const animPaperX = (W - animPaperW) / 2;
-  const animPaperY = (H - animPaperH) / 2;
-
-  // Camera pan — vertical only, shift focus region toward viewport center
+  // Vertical pan to focus region
   const panY = timing.zoomEnd > timing.zoomStart
     ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [0, H / 2 - focusCenterY], {
         extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
@@ -137,6 +108,20 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
+  // ── Highlight groups ──
+  const highlightGroups = textMap.ready
+    ? (highlights || []).map((q) => textMap.findText(q))
+    : [];
+
+  // ── Fade ──
+  const exitStart = durationInFrames - 25;
+  const fadeIn = interpolate(frame, [0, 20], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
+  });
+  const fadeOut = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseIn,
+  });
+
   return (
     <AbsoluteFill style={{ backgroundColor: VOX_COLORS.warmBlack, overflow: 'hidden' }}>
       {/* Background grid */}
@@ -144,56 +129,51 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
         <VoxGrid width={W} height={H} s={s} />
       </div>
 
-      {/* Camera container */}
+      {/* Paper + camera */}
       <div style={{
-        position: 'absolute', width: W, height: H,
-        transform: `translate(0px, ${panY + driftY}px)`,
+        position: 'absolute', inset: 0,
+        transform: `translate(0px, ${panY + driftY}px) scale(${cssScale})`,
+        transformOrigin: `${W / 2}px ${H / 2}px`,
         opacity: fadeIn * fadeOut,
       }}>
+        {/* Paper container — fixed size, never re-renders */}
         <div style={{
-          position: 'absolute', width: W, height: H,
+          position: 'absolute',
+          left: paperX, top: paperY,
+          width: paperW, height: paperH,
+          borderRadius: s(4),
+          overflow: 'hidden',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
         }}>
-          {/* Paper — size animates from overview to target fill */}
-          <div style={{
-            position: 'absolute',
-            left: animPaperX, top: animPaperY,
-            width: animPaperW, height: animPaperH,
-            transform: 'rotate(0deg)',
-            transformOrigin: 'center center',
-            borderRadius: s(4),
-            overflow: 'hidden',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
-          }}>
-            {/* Aged paper texture */}
-            <div style={{ position: 'absolute', inset: 0, backgroundColor: '#F5F0E8' }}>
-              <ConstructionPaper color="#EDE8DC" opacity={0.5} seed={3} />
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'radial-gradient(ellipse at center, transparent 50%, rgba(160,130,90,0.15) 100%)',
-                pointerEvents: 'none',
-              }} />
-            </div>
+          {/* Aged paper texture */}
+          <div style={{ position: 'absolute', inset: 0, backgroundColor: '#F5F0E8' }}>
+            <ConstructionPaper color="#EDE8DC" opacity={0.5} seed={3} />
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'radial-gradient(ellipse at center, transparent 50%, rgba(160,130,90,0.15) 100%)',
+              pointerEvents: 'none',
+            }} />
+          </div>
 
-            {/* PDF canvas */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-              <PdfPage
-                src={pdfFile}
-                pageNumber={page}
-                width={animPaperW}
-                renderScale={1}
-              />
-            </div>
-
-            {/* Highlights */}
-            <HighlightLayer
-              highlightGroups={highlightGroups}
-              startFrame={timing.hlStart}
-              groupStagger={timing.groupStagger}
-              lineStagger={timing.lineStagger}
-              paperWidth={animPaperW}
-              paperHeight={animPaperH}
+          {/* PDF canvas — fixed width, rendered once */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+            <PdfPage
+              src={pdfFile}
+              pageNumber={page}
+              width={paperW}
+              renderScale={1}
             />
           </div>
+
+          {/* Highlights */}
+          <HighlightLayer
+            highlightGroups={highlightGroups}
+            startFrame={timing.hlStart}
+            groupStagger={timing.groupStagger}
+            lineStagger={timing.lineStagger}
+            paperWidth={paperW}
+            paperHeight={paperH}
+          />
         </div>
       </div>
 
