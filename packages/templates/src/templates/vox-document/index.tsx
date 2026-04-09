@@ -30,11 +30,12 @@ const VoxGrid: React.FC<{ width: number; height: number; s: (px: number) => numb
 };
 
 // ── Mode-specific timing constants ───────────────────────────────────
+// fillAmount: 0 = paper at minimum size (lots of background), 1 = paper fills viewport width
 const MODE_DEFAULTS = {
-  overview:  { zoom: 1.0, zoomStart: 0,  zoomEnd: 0,   hlStart: 20, groupStagger: 10, lineStagger: 3 },
-  zoom:      { zoom: 1.3, zoomStart: 25, zoomEnd: 80,  hlStart: 85, groupStagger: 10, lineStagger: 3 },
-  figure:    { zoom: 1.6, zoomStart: 20, zoomEnd: 70,  hlStart: 999, groupStagger: 0, lineStagger: 0 },
-  paragraph: { zoom: 1.25, zoomStart: 20, zoomEnd: 65, hlStart: 70, groupStagger: 10, lineStagger: 8 },
+  overview:  { fillAmount: 0,   zoomStart: 0,  zoomEnd: 0,   hlStart: 20, groupStagger: 10, lineStagger: 3 },
+  zoom:      { fillAmount: 0.6, zoomStart: 25, zoomEnd: 80,  hlStart: 85, groupStagger: 10, lineStagger: 3 },
+  figure:    { fillAmount: 0.8, zoomStart: 20, zoomEnd: 70,  hlStart: 999, groupStagger: 0, lineStagger: 0 },
+  paragraph: { fillAmount: 0.5, zoomStart: 20, zoomEnd: 65,  hlStart: 70, groupStagger: 10, lineStagger: 8 },
 } as const;
 
 // ── Main component ───────────────────────────────────────────────────
@@ -54,24 +55,27 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
 
   // ── Resolve mode timing ──
   const timing = MODE_DEFAULTS[mode];
+  const fillAmount = zoomOverride != null
+    ? Math.min(Math.max((zoomOverride - 1) / 0.5, 0), 1) // map zoomLevel 1-1.5 → fillAmount 0-1
+    : timing.fillAmount;
 
   // ── Paper dimensions — fit full page within viewport ──
-  const pageRatio = textMap.pageRatio; // height / width (e.g. 1.414 for A4)
-  const maxW = W * 0.85;
-  const maxH = H * 0.9;
-  // Scale to fit: if paper at maxW would be taller than maxH, constrain by height
-  let paperW = maxW;
+  // fillAmount 0 = 75% width (lots of background), fillAmount 1 = 98% width (minimal background)
+  const pageRatio = textMap.pageRatio;
+  const minFill = 0.75;
+  const maxFill = 0.98;
+  const baseFraction = minFill + fillAmount * (maxFill - minFill);
+
+  let paperW = W * baseFraction;
   let paperH = paperW * pageRatio;
+  // Constrain by height so full page is always visible
+  const maxH = H * 0.95;
   if (paperH > maxH) {
     paperH = maxH;
     paperW = paperH / pageRatio;
   }
   const paperX = (W - paperW) / 2;
   const paperY = (H - paperH) / 2;
-
-  // ── Zoom guardrail: never zoom past paper width = viewport width ──
-  const maxZoom = W / paperW;
-  const targetZoom = Math.min(zoomOverride ?? timing.zoom, maxZoom);
 
   // ── Find focus region from text ──
   const focusBounds = focusText ? textMap.findBounds(focusText) : null;
@@ -97,26 +101,39 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseIn,
   });
 
-  // Camera zoom
-  const zoom = timing.zoomEnd > timing.zoomStart
-    ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [1, targetZoom], {
-        extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
-      })
-    : targetZoom;
+  // Camera zoom — animate paper from overview size to target fill size
+  // This is a scale factor applied to the paper container (1.0 = overview size, >1.0 = fills more)
+  const zoomScale = (() => {
+    if (timing.zoomEnd <= timing.zoomStart) return 1; // no animation (overview)
+    // Ratio between target paper size and overview paper size
+    const overviewW = W * minFill;
+    const targetW = paperW;
+    const scaleTarget = targetW / overviewW;
+    return interpolate(frame, [timing.zoomStart, timing.zoomEnd], [1, scaleTarget], {
+      extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
+    });
+  })();
 
-  // Camera pan — vertical only, keep paper horizontally centered
-  const panX = 0;
+  // Effective paper dimensions during animation
+  const overviewPaperW = W * minFill;
+  const overviewPaperH = overviewPaperW * pageRatio;
+  const animPaperW = overviewPaperW * zoomScale;
+  const animPaperH = overviewPaperH * zoomScale;
+  const animPaperX = (W - animPaperW) / 2;
+  const animPaperY = (H - animPaperH) / 2;
+
+  // Camera pan — vertical only, shift focus region toward viewport center
   const panY = timing.zoomEnd > timing.zoomStart
     ? interpolate(frame, [timing.zoomStart, timing.zoomEnd], [0, H / 2 - focusCenterY], {
         extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: voxEaseOut,
       })
     : 0;
 
-  // Ken Burns drift (disabled for overview — static full page)
+  // Ken Burns drift (disabled for overview)
   const driftY = mode === 'overview' ? 0 : interpolate(
     frame,
     [timing.zoomEnd > 0 ? timing.zoomEnd : 40, durationInFrames - 30],
-    [0, -s(12)],
+    [0, -s(8)],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
@@ -127,21 +144,20 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
         <VoxGrid width={W} height={H} s={s} />
       </div>
 
-      {/* Camera container — single transform: translate to center focus, then scale from center */}
+      {/* Camera container */}
       <div style={{
         position: 'absolute', width: W, height: H,
-        transform: `scale(${zoom}) translate(${panX}px, ${panY + driftY}px)`,
-        transformOrigin: `${W / 2}px ${H / 2}px`,
+        transform: `translate(0px, ${panY + driftY}px)`,
         opacity: fadeIn * fadeOut,
       }}>
         <div style={{
           position: 'absolute', width: W, height: H,
         }}>
-          {/* Paper */}
+          {/* Paper — size animates from overview to target fill */}
           <div style={{
             position: 'absolute',
-            left: paperX, top: paperY,
-            width: paperW, height: paperH,
+            left: animPaperX, top: animPaperY,
+            width: animPaperW, height: animPaperH,
             transform: 'rotate(0deg)',
             transformOrigin: 'center center',
             borderRadius: s(4),
@@ -163,7 +179,7 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
               <PdfPage
                 src={pdfFile}
                 pageNumber={page}
-                width={paperW}
+                width={animPaperW}
                 renderScale={1}
               />
             </div>
@@ -174,8 +190,8 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
               startFrame={timing.hlStart}
               groupStagger={timing.groupStagger}
               lineStagger={timing.lineStagger}
-              paperWidth={paperW}
-              paperHeight={paperH}
+              paperWidth={animPaperW}
+              paperHeight={animPaperH}
             />
           </div>
         </div>
