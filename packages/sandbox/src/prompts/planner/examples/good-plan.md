@@ -15,6 +15,7 @@
 **Time:** 0 – 10000
 **Transcript:** "seventy-three percent of people who start a fitness routine quit within the first three months and it's not because they're lazy it's because they're making three critical mistakes"
 **Display mode:** Overlay
+**Visual mode:** animation
 **Template:** explainer-stats
 **Fork reason:** big number count-up (73%) with visual emphasis — adapt thermometer metaphor using stats layout and count-up animation
 
@@ -57,6 +58,7 @@ Large "73%" counter (behind-speaker, full-behind) EMERGES BEHIND the speaker fro
 **Time:** 10000 – 24000
 **Transcript:** "mistake number one is ignoring progressive overload your body adapts fast if you're doing the same weight the same reps week after week your muscles have zero reason to grow you need to increase weight or reps by just two to five percent every single week"
 **Display mode:** Stacked [50/50]
+**Visual mode:** animation
 **Template:** explainer-cause-effect
 **Fork reason:** plateau vs growth is a cause-effect relationship — adapt two-panel layout for staircase metaphor
 
@@ -93,11 +95,49 @@ A staircase that should be climbing but flatlines — each step represents a wee
 
 ---
 
-## Scene 3: Mistake #2 — Skipping Recovery
-**File:** Scene3.tsx
-**Time:** 24000 – 38000
+## Scene 3: Real-World Impact
+**File:** (none — broll)
+**Time:** 24000 – 34000ms
+**Transcript:** "and you can see it everywhere — in gyms, in meal prep kitchens, in supplement stores"
+**Display mode:** Fullscreen
+**Visual mode:** broll
+
+### Speaker layout
+- Speaker: "opacity: 0" (fullscreen)
+
+### Scene dimensions
+- Width: 1080 Height: 1920
+
+### Scene placement
+- Placement: full-canvas
+
+### Transition IN
+- From: Stacked
+- Transition: Stacked → Fullscreen
+
+### Transition OUT
+- To: Overlay
+- Transition: Fullscreen → Overlay
+
+### B-roll search
+1. "gym workout fitness equipment close up"
+2. "meal prep kitchen cooking healthy food"
+3. "supplement store shelves protein"
+
+### B-roll display
+fullscreen-cutaway
+
+### B-roll treatment
+filter: grain, filterIntensity: 0.25
+
+---
+
+## Scene 4: Mistake #2 — Skipping Recovery
+**File:** Scene4.tsx
+**Time:** 34000 – 48000
 **Transcript:** "mistake number two is skipping recovery most people think more gym time equals more results but your muscles don't grow in the gym they grow while you rest if you're training seven days a week you're actually breaking down faster than you can rebuild and that leads to injury burnout and zero progress"
 **Display mode:** Fullscreen
+**Visual mode:** animation
 **Template:** explainer-comparison
 **Fork reason:** two-state battery comparison (overtraining vs recovery) maps to side-by-side comparison columns
 
@@ -134,11 +174,12 @@ Battery scales in as the speaker says "skipping recovery." It splits into two wh
 
 ---
 
-## Scene 4: Mistake #3 — No Nutrition Plan
-**File:** Scene4.tsx
-**Time:** 38000 – 50000
+## Scene 5: Mistake #3 — No Nutrition Plan
+**File:** Scene5.tsx
+**Time:** 48000 – 60000
 **Transcript:** "and mistake number three is having no nutrition plan you can train perfectly but if you're not eating enough protein your body can't repair the research is clear you need point seven to one gram of protein per pound of body weight every single day that's non-negotiable"
 **Display mode:** Overlay
+**Visual mode:** animation
 **Template:** explainer-stats
 **Fork reason:** protein target is a big number (0.7-1.0g/lb) — adapt gauge visual using stats count-up animation
 
@@ -176,11 +217,12 @@ Gauge arc (in-front-of-speaker, lower-third) scales in as the speaker says "no n
 
 ---
 
-## Scene 5: The Fix — Weekly Framework
-**File:** Scene5.tsx
-**Time:** 50000 – 60000
+## Scene 6: The Fix — Weekly Framework
+**File:** Scene6.tsx
+**Time:** 60000 – 70000
 **Transcript:** "here's what actually works train four days recover three days hit your protein target daily and increase your weights by two to five percent each week do that consistently for twelve weeks and you'll see more results than most people get in a year"
 **Display mode:** Stacked [55/45]
+**Visual mode:** animation
 **Template:** explainer-timeline
 **Fork reason:** 12-week framework is a chronological sequence — adapt timeline nodes for weekly markers
 
@@ -218,11 +260,12 @@ Timeline bar starts growing as the speaker says "here's what actually works." Wh
 
 ---
 
-## Scene 6: Closing — Commit Today
-**File:** Scene6.tsx
-**Time:** 60000 – 68000
+## Scene 7: Closing — Commit Today
+**File:** Scene7.tsx
+**Time:** 70000 – 78000
 **Transcript:** "so stop making these three mistakes start with progressive overload prioritize recovery fix your nutrition and I promise you the results will come faster than you ever expected"
 **Display mode:** Overlay
+**Visual mode:** animation
 **Template:** none
 **Fork reason:** —
 

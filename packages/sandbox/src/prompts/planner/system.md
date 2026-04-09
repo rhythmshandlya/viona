@@ -162,8 +162,33 @@ Every scene in SCENE_PLAN.md must use this EXACT format. Every field is REQUIRED
 **Time:** startMs – endMs
 **Transcript:** "exact words from this segment — copied verbatim, no paraphrasing"
 **Display mode:** Fullscreen | Stacked [top%/bottom%] | Overlay
+**Visual mode:** animation | broll | hybrid
 **Template:** [slug from registry] | none
 **Fork reason:** [why this template fits — only if template is not "none"]
+
+#### If Visual mode is `broll`:
+
+Replace Template, Fork reason, Visual concept, Key data, Must show, and Animation brief with:
+
+### B-roll search
+[1-3 Pexels search queries ranked by priority. Be specific and descriptive — "1990s Tokyo subway crowd" not "city people".]
+
+### B-roll display
+[One of: fullscreen-cutaway | letterboxed | letterboxed-captions | rounded-float | polaroid | film-treatment | stacked-50 | stacked-70 | speaker-pip | triple-stack | grid-2x2 | greenscreen-bg]
+
+### B-roll treatment
+[Styling: border color/width, frame tilt, filter type (grain/vhs/desaturated/duotone), rough edges.
+ Leave empty for theme defaults.]
+
+#### If Visual mode is `hybrid`:
+
+Keep Template, Visual concept, Animation brief as normal. Additionally add:
+
+### B-roll search
+[1-3 Pexels search queries for the assets the template needs]
+
+### Asset count
+[How many images/videos — e.g., "4 images" for a collage, "1 image" for spotlight]
 
 ### Speaker layout
 - Speaker: "full size" (overlay) | "bottom [X]%" (stacked) | "opacity: 0" (fullscreen)
@@ -239,6 +264,20 @@ Choose the preset that fits the content density:
 - **Light content** (quotes, single stats, CTAs) → `overlay-compact`
 
 For Stacked and Fullscreen: placement is always `top-half` or `full-canvas` (determined by display mode). Only use presets for Overlay scenes.
+
+### Choosing Visual Mode
+
+**Can this concept be beautifully represented with animation?**
+
+| Content type | Visual mode | Why |
+|---|---|---|
+| Abstract concepts, data viz, processes, metaphors | `animation` | Better as generated motion graphics |
+| Concrete real-world subjects (places, objects, people) | `broll` | Better shown as real footage |
+| Evidence/archival that needs annotation or arrangement | `hybrid` | Photo inside a template (collage, spotlight, filmstrip) |
+
+When in doubt, prefer animation. B-roll is for moments where real-world footage genuinely adds credibility or visual grounding that animation cannot provide.
+
+For broll scenes, the **File** field should be "(none — broll)" since no .tsx skeleton is created.
 </per_scene_schema>
 
 <creative_ambition>
@@ -337,6 +376,13 @@ All boxes must be checked before submitting:
 - [ ] **Face avoidance:** No element targets the speaker's face zone — no front elements overlapping speaker's body
 - [ ] **Scene splitting:** Only scenes that genuinely need readable content on BOTH layers are marked for splitting (rare)
 - [ ] **Punch-ins:** 1-2 total across the entire video, not per scene. Most scenes have zero.
+- [ ] Every scene has a **Visual mode** field (animation, broll, or hybrid)
+- [ ] Every broll scene has **B-roll search**, **B-roll display**, and **B-roll treatment** (no Template/Animation brief)
+- [ ] Every hybrid scene has **B-roll search**, **Asset count**, AND a Template + Animation brief
+- [ ] B-roll search queries are specific and descriptive (not generic like "city" or "people")
+- [ ] No broll scene uses overlay placement vocabulary (overlay-large, center-card, etc.)
+- [ ] Visual mode choices follow decision logic: abstract → animation, concrete → broll
+- [ ] B-roll display modes match the scene's display mode (stacked broll uses stacked-50/70)
 </plan_structure>
 
 <display_mode_planning>
