@@ -14,10 +14,8 @@ export const schema = z.object({
     '120 billion parameter hybrid Mamba-Attention Mixture-of-Experts model',
     'comparable accuracy on common benchmarks',
   ]),
-  /** Override zoom level (defaults per mode: overview=1, zoom=2.2, figure=2.8, paragraph=2) */
+  /** Override zoom level (defaults per mode: overview=1, zoom=1.6, figure=2.2, paragraph=1.5) */
   zoomLevel: z.number().min(1).max(4).optional(),
-  /** Paper tilt in degrees */
-  tilt: z.number().default(1.2),
   /** PDF canvas resolution multiplier */
   renderScale: z.number().min(1).max(4).default(2),
   /** Source citation badge */
