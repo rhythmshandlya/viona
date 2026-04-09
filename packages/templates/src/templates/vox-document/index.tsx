@@ -32,9 +32,9 @@ const VoxGrid: React.FC<{ width: number; height: number; s: (px: number) => numb
 // ── Mode-specific timing constants ───────────────────────────────────
 const MODE_DEFAULTS = {
   overview:  { zoom: 1.0, zoomStart: 0,  zoomEnd: 0,   hlStart: 20, groupStagger: 10, lineStagger: 3 },
-  zoom:      { zoom: 1.6, zoomStart: 25, zoomEnd: 80,  hlStart: 85, groupStagger: 10, lineStagger: 3 },
-  figure:    { zoom: 2.2, zoomStart: 20, zoomEnd: 70,  hlStart: 999, groupStagger: 0, lineStagger: 0 },
-  paragraph: { zoom: 1.5, zoomStart: 20, zoomEnd: 65,  hlStart: 70, groupStagger: 10, lineStagger: 8 },
+  zoom:      { zoom: 1.3, zoomStart: 25, zoomEnd: 80,  hlStart: 85, groupStagger: 10, lineStagger: 3 },
+  figure:    { zoom: 1.6, zoomStart: 20, zoomEnd: 70,  hlStart: 999, groupStagger: 0, lineStagger: 0 },
+  paragraph: { zoom: 1.25, zoomStart: 20, zoomEnd: 65, hlStart: 70, groupStagger: 10, lineStagger: 8 },
 } as const;
 
 // ── Main component ───────────────────────────────────────────────────
