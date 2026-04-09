@@ -43,24 +43,28 @@ export const HighlightLayer: React.FC<HighlightLayerProps> = ({
           const width = (bbox.w / 100) * paperWidth;
           const height = (bbox.h / 100) * paperHeight;
 
+          // PDF getTextContent Y is baseline — shift up by full height so highlight
+          // covers the text line, not the space below it
+          const markH = height * 1.4;
+
           return (
             <div
               key={`${groupIdx}-${lineIdx}`}
               style={{
                 position: 'absolute',
                 left,
-                top: top - height * 0.15,
+                top: top - markH,
                 width,
-                height: height * 1.3,
+                height: markH,
               }}
             >
               <HighlighterMark
                 widthPercent={sweep.widthPercent}
-                height={height * 1.3}
+                height={markH}
                 rotation={0.4 + groupIdx * 0.15}
                 yOffset={0}
                 color={VOX_COLORS.highlight}
-                opacity={0.85}
+                opacity={0.35}
               />
             </div>
           );
