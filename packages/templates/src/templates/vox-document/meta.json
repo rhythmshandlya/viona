@@ -1,7 +1,7 @@
 {
   "slug": "vox-document",
   "name": "Vox Document",
-  "description": "Renders a real PDF page with camera zoom/pan into specific sections and animated yellow highlight sweeps — for citing research papers, legal documents, reports, and source material",
+  "description": "Renders a real PDF page with cinematic camera zoom/pan and animated yellow highlight sweeps matched by text — for citing research papers, legal documents, reports, and source material",
   "category": "overlay",
   "tags": ["vox-theme", "overlay", "narrative", "document", "pdf", "research", "legal", "source", "highlight", "evidence", "paper"],
   "stylePreset": "voxDocumentary",

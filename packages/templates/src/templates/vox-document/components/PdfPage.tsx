@@ -1,11 +1,19 @@
 import React, { useState, useCallback } from 'react';
-import { delayRender, continueRender, cancelRender, staticFile } from 'remotion';
 import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/Page/TextLayer.css';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
 
-// Configure PDF.js worker from CDN (avoids webpack bundling issues)
+// Configure PDF.js worker from CDN
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+// Remotion's delayRender/continueRender — import safely for non-Remotion envs
+let delayRender: (label: string) => number = () => 0;
+let continueRender: (handle: number) => void = () => {};
+let cancelRender: (err: Error) => void = () => {};
+try {
+  const remotion = require('remotion');
+  delayRender = remotion.delayRender;
+  continueRender = remotion.continueRender;
+  cancelRender = remotion.cancelRender;
+} catch {}
 
 interface PdfPageProps {
   src: string;
@@ -16,8 +24,8 @@ interface PdfPageProps {
 
 /**
  * Renders a single PDF page as a <canvas> element using react-pdf.
- * Uses Remotion's delayRender/continueRender to ensure the page is
- * fully painted before the frame is captured.
+ * In Remotion: uses delayRender/continueRender to sync frame capture.
+ * In playground: renders directly, no delay management needed.
  */
 export const PdfPage: React.FC<PdfPageProps> = ({
   src,
@@ -33,14 +41,18 @@ export const PdfPage: React.FC<PdfPageProps> = ({
 
   const onError = useCallback(
     (error: Error) => {
-      cancelRender(error);
+      console.error('PDF render error:', error);
+      try { cancelRender(error); } catch {}
     },
     [],
   );
 
+  // URLs load directly; local paths resolve via /public/ or staticFile
+  const filePath = src.startsWith('http') ? src : `/${src.replace(/^\//, '')}`;
+
   return (
     <Document
-      file={staticFile(src)}
+      file={filePath}
       onLoadError={onError}
       loading={null}
     >
