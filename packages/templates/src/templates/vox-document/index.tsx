@@ -129,16 +129,15 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
         <VoxGrid width={W} height={H} s={s} />
       </div>
 
-      {/* Camera container */}
+      {/* Camera container — single transform: translate to center focus, then scale from center */}
       <div style={{
         position: 'absolute', width: W, height: H,
-        transform: `scale(${zoom})`,
-        transformOrigin: `${focusCenterX}px ${focusCenterY}px`,
+        transform: `scale(${zoom}) translate(${panX}px, ${panY + driftY}px)`,
+        transformOrigin: `${W / 2}px ${H / 2}px`,
         opacity: fadeIn * fadeOut,
       }}>
         <div style={{
           position: 'absolute', width: W, height: H,
-          transform: `translate(${panX}px, ${panY + driftY}px)`,
         }}>
           {/* Paper */}
           <div style={{
