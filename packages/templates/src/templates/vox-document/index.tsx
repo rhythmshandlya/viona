@@ -57,9 +57,17 @@ const VoxDocument: React.FC<VoxDocumentProps> = ({
   const timing = MODE_DEFAULTS[mode];
   const targetZoom = zoomOverride ?? timing.zoom;
 
-  // ── Paper dimensions (85% canvas width, PDF aspect ratio) ──
-  const paperW = W * 0.85;
-  const paperH = paperW * textMap.pageRatio;
+  // ── Paper dimensions — fit full page within viewport ──
+  const pageRatio = textMap.pageRatio; // height / width (e.g. 1.414 for A4)
+  const maxW = W * 0.85;
+  const maxH = H * 0.9;
+  // Scale to fit: if paper at maxW would be taller than maxH, constrain by height
+  let paperW = maxW;
+  let paperH = paperW * pageRatio;
+  if (paperH > maxH) {
+    paperH = maxH;
+    paperW = paperH / pageRatio;
+  }
   const paperX = (W - paperW) / 2;
   const paperY = (H - paperH) / 2;
 

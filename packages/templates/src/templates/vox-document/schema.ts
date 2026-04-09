@@ -6,13 +6,12 @@ export const schema = z.object({
   /** Which page to show (1-indexed) */
   page: z.number().min(1).default(1),
   /** Scene mode */
-  mode: z.enum(['overview', 'zoom', 'figure', 'paragraph']).default('zoom'),
+  mode: z.enum(['overview', 'zoom', 'figure', 'paragraph']).default('overview'),
   /** Text snippet the camera zooms to (fuzzy matched against PDF text) */
-  focusText: z.string().optional().default('We describe the pre-training, post-training, and quantization of Nemotron 3 Super'),
+  focusText: z.string().optional().default('Nemotron 3 Super: Open, Efficient Mixture-of-Experts'),
   /** Text snippets to highlight yellow (each fuzzy matched) */
   highlights: z.array(z.string()).default([
-    '120 billion parameter hybrid Mamba-Attention Mixture-of-Experts model',
-    'comparable accuracy on common benchmarks',
+    'Nemotron 3 Super: Open, Efficient Mixture-of-Experts Hybrid Mamba-Transformer Model for Agentic Reasoning',
   ]),
   /** Override zoom level (defaults per mode: overview=1, zoom=1.6, figure=2.2, paragraph=1.5) */
   zoomLevel: z.number().min(1).max(4).optional(),
