@@ -582,8 +582,9 @@ server.registerTool(
         .string()
         .describe("Target filename (e.g. 'hero-photo.jpg' or 'broll-city.mp4')"),
       source: z
-        .enum(["pexels"])
-        .describe("Stock media service the URL is from"),
+        .enum(["pexels", "unsplash"])
+        .default("pexels")
+        .describe("Stock service the URL is from"),
       photographer: z
         .string()
         .optional()
@@ -598,7 +599,7 @@ server.registerTool(
   }: {
     url: string;
     filename: string;
-    source: "pexels";
+    source: "pexels" | "unsplash";
     photographer?: string;
   }) => {
     try {
@@ -610,6 +611,9 @@ server.registerTool(
       const headers: FetchHeaders = {};
       if (source === "pexels" && PEXELS_API_KEY) {
         headers["Authorization"] = PEXELS_API_KEY;
+      }
+      if (source === "unsplash" && UNSPLASH_ACCESS_KEY) {
+        headers["Authorization"] = `Client-ID ${UNSPLASH_ACCESS_KEY}`;
       }
 
       const buf = await safeFetch(validUrl, headers);
@@ -640,7 +644,9 @@ server.registerTool(
               height: dims?.height ?? null,
               durationMs,
               photographer: photographer || "Unknown",
-              attribution: `${isVideo ? "Video" : "Photo"} from Pexels (https://pexels.com)${photographer ? ` by ${photographer}` : ""}`,
+              attribution: source === "unsplash"
+                ? `${isVideo ? "Video" : "Photo"} from Unsplash (https://unsplash.com)${photographer ? ` by ${photographer}` : ""}`
+                : `${isVideo ? "Video" : "Photo"} from Pexels (https://pexels.com)${photographer ? ` by ${photographer}` : ""}`,
             }),
           },
         ],

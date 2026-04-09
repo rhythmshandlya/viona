@@ -1,5 +1,6 @@
 import React from 'react';
-import type { BrollItemData, BrollDisplayMode } from './types';
+import { THEME_DEFAULTS } from './types';
+import type { BrollItemData, BrollDisplayMode, BrollTreatment } from './types';
 import { BrollFullscreen } from './BrollFullscreen';
 import { BrollLetterboxed } from './BrollLetterboxed';
 import { BrollLetterboxedCaptions } from './BrollLetterboxedCaptions';
@@ -16,6 +17,7 @@ import { BrollGreenscreen } from './BrollGreenscreen';
 interface BrollItemProps {
   data: BrollItemData;
   assets: Record<string, string>;
+  theme?: string;
 }
 
 const DISPLAY_COMPONENTS: Record<BrollDisplayMode, React.FC<{ data: BrollItemData; assets: Record<string, string> }>> = {
@@ -33,7 +35,13 @@ const DISPLAY_COMPONENTS: Record<BrollDisplayMode, React.FC<{ data: BrollItemDat
   'greenscreen-bg': BrollGreenscreen,
 };
 
-export const BrollItem: React.FC<BrollItemProps> = React.memo(({ data, assets }) => {
+export const BrollItem: React.FC<BrollItemProps> = React.memo(({ data, assets, theme }) => {
   const Component = DISPLAY_COMPONENTS[data.displayMode] || BrollFullscreen;
-  return <Component data={data} assets={assets} />;
+  // Merge theme defaults with explicit treatment (explicit wins)
+  const mergedTreatment: BrollTreatment = {
+    ...(theme ? THEME_DEFAULTS[theme] || {} : {}),
+    ...data.treatment,
+  };
+  const mergedData = { ...data, treatment: mergedTreatment };
+  return <Component data={mergedData} assets={assets} />;
 });

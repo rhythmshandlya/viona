@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useCurrentFrame } from 'remotion';
 
 interface GrainOverlayProps {
@@ -7,7 +7,9 @@ interface GrainOverlayProps {
 
 export const GrainOverlay: React.FC<GrainOverlayProps> = ({ intensity = 0.3 }) => {
   const frame = useCurrentFrame();
-  const seed = useMemo(() => (Math.floor(frame / 10) % 3) + 1, [frame]);
+  const id = React.useId();
+  const seed = (Math.floor(frame / 10) % 3) + 1;
+  const filterId = `grain-${id}-${seed}`;
 
   return (
     <svg
@@ -21,11 +23,11 @@ export const GrainOverlay: React.FC<GrainOverlayProps> = ({ intensity = 0.3 }) =
         opacity: intensity,
       }}
     >
-      <filter id={`grain-${seed}`}>
+      <filter id={filterId}>
         <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves={3} seed={seed} stitchTiles="stitch" />
         <feColorMatrix type="saturate" values="0" />
       </filter>
-      <rect width="100%" height="100%" filter={`url(#grain-${seed})`} />
+      <rect width="100%" height="100%" filter={`url(#${filterId})`} />
     </svg>
   );
 };

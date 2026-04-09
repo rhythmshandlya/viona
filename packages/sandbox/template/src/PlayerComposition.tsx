@@ -112,6 +112,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = React.memo(({
   const { fps, canvas, items, assets } = manifest;
   const captionPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
   const captionAnalysis = (manifest as any).captionAnalysis ?? manifest.videoSettings?.captionAnalysis ?? {};
+  const theme: string | undefined = manifest.videoSettings?.theme;
   const sortedTracks = useMemo(
     () => [...(manifest.tracks || [])].sort((a, b) => a.position - b.position),
     [manifest.tracks]
@@ -148,7 +149,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = React.memo(({
               if (item.type === 'audio') {
                 return (
                   <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
-                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} captionAnalysis={captionAnalysis} />
+                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} captionAnalysis={captionAnalysis} theme={theme} />
                   </Sequence>
                 );
               }
@@ -170,7 +171,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = React.memo(({
               return (
                 <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} premountFor={premountFrames}>
                   <TransformWrapper transform={transform} keyframes={item.keyframes} filters={item.filters} fps={fps} style={item.style}>
-                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} captionAnalysis={captionAnalysis} />
+                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} captionAnalysis={captionAnalysis} theme={theme} />
                   </TransformWrapper>
                 </Sequence>
               );
@@ -190,9 +191,10 @@ interface ItemRendererProps {
   canvas: { width: number; height: number };
   captionPreset?: any;
   captionAnalysis?: Record<string, any>;
+  theme?: string;
 }
 
-const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fps, durationInFrames, canvas, captionPreset, captionAnalysis }) => {
+const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fps, durationInFrames, canvas, captionPreset, captionAnalysis, theme }) => {
   switch (item.type) {
     case 'video':
       return <VideoItem data={item.data} assets={assets} fps={fps} durationInFrames={durationInFrames} />;
@@ -271,7 +273,7 @@ const ItemRenderer: React.FC<ItemRendererProps> = React.memo(({ item, assets, fp
       return <CaptionItem data={item.data} captionStyle={captionPreset || {}} fps={fps} itemStartMs={item.startMs} />;
     }
     case 'broll':
-      return <BrollItem data={item.data} assets={assets} />;
+      return <BrollItem data={item.data} assets={assets} theme={theme} />;
     case 'matte':
       return <MatteItem data={item.data} assets={assets} fps={fps} />;
     default:
