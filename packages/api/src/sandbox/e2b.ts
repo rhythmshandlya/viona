@@ -33,19 +33,43 @@ export class E2BSandboxProvider implements SandboxProvider {
     const { projectId, backupId, env = {} } = opts;
     const secret = randomUUID();
 
+    // E2B sandboxes run OUTSIDE any private network — callback + MinIO must be
+    // public-reachable. `config.sandbox.callbackUrl` prefers RAILWAY_PRIVATE_DOMAIN
+    // which unreachable from E2B, so we resolve public URLs explicitly here.
+    const publicCallbackUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : (process.env.API_CALLBACK_URL || config.sandbox.callbackUrl);
+
+    // MinIO: E2B needs the *public* endpoint (no `.railway.internal` DNS).
+    // Railway sets BUCKET_PUBLIC_ENDPOINT; fall back to BUCKET_ENDPOINT / config for local dev.
+    const minioEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT
+      || process.env.BUCKET_ENDPOINT
+      || config.storage.endpoint
+      || '';
+
     const envs: Record<string, string> = {
       SANDBOX_SECRET: secret,
       SANDBOX_ID: projectId,
-      API_CALLBACK_URL: config.sandbox.callbackUrl,
-      API_INTERNAL_URL: config.sandbox.callbackUrl,
+      API_CALLBACK_URL: publicCallbackUrl,
+      API_INTERNAL_URL: publicCallbackUrl,
       CHECKPOINT_INTERVAL_MS: String(config.sandbox.checkpointIntervalMs),
-      MINIO_ENDPOINT: process.env.BUCKET_ENDPOINT || '',
-      MINIO_PORT: process.env.BUCKET_PORT || '443',
+      MINIO_ENDPOINT: minioEndpoint,
+      MINIO_PORT: process.env.BUCKET_PUBLIC_PORT || process.env.BUCKET_PORT || '443',
       MINIO_ACCESS_KEY: config.storage.accessKey,
       MINIO_SECRET_KEY: config.storage.secretKey,
       MINIO_BUCKET: config.storage.bucket,
       MINIO_USE_SSL: 'true',
-      MINIO_PUBLIC_ENDPOINT: process.env.BUCKET_PUBLIC_ENDPOINT || '',
+      MINIO_PUBLIC_ENDPOINT: minioEndpoint,
+      MINIO_PUBLIC_USE_SSL: 'true',
+      MINIO_PUBLIC_PORT: process.env.BUCKET_PUBLIC_PORT || process.env.BUCKET_PORT || '443',
+      // Forward AI credentials — E2B can't bind-mount ~/.claude, so the Agent SDK
+      // inside the sandbox authenticates via these env vars.
+      ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+      ...(process.env.CLAUDE_CODE_OAUTH_TOKEN ? { CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN } : {}),
+      // Stock asset credentials used by the asset_scout agent's MCP tools
+      ...(process.env.PEXELS_API_KEY ? { PEXELS_API_KEY: process.env.PEXELS_API_KEY } : {}),
+      ...(process.env.FREEPIK_API_KEY ? { FREEPIK_API_KEY: process.env.FREEPIK_API_KEY } : {}),
+      ...(process.env.UNSPLASH_ACCESS_KEY ? { UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY } : {}),
       ...env,
     };
 
