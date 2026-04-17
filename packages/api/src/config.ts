@@ -93,7 +93,7 @@ export const config = {
 
   // Sandbox configuration
   sandbox: {
-    provider: (process.env.SANDBOX_PROVIDER || 'docker') as 'railway' | 'docker',
+    provider: (process.env.SANDBOX_PROVIDER || 'docker') as 'docker' | 'railway' | 'e2b',
     image: process.env.SANDBOX_IMAGE || 'viona-sandbox:latest',
     idleTimeoutMs: parseInt(process.env.SANDBOX_IDLE_TIMEOUT_MS || '600000', 10),  // 10 min
     checkpointIntervalMs: parseInt(process.env.SANDBOX_CHECKPOINT_MS || '60000', 10),  // 60s
@@ -106,6 +106,11 @@ export const config = {
       environmentId: process.env.RAILWAY_ENVIRONMENT_ID || '',
       repo: process.env.SANDBOX_REPO || 'rhythmshandlya/clippify',
       branch: process.env.SANDBOX_BRANCH || 'main',
+    },
+    // E2B-specific (cloud sandbox)
+    e2b: {
+      apiKey: process.env.E2B_API_KEY || '',
+      templateName: process.env.E2B_TEMPLATE_NAME || 'viona-sandbox',
     },
     /** Callback URL that sandbox containers use to reach this API instance. */
     get callbackUrl(): string {
