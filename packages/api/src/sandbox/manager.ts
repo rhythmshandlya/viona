@@ -101,6 +101,10 @@ export class SandboxManager {
           const { RailwaySandboxProvider } = await import('./railway.js');
           return new RailwaySandboxProvider();
         }
+        if (config.sandbox.provider === 'e2b') {
+          const { E2BSandboxProvider } = await import('./e2b.js');
+          return new E2BSandboxProvider();
+        }
         return new DockerSandboxProvider();
       })();
     }
