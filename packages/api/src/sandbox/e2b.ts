@@ -1,8 +1,13 @@
-import { randomUUID } from 'crypto';
 import { Sandbox } from 'e2b';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import type { SandboxProvider, Sandbox as SandboxMeta, CreateSandboxOpts } from './provider.js';
+
+// E2B's snapshot-restore model freezes the start_cmd process's env at template
+// build time; per-sandbox envs on Sandbox.create() only reach NEW processes,
+// not the already-running node. So we bake SANDBOX_SECRET into the template
+// image (via Dockerfile ARG/ENV) and every sandbox shares the same secret.
+// The api and sandbox both read it from the same env var.
 
 /**
  * E2B Cloud sandbox provider.
@@ -31,7 +36,10 @@ export class E2BSandboxProvider implements SandboxProvider {
 
   async create(opts: CreateSandboxOpts): Promise<SandboxMeta> {
     const { projectId, backupId, env = {} } = opts;
-    const secret = randomUUID();
+    const secret = process.env.SANDBOX_SECRET || '';
+    if (!secret) {
+      throw new Error('SANDBOX_SECRET env var must be set on the api (must match the value baked into the e2b template)');
+    }
 
     // E2B sandboxes run OUTSIDE any private network — callback + MinIO must be
     // public-reachable. `config.sandbox.callbackUrl` prefers RAILWAY_PRIVATE_DOMAIN
