@@ -899,12 +899,9 @@ export const useEditorStore = create<EditorStore>()(
 
         // Wait for bundle readiness — esbuild compiles after init completes.
         // Don't show the workspace until the player has a bundle to render.
-        // IMPORTANT: use same-origin (Next.js /api/* rewrite) so the Stytch
-        // SameSite=Lax cookie is sent. Hitting API_URL directly is cross-site
-        // and 401s in a loop because the cookie never rides along.
         for (let i = 0; i < 60; i++) {
           try {
-            const res = await fetch(`${bundleBaseUrl}/player-composition.cjs.js`, {
+            const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
               method: 'HEAD',
               credentials: 'include',
             });
