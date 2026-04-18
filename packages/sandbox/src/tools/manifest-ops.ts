@@ -758,7 +758,10 @@ export const generateCaptionsTool = {
         if (!captionTrack) {
           const maxPos = Math.max(0, ...(manifest.tracks ?? []).map((t: any) => t.position ?? 0));
           captionTrack = {
-            id: `track-caption-${randomUUID().slice(0, 8)}`,
+            // Full UUID — the api's PATCH /projects validates tracks.id as `uuid`
+            // in pg; a shorter human-readable slug (e.g. `track-caption-abc123`)
+            // causes `invalid input syntax for type uuid` and fails autosave.
+            id: randomUUID(),
             type: 'caption',
             name: 'Captions',
             position: maxPos + 1,
