@@ -115,11 +115,35 @@ RUN mkdir -p /workspace && chown sandbox:sandbox /workspace && chmod 777 /worksp
 COPY --chown=sandbox:sandbox packages/sandbox/entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-# Shared secret baked in at template build time so the snapshot's node process
-# (PID 1) has it in its environment. E2B's `envs` option on Sandbox.create()
-# only propagates to NEW child processes, not the already-running start_cmd.
+# Config baked into the template at build time because E2B's snapshot-restore
+# model freezes PID 1's env — envs injected via Sandbox.create() only reach
+# NEW child processes, not the already-running start_cmd. For a test/dev
+# deployment, baking deployment-specific config here is acceptable; for
+# stricter production use, switch to passing config in the /init request body.
 ARG SANDBOX_SECRET=""
-ENV SANDBOX_SECRET=$SANDBOX_SECRET
+ARG MINIO_ENDPOINT=""
+ARG MINIO_PORT="443"
+ARG MINIO_USE_SSL="true"
+ARG MINIO_ACCESS_KEY=""
+ARG MINIO_SECRET_KEY=""
+ARG MINIO_BUCKET="cllipify"
+ARG MINIO_PUBLIC_ENDPOINT=""
+ARG MINIO_PUBLIC_PORT="443"
+ARG MINIO_PUBLIC_USE_SSL="true"
+ARG API_CALLBACK_URL=""
+
+ENV SANDBOX_SECRET=$SANDBOX_SECRET \
+    MINIO_ENDPOINT=$MINIO_ENDPOINT \
+    MINIO_PORT=$MINIO_PORT \
+    MINIO_USE_SSL=$MINIO_USE_SSL \
+    MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY \
+    MINIO_SECRET_KEY=$MINIO_SECRET_KEY \
+    MINIO_BUCKET=$MINIO_BUCKET \
+    MINIO_PUBLIC_ENDPOINT=$MINIO_PUBLIC_ENDPOINT \
+    MINIO_PUBLIC_PORT=$MINIO_PUBLIC_PORT \
+    MINIO_PUBLIC_USE_SSL=$MINIO_PUBLIC_USE_SSL \
+    API_CALLBACK_URL=$API_CALLBACK_URL \
+    API_INTERNAL_URL=$API_CALLBACK_URL
 
 EXPOSE 8080 8081
 CMD ["/app/entrypoint.sh"]

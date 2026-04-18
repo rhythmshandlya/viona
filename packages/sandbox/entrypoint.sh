@@ -1,6 +1,13 @@
 #!/bin/bash
-# Fix workspace permissions — volume may have been created by a root container
-chown -R sandbox:sandbox /workspace 2>/dev/null || true
+# Entrypoint works on:
+#   - Docker/Railway: starts as root, fixes workspace perms, drops to sandbox user
+#   - E2B: starts as `user` (non-root), runs node directly (microVM provides isolation)
 
-# Drop to sandbox user and run the app
-exec gosu sandbox node dist/entry.js
+cd /app
+
+if [ "$(id -u)" = "0" ]; then
+  chown -R sandbox:sandbox /workspace 2>/dev/null || true
+  exec gosu sandbox node /app/dist/entry.js
+else
+  exec node /app/dist/entry.js
+fi
