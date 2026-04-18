@@ -100,8 +100,19 @@ export function StaticTemplateRenderer({
     setError(null);
 
     try {
+      // Template bundles are built with `scripts/esbuild-globals-plugin.ts` which
+      // rewrites `import * from 'react'` / `'remotion'` etc. to `window.React`/
+      // `window.Remotion` references. Set them before evaluating the bundle.
+      if (typeof window !== 'undefined') {
+        (window as any).React = React_ForTemplates;
+        (window as any).ReactDOM = ReactDOM_ForTemplates;
+        (window as any).Remotion = RemotionRT;
+      }
+
       const { Component: Loaded } = await loadTemplateRuntime(templateId, {
         resolveExternal: (mod) => {
+          // Unused for current bundles (they reference window.* directly) but kept
+          // as a safety net for bundles that emit `require(...)` calls.
           switch (mod) {
             case 'react': return React_ForTemplates;
             case 'react-dom': return ReactDOM_ForTemplates;

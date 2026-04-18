@@ -128,13 +128,21 @@ export async function loadTemplate(slug: string, opts?: RuntimeRegistryOptions):
   }
 
   const contentType = bundleRes.headers.get('content-type') ?? '';
-  const code = await bundleRes.text();
-  const looksLikeJs = /javascript|text\/plain/i.test(contentType) || /module\.exports|exports\.default/.test(code);
+  const rawCode = await bundleRes.text();
+  const looksLikeJs =
+    /javascript|text\/plain/i.test(contentType) ||
+    /module\.exports|exports\.default|export\s*\{|export\s+default/.test(rawCode);
   if (!looksLikeJs) {
     throw new Error(
-      `Template bundle for "${slug}" response is not JavaScript (content-type="${contentType}", first 80 bytes: ${code.slice(0, 80)})`
+      `Template bundle for "${slug}" response is not JavaScript (content-type="${contentType}", first 80 bytes: ${rawCode.slice(0, 80)})`
     );
   }
+
+  // Bundles are built as ESM (`format: 'esm'` in scripts/build-templates.ts) with
+  // externals resolved via globals (window.React, window.Remotion). We eval them
+  // inside a CJS wrapper (`new Function('module', ...)`) which doesn't accept ESM
+  // `export` syntax — rewrite ESM exports to CJS `module.exports.*` assignments.
+  const code = rewriteEsmExportsToCjs(rawCode);
 
   // Mini CJS eval — bundles externalize react/react-dom/remotion/@remotion/google-fonts/react-globe.gl.
   const requireFn = (mod: string) => {
@@ -171,6 +179,37 @@ export function clearTemplateRuntimeCache() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Rewrite ESM export syntax at the tail of an esbuild `format: 'esm'` bundle
+ * into equivalent CJS `module.exports.*` assignments so `new Function(...)`
+ * can evaluate the code. The bundle's externals are already resolved via
+ * `window.*` globals (see scripts/esbuild-globals-plugin.ts), so no `import`
+ * statements remain — only a trailing `export { X as default }` (or similar).
+ */
+function rewriteEsmExportsToCjs(code: string): string {
+  let out = code;
+
+  // `export default X;` / `export default function ...` — rare with esbuild bundle,
+  // but cheap to handle defensively.
+  out = out.replace(/\bexport\s+default\s+/g, 'module.exports.default=');
+
+  // `export { a, b as c, d };` → multiple `module.exports.X = Y;` lines.
+  out = out.replace(/\bexport\s*\{\s*([^}]+)\s*\}\s*;?/g, (_match, body: string) => {
+    return body
+      .split(',')
+      .map((raw) => {
+        const trimmed = raw.trim();
+        if (!trimmed) return '';
+        const asMatch = trimmed.match(/^(\w+)\s+as\s+(\w+)$/);
+        if (asMatch) return `module.exports.${asMatch[2]}=${asMatch[1]};`;
+        return `module.exports.${trimmed}=${trimmed};`;
+      })
+      .join('');
+  });
+
+  return out;
+}
 
 function rowToSummary(row: Record<string, any>, apiBase: string): TemplateSummary {
   const slug = row.slug;
