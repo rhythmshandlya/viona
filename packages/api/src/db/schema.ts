@@ -288,3 +288,24 @@ export type TemplateExport = typeof templateExports.$inferSelect;
 export type NewTemplateExport = typeof templateExports.$inferInsert;
 export type Theme = typeof themes.$inferSelect;
 export type NewTheme = typeof themes.$inferInsert;
+
+export const inferenceJobs = pgTable('inference_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sandboxSessionId: uuid('sandbox_session_id'),
+  projectId: uuid('project_id'),
+  capability: varchar('capability', { length: 64 }).notNull(),
+  provider: varchar('provider', { length: 16 }).notNull(),
+  status: varchar('status', { length: 32 }).notNull().default('pending'),
+  runpodJobId: varchar('runpod_job_id', { length: 128 }),
+  input: jsonb('input').notNull(),
+  output: jsonb('output'),
+  error: jsonb('error'),
+  metrics: jsonb('metrics'),
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+});
+
+export type InferenceJob = typeof inferenceJobs.$inferSelect;
+export type NewInferenceJob = typeof inferenceJobs.$inferInsert;
+export type InferenceProvider = 'runpod' | 'worker';
+export type InferenceJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timed_out';
