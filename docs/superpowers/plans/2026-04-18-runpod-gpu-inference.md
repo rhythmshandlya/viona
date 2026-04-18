@@ -4,7 +4,7 @@
 
 **Goal:** Ship a generic, outcome-based inference dispatch system with a pluggable backend — RunPod Serverless in prod, local worker (BullMQ + subprocess) in dev/CI. First capability: `segment_speaker` (RVM).
 
-**Architecture:** Sandbox MCP tool → API dispatcher. Dispatcher branches on `INFERENCE_PROVIDER`: (a) `runpod` → presign MinIO + submit to RunPod `/run` + webhook/reconcile; (b) `worker` → enqueue BullMQ `inference` job → worker runs local subprocess → upload to MinIO. Both publish to the same Redis `job:{id}:*` channels; sandbox SSE stream is provider-agnostic. `segment_person.py` lives once in `packages/worker/scripts/`; worker spawns it directly, RunPod Docker image `COPY`s it from repo root.
+**Architecture:** Sandbox MCP tool → API dispatcher. Dispatcher branches on `INFERENCE_PROVIDER`: (a) `runpod` → presign MinIO + submit to RunPod `/run` + webhook/reconcile; (b) `worker` → enqueue BullMQ `inference` job → worker runs local subprocess → upload to MinIO. Both publish to the same Redis `job:{id}:*` channels; sandbox SSE stream is provider-agnostic. `segment_person.py` lives once in `models/rvm/`; worker spawns it directly by path, and RunPod's GitHub integration builds the image from `models/rvm/` (Dockerfile and build context colocated — no repo-root context needed).
 
 **Tech Stack:** Fastify, Drizzle, ioredis, BullMQ, minio, `jose` (JWT), RunPod Serverless, Python 3.10, PyTorch + CUDA 12.2, GHCR.
 
@@ -32,10 +32,10 @@
 | Create | `packages/worker/src/processors/inference.ts` | Generic processor: dispatches by capability to worker modules |
 | Create | `packages/worker/src/inference/segment-speaker.ts` | Local runner for segment-speaker capability |
 | Modify | `packages/worker/src/index.ts` | Register new `inference` queue worker |
-| Create | `runpod/rvm/Dockerfile` | CUDA base + torch + baked weights; build context = repo root |
-| Create | `runpod/rvm/handler.py` | RunPod handler entrypoint |
-| Create | `runpod/rvm/requirements.txt` | Python deps |
-| Create | `runpod/rvm/README.md` | Input/output contract + build/push instructions |
+| Create | `models/rvm/Dockerfile` | CUDA base + torch + baked weights; Dockerfile and build context both in `models/rvm/` |
+| Create | `models/rvm/handler.py` | RunPod handler entrypoint (dynamic SEQ_CHUNK, torch.compile, NVENC) |
+| Create | `models/rvm/requirements.txt` | Python deps |
+| Create | `models/rvm/README.md` | Input/output contract + RunPod endpoint config (GPU/CPU/RAM) |
 | Create | `packages/sandbox/src/tools/segment-speaker.ts` | Outcome-based MCP tool |
 | Modify | `packages/sandbox/src/mcp-servers.ts` | Register new `inference` MCP server |
 | Create | `scripts/temp/test-runpod-handler.ts` | E2E: submits real RunPod job, verifies artifacts |
@@ -43,7 +43,7 @@
 | Modify | `packages/api/src/sandbox/routes.ts:440-582` | Delete old `/segment` routes (after migration verified) |
 | Delete | `packages/worker/src/processors/segmentation.ts` | Final cleanup after new path verified |
 | Modify | `packages/api/src/services/queue.ts` | Remove legacy `queueSegmentationJob` + types |
-| **Keep** | `packages/worker/scripts/segment_person.py` | **Source of truth. Worker's new `inference` queue spawns it; RunPod image `COPY`s it in.** |
+| Move   | `packages/worker/scripts/segment_person.py` → `models/rvm/segment_person.py` | Source of truth in the model's own dir. Worker's `inference` queue spawns it; RunPod image has it in-context. |
 
 ---
 
@@ -229,20 +229,20 @@ git commit -m "chore(api): add jose for webhook JWT"
 
 ## Phase 1 — RunPod handler
 
-### Task 3: Create `runpod/rvm/requirements.txt`
+### Task 3: Create `models/rvm/requirements.txt`
 
 **Files:**
-- Create: `runpod/rvm/requirements.txt`
+- Create: `models/rvm/requirements.txt`
 
-`packages/worker/scripts/segment_person.py` stays as the single source of truth. The RunPod Dockerfile (Task 5) is built from repo root and `COPY`s the script directly from `packages/worker/scripts/`. No vendoring.
+`models/rvm/segment_person.py` stays as the single source of truth. The RunPod Dockerfile (Task 5) is built from repo root and `COPY`s the script directly from `models/rvm/`. No vendoring.
 
-- [ ] **Step 1: Create `runpod/rvm/requirements.txt`**
+- [ ] **Step 1: Create `models/rvm/requirements.txt`**
 
 ```bash
-mkdir -p runpod/rvm
+mkdir -p models/rvm
 ```
 
-Create `runpod/rvm/requirements.txt`:
+Create `models/rvm/requirements.txt`:
 
 ```
 opencv-python-headless==4.10.0.84
@@ -260,7 +260,7 @@ Notes:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add runpod/rvm/requirements.txt
+git add models/rvm/requirements.txt
 git commit -m "feat(runpod): rvm requirements.txt"
 ```
 
@@ -269,11 +269,11 @@ git commit -m "feat(runpod): rvm requirements.txt"
 ### Task 4: Create RunPod handler
 
 **Files:**
-- Create: `runpod/rvm/handler.py`
+- Create: `models/rvm/handler.py`
 
 - [ ] **Step 1: Write the handler**
 
-Create `runpod/rvm/handler.py`:
+Create `models/rvm/handler.py`:
 
 ```python
 """
@@ -442,11 +442,113 @@ if __name__ == '__main__':
         runpod.serverless.start({'handler': handler})
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Add GPU/CPU saturation tuning**
+
+Insert at the top of `handler.py` (after the imports, before `def _download(...)`):
+
+```python
+# ---- GPU/CPU utilization tuning ----
+# These env vars are read by segment_person.py (see Step 3 to expose them there).
+
+_cuda_available = False
+try:
+    import torch as _torch
+    _cuda_available = _torch.cuda.is_available()
+except Exception:
+    _cuda_available = False
+
+if _cuda_available:
+    try:
+        _vram_gb = _torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+    except Exception:
+        _vram_gb = 0
+
+    # Bigger batches = better GPU utilisation for the recurrent RVM model.
+    # Defaults are conservative; override to saturate high-VRAM GPUs.
+    if _vram_gb >= 40:         # L40S (48GB), A40 (48GB), A100-80
+        os.environ.setdefault('RVM_SEQ_CHUNK', '16')
+    elif _vram_gb >= 20:       # RTX A5000 (24GB), RTX 4090 (24GB)
+        os.environ.setdefault('RVM_SEQ_CHUNK', '8')
+    else:
+        os.environ.setdefault('RVM_SEQ_CHUNK', '4')
+
+    # torch.compile speedup on Ampere+ (compute capability >= 8.0).
+    try:
+        _major, _ = _torch.cuda.get_device_capability(0)
+        if _major >= 8:
+            os.environ.setdefault('RVM_COMPILE', '1')
+    except Exception:
+        pass
+
+# Let PyTorch use all CPU cores for the ffmpeg-fed tensor ops between inference batches.
+# Defaults to core count; no harm setting it explicitly here.
+try:
+    _cpu_cores = os.cpu_count() or 4
+    os.environ.setdefault('OMP_NUM_THREADS', str(_cpu_cores))
+    os.environ.setdefault('MKL_NUM_THREADS', str(_cpu_cores))
+except Exception:
+    pass
+```
+
+- [ ] **Step 3: Teach `segment_person.py` to honor the tuning env vars**
+
+Open `models/rvm/segment_person.py`. Find the `SEQ_CHUNK = 4` module-level constant (near the top imports). Change it to:
+
+```python
+SEQ_CHUNK = int(os.environ.get('RVM_SEQ_CHUNK', '4'))
+```
+
+After `model = torch.jit.freeze(model)` (in the model-load path), add:
+
+```python
+    if os.environ.get('RVM_COMPILE') == '1' and device.type == 'cuda':
+        try:
+            model = torch.compile(model, mode='reduce-overhead')
+        except Exception as e:
+            print(f"torch.compile failed, falling back to eager: {e}", file=sys.stderr)
+```
+
+(Ensure `import os` is already at the top — it is, per the existing script.)
+
+- [ ] **Step 4: Add a warmup pass to `handler.py`**
+
+Amortises JIT compilation + `torch.compile` cost across the cold-start container so the first real request doesn't pay it. Insert near the end of `handler.py`, just before the `if __name__ == '__main__':` block:
+
+```python
+def _warmup():
+    """Run a tiny dummy inference so the JIT / torch.compile paths are hot when
+    the first real job arrives. Called once at module load, best-effort."""
+    if not _cuda_available:
+        return
+    try:
+        import numpy as np
+        import tempfile
+        import cv2  # from opencv-python-headless in requirements
+        work = Path(tempfile.mkdtemp(prefix='rvm-warmup-'))
+        dummy = work / 'dummy.mp4'
+        # 1 second, 30fps, 320x180 black frames
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        vw = cv2.VideoWriter(str(dummy), fourcc, 30, (320, 180))
+        for _ in range(30):
+            vw.write(np.zeros((180, 320, 3), dtype=np.uint8))
+        vw.release()
+        process_video(
+            str(dummy), str(work / 'matte.mp4'),
+            backbone='resnet50', scale=0.5, fps=0, downsample_ratio=0.8,
+            matte_ranges=[],
+        )
+        print('RVM warmup complete', flush=True)
+    except Exception as e:
+        print(f'RVM warmup failed (non-fatal): {e}', flush=True)
+
+_warmup()
+```
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add runpod/rvm/handler.py
-git commit -m "feat(runpod): rvm serverless handler"
+git add models/rvm/handler.py models/rvm/segment_person.py
+git commit -m "feat(runpod): rvm handler with gpu/cpu saturation tuning + warmup"
 ```
 
 ---
@@ -454,12 +556,12 @@ git commit -m "feat(runpod): rvm serverless handler"
 ### Task 5: RunPod Dockerfile with baked weights
 
 **Files:**
-- Create: `runpod/rvm/Dockerfile`
-- Create: `runpod/rvm/README.md`
+- Create: `models/rvm/Dockerfile`
+- Create: `models/rvm/README.md`
 
 - [ ] **Step 1: Write the Dockerfile**
 
-Create `runpod/rvm/Dockerfile`:
+Create `models/rvm/Dockerfile`:
 
 ```dockerfile
 # syntax=docker/dockerfile:1.6
@@ -495,17 +597,16 @@ RUN mkdir -p /root/.cache/torch/hub/checkpoints \
     && git clone --depth 1 https://github.com/PeterL1n/RobustVideoMatting.git \
        /root/.cache/torch/hub/PeterL1n_RobustVideoMatting_master
 
-# Copy segment_person.py from the worker package (single source of truth)
-# and the handler entrypoint. Build context MUST be repo root.
-COPY packages/worker/scripts/segment_person.py /app/segment_person.py
-COPY runpod/rvm/handler.py /app/handler.py
+# Copy everything from build context (models/rvm/) into the image.
+COPY segment_person.py /app/segment_person.py
+COPY handler.py /app/handler.py
 
 CMD ["python", "/app/handler.py"]
 ```
 
 - [ ] **Step 2: Write README with build/push instructions**
 
-Create `runpod/rvm/README.md`:
+Create `models/rvm/README.md`:
 
 ````markdown
 # viona-rvm — RunPod Serverless handler
@@ -516,16 +617,15 @@ Runs RVM (Robust Video Matting) on GPU via presigned MinIO URLs.
 
 See `handler.py` docstring for full input/output JSON.
 
-## Build & push
+## Build
+
+No registry needed — RunPod builds from this repo via its GitHub integration. See "RunPod endpoint config" below.
+
+Local test build (optional, for dev):
 
 ```bash
-# Build context MUST be repo root — the Dockerfile copies from packages/worker/
-# From repo root:
-IMAGE=ghcr.io/<org>/viona-rvm:$(git rev-parse --short HEAD)
-
-docker build -t "$IMAGE" -f runpod/rvm/Dockerfile .
-echo "$GHCR_TOKEN" | docker login ghcr.io -u <user> --password-stdin
-docker push "$IMAGE"
+# Context = models/rvm/. Run from repo root:
+docker build -t viona-rvm:local models/rvm
 ```
 
 ## Local test
@@ -549,12 +649,21 @@ docker run --rm --gpus all -v /tmp:/tmp "$IMAGE" \
 
 ## RunPod endpoint config (set in dashboard)
 
-| Field | Value |
-|---|---|
-| Image | `ghcr.io/<org>/viona-rvm:<sha>` |
-| GPU types (priority) | L40S, A40, A5000 |
-| Min workers | 0 |
-| Max workers | 3 |
+**Use GitHub integration:** Serverless → New Endpoint → Import from GitHub → select this repo → branch `main` → Dockerfile path `models/rvm/Dockerfile`.
+
+### Recommended worker sizing (GPU + CPU saturation)
+
+RVM mixes GPU inference (bottleneck) and CPU ffmpeg decode/encode (secondary). Underspec-ing CPU starves the GPU between batches.
+
+| Field | Value | Why |
+|---|---|---|
+| GPU types (priority) | **L40S → A40 → RTX A5000** | L40S (48GB) gives us `SEQ_CHUNK=16` and fp16; A40 same VRAM, slightly slower; A5000 (24GB) falls to `SEQ_CHUNK=8`. Avoid anything smaller. |
+| GPU count | 1 | RVM is single-GPU; multi-GPU buys nothing for this model. |
+| vCPUs | **at least 8, prefer 16** | ffmpeg decode + NVENC encode run in parallel with inference; too few cores = pipeline stall. |
+| RAM | **32 GB** | Headroom for frame buffers + ffmpeg + torch + batched tensors. |
+| Disk | 50 GB | Source video + matte + fgr + proxies in `/tmp` during a single job; short-lived. |
+| Min workers | 0 | |
+| Max workers | 3 | Leaves room for parallel scene segmentation. |
 | Idle timeout | 60s |
 | Execution timeout | 900s |
 | Scaler | QUEUE_DELAY, 4s |
@@ -564,7 +673,7 @@ docker run --rm --gpus all -v /tmp:/tmp "$IMAGE" \
 - [ ] **Step 3: Commit**
 
 ```bash
-git add runpod/rvm/Dockerfile runpod/rvm/README.md
+git add models/rvm/Dockerfile models/rvm/README.md
 git commit -m "feat(runpod): rvm dockerfile + build instructions"
 ```
 
@@ -576,52 +685,49 @@ git commit -m "feat(runpod): rvm dockerfile + build instructions"
 
 This task is manual / infrastructure. Record outputs in `.env` (local) and Railway variables (prod).
 
-- [ ] **Step 1: Build the image**
+- [ ] **Step 1: Connect GitHub to RunPod**
 
-From repo root (build context must be repo root since Dockerfile copies from `packages/worker/`):
+In runpod.io dashboard:
+- Settings → Connections → GitHub → Connect
+- Authorize the repo (grant access to this repo specifically, not all repos)
 
-```bash
-IMAGE=ghcr.io/viona/viona-rvm:$(git rev-parse --short HEAD)
-docker build -t "$IMAGE" -f runpod/rvm/Dockerfile .
-```
+- [ ] **Step 2: Create the Serverless endpoint from the repo**
 
-Expected: successful build, final image ~8-12 GB (CUDA + torch + weights).
+In runpod.io dashboard → Serverless → New Endpoint → **Import from GitHub**:
 
-- [ ] **Step 2: Push to GHCR**
+| Field | Value |
+|---|---|
+| Name | `viona-rvm` |
+| Repository | your connected repo |
+| Branch | `main` (or `dev` while iterating) |
+| Dockerfile path | `models/rvm/Dockerfile` |
+| GPU types | L40S (primary), A40, RTX A5000 (fallbacks) |
+| vCPUs | 16 (or the max tier allows) |
+| RAM | 32 GB |
+| Min workers | 0 |
+| Max workers | 3 |
+| Idle timeout | 60s |
+| Execution timeout | 900s |
+| Scaler | QUEUE_DELAY @ 4s |
+| FlashBoot | on |
 
-```bash
-echo "$GHCR_TOKEN" | docker login ghcr.io -u <user> --password-stdin
-docker push "$IMAGE"
-```
+RunPod will start the first build automatically — expect ~30-60 min first time (CUDA base + torch + weights download). Subsequent builds use layer caching and are much faster (~5 min if only `handler.py` changed).
 
-Expected: push completes; image visible at `https://github.com/<org>/<repo>/pkgs/container/viona-rvm`.
+**Copy the Endpoint ID** (visible once the endpoint is created — looks like `xxxxxxxxxxxxxx`).
 
-- [ ] **Step 3: Create RunPod Serverless endpoint**
-
-In runpod.io dashboard → Serverless → New Endpoint:
-- Name: `viona-rvm`
-- Container image: the pushed `$IMAGE`
-- GPU types: L40S (primary), A40, A5000 (fallbacks)
-- Min workers: 0, Max workers: 3
-- Idle timeout: 60s, Execution timeout: 900s
-- Scaler: QUEUE_DELAY @ 4s
-- FlashBoot: on
-
-Copy the **Endpoint ID** (looks like `xxxxxxxxxxxxxx`).
-
-- [ ] **Step 4: Record env vars**
+- [ ] **Step 3: Record env vars**
 
 Update local `.env`:
 ```bash
-RUNPOD_API_KEY=<from runpod.io/user/settings>
-RUNPOD_RVM_ENDPOINT_ID=<from step 3>
+RUNPOD_API_KEY=<from runpod.io → Settings → API Keys>
+RUNPOD_RVM_ENDPOINT_ID=<from step 2>
 RUNPOD_WEBHOOK_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
 RUNPOD_WEBHOOK_BASE_URL=http://localhost:4000   # ngrok URL if testing webhook locally
 ```
 
 Set the same vars in Railway (Dashboard → Variables) for the API service in prod.
 
-- [ ] **Step 5: Smoke test via `runsync`**
+- [ ] **Step 4: Smoke test via `runsync`**
 
 ```bash
 curl -X POST "https://api.runpod.ai/v2/$RUNPOD_RVM_ENDPOINT_ID/runsync" \
@@ -630,7 +736,17 @@ curl -X POST "https://api.runpod.ai/v2/$RUNPOD_RVM_ENDPOINT_ID/runsync" \
   -d '{"input": {"inputs": {}, "outputs": {}, "params": {}}}'
 ```
 
-Expected: HTTP 200 with `{"id": "...", "status": "IN_QUEUE" | "COMPLETED" | "FAILED", ...}`. A FAILED with a Python error about missing URL means the container is running — that's the success signal here.
+Expected: HTTP 200 with `{"id": "...", "status": "IN_QUEUE" | "COMPLETED" | "FAILED", ...}`. A FAILED with a Python error about missing URL means the container is running and the handler was invoked — that's the success signal here. Logs in the RunPod dashboard should show "RVM warmup complete" from the warmup pass.
+
+- [ ] **Step 5: (On future changes) Trigger rebuild**
+
+RunPod's GitHub integration rebuilds on **creating a GitHub Release** (not every push). To deploy `models/rvm/` changes:
+
+```bash
+git tag -a rvm-v0.1.1 -m "bump rvm handler"
+git push origin rvm-v0.1.1
+gh release create rvm-v0.1.1 --notes "rvm handler bump"
+```
 
 (No git commit — infra only.)
 
@@ -2416,7 +2532,7 @@ git commit -m "refactor(sandbox): use segment_speaker tool instead of /segment h
 - Modify: `packages/worker/src/index.ts` (remove legacy segmentation queue registration)
 - Modify: `packages/api/src/services/queue.ts` (remove legacy `queueSegmentationJob`)
 - Modify: `packages/api/src/sandbox/routes.ts` lines 440-582 (remove old `/segment`, `/segment/status`, `/segment/:jobId/matte` routes)
-- **Keep:** `packages/worker/scripts/segment_person.py` — still the source of truth used by the new worker `inference` queue AND the RunPod image.
+- **Keep:** `models/rvm/segment_person.py` — still the source of truth used by the new worker `inference` queue AND the RunPod image.
 
 **Prerequisite:** Task 21 must be fully verified in prod with both providers (`worker` locally, `runpod` in prod) for at least 1 week with no regressions. If in doubt, skip.
 
