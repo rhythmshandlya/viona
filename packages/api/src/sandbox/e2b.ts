@@ -119,11 +119,17 @@ export class E2BSandboxProvider implements SandboxProvider {
       // (SANDBOX_SECRET is still baked in at template build so the api/sandbox
       // handshake works even before this restart completes.)
       try {
+        // E2B runs commands as `user` (non-root) with NOPASSWD sudo. PID 1 is root,
+        // so killing it requires sudo. The respawn then runs as `user` — that's fine
+        // because /workspace is chmod 777 and /app is world-readable.
         await sandbox.commands.run(
-          "pkill -9 -f 'node /app/dist/entry.js' || true; sleep 1; nohup /app/entrypoint.sh > /tmp/sandbox.log 2>&1 &",
+          "sudo pkill -9 -f 'node /app/dist/entry.js' || true; sleep 1; nohup /app/entrypoint.sh > /tmp/sandbox.log 2>&1 &",
           { background: true, timeoutMs: 15_000 }
         );
         logger.info({ sandboxId: sandbox.sandboxId }, 'Respawned sandbox node process with fresh env');
+        // Give the respawned node ~6s to boot Remotion + MCP + agent-server
+        // before we return and the manager starts calling /init.
+        await new Promise(r => setTimeout(r, 6000));
       } catch (err: any) {
         logger.warn({ err: err.message }, 'Failed to respawn sandbox node — continuing anyway');
       }
