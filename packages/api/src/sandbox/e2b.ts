@@ -84,19 +84,30 @@ export class E2BSandboxProvider implements SandboxProvider {
     try {
       let sandbox: Sandbox;
 
-      if (backupId) {
-        // In e2b 2.x, Sandbox.connect() auto-resumes paused sandboxes.
-        // There is no Sandbox.resume() — connect() is the correct API.
-        logger.info({ projectId, backupId }, 'Resuming E2B sandbox via connect');
-        sandbox = await Sandbox.connect(backupId, { apiKey: this.apiKey });
-      } else {
+      const createFresh = async () => {
         logger.info({ projectId, template: this.templateName }, 'Creating new E2B sandbox');
-        sandbox = await Sandbox.create(this.templateName, {
+        return Sandbox.create(this.templateName, {
           apiKey: this.apiKey,
           envs,
           timeoutMs: 60 * 60 * 1000,   // 1h wall-time before auto-pause
           lifecycle: { onTimeout: 'pause' },
         });
+      };
+
+      if (backupId) {
+        // In e2b 2.x, Sandbox.connect() auto-resumes paused sandboxes.
+        // There is no Sandbox.resume() — connect() is the correct API.
+        logger.info({ projectId, backupId }, 'Resuming E2B sandbox via connect');
+        try {
+          sandbox = await Sandbox.connect(backupId, { apiKey: this.apiKey });
+        } catch (err: any) {
+          // Paused sandboxes are retained up to 30 days — older backupIds from the
+          // DB may be stale. Fall back to a fresh sandbox instead of failing.
+          logger.warn({ projectId, backupId, err: err.message }, 'Resume failed, creating fresh sandbox');
+          sandbox = await createFresh();
+        }
+      } else {
+        sandbox = await createFresh();
       }
 
       const fileHost = sandbox.getHost(8080);
