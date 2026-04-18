@@ -27,8 +27,8 @@ export async function templateBundleRoutes(fastify: FastifyInstance) {
       // component in-memory — they don't re-fetch on every render.
       const url = await getPresignedDownloadUrl('templates', row.bundleKey, 60 * 10);
       return reply.redirect(302, url);
-    } catch (err: any) {
-      logger.error({ err: err.message, slug, bundleKey: row.bundleKey }, 'Failed to sign bundle URL');
+    } catch (err) {
+      logger.error({ err, slug, bundleKey: row.bundleKey }, 'Failed to sign bundle URL');
       return reply.code(500).send({ error: 'Failed to sign bundle URL' });
     }
   });
