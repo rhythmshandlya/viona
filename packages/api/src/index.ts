@@ -26,6 +26,7 @@ import { workspaceRoutes } from './workspace/workspace-routes.js';
 import { createSandboxRoutes } from './sandbox/routes.js';
 import { sandboxManager } from './sandbox/manager.js';
 import { templateRoutes } from './routes/templates.js';
+import { templateBundleRoutes } from './routes/template-bundle.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -317,6 +318,7 @@ async function main() {
   await fastify.register(workspaceRoutes, { prefix: '/api' });
   await fastify.register(createSandboxRoutes(sandboxManager), { prefix: '/api' });
   await fastify.register(templateRoutes, { prefix: '/api' });
+  await fastify.register(templateBundleRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
