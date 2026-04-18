@@ -110,6 +110,24 @@ export class E2BSandboxProvider implements SandboxProvider {
         sandbox = await createFresh();
       }
 
+      // E2B's snapshot-restore model means the template's PID 1 node process
+      // was started at build time with a frozen env (empty for everything
+      // except what we baked in). Per-sandbox envs passed via `envs` reach
+      // NEW child processes only. We kill the snapshotted node so the E2B
+      // runtime respawns it with the full, current environment.
+      //
+      // (SANDBOX_SECRET is still baked in at template build so the api/sandbox
+      // handshake works even before this restart completes.)
+      try {
+        await sandbox.commands.run(
+          "pkill -9 -f 'node /app/dist/entry.js' || true; sleep 1; nohup /app/entrypoint.sh > /tmp/sandbox.log 2>&1 &",
+          { background: true, timeoutMs: 15_000 }
+        );
+        logger.info({ sandboxId: sandbox.sandboxId }, 'Respawned sandbox node process with fresh env');
+      } catch (err: any) {
+        logger.warn({ err: err.message }, 'Failed to respawn sandbox node — continuing anyway');
+      }
+
       const fileHost = sandbox.getHost(8080);
       const agentHost = sandbox.getHost(8081);
 
