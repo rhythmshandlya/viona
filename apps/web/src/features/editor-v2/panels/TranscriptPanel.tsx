@@ -39,7 +39,8 @@ export function TranscriptPanel() {
   const project = useProject();
   const selectedSceneId = useSelectedSceneId();
   const { seek } = usePlaybackActions();
-  const { updateCaptionText } = useCaptionActions();
+  const { updateCaptionText, generateCaptions } = useCaptionActions();
+  const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
   const { select } = useTimelineActions();
   const { setSelectedScene } = useAIActions();
 
@@ -221,8 +222,29 @@ export function TranscriptPanel() {
       {/* Caption list */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {filteredCaptions.length === 0 ? (
-          <div className="p-4 text-center text-xs text-[var(--editor-text-muted)]">
-            {searchQuery ? 'No matches found' : 'No captions yet'}
+          <div className="flex flex-col items-center gap-3 p-6 text-center">
+            <div className="text-xs text-[var(--editor-text-muted)]">
+              {searchQuery ? 'No matches found' : 'No captions yet'}
+            </div>
+            {!searchQuery && (
+              <button
+                type="button"
+                disabled={isGeneratingCaptions}
+                onClick={async () => {
+                  setIsGeneratingCaptions(true);
+                  try {
+                    generateCaptions();
+                  } finally {
+                    // Dispatch is fire-and-forget; sandbox creates captions asynchronously.
+                    // Clear the spinner after a short beat so the button isn't stuck.
+                    setTimeout(() => setIsGeneratingCaptions(false), 1500);
+                  }
+                }}
+                className="px-3 py-1.5 text-xs rounded-md border border-[var(--editor-border)] bg-[var(--editor-accent)] text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              >
+                {isGeneratingCaptions ? 'Adding captions…' : 'Add captions from transcript'}
+              </button>
+            )}
           </div>
         ) : (
           filteredCaptions.map((item, index) => {
