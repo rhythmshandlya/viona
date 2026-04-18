@@ -27,6 +27,8 @@ import { createSandboxRoutes } from './sandbox/routes.js';
 import { sandboxManager } from './sandbox/manager.js';
 import { templateRoutes } from './routes/templates.js';
 import { templateBundleRoutes } from './routes/template-bundle.js';
+import { registerInferenceRoutes } from './inference/routes.js';
+import { startReconciler } from './inference/reconciler.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -319,6 +321,7 @@ async function main() {
   await fastify.register(createSandboxRoutes(sandboxManager), { prefix: '/api' });
   await fastify.register(templateRoutes, { prefix: '/api' });
   await fastify.register(templateBundleRoutes, { prefix: '/api' });
+  await registerInferenceRoutes(fastify);
 
   // Setup WebSocket
   await setupWebSocket(fastify);
@@ -356,6 +359,9 @@ async function main() {
 
     // Start sandbox monitoring (health sweep, GC, idle suspension, rehydration)
     sandboxManager.startMonitoring();
+
+    // Start GPU inference reconciler (polls RunPod for terminal jobs, no-op if no runpod rows)
+    startReconciler();
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
