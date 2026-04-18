@@ -592,37 +592,14 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     const whisperxOutput = await runOpenAIWhisper(audioPath, jobId, projectId);
     await publishJobProgress(jobId, 70, 'Transcription complete', pubExtras);
 
-    // Step 4.5: LLM word style analysis (70% → 80%)
-    let wordStyleOverrides: Record<number, PerWordStyleOverrides> = {};
-    const analysisEnabled = config.wordStyleAnalysis.enabled;
-    const analysisApiKey = config.transcription.openaiApiKey;
-
-    if (analysisEnabled && analysisApiKey) {
-      try {
-        await publishJobProgress(jobId, 71, 'Analysing word styles...', pubExtras);
-        wordStyleOverrides = await analyzeWordStyles(
-          whisperxOutput.words,
-          analysisApiKey,
-          config.wordStyleAnalysis.model,
-        );
-        await publishJobProgress(jobId, 80, 'Word styles analysed', pubExtras);
-        logger.info({ projectId, wordCount: whisperxOutput.words.length, overrideCount: Object.keys(wordStyleOverrides).length }, 'Word style analysis complete');
-      } catch (err) {
-        logger.warn({ projectId, err }, 'Word style analysis failed — continuing without overrides');
-      }
-    } else if (analysisEnabled && !analysisApiKey) {
-      logger.info({ projectId }, 'Word style analysis skipped — no OPENAI_API_KEY');
-    }
-
-    // Step 5: Process captions (82%)
-    await publishJobProgress(jobId, 81, 'Processing captions...', pubExtras);
-
-    const pages = groupWordsIntoPages(whisperxOutput.words);
-
-    await publishJobProgress(jobId, 82, 'Captions processed', pubExtras);
-
-    // Step 6: Save transcript to database (80%)
-    await publishJobProgress(jobId, 83, 'Saving transcript...', pubExtras);
+    // Step 5: Save transcript to database (85%)
+    // Word-level timing is preserved here so captions can be created later
+    // on demand — either by the user clicking "Add captions" in the editor
+    // or by the sandbox Caption Agent when the AI pipeline runs. We don't
+    // materialize subtitle track/items here anymore (previously we auto-created
+    // a `subtitle` track + one item per page + LLM word-style analysis, which
+    // put captions on every fresh project regardless of user intent).
+    await publishJobProgress(jobId, 80, 'Saving transcript...', pubExtras);
 
     await db.insert(transcripts).values({
       projectId,
@@ -630,48 +607,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       words: whisperxOutput.words as any,
     });
 
-    await publishJobProgress(jobId, 85, 'Transcript saved', pubExtras);
-
-    // Step 7: Create subtitle track and items (90%)
-    await publishJobProgress(jobId, 82, 'Creating subtitle track...', pubExtras);
-
-    // Create subtitle track
-    const [subtitleTrack] = await db.insert(tracks).values({
-      projectId,
-      type: 'subtitle',
-      name: 'Subtitles',
-      position: 1,
-    }).returning();
-
-    // Create timeline items from caption pages
-    // Track global word index across pages so overrides align correctly
-    let globalWordIdx = 0;
-    const subtitleItems = pages.map((page) => ({
-      trackId: subtitleTrack.id,
-      type: 'subtitle' as const,
-      startMs: page.startMs,
-      endMs: page.endMs,
-      data: {
-        text: page.text,
-        words: page.words.map((w) => {
-          const idx = globalWordIdx++;
-          const styleOverrides = wordStyleOverrides[idx];
-          return {
-            text: w.text,
-            startMs: w.startMs,
-            endMs: w.endMs,
-            ...(styleOverrides ? { styleOverrides } : {}),
-          };
-        }),
-        style: DEFAULT_SUBTITLE_STYLE,
-      },
-    }));
-
-    if (subtitleItems.length > 0) {
-      await db.insert(timelineItems).values(subtitleItems);
-    }
-
-    await publishJobProgress(jobId, 90, 'Subtitle track created', pubExtras);
+    await publishJobProgress(jobId, 90, 'Transcript saved', pubExtras);
 
     // Step 8: For audio projects, create audio track + timeline item referencing uploaded audio
     if (isAudio) {
