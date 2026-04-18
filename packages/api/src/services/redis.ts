@@ -79,6 +79,30 @@ export async function redisLRange(key: string): Promise<string[]> {
 }
 
 /**
+ * Return a dedicated ioredis subscriber connection for multi-channel, listener-
+ * managed subscriptions (e.g. SSE streams that want direct control over
+ * `.subscribe(...)`, `.on('message', ...)`, `.off('message', ...)` and cleanup).
+ *
+ * Each call returns a fresh connection — callers are responsible for disposing
+ * it (`.quit()` / `.disconnect()`) when done. Kept separate from the shared
+ * `redisSub` so one stream's unsubscribe can't clobber another's channels.
+ */
+export function getRedisSubscriber(): Redis {
+  return new Redis(config.redis.url, {
+    enableReadyCheck: false,
+    retryStrategy: (times) => Math.min(times * 500, 5000),
+  });
+}
+
+/**
+ * Get the shared publisher Redis client. Exists so inference/routes and other
+ * new code can `getRedis()` without reaching into the module-scoped `redis`.
+ */
+export function getRedis(): Redis {
+  return redis;
+}
+
+/**
  * Subscribe to a Redis channel.
  * Returns an unsubscribe function.
  * Uses a dedicated subscriber client per subscription.
