@@ -13,15 +13,28 @@ We are moving GPU work to **RunPod Serverless**. RVM is the first consumer; futu
 ## Guiding principle
 
 - **CPU / API-only work stays in the worker.** Remotion render, OpenAI Whisper API calls, Claude Agent SDK orchestration, caption analysis — all remain BullMQ-driven processors.
-- **GPU work goes to RunPod, dispatched from the API.** No BullMQ in this path. The API is the sole holder of RunPod credentials and the sole place RunPod is called from.
+- **GPU work dispatches through the API with a pluggable provider.** In production (Railway), the provider is RunPod Serverless. In local dev the provider is the worker itself, which runs the model on whatever hardware is available (CPU or local GPU). The API is the sole holder of RunPod credentials; the sandbox and every other caller see the same interface regardless of where the compute lands.
+
+### Provider switch
+
+Set `INFERENCE_PROVIDER` in API env:
+
+| Value | Use case | How it runs |
+|---|---|---|
+| `runpod` | Prod (default on Railway) | API presigns MinIO, submits to RunPod `/run`, webhook + reconciler resolve. |
+| `worker` | Local dev, CI, RunPod-outage fallback | API enqueues a BullMQ `inference` job; worker pulls, runs the capability locally, uploads outputs to MinIO, publishes completion on Redis. |
+
+Both providers publish terminal state to the same Redis channels (`job:{id}:complete|error`), so the sandbox SSE tool is completely provider-agnostic.
 
 ## Scope
 
 ### In scope
 - A generic GPU inference dispatch system in the API that can expose arbitrary *capabilities* (outcome-based, not model-named) to callers.
 - A sandbox MCP tool for the first capability: `segment_speaker`.
-- RunPod Serverless endpoint + Docker handler for RVM (reference implementation).
-- Webhook + reconciliation for completion tracking.
+- Two provider backends (selected via `INFERENCE_PROVIDER`):
+  - **RunPod Serverless** — endpoint + Docker handler for RVM (reference prod implementation).
+  - **Worker-local** — BullMQ `inference` queue + per-capability modules that reuse existing Python scripts for dev/CI.
+- Webhook + reconciliation for completion tracking (RunPod path only; worker path uses BullMQ's native retry).
 - Scoped JWT for webhook auth.
 - Capability registry so additional models plug in by config.
 
@@ -51,17 +64,24 @@ We are moving GPU work to **RunPod Serverless**. RVM is the first consumer; futu
 ┌──────────────────────────────────────────────────────────────────────┐
 │ Viona API (Fastify)                                                  │
 │                                                                      │
-│  Capability registry: segment-speaker → { runpodEndpointId, gpuTier, │
-│                                            executionTimeout, schemas }│
+│  Capability registry: segment-speaker → { runpodEndpointIdEnv,       │
+│                         workerModule, executionTimeout, schemas }    │
 │                                                                      │
 │  POST /internal/sandbox/:id/inference                                │
-│   │  - validate bearer (existing sandboxSessions auth)               │
-│   │  - presign MinIO: input GET, output PUTs                         │
-│   │  - INSERT jobs row (status='pending', runpodJobId=null)          │
-│   │  - issue scoped JWT (claims: jobId, capability, exp=1h)          │
-│   │  - POST runpod /run { input, webhook={API}/runpod/callback?...}  │
-│   │  - UPDATE jobs.runpodJobId                                       │
-│   │  └─ return { jobId }                                             │
+│   │  - validate bearer                                               │
+│   │  - INSERT inferenceJobs row (status='pending')                   │
+│   │  - branch on INFERENCE_PROVIDER:                                 │
+│   │                                                                  │
+│   │    ┌─ provider=runpod ────────────────────────────────────────┐  │
+│   │    │  presign MinIO GET(input) + PUTs(outputs)                │  │
+│   │    │  issue scoped JWT, call RunPod /run with webhook URL     │  │
+│   │    │  UPDATE runpodJobId, return { jobId }                    │  │
+│   │    └──────────────────────────────────────────────────────────┘  │
+│   │                                                                  │
+│   │    ┌─ provider=worker ────────────────────────────────────────┐  │
+│   │    │  queue BullMQ 'inference' job { capability, jobId, input}│  │
+│   │    │  return { jobId }                                        │  │
+│   │    └──────────────────────────────────────────────────────────┘  │
 │                                                                      │
 │  GET /internal/sandbox/:id/inference/:jobId/stream  (SSE)            │
 │   │  - validate bearer                                               │
@@ -69,102 +89,97 @@ We are moving GPU work to **RunPod Serverless**. RVM is the first consumer; futu
 │   │  - relay events as SSE                                           │
 │   │  - close on terminal event                                       │
 │                                                                      │
-│  POST /internal/runpod/callback/:jobId?token=JWT  (from RunPod)      │
-│   │  - verify JWT (jobId + capability match)                         │
-│   │  - UPDATE jobs row (status, outputs, error, metrics)             │
-│   │  - redis.publish(job:${jobId}:${complete|error}, payload)        │
+│  POST /internal/runpod/callback/:jobId?token=JWT  (RunPod only)      │
+│   │  - verify JWT, UPDATE row, redis.publish(job:{id}:complete|error)│
 │                                                                      │
-│  Reconciliation job (setInterval 30s):                               │
-│   │  - SELECT jobs WHERE status='pending' AND submittedAt older 30s  │
+│  Reconciliation job (setInterval 30s, RunPod-provider rows only):    │
+│   │  - SELECT inferenceJobs WHERE status IN ('pending','running')    │
+│   │                           AND provider='runpod'                  │
 │   │  - GET runpod /status/:runpodJobId                               │
 │   │  - If terminal: same path as webhook                             │
 └──────────────────────────────────────────────────────────────────────┘
-                            ↑ HTTPS + RUNPOD_API_KEY
-                            │ (key lives in API env only)
-                            │
-┌──────────────────────────────────────────────────────────────────────┐
-│ RunPod Serverless endpoint: viona-rvm                                │
-│                                                                      │
-│  Docker image (built + pushed to GHCR, weights baked):               │
-│    nvidia/cuda:12.2-runtime → python + torch + RVM weights +         │
-│    handler.py + segment_person.py + minio client                     │
-│                                                                      │
-│  handler(job):                                                       │
-│    1. Download via input.presignedGetUrl                             │
-│    2. Run segment_person.main() unchanged                            │
-│    3. Upload outputs via input.presignedPutUrls                      │
-│    4. return { artifacts: {...}, metrics: {...} }                    │
-│                                                                      │
-│  RunPod auto-invokes webhook on terminal state.                      │
-└──────────────────────────────────────────────────────────────────────┘
+                │                                  │
+   provider=runpod│                  provider=worker│
+                ↓                                  ↓
+┌──────────────────────────────────────┐   ┌───────────────────────────┐
+│ RunPod Serverless endpoint:          │   │ Worker (BullMQ)           │
+│ viona-rvm                            │   │                           │
+│                                      │   │ 'inference' queue:        │
+│ Docker image (GHCR, weights baked):  │   │  processor reads          │
+│   cuda:12.2 + torch + RVM weights +  │   │    {capability, jobId,    │
+│   handler.py + segment_person.py     │   │     input}                │
+│                                      │   │  → looks up capability   │
+│ handler(job):                        │   │     module               │
+│   1. Download via presigned GET      │   │  → module downloads from │
+│   2. Run segment_person.main()       │   │     MinIO                │
+│   3. Upload via presigned PUTs       │   │  → runs local python     │
+│   4. return {artifacts, metrics}     │   │     subprocess           │
+│                                      │   │  → uploads to MinIO      │
+│ RunPod POSTs webhook on terminal.    │   │  → publishes to Redis    │
+└──────────────────────────────────────┘   │     job:{id}:complete    │
+                                           └───────────────────────────┘
 ```
 
 ## Components
 
 ### 1. Capability Registry (`packages/api/src/inference/registry.ts`)
 
-Single source of truth mapping capability name → RunPod config, payload schemas, default policy.
+Single source of truth mapping capability name → RunPod config + worker module + schemas + policy.
 
 ```ts
 export const inferenceRegistry = {
   'segment-speaker': {
     runpodEndpointIdEnv: 'RUNPOD_RVM_ENDPOINT_ID',
+    // Name used by the worker's generic 'inference' processor to dynamic-import
+    // the local runner: `packages/worker/src/inference/segment-speaker.ts`
+    workerModule: 'segment-speaker',
     gpuTier: ['L40S', 'A40', 'A5000'],
     executionTimeoutSec: 900,
-    inputSchema: z.object({
-      videoKey: z.string(),
-      ranges: z.array(z.object({ startMs: z.number(), endMs: z.number() })).optional(),
-      params: z.object({
-        backbone: z.enum(['resnet50', 'mobilenetv3']).default('resnet50'),
-        downsampleRatio: z.number().default(0.8),
-      }).default({}),
-    }),
-    outputSchema: z.object({
-      matteKey: z.string(),
-      fgrKey: z.string(),
-      bboxKey: z.string(),
-      proxyMatteKey: z.string(),
-      proxyFgrKey: z.string(),
-    }),
-    estimateCostUsd: (input) => /* duration-based */ 0.10,
+    inputSchema: z.object({ /* as before */ }),
+    outputSchema: z.object({ /* as before */ }),
+    outputKeys: (jobId) => ({ /* as before */ }),
   },
 } satisfies Record<string, CapabilityDefinition>;
 ```
 
-Adding a new capability = add a row here + deploy a new RunPod endpoint + (optionally) add a sandbox MCP tool. No infra changes.
+Adding a new capability = add a row here + (for prod) deploy a RunPod endpoint + (for dev) add a worker module + (optionally) add a sandbox MCP tool. Prod and dev can be added independently — you can ship worker-only capabilities during development, promote to RunPod when the cost/perf case is clear.
 
-### 2. API routes (`packages/api/src/routes/internal/inference.ts`)
+### 2. API routes (`packages/api/src/inference/routes.ts`)
 
-- `POST /internal/sandbox/:id/inference` — dispatch.
+- `POST /internal/sandbox/:id/inference` — dispatch (provider-branched).
 - `GET /internal/sandbox/:id/inference/:jobId/stream` — SSE event stream.
-- `POST /internal/runpod/callback/:jobId?token=JWT` — webhook sink.
+- `POST /internal/runpod/callback/:jobId?token=JWT` — webhook sink (RunPod only).
 
-All three share helpers in `packages/api/src/inference/`:
-- `dispatcher.ts` — presign + RunPod submit + DB row insert.
-- `webhook-auth.ts` — issue + verify capability JWT.
-- `reconciler.ts` — 30s interval `setInterval` loop started on API boot.
+Helpers in `packages/api/src/inference/`:
+- `dispatcher.ts` — branches on `config.inference.provider`; either presigns + RunPod submits, or enqueues to BullMQ.
+- `webhook-auth.ts` — issue + verify capability JWT (RunPod only).
+- `reconciler.ts` — 30s interval; queries only rows with `provider='runpod'`.
+- `runpod-client.ts` — fetch wrapper for RunPod REST API.
 
 ### 3. Database
 
-New table `inferenceJobs` (mirrors existing `jobs` shape):
+New table `inferenceJobs`:
 
 ```ts
 inferenceJobs {
   id: uuid (PK)
   sandboxSessionId: uuid (FK)
   capability: text             -- 'segment-speaker'
+  provider: text               -- 'runpod' | 'worker'
   status: 'pending' | 'running' | 'completed' | 'failed' | 'timed_out'
-  runpodJobId: text | null
+  runpodJobId: text | null     -- RunPod job ID when provider='runpod', null for worker
   input: jsonb                 -- full validated input
   output: jsonb | null         -- on completion, matches capability outputSchema
   error: jsonb | null          -- { message, stage, recoverable }
-  metrics: jsonb | null        -- { durationMs, gpuType, costUsd }
+  metrics: jsonb | null        -- { durationMs, gpuType?, costUsd? }
   submittedAt: timestamptz
   completedAt: timestamptz | null
 }
 ```
 
-Why not reuse existing `jobs` table? That table is BullMQ-bound and its lifecycle is coupled to Bull retries. Keeping a separate table lets us kill BullMQ in this path cleanly.
+The `provider` column lets the reconciler target only RunPod rows and lets observability distinguish dev/prod compute.
+
+Why not reuse existing `jobs` table? That table's lifecycle is coupled to BullMQ retries for the legacy worker processors. Keeping a separate table lets the new generic inference path evolve cleanly, and the same table serves both providers uniformly.
 
 ### 4. Sandbox MCP tool (`packages/sandbox/src/mcp-servers/inference.ts`)
 
@@ -199,20 +214,40 @@ Tool blocks for the full inference duration. SSE keeps the MCP call alive; exist
 
 **Storage access from the sandbox**: the sandbox already has direct MinIO client access for checkpoints (`packages/sandbox/src/checkpoint.ts:30-37`). Reuse this client for output downloads. Presigned URLs in the API→RunPod path exist because the RunPod container does **not** have our MinIO creds; the sandbox does, so its download path is direct.
 
-### 5. RunPod handler (`runpod/rvm/`)
+### 5. Worker local runner (`packages/worker/src/inference/`)
+
+When `INFERENCE_PROVIDER=worker`, the worker's generic `inference` BullMQ processor dispatches by capability name to a per-capability module:
+
+```
+packages/worker/src/
+  processors/
+    inference.ts                # generic processor: reads capability, dispatches
+  inference/
+    segment-speaker.ts          # thin wrapper: download from MinIO, spawn
+                                # segment_person.py, upload outputs, publish
+                                # completion on Redis job:{id}:*
+  scripts/
+    segment_person.py           # unchanged — source of truth for the Python code
+```
+
+This is ~80% lift-and-shift from the existing `packages/worker/src/processors/segmentation.ts`. What changes:
+- Input/output shapes match the registry's `inputSchema` and `outputKeys` (not the legacy `SegmentationJobData`).
+- Output MinIO keys come from `cap.outputKeys(jobId, input)` so worker and RunPod paths are bit-identical.
+- Publishes to `job:{id}:complete|error` on the same Redis channels the SSE stream listens on.
+
+### 6. RunPod handler (`runpod/rvm/`)
 
 Directory layout:
 ```
 runpod/
-  _shared/            # base Dockerfile layer: cuda + python + minio + runpod sdk
-    Dockerfile
-    utils.py          # presigned url download/upload helpers
   rvm/
-    Dockerfile        # FROM viona-runpod-base; bake RVM weights; copy handler.py
-    handler.py
+    Dockerfile        # cuda + torch + baked RVM weights; COPY-in from repo root
+    handler.py        # thin wrapper; imports segment_person from /app
     requirements.txt
-    README.md         # input/output contract
+    README.md         # input/output contract + build instructions
 ```
+
+**Build context is repo root** so the Dockerfile can `COPY packages/worker/scripts/segment_person.py /app/`. The Python script has exactly one source of truth (`packages/worker/scripts/segment_person.py`); both the worker and the RunPod image consume it.
 
 Handler contract (same for all capabilities):
 
@@ -230,7 +265,7 @@ def handler(job):
 
 Weights baked into image (not network volume) — RVM resnet50 is ~100 MB, cold-start cost is negligible vs. a volume mount. Multi-stage Dockerfile: base layer has deps + weights (cached), top layer has handler.py (fast iteration).
 
-### 6. Endpoint configuration (RunPod)
+### 7. Endpoint configuration (RunPod)
 
 | Setting | Value | Reasoning |
 |---|---|---|
@@ -244,11 +279,17 @@ Weights baked into image (not network volume) — RVM resnet50 is ~100 MB, cold-
 
 ## Data flow: `segment_speaker` end-to-end
 
-1. Sandbox agent (LLM) calls tool `segment_speaker({ videoKey: "uploads/abc/source.mp4", ranges: [{startMs:0, endMs:120000}] })`. `videoKey` comes from the project manifest — the video was uploaded by the user and already lives in MinIO; the tool never accepts workspace file paths for inputs.
+Steps 1–4 and 9–12 are provider-agnostic. Steps 5–8 differ per provider.
+
+1. Sandbox agent (LLM) calls tool `segment_speaker({ videoKey: "uploads/abc/source.mp4", ranges: [...] })`. `videoKey` comes from the project manifest; the tool never accepts workspace file paths for inputs.
 2. Tool calls `POST /internal/sandbox/:id/inference` with `{ capability: 'segment-speaker', input: { videoKey, ranges, params } }`.
-4. API validates bearer, loads registry entry for `segment-speaker`, validates input against schema.
-5. API presigns a GET URL for the input `videoKey` (so the RunPod handler can fetch it) and PUT URLs for each output artifact (matte, fgr, bbox, proxies) under `outputs/mattes/{jobId}/…`.
-6. API inserts `inferenceJobs` row (status `pending`), issues scoped JWT (claims: `{ jobId, capability, exp: now+1h }`).
+3. API validates bearer, loads registry entry for `segment-speaker`, validates input against schema.
+4. API inserts `inferenceJobs` row (`status='pending'`, `provider=<env>`). Returns `{ jobId }` eagerly as soon as submission succeeds.
+
+### 5–8 — provider=runpod
+
+5. API presigns a GET URL for `videoKey` and PUT URLs for each output under `outputs/mattes/{jobId}/…`.
+6. API issues scoped JWT (claims: `{ jobId, capability, exp: submittedAt+executionTimeout+60s }`).
 7. API calls RunPod `POST /run`:
    ```json
    {
@@ -261,11 +302,24 @@ Weights baked into image (not network volume) — RVM resnet50 is ~100 MB, cold-
      "policy":  { "executionTimeout": 900000 }
    }
    ```
-8. API updates `inferenceJobs.runpodJobId`, returns `{ jobId }` to sandbox tool.
+8. API updates `inferenceJobs.runpodJobId`, status → `running`. When RunPod finishes, it POSTs the webhook; API verifies JWT, updates row, publishes `job:{id}:{complete|error}` to Redis.
+
+### 5–8 — provider=worker
+
+5. API enqueues a BullMQ `inference` job: `{ jobId, capability, input }`.
+6. API updates status → `running`.
+7. Worker pulls the job. The generic `inference` processor looks up the capability's local runner (`packages/worker/src/inference/segment-speaker.ts`), which:
+   - Downloads the source video from MinIO (using the worker's existing MinIO client — no presigning needed since the worker has creds).
+   - Spawns `python packages/worker/scripts/segment_person.py` with the CLI args derived from `input.params`/`input.ranges`.
+   - Uploads each output artifact to MinIO using keys from `cap.outputKeys(jobId, input)` — identical to the RunPod path.
+8. Worker writes `output`, `status`, `metrics` onto the `inferenceJobs` row and publishes `job:{id}:{complete|error}` to Redis.
+
+### 9–12 — shared terminal path
+
 9. Sandbox tool opens SSE `GET /internal/sandbox/:id/inference/:jobId/stream`. API subscribes to Redis `job:{jobId}:*` and relays events as SSE (`progress`, `complete`, `error`). Tool uses MCP `report_progress` to surface these to the agent UI.
-10. RunPod worker pulls image, runs handler, downloads video, runs RVM, uploads outputs, POSTs webhook with `{ output: {...}, executionTime: N }`.
-11. API webhook handler verifies JWT, updates row, publishes to Redis. SSE stream relays `complete` event, then closes.
-12. Tool receives terminal event, downloads each output from MinIO directly (using the sandbox's existing MinIO client) to `outputDir`, parses bbox JSON, returns `{ mattePath, fgrPath, bbox, durationMs, costUsd }` to the agent.
+10. SSE stream relays the terminal event (same format from either provider), then closes.
+11. Tool reads output keys from the event and downloads each file from MinIO directly (using the sandbox's existing MinIO client) to `outputDir`.
+12. Tool parses `bbox.json`, returns `{ mattePath, fgrPath, bbox, durationMs, costUsd }` to the agent.
 
 ## Security
 
@@ -287,28 +341,34 @@ Presigned URLs only. Bucket policy unchanged. RunPod handler never receives long
 
 ## Failure modes
 
-| Failure | Handling |
-|---|---|
-| RunPod handler crashes | Status flips to `FAILED`; webhook still fires with error. Reconciler catches missed webhooks. |
-| Webhook lost (network / API down) | Reconciler polls `/status/:runpodJobId` every 30s; terminal state triggers same code path as webhook. |
-| API restarts mid-job | `inferenceJobs` row persists; on restart, reconciler picks up all `pending` rows and resumes polling. SSE stream drops; sandbox tool reconnects (up to 3 retries). |
-| Sandbox SSE connection drops | Tool reconnects to `GET .../stream` (idempotent — just resubscribes to Redis). If terminal event already published, stream immediately re-emits last state from DB on connect. |
-| RunPod execution timeout (> 900s) | Status → `timed_out`. Sandbox tool surfaces error; agent can retry with smaller input. |
-| Cost blowout | Per-sandbox-session cost ceiling checked at dispatch time (reject if projected > budget). Reconciler also cancels pending jobs on session termination. |
-| Sandbox evicted mid-wait | Job continues on RunPod; outputs still land in MinIO. When sandbox reconnects, it can query job status by jobId if it persisted it (deferred). |
+| Failure | Provider | Handling |
+|---|---|---|
+| RunPod handler crashes | runpod | Status flips to `FAILED`; webhook still fires with error. Reconciler catches missed webhooks. |
+| Webhook lost (network / API down) | runpod | Reconciler polls `/status/:runpodJobId` every 30s for `provider='runpod'` rows only; terminal state triggers same code path as webhook. |
+| RunPod execution timeout (> 900s) | runpod | Status → `timed_out`. Sandbox tool surfaces error; agent can retry with smaller input. |
+| Worker subprocess crashes | worker | Processor throws; BullMQ's built-in retry (2 attempts, exponential backoff) handles transient failures. Terminal failure marks row `failed` and publishes to Redis. |
+| Worker container crashes mid-job | worker | BullMQ redelivers the job to another worker instance on lock expiry. Idempotency: re-dispatch reuses the same `jobId` and re-uploads to the same MinIO keys. |
+| Python subprocess hangs | worker | Processor enforces a 15-min timeout (matches `executionTimeoutSec`); kills child process on expiry, publishes `error`. |
+| API restarts mid-job | both | `inferenceJobs` row persists. For `runpod`: reconciler resumes polling. For `worker`: BullMQ job survives (Redis-backed), continues processing. SSE stream drops; sandbox tool reconnects (up to 3 retries). |
+| Sandbox SSE connection drops | both | Tool reconnects to `GET .../stream` (idempotent — just resubscribes to Redis). If terminal event already published, stream immediately re-emits last state from the DB row on connect. |
+| Cost blowout | runpod | Per-sandbox-session cost ceiling checked at dispatch time (reject if projected > budget). Reconciler also cancels pending jobs on session termination. |
+| Sandbox evicted mid-wait | both | Compute finishes regardless; outputs land in MinIO. When sandbox reconnects, it can query job status by jobId if it persisted it (deferred). |
 
 ## Rollout
 
-1. **Phase 1 — build + test handler offline.** Write `runpod/_shared` base + `runpod/rvm/` handler. Test against RunPod directly with hardcoded presigned URLs. Prove bit-exact output parity with local `segment_person.py`.
-2. **Phase 2 — wire API dispatcher.** Registry, DB migration for `inferenceJobs`, three routes, JWT, reconciler. Unit-test with RunPod mocked.
-3. **Phase 3 — wire sandbox MCP tool.** New in-process server under `packages/sandbox/src/mcp-servers/inference.ts`, registered in `mcp-servers.ts`. End-to-end test: sandbox agent invokes `segment_speaker`, files land in workspace.
-4. **Phase 4 — migrate real pipeline.** Sandbox agents' current segmentation calls (which hit `/internal/sandbox/:id/segment`) point at the new path. Keep old path warm for 1 week, then delete.
-5. **Phase 5 — cleanup.** Delete `packages/worker/src/processors/segmentation.ts`, Python subprocess code, related BullMQ queue. Weights no longer needed in worker container.
+1. **Phase 1 — DB, config, registry, JWT, RunPod client.** Lays down the shared foundation used by both providers.
+2. **Phase 2 — worker provider.** New BullMQ `inference` queue + generic processor + `segment-speaker` module (lifted from existing `segmentation.ts`). End-to-end test with `INFERENCE_PROVIDER=worker` locally. This validates the registry, DB, routes, and SSE stream end-to-end without RunPod dependency.
+3. **Phase 3 — RunPod provider.** Build `runpod/rvm/` Dockerfile + `handler.py`. Push image, create endpoint, test via `INFERENCE_PROVIDER=runpod` locally (with ngrok for webhook).
+4. **Phase 4 — sandbox MCP tool.** Register `segment_speaker` in the sandbox MCP server. End-to-end test with both providers.
+5. **Phase 5 — migrate real pipeline.** Sandbox agents' current segmentation calls point at the new tool. Dev/CI uses `INFERENCE_PROVIDER=worker`; Railway prod uses `INFERENCE_PROVIDER=runpod`.
+6. **Phase 6 — cleanup.** Delete the legacy `packages/worker/src/processors/segmentation.ts` processor, the `segmentation` BullMQ queue, and the old `/internal/sandbox/:id/segment` routes. **Keep** `packages/worker/scripts/segment_person.py` — it's the source of truth consumed by both the worker's new `inference` queue and the RunPod image.
 
 ## Env vars added
-- `RUNPOD_API_KEY` (API only)
-- `RUNPOD_RVM_ENDPOINT_ID` (API only)
-- `RUNPOD_WEBHOOK_SECRET` (API only — signs JWTs)
+- `INFERENCE_PROVIDER` (API, worker) — `runpod` or `worker`. Default: `runpod` in Railway, `worker` locally.
+- `RUNPOD_API_KEY` (API only, when provider=runpod)
+- `RUNPOD_RVM_ENDPOINT_ID` (API only, when provider=runpod)
+- `RUNPOD_WEBHOOK_SECRET` (API only — signs JWTs, when provider=runpod)
+- `RUNPOD_WEBHOOK_BASE_URL` (API only — public URL for the webhook callback; defaults to `RAILWAY_PUBLIC_DOMAIN`)
 
 ## Testing
 
@@ -329,10 +389,12 @@ Presigned URLs only. Bucket policy unchanged. RunPod handler never receives long
 
 | Q | Decision |
 |---|---|
-| Webhook vs polling | **Webhook primary + 30s reconciliation poll as truth** |
-| Where does RunPod key live | **API only — never in sandbox** |
-| BullMQ in the path | **No.** RunPod is the queue; `inferenceJobs` table is durability. BullMQ stays for CPU work. |
+| Webhook vs polling | **Webhook primary + 30s reconciliation poll as truth** (RunPod path). |
+| Where does RunPod key live | **API only — never in sandbox.** |
+| BullMQ in the GPU path | **No** when provider=runpod (RunPod is the queue; `inferenceJobs` is durability). **Yes** when provider=worker (BullMQ's native retry is ideal for local subprocess work). |
 | Tool blocking vs handle | **Blocking via SSE.** Upgrade to MCP Tasks when SDK supports it. |
-| Output delivery | **Presigned GET from MinIO → file in `/workspace/outputs/...`.** Never inlined in tool result. |
-| Tool naming | **Outcome-based** (`segment_speaker`), not model-named. Registry hides model choice. |
+| Output delivery | **MinIO → file in `/workspace/outputs/...` via sandbox's existing MinIO client.** Never inlined in tool result. |
+| Tool naming | **Outcome-based** (`segment_speaker`), not model-named. Registry hides model choice AND provider choice. |
 | First capability | **`segment_speaker` only.** Others follow the established pattern. |
+| Dev vs prod compute | **Same API, same DB, same sandbox tool. Provider chosen via `INFERENCE_PROVIDER` env var.** Same interface, two backends. |
+| Where does `segment_person.py` live | **`packages/worker/scripts/segment_person.py` (single source of truth).** Worker's `inference` queue spawns it directly; RunPod Dockerfile `COPY`s it from repo root at build time. |

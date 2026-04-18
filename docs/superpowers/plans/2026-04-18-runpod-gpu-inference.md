@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a generic GPU inference dispatch system in the API (capability-based, outcome-named) with `segment_speaker` as the reference implementation running RVM on RunPod Serverless.
+**Goal:** Ship a generic, outcome-based inference dispatch system with a pluggable backend — RunPod Serverless in prod, local worker (BullMQ + subprocess) in dev/CI. First capability: `segment_speaker` (RVM).
 
-**Architecture:** Sandbox MCP tool → API (capability registry + dispatcher) → RunPod Serverless → MinIO (via presigned URLs). Webhook-primary completion with 30s reconciliation poll. No BullMQ in the GPU path. Existing Redis pub/sub (`job:{id}:*`) is the completion bus; existing `sandboxSessions` bearer auth secures the sandbox→API hop.
+**Architecture:** Sandbox MCP tool → API dispatcher. Dispatcher branches on `INFERENCE_PROVIDER`: (a) `runpod` → presign MinIO + submit to RunPod `/run` + webhook/reconcile; (b) `worker` → enqueue BullMQ `inference` job → worker runs local subprocess → upload to MinIO. Both publish to the same Redis `job:{id}:*` channels; sandbox SSE stream is provider-agnostic. `segment_person.py` lives once in `packages/worker/scripts/`; worker spawns it directly, RunPod Docker image `COPY`s it from repo root.
 
-**Tech Stack:** Fastify, Drizzle, ioredis, minio, `jose` (JWT), RunPod Serverless, Python 3.10, PyTorch + CUDA 12.2, GHCR.
+**Tech Stack:** Fastify, Drizzle, ioredis, BullMQ, minio, `jose` (JWT), RunPod Serverless, Python 3.10, PyTorch + CUDA 12.2, GHCR.
 
 **Spec:** `docs/superpowers/specs/2026-04-18-runpod-gpu-inference-design.md`
 
@@ -16,32 +16,34 @@
 
 | Action | File | Responsibility |
 |--------|------|---------------|
-| Create | `packages/api/drizzle/0027_add_inference_jobs.sql` | Migration for `inference_jobs` table |
+| Create | `packages/api/drizzle/0027_add_inference_jobs.sql` | Migration for `inference_jobs` table (includes `provider` column) |
 | Modify | `packages/api/src/db/schema.ts` | Add `inferenceJobs` Drizzle table export |
-| Modify | `packages/api/src/config.ts` | Add `runpod` config section |
-| Modify | `.env.example` | Document new env vars |
-| Create | `packages/api/src/inference/registry.ts` | Capability→endpoint registry + schemas |
+| Modify | `packages/api/src/config.ts` | Add `runpod` + `inference.provider` config |
+| Modify | `.env.example` | Document `INFERENCE_PROVIDER` and `RUNPOD_*` env vars |
+| Create | `packages/api/src/inference/registry.ts` | Capability registry (runpod endpoint id, worker module name, schemas) |
 | Create | `packages/api/src/inference/runpod-client.ts` | Fetch wrapper for RunPod REST API |
 | Create | `packages/api/src/inference/webhook-auth.ts` | JWT issue + verify (HS256 via `jose`) |
-| Create | `packages/api/src/inference/dispatcher.ts` | Presign + DB insert + RunPod submit |
-| Create | `packages/api/src/inference/reconciler.ts` | 30s interval poll for stalled jobs |
+| Create | `packages/api/src/inference/dispatcher.ts` | Provider-branched dispatch: presign+RunPod OR enqueue BullMQ |
+| Create | `packages/api/src/inference/reconciler.ts` | 30s interval poll for stalled `provider='runpod'` jobs |
 | Create | `packages/api/src/inference/routes.ts` | Three Fastify routes (dispatch, webhook, SSE) |
+| Modify | `packages/api/src/services/queue.ts` | Add `queueInferenceJob` helper (new generic queue) |
 | Modify | `packages/api/src/index.ts` | Register routes + start reconciler on boot |
 | Modify | `packages/api/package.json` | Add `jose` dep |
+| Create | `packages/worker/src/processors/inference.ts` | Generic processor: dispatches by capability to worker modules |
+| Create | `packages/worker/src/inference/segment-speaker.ts` | Local runner for segment-speaker capability |
+| Modify | `packages/worker/src/index.ts` | Register new `inference` queue worker |
+| Create | `runpod/rvm/Dockerfile` | CUDA base + torch + baked weights; build context = repo root |
 | Create | `runpod/rvm/handler.py` | RunPod handler entrypoint |
-| Create | `runpod/rvm/segment_person.py` | Copy of worker's script (vendor; worker copy deleted in Task 21) |
 | Create | `runpod/rvm/requirements.txt` | Python deps |
-| Create | `runpod/rvm/Dockerfile` | CUDA base + torch + weights baked |
 | Create | `runpod/rvm/README.md` | Input/output contract + build/push instructions |
 | Create | `packages/sandbox/src/tools/segment-speaker.ts` | Outcome-based MCP tool |
 | Modify | `packages/sandbox/src/mcp-servers.ts` | Register new `inference` MCP server |
-| Create | `scripts/temp/test-runpod-handler.ts` | E2E test: submits real RunPod job, verifies artifacts |
-| Create | `scripts/temp/test-inference-dispatch.ts` | E2E test: POST /inference, wait on SSE, verify completion |
-| Modify | `packages/api/src/sandbox/routes.ts:440-541` | Deprecate old `/segment` routes with pass-through to new path |
-| Delete | `packages/worker/src/processors/segmentation.ts` | Final cleanup after verification |
-| Delete | `packages/worker/scripts/segment_person.py` | Final cleanup after verification |
-| Modify | `packages/worker/src/index.ts` | Remove segmentation worker registration |
-| Modify | `packages/api/src/services/queue.ts` | Remove `queueSegmentationJob` + types |
+| Create | `scripts/temp/test-runpod-handler.ts` | E2E: submits real RunPod job, verifies artifacts |
+| Create | `scripts/temp/test-inference-dispatch.ts` | E2E: POST /inference, wait on SSE, verify completion (both providers) |
+| Modify | `packages/api/src/sandbox/routes.ts:440-582` | Delete old `/segment` routes (after migration verified) |
+| Delete | `packages/worker/src/processors/segmentation.ts` | Final cleanup after new path verified |
+| Modify | `packages/api/src/services/queue.ts` | Remove legacy `queueSegmentationJob` + types |
+| **Keep** | `packages/worker/scripts/segment_person.py` | **Source of truth. Worker's new `inference` queue spawns it; RunPod image `COPY`s it in.** |
 
 ---
 
@@ -58,7 +60,13 @@
 Append these lines to `.env.example`:
 ```bash
 
-# ---- RunPod Serverless (GPU inference) ----
+# ---- GPU inference dispatch ----
+# Provider for the /internal/sandbox/:id/inference endpoint.
+#   worker — run locally via BullMQ + subprocess (dev default, CI, RunPod fallback)
+#   runpod — submit to RunPod Serverless (Railway prod default)
+INFERENCE_PROVIDER=worker
+
+# ---- RunPod Serverless (only needed when INFERENCE_PROVIDER=runpod) ----
 # API key from runpod.io → Settings → API Keys. Used by API service only.
 RUNPOD_API_KEY=
 # Endpoint ID from runpod.io → Serverless → viona-rvm (created in Task 6).
@@ -71,12 +79,17 @@ RUNPOD_WEBHOOK_SECRET=
 RUNPOD_WEBHOOK_BASE_URL=
 ```
 
-- [ ] **Step 2: Add `runpod` config section to `packages/api/src/config.ts`**
+- [ ] **Step 2: Add `inference` + `runpod` config to `packages/api/src/config.ts`**
 
 Open `packages/api/src/config.ts` and find the `config` object. After the `sandbox` property and before the closing `} as const`, add:
 
 ```ts
-  // RunPod Serverless (GPU inference)
+  // GPU inference dispatch
+  inference: {
+    provider: (process.env.INFERENCE_PROVIDER ?? (process.env.RAILWAY_ENVIRONMENT ? 'runpod' : 'worker')) as 'runpod' | 'worker',
+  },
+
+  // RunPod Serverless (GPU inference; only needed when inference.provider=runpod)
   runpod: {
     apiKey: process.env.RUNPOD_API_KEY || '',
     rvmEndpointId: process.env.RUNPOD_RVM_ENDPOINT_ID || '',
@@ -90,11 +103,19 @@ Open `packages/api/src/config.ts` and find the `config` object. After the `sandb
   },
 ```
 
+Also add the same `inference` block to `packages/worker/src/config.ts` so the worker knows whether to register the `inference` queue consumer:
+
+```ts
+  inference: {
+    provider: (process.env.INFERENCE_PROVIDER ?? (process.env.RAILWAY_ENVIRONMENT ? 'runpod' : 'worker')) as 'runpod' | 'worker',
+  },
+```
+
 - [ ] **Step 3: Commit**
 
 ```bash
-git add .env.example packages/api/src/config.ts
-git commit -m "feat(api): add runpod env + config"
+git add .env.example packages/api/src/config.ts packages/worker/src/config.ts
+git commit -m "feat(api,worker): add inference provider + runpod config"
 ```
 
 ---
@@ -115,6 +136,7 @@ CREATE TABLE IF NOT EXISTS "inference_jobs" (
   "sandbox_session_id" uuid REFERENCES "sandbox_sessions"("id") ON DELETE SET NULL,
   "project_id" uuid REFERENCES "projects"("id") ON DELETE CASCADE,
   "capability" varchar(64) NOT NULL,
+  "provider" varchar(16) NOT NULL,
   "status" varchar(32) NOT NULL DEFAULT 'pending',
   "runpod_job_id" varchar(128),
   "input" jsonb NOT NULL,
@@ -129,9 +151,10 @@ CREATE INDEX IF NOT EXISTS "inference_jobs_status_idx"
   ON "inference_jobs" ("status", "submitted_at")
   WHERE "status" IN ('pending', 'running');
 
-CREATE INDEX IF NOT EXISTS "inference_jobs_runpod_idx"
-  ON "inference_jobs" ("runpod_job_id")
-  WHERE "runpod_job_id" IS NOT NULL;
+-- Reconciler targets only RunPod-provider rows
+CREATE INDEX IF NOT EXISTS "inference_jobs_runpod_pending_idx"
+  ON "inference_jobs" ("submitted_at")
+  WHERE "provider" = 'runpod' AND "status" IN ('pending', 'running');
 ```
 
 - [ ] **Step 2: Add Drizzle schema export**
@@ -144,6 +167,7 @@ export const inferenceJobs = pgTable('inference_jobs', {
   sandboxSessionId: uuid('sandbox_session_id'),
   projectId: uuid('project_id'),
   capability: varchar('capability', { length: 64 }).notNull(),
+  provider: varchar('provider', { length: 16 }).notNull(),
   status: varchar('status', { length: 32 }).notNull().default('pending'),
   runpodJobId: varchar('runpod_job_id', { length: 128 }),
   input: jsonb('input').notNull(),
@@ -156,6 +180,7 @@ export const inferenceJobs = pgTable('inference_jobs', {
 
 export type InferenceJob = typeof inferenceJobs.$inferSelect;
 export type NewInferenceJob = typeof inferenceJobs.$inferInsert;
+export type InferenceProvider = 'runpod' | 'worker';
 export type InferenceJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timed_out';
 ```
 
@@ -204,26 +229,22 @@ git commit -m "chore(api): add jose for webhook JWT"
 
 ## Phase 1 — RunPod handler
 
-### Task 3: Vendor `segment_person.py` into `runpod/rvm/`
+### Task 3: Create `runpod/rvm/requirements.txt`
 
 **Files:**
-- Create: `runpod/rvm/segment_person.py` (copy of `packages/worker/scripts/segment_person.py`)
 - Create: `runpod/rvm/requirements.txt`
 
-- [ ] **Step 1: Copy the script**
+`packages/worker/scripts/segment_person.py` stays as the single source of truth. The RunPod Dockerfile (Task 5) is built from repo root and `COPY`s the script directly from `packages/worker/scripts/`. No vendoring.
+
+- [ ] **Step 1: Create `runpod/rvm/requirements.txt`**
 
 ```bash
 mkdir -p runpod/rvm
-cp packages/worker/scripts/segment_person.py runpod/rvm/segment_person.py
 ```
 
-The worker's copy remains for now — Task 21 deletes it after the new path is verified. This avoids a cross-package Docker build context.
-
-- [ ] **Step 2: Create `runpod/rvm/requirements.txt`**
+Create `runpod/rvm/requirements.txt`:
 
 ```
-torch==2.3.1
-torchvision==0.18.1
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 Pillow==10.3.0
@@ -232,15 +253,15 @@ runpod==1.7.7
 ```
 
 Notes:
+- `torch`/`torchvision` installed separately in Dockerfile with CUDA-matched wheels.
 - `opencv-python-headless` (not `opencv-python`) — no GUI libs needed in container.
 - `runpod` is the server-side SDK (handler runtime), not the TypeScript client.
-- Torch version is pinned to match CUDA 12.2 wheels (`torch==2.3.1+cu121`).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add runpod/rvm/segment_person.py runpod/rvm/requirements.txt
-git commit -m "feat(runpod): vendor segment_person.py for rvm handler"
+git add runpod/rvm/requirements.txt
+git commit -m "feat(runpod): rvm requirements.txt"
 ```
 
 ---
@@ -474,9 +495,10 @@ RUN mkdir -p /root/.cache/torch/hub/checkpoints \
     && git clone --depth 1 https://github.com/PeterL1n/RobustVideoMatting.git \
        /root/.cache/torch/hub/PeterL1n_RobustVideoMatting_master
 
-# Copy handler + vendored segment_person
-COPY segment_person.py /app/segment_person.py
-COPY handler.py /app/handler.py
+# Copy segment_person.py from the worker package (single source of truth)
+# and the handler entrypoint. Build context MUST be repo root.
+COPY packages/worker/scripts/segment_person.py /app/segment_person.py
+COPY runpod/rvm/handler.py /app/handler.py
 
 CMD ["python", "/app/handler.py"]
 ```
@@ -497,10 +519,11 @@ See `handler.py` docstring for full input/output JSON.
 ## Build & push
 
 ```bash
-# From repo root
+# Build context MUST be repo root — the Dockerfile copies from packages/worker/
+# From repo root:
 IMAGE=ghcr.io/<org>/viona-rvm:$(git rev-parse --short HEAD)
 
-docker build -t "$IMAGE" runpod/rvm
+docker build -t "$IMAGE" -f runpod/rvm/Dockerfile .
 echo "$GHCR_TOKEN" | docker login ghcr.io -u <user> --password-stdin
 docker push "$IMAGE"
 ```
@@ -555,11 +578,11 @@ This task is manual / infrastructure. Record outputs in `.env` (local) and Railw
 
 - [ ] **Step 1: Build the image**
 
-From repo root:
+From repo root (build context must be repo root since Dockerfile copies from `packages/worker/`):
 
 ```bash
 IMAGE=ghcr.io/viona/viona-rvm:$(git rev-parse --short HEAD)
-docker build -t "$IMAGE" runpod/rvm
+docker build -t "$IMAGE" -f runpod/rvm/Dockerfile .
 ```
 
 Expected: successful build, final image ~8-12 GB (CUDA + torch + weights).
@@ -631,17 +654,23 @@ import { config } from '../config.js';
 export interface CapabilityDefinition {
   /** Name used in API routes and DB (`segment-speaker`). */
   name: string;
-  /** RunPod endpoint ID resolved from the config. */
+  /**
+   * Module name the worker uses to dynamic-import the local runner when
+   * INFERENCE_PROVIDER=worker. Resolves to `packages/worker/src/inference/{workerModule}.ts`.
+   */
+  workerModule: string;
+  /** RunPod endpoint ID resolved from the config (only used when INFERENCE_PROVIDER=runpod). */
   getEndpointId: () => string;
-  /** RunPod executionTimeout (seconds). */
+  /** Shared execution timeout in seconds. Passed to RunPod and used as worker subprocess timeout. */
   executionTimeoutSec: number;
   /** Zod schema for the `input` field of POST /inference. */
   inputSchema: z.ZodTypeAny;
-  /** Zod schema for the `output` field set by the webhook. */
+  /** Zod schema for the `output` field set by the webhook/worker. */
   outputSchema: z.ZodTypeAny;
   /**
-   * Given a validated input, produce the MinIO output keys to presign.
-   * Keys are relative to the `outputs/` prefix.
+   * Given a validated input, produce the MinIO output keys. Keys are relative
+   * to the `outputs/` prefix. Used by both the API (to presign for RunPod) and
+   * the worker (to choose upload keys).
    */
   outputKeys: (jobId: string, input: any) => Record<string, { key: string; contentType: string }>;
 }
@@ -673,6 +702,7 @@ const segmentSpeakerOutput = z.object({
 
 const segmentSpeaker: CapabilityDefinition = {
   name: 'segment-speaker',
+  workerModule: 'segment-speaker',
   getEndpointId: () => {
     const id = config.runpod.rvmEndpointId;
     if (!id) throw new Error('RUNPOD_RVM_ENDPOINT_ID is not set');
@@ -920,22 +950,66 @@ git commit -m "feat(api): webhook jwt helpers for runpod callbacks"
 
 ---
 
-### Task 10: Dispatcher
+### Task 10: Dispatcher (provider-branched)
 
 **Files:**
 - Create: `packages/api/src/inference/dispatcher.ts`
+- Modify: `packages/api/src/services/queue.ts`
+- Modify: `packages/api/src/services/minio.ts` (export constants)
 
-- [ ] **Step 1: Write dispatcher**
+- [ ] **Step 1: Add `queueInferenceJob` to queue service**
+
+Open `packages/api/src/services/queue.ts` and add (near other queue definitions):
+
+```ts
+import { Queue } from 'bullmq';
+
+export interface InferenceJobData {
+  jobId: string;          // inference_jobs.id (NOT BullMQ job id)
+  capability: string;
+  input: unknown;
+}
+
+export const inferenceQueue = new Queue<InferenceJobData>('inference', {
+  connection: redisConnection, // reuse existing connection helper
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 5000 },
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export async function queueInferenceJob(data: InferenceJobData) {
+  await inferenceQueue.add('inference', data, { jobId: data.jobId });
+}
+```
+
+(If `redisConnection` is named differently in the existing file, use whatever the other queues use.)
+
+- [ ] **Step 2: Export MinIO constants**
+
+Open `packages/api/src/services/minio.ts`. Ensure at the bottom:
+
+```ts
+export const BUCKET_NAME = BUCKET;
+export const OUTPUTS_PREFIX = PREFIXES.outputs;
+export const UPLOADS_PREFIX = PREFIXES.uploads;
+```
+
+- [ ] **Step 3: Write dispatcher with provider branch**
 
 Create `packages/api/src/inference/dispatcher.ts`:
 
 ```ts
+import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { inferenceJobs } from '../db/schema.js';
 import { presignedClient, BUCKET_NAME, OUTPUTS_PREFIX, UPLOADS_PREFIX } from '../services/minio.js';
+import { queueInferenceJob } from '../services/queue.js';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
-import { getCapability, type CapabilityDefinition } from './registry.js';
+import { getCapability } from './registry.js';
 import { runpodSubmit } from './runpod-client.js';
 import { issueWebhookToken } from './webhook-auth.js';
 
@@ -948,20 +1022,21 @@ interface DispatchParams {
 
 interface DispatchResult {
   jobId: string;
-  runpodJobId: string;
+  provider: 'runpod' | 'worker';
 }
 
 export async function dispatchInference(params: DispatchParams): Promise<DispatchResult> {
   const cap = getCapability(params.capability);
   const validated = cap.inputSchema.parse(params.input);
+  const provider = config.inference.provider;
 
-  // 1. Insert DB row (pending, no runpodJobId yet)
   const [row] = await db
     .insert(inferenceJobs)
     .values({
       sandboxSessionId: params.sandboxSessionId,
       projectId: params.projectId,
       capability: cap.name,
+      provider,
       status: 'pending',
       input: validated,
     })
@@ -970,49 +1045,15 @@ export async function dispatchInference(params: DispatchParams): Promise<Dispatc
   const jobId = row.id;
 
   try {
-    // 2. Presign input (GET) + outputs (PUTs)
-    const videoKey = (validated as { videoKey: string }).videoKey;
-    const inputGetUrl = await presignedClient.presignedGetObject(
-      BUCKET_NAME,
-      `${UPLOADS_PREFIX}${videoKey}`.replace(/\/+/g, '/').replace(/^\//, ''),
-      60 * 60, // 1h
-    );
-
-    const outputKeys = cap.outputKeys(jobId, validated);
-    const outputs: Record<string, string> = {};
-    for (const [name, { key }] of Object.entries(outputKeys)) {
-      outputs[name] = await presignedClient.presignedPutObject(
-        BUCKET_NAME,
-        `${OUTPUTS_PREFIX}${key}`,
-        cap.executionTimeoutSec + 120,
-      );
+    if (provider === 'runpod') {
+      await dispatchRunpod(jobId, cap, validated);
+    } else {
+      await dispatchWorker(jobId, cap.name, validated);
     }
-
-    // 3. Issue webhook JWT
-    const token = await issueWebhookToken(jobId, cap.name, cap.executionTimeoutSec);
-    const webhookUrl = `${config.runpod.webhookBaseUrl}/internal/runpod/callback/${jobId}?token=${encodeURIComponent(token)}`;
-
-    // 4. Submit to RunPod
-    const submitted = await runpodSubmit(cap.getEndpointId(), {
-      input: {
-        inputs: { video: inputGetUrl },
-        outputs,
-        params: (validated as any).params ?? {},
-        ...((validated as any).ranges ? { params: { ...((validated as any).params ?? {}), ranges: (validated as any).ranges } } : {}),
-      },
-      webhook: webhookUrl,
-      policy: { executionTimeout: cap.executionTimeoutSec * 1000 },
-    });
-
-    await db
-      .update(inferenceJobs)
-      .set({ runpodJobId: submitted.id, status: 'running' })
-      .where(/* drizzle eq */ undefined as any);
-    // NOTE: replace the above update with a proper eq(inferenceJobs.id, jobId) once the import is finalized below.
-
-    return { jobId, runpodJobId: submitted.id };
+    await db.update(inferenceJobs).set({ status: 'running' }).where(eq(inferenceJobs.id, jobId));
+    return { jobId, provider };
   } catch (err) {
-    logger.error({ jobId, err: (err as Error).message }, 'Inference dispatch failed');
+    logger.error({ jobId, provider, err: (err as Error).message }, 'Inference dispatch failed');
     await db
       .update(inferenceJobs)
       .set({
@@ -1020,33 +1061,53 @@ export async function dispatchInference(params: DispatchParams): Promise<Dispatc
         error: { message: (err as Error).message, stage: 'dispatch' },
         completedAt: new Date(),
       })
-      .where(/* eq(inferenceJobs.id, jobId) */ undefined as any);
+      .where(eq(inferenceJobs.id, jobId));
     throw err;
   }
 }
+
+async function dispatchRunpod(jobId: string, cap: ReturnType<typeof getCapability>, validated: any) {
+  const videoKey = validated.videoKey as string;
+  const inputGetUrl = await presignedClient.presignedGetObject(
+    BUCKET_NAME,
+    `${UPLOADS_PREFIX}${videoKey}`.replace(/\/+/g, '/').replace(/^\//, ''),
+    60 * 60,
+  );
+
+  const outputKeys = cap.outputKeys(jobId, validated);
+  const outputs: Record<string, string> = {};
+  for (const [name, { key }] of Object.entries(outputKeys)) {
+    outputs[name] = await presignedClient.presignedPutObject(
+      BUCKET_NAME,
+      `${OUTPUTS_PREFIX}${key}`,
+      cap.executionTimeoutSec + 120,
+    );
+  }
+
+  const token = await issueWebhookToken(jobId, cap.name, cap.executionTimeoutSec);
+  const webhookUrl = `${config.runpod.webhookBaseUrl}/internal/runpod/callback/${jobId}?token=${encodeURIComponent(token)}`;
+
+  const runpodParams = { ...(validated.params ?? {}), ...(validated.ranges ? { ranges: validated.ranges } : {}) };
+  const submitted = await runpodSubmit(cap.getEndpointId(), {
+    input: {
+      inputs: { video: inputGetUrl },
+      outputs,
+      params: runpodParams,
+    },
+    webhook: webhookUrl,
+    policy: { executionTimeout: cap.executionTimeoutSec * 1000 },
+  });
+
+  await db
+    .update(inferenceJobs)
+    .set({ runpodJobId: submitted.id })
+    .where(eq(inferenceJobs.id, jobId));
+}
+
+async function dispatchWorker(jobId: string, capability: string, validated: any) {
+  await queueInferenceJob({ jobId, capability, input: validated });
+}
 ```
-
-- [ ] **Step 2: Wire `eq()` properly**
-
-The two `.where(undefined as any)` placeholders above won't compile. Fix them. At the top of the file, change the imports to:
-
-```ts
-import { eq } from 'drizzle-orm';
-```
-
-Replace both `.where(undefined as any)` with `.where(eq(inferenceJobs.id, jobId))`.
-
-- [ ] **Step 3: Export MinIO constants used**
-
-Open `packages/api/src/services/minio.ts`. Ensure `BUCKET_NAME`, `OUTPUTS_PREFIX`, `UPLOADS_PREFIX`, and `presignedClient` are exported. If `BUCKET_NAME` is only internally named `BUCKET`, add a named export:
-
-```ts
-export const BUCKET_NAME = BUCKET;
-export const OUTPUTS_PREFIX = PREFIXES.outputs;
-export const UPLOADS_PREFIX = PREFIXES.uploads;
-```
-
-(Add at the bottom of `minio.ts` if not present.)
 
 - [ ] **Step 4: Typecheck**
 
@@ -1054,13 +1115,13 @@ export const UPLOADS_PREFIX = PREFIXES.uploads;
 cd packages/api && pnpm typecheck
 ```
 
-Expected: no errors. If errors about `videoKey` type, the Zod schema `parse()` already narrows — cast via `as z.infer<typeof ...>` or just `as { videoKey: string; params?: any; ranges?: any[] }` on `validated`.
+Expected: no errors.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/api/src/inference/dispatcher.ts packages/api/src/services/minio.ts
-git commit -m "feat(api): inference dispatcher (presign + runpod submit + db)"
+git add packages/api/src/inference/dispatcher.ts packages/api/src/services/queue.ts packages/api/src/services/minio.ts
+git commit -m "feat(api): provider-branched inference dispatcher (runpod|worker)"
 ```
 
 ---
@@ -1324,6 +1385,7 @@ async function reconcileOnce() {
     .from(inferenceJobs)
     .where(
       and(
+        eq(inferenceJobs.provider, 'runpod'),
         inArray(inferenceJobs.status, ['pending', 'running']),
         lt(inferenceJobs.submittedAt, cutoff),
       ),
@@ -1459,9 +1521,311 @@ git commit -m "feat(api): register inference routes and start reconciler on boot
 
 ---
 
-## Phase 5 — Sandbox MCP tool
+## Phase 5 — Worker local runner
 
-### Task 14: `segment_speaker` tool
+These tasks implement the `INFERENCE_PROVIDER=worker` backend. This is also what you'll use end-to-end for local dev.
+
+### Task 14: Worker `segment-speaker` module
+
+**Files:**
+- Create: `packages/worker/src/inference/segment-speaker.ts`
+
+- [ ] **Step 1: Create the module**
+
+Create `packages/worker/src/inference/segment-speaker.ts`:
+
+```ts
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { downloadFile, uploadFile } from '../services/minio.js';
+import { logger } from '../logger.js';
+
+const SCRIPT_PATH = join(process.cwd(), 'scripts', 'segment_person.py');
+
+interface Input {
+  videoKey: string;
+  ranges?: Array<{ startMs: number; endMs: number }>;
+  params?: {
+    backbone?: 'resnet50' | 'mobilenetv3';
+    scale?: number;
+    fps?: number;
+    downsampleRatio?: number;
+  };
+}
+
+export interface InferenceOutcome {
+  output: Record<string, string>;        // keys like { matteKey, fgrKey, ... }
+  metrics: Record<string, unknown>;
+}
+
+/**
+ * Local runner: downloads input, spawns segment_person.py, uploads outputs.
+ * Output keys MUST match cap.outputKeys(jobId, input) so both providers produce
+ * bit-identical MinIO paths.
+ */
+export async function run(
+  jobId: string,
+  input: Input,
+  outputKeys: Record<string, { key: string; contentType: string }>,
+  executionTimeoutSec: number,
+): Promise<InferenceOutcome> {
+  const workDir = mkdtempSync(join(tmpdir(), 'viona-infer-'));
+  try {
+    const videoPath = join(workDir, 'source.mp4');
+    const mattePath = join(workDir, 'matte.mp4');
+    const fgrPath = join(workDir, 'fgr.mp4');
+    const bboxPath = join(workDir, 'matte-bbox.json');
+    const proxyMattePath = join(workDir, 'matte-proxy.mp4');
+    const proxyFgrPath = join(workDir, 'fgr-proxy.mp4');
+
+    // 1. Download input
+    await downloadFile('uploads', input.videoKey, videoPath);
+
+    // 2. Build CLI args
+    const args: string[] = [
+      SCRIPT_PATH,
+      videoPath,
+      '--output', mattePath,
+      '--backbone', input.params?.backbone ?? 'resnet50',
+      '--scale', String(input.params?.scale ?? 0.5),
+      '--fps', String(input.params?.fps ?? 0),
+      '--downsample-ratio', String(input.params?.downsampleRatio ?? 0.8),
+    ];
+    if (input.ranges?.length) {
+      args.push('--matte-ranges', JSON.stringify(input.ranges));
+    }
+
+    // 3. Spawn Python
+    const pythonPath = process.env.PYTHON_PATH
+      || (process.env.CONDA_PREFIX ? join(process.env.CONDA_PREFIX, 'python') : 'python3');
+
+    const t0 = Date.now();
+    await runSubprocess(pythonPath, args, executionTimeoutSec * 1000);
+    const durationMs = Date.now() - t0;
+
+    // 4. ffmpeg proxies
+    await runSubprocess('ffmpeg', [
+      '-y', '-i', mattePath, '-vf', 'scale=-2:480',
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-an',
+      proxyMattePath,
+    ], 120_000);
+    await runSubprocess('ffmpeg', [
+      '-y', '-i', fgrPath, '-vf', 'scale=-2:480',
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-an',
+      proxyFgrPath,
+    ], 120_000);
+
+    // 5. Upload each artifact using canonical keys from the registry
+    const paths: Record<string, string> = {
+      matte: mattePath,
+      fgr: fgrPath,
+      bbox: bboxPath,
+      proxyMatte: proxyMattePath,
+      proxyFgr: proxyFgrPath,
+    };
+    const outputEcho: Record<string, string> = {};
+    for (const [name, { key }] of Object.entries(outputKeys)) {
+      const localPath = paths[name];
+      if (!localPath) continue;
+      await uploadFile('outputs', key, localPath);
+      outputEcho[`${name}Key`] = `outputs/${key}`;
+    }
+
+    return {
+      output: outputEcho,
+      metrics: {
+        durationMs,
+        framesProcessed: null,  // segment_person emits progress via stdout; parse if needed
+      },
+    };
+  } finally {
+    try { rmSync(workDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+function runSubprocess(cmd: string, args: string[], timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${cmd} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    let stderr = '';
+    child.stdout.on('data', (d) => logger.debug({ out: d.toString() }, `${cmd} stdout`));
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.on('error', (err) => { clearTimeout(timer); reject(err); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`${cmd} exited ${code}: ${stderr.slice(-2000)}`));
+    });
+  });
+}
+```
+
+- [ ] **Step 2: Verify `downloadFile`/`uploadFile` signatures**
+
+The existing `packages/worker/src/services/minio.ts` already has these helpers (see `segmentation.ts` for usage). If their signatures differ from `(prefix, key, path)`, adjust the calls in the module above to match.
+
+- [ ] **Step 3: Typecheck**
+
+```bash
+cd packages/worker && pnpm typecheck
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/worker/src/inference/segment-speaker.ts
+git commit -m "feat(worker): segment-speaker local runner"
+```
+
+---
+
+### Task 15: Generic `inference` BullMQ processor
+
+**Files:**
+- Create: `packages/worker/src/processors/inference.ts`
+- Modify: `packages/worker/src/index.ts` (register new queue worker — conditional)
+
+- [ ] **Step 1: Write the processor**
+
+Create `packages/worker/src/processors/inference.ts`:
+
+```ts
+import { eq } from 'drizzle-orm';
+import { Worker } from 'bullmq';
+import { db } from '../db/index.js';
+import { inferenceJobs } from '../db/schema.js';
+import { redisConnection } from '../services/redis.js';
+import { getRedis } from '../services/redis.js';
+import { logger } from '../logger.js';
+import { getCapability } from '../inference/registry.js';   // NOTE: see Step 2
+
+interface InferenceJobData {
+  jobId: string;
+  capability: string;
+  input: any;
+}
+
+async function processInference(data: InferenceJobData) {
+  const cap = getCapability(data.capability);
+  const outputKeys = cap.outputKeys(data.jobId, data.input);
+
+  // Dynamic import of the per-capability module
+  const mod: any = await import(`../inference/${cap.workerModule}.js`);
+  if (typeof mod.run !== 'function') {
+    throw new Error(`worker module '${cap.workerModule}' does not export run()`);
+  }
+
+  try {
+    const { output, metrics } = await mod.run(data.jobId, data.input, outputKeys, cap.executionTimeoutSec);
+
+    await db
+      .update(inferenceJobs)
+      .set({ status: 'completed', output, metrics, completedAt: new Date() })
+      .where(eq(inferenceJobs.id, data.jobId));
+
+    await getRedis().publish(
+      `job:${data.jobId}:complete`,
+      JSON.stringify({ jobId: data.jobId, status: 'completed', output }),
+    );
+
+    logger.info({ jobId: data.jobId, capability: data.capability }, 'Inference completed');
+  } catch (err) {
+    const message = (err as Error).message;
+    await db
+      .update(inferenceJobs)
+      .set({ status: 'failed', error: { message }, completedAt: new Date() })
+      .where(eq(inferenceJobs.id, data.jobId));
+    await getRedis().publish(
+      `job:${data.jobId}:error`,
+      JSON.stringify({ jobId: data.jobId, status: 'failed', error: { message } }),
+    );
+    throw err; // Let BullMQ handle retry/backoff
+  }
+}
+
+export function startInferenceWorker() {
+  const worker = new Worker<InferenceJobData>(
+    'inference',
+    async (job) => processInference(job.data),
+    {
+      connection: redisConnection,
+      concurrency: 1, // RVM holds a GPU (when present); serialize
+      lockDuration: 60 * 60 * 1000, // 60min — long enough for slowest CPU-only jobs
+    },
+  );
+
+  worker.on('failed', (job, err) => logger.error({ jobId: job?.data?.jobId, err: err.message }, 'inference job failed'));
+  worker.on('error', (err) => logger.error({ err: err.message }, 'inference worker error'));
+
+  logger.info('Inference worker started');
+  return worker;
+}
+```
+
+- [ ] **Step 2: Create a tiny registry shim for the worker**
+
+The registry currently lives in `packages/api/src/inference/registry.ts`. The worker can't import across package boundaries like that. Either:
+
+**Option A (quickest):** Copy the registry into `packages/worker/src/inference/registry.ts`. Two copies; must update both when adding a capability. Acceptable given the registry is small.
+
+**Option B (cleaner):** Move the registry to `packages/shared/src/inference/registry.ts` and have both API and worker import from `@viona/shared`.
+
+Go with **Option A** for this plan (less churn). Create `packages/worker/src/inference/registry.ts` mirroring the API version:
+
+```ts
+// Keep this file in sync with packages/api/src/inference/registry.ts
+// (Long-term: move to @viona/shared)
+export { getCapability } from './registry-impl.js';
+```
+
+Actually simpler: just duplicate the whole registry.ts content here. When you add a capability, update both files.
+
+Add a comment at the top of both files:
+```ts
+// IMPORTANT: keep in sync with packages/worker/src/inference/registry.ts
+```
+
+- [ ] **Step 3: Register the worker conditionally in `packages/worker/src/index.ts`**
+
+Open `packages/worker/src/index.ts`. Near the other worker registrations, add:
+
+```ts
+import { config } from './config.js';
+import { startInferenceWorker } from './processors/inference.js';
+
+// Only start the inference worker when we're the compute backend.
+// In Railway prod (INFERENCE_PROVIDER=runpod) the worker doesn't consume this queue.
+if (config.inference.provider === 'worker') {
+  startInferenceWorker();
+}
+```
+
+- [ ] **Step 4: Typecheck and start**
+
+```bash
+cd packages/worker && pnpm typecheck && pnpm dev
+```
+
+Expected: with `INFERENCE_PROVIDER=worker`, worker logs `Inference worker started`. With `INFERENCE_PROVIDER=runpod`, no such log.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/worker/src/processors/inference.ts packages/worker/src/inference/registry.ts packages/worker/src/index.ts
+git commit -m "feat(worker): inference queue + generic processor"
+```
+
+---
+
+## Phase 6 — Sandbox MCP tool
+
+### Task 16: `segment_speaker` tool
 
 **Files:**
 - Create: `packages/sandbox/src/tools/segment-speaker.ts`
@@ -1690,7 +2054,7 @@ git commit -m "feat(sandbox): segment_speaker mcp tool"
 
 ---
 
-### Task 15: Register `inference` MCP server
+### Task 17: Register `inference` MCP server
 
 **Files:**
 - Modify: `packages/sandbox/src/mcp-servers.ts`
@@ -1731,9 +2095,9 @@ git commit -m "feat(sandbox): register inference mcp server"
 
 ---
 
-## Phase 6 — E2E verification
+## Phase 7 — E2E verification
 
-### Task 16: E2E test against real RunPod
+### Task 18: E2E test against real RunPod
 
 **Files:**
 - Create: `scripts/temp/test-runpod-handler.ts`
@@ -1850,7 +2214,7 @@ git commit -m "test(runpod): e2e script for rvm handler"
 
 ---
 
-### Task 17: E2E test — full API dispatch path
+### Task 19: E2E test — full API dispatch path (both providers)
 
 **Files:**
 - Create: `scripts/temp/test-inference-dispatch.ts`
@@ -1973,7 +2337,7 @@ git commit -m "test(api): e2e inference dispatch path"
 
 ---
 
-### Task 18: End-to-end sandbox test
+### Task 20: End-to-end sandbox test
 
 **Files:** (none — manual verification)
 
@@ -2001,9 +2365,9 @@ Submit an intentionally bad input (e.g. `videoKey: "nonexistent/foo.mp4"`). Veri
 
 ---
 
-## Phase 7 — Migration + cleanup
+## Phase 8 — Migration + cleanup
 
-### Task 19: Point existing sandbox callers at the new capability
+### Task 21: Point existing sandbox callers at the new capability
 
 **Files:**
 - Modify: Anywhere in `packages/sandbox/src/tools/` or prompts that currently calls `/internal/sandbox/:id/segment`.
@@ -2045,43 +2409,43 @@ git commit -m "refactor(sandbox): use segment_speaker tool instead of /segment h
 
 ---
 
-### Task 20: Delete old CPU segmentation code
+### Task 22: Delete old CPU segmentation code
 
 **Files:**
-- Delete: `packages/worker/src/processors/segmentation.ts`
-- Delete: `packages/worker/scripts/segment_person.py`
-- Modify: `packages/worker/src/index.ts` (remove segmentation queue registration)
-- Modify: `packages/api/src/services/queue.ts` (remove `queueSegmentationJob`)
-- Modify: `packages/api/src/sandbox/routes.ts` lines 440-541 (remove old `/segment` and `/segment/status` routes)
+- Delete: `packages/worker/src/processors/segmentation.ts` (legacy processor)
+- Modify: `packages/worker/src/index.ts` (remove legacy segmentation queue registration)
+- Modify: `packages/api/src/services/queue.ts` (remove legacy `queueSegmentationJob`)
+- Modify: `packages/api/src/sandbox/routes.ts` lines 440-582 (remove old `/segment`, `/segment/status`, `/segment/:jobId/matte` routes)
+- **Keep:** `packages/worker/scripts/segment_person.py` — still the source of truth used by the new worker `inference` queue AND the RunPod image.
 
-**Prerequisite:** Task 19 must be fully verified in prod for at least 1 week with no regressions before executing this task. If in doubt, skip.
+**Prerequisite:** Task 21 must be fully verified in prod with both providers (`worker` locally, `runpod` in prod) for at least 1 week with no regressions. If in doubt, skip.
 
-- [ ] **Step 1: Delete worker files**
+- [ ] **Step 1: Delete legacy processor**
 
 ```bash
 rm packages/worker/src/processors/segmentation.ts
-rm packages/worker/scripts/segment_person.py
 ```
 
-- [ ] **Step 2: Remove worker registration**
+- [ ] **Step 2: Remove legacy worker registration**
 
-Open `packages/worker/src/index.ts`. Find the `segmentationWorker` / `segmentationQueue` import and registration. Delete those lines and the worker process setup for the `segmentation` queue.
+Open `packages/worker/src/index.ts`. Find the `segmentationWorker` / `segmentationQueue` import and registration (the legacy `segmentation` BullMQ queue, not the new `inference` one). Delete those lines. Keep the new `startInferenceWorker()` call from Task 15 in place.
 
-- [ ] **Step 3: Remove queue helper**
+- [ ] **Step 3: Remove legacy queue helper**
 
-Open `packages/api/src/services/queue.ts`. Delete the `queueSegmentationJob` function and `SegmentationJobData` type.
+Open `packages/api/src/services/queue.ts`. Delete the `queueSegmentationJob` function and `SegmentationJobData` type. Keep `queueInferenceJob` in place.
 
 - [ ] **Step 4: Remove old routes**
 
-Open `packages/api/src/sandbox/routes.ts`. Delete the `POST /internal/sandbox/:id/segment` route (lines 440-504), the `GET /internal/sandbox/:id/segment/status` route (506-541), and the `GET /internal/sandbox/:id/segment/:jobId/matte` route (543-582).
+Open `packages/api/src/sandbox/routes.ts`. Delete the `POST /internal/sandbox/:id/segment` route (~440-504), the `GET /internal/sandbox/:id/segment/status` route (~506-541), and the `GET /internal/sandbox/:id/segment/:jobId/matte` route (~543-582).
 
-- [ ] **Step 5: Remove `matte-ranges` / bg-generation code if no longer referenced**
+- [ ] **Step 5: Grep for dangling references**
 
 ```bash
-grep -rn "queueSegmentationJob\|matteRanges\|bgRanges" packages/ apps/
+grep -rn "queueSegmentationJob\|SegmentationJobData" packages/ apps/
+grep -rn "/internal/sandbox/.*/segment" packages/ apps/
 ```
 
-Clean up any dangling references. Background generation (OpenAI inpainting) still exists inside `segment_person.py` — it moved to `runpod/rvm/segment_person.py`. If bg generation is no longer needed at the RunPod layer, remove that code from `runpod/rvm/segment_person.py` too; otherwise leave it.
+Fix any leftover callers.
 
 - [ ] **Step 6: Typecheck both packages**
 
@@ -2095,7 +2459,7 @@ Expected: no errors.
 
 ```bash
 git add -A
-git commit -m "chore: remove legacy CPU segmentation path (rvm now on runpod)"
+git commit -m "chore: remove legacy segmentation queue + routes (inference path is canonical)"
 ```
 
 ---
@@ -2103,18 +2467,21 @@ git commit -m "chore: remove legacy CPU segmentation path (rvm now on runpod)"
 ## Self-Review Notes
 
 - **Spec coverage check:**
-  - ✅ Generic dispatch system — Task 7 (registry), Task 10 (dispatcher)
-  - ✅ `segment_speaker` MCP tool — Task 14
+  - ✅ Generic dispatch with provider switch — Task 0 (config), Task 7 (registry), Task 10 (dispatcher)
+  - ✅ `segment_speaker` MCP tool — Task 16
   - ✅ RunPod endpoint + Docker handler — Tasks 3-6
-  - ✅ Webhook + reconciliation — Tasks 9, 11, 12
+  - ✅ Worker local runner — Tasks 14-15
+  - ✅ Webhook + reconciliation (RunPod-only) — Tasks 9, 11, 12
   - ✅ Scoped JWT — Task 9
-  - ✅ Capability registry — Task 7
-  - ✅ Inference routes — Task 11
-  - ✅ DB migration — Task 1
-  - ✅ Sandbox MCP server registration — Task 15
-  - ✅ End-to-end tests — Tasks 16-18
-  - ✅ Migration + cleanup — Tasks 19-20
+  - ✅ Capability registry with `workerModule` — Task 7
+  - ✅ Inference routes (provider-agnostic to the caller) — Task 11
+  - ✅ DB migration with `provider` column — Task 1
+  - ✅ Sandbox MCP server registration — Task 17
+  - ✅ End-to-end tests (both providers) — Tasks 18-20
+  - ✅ Migration + cleanup (keeps `segment_person.py`) — Tasks 21-22
 
-- **Type consistency:** Output field names are `matteKey/fgrKey/bboxKey/proxyMatteKey/proxyFgrKey` across registry (Task 7), webhook handler (Task 11), reconciler (Task 12), and sandbox tool (Task 14). Capability name is `segment-speaker` everywhere. `CompleteEvent.output` shape in the sandbox tool matches what the webhook/reconciler publish.
+- **Type consistency:** Output field names are `matteKey/fgrKey/bboxKey/proxyMatteKey/proxyFgrKey` across registry (Task 7), webhook handler (Task 11), reconciler (Task 12), worker runner (Task 14), and sandbox tool (Task 16). Capability name is `segment-speaker` everywhere. Both providers produce identical MinIO keys via `cap.outputKeys(jobId, input)` — the sandbox tool can't tell them apart.
 
-- **No placeholders:** All code blocks contain runnable code; all commands include expected output. The one manual piece (Task 6 — creating the RunPod endpoint in the dashboard) is necessary infrastructure work and has step-by-step instructions.
+- **Registry duplication caveat:** Task 15 Step 2 introduces a deliberate temporary copy of the registry in `packages/worker/src/inference/registry.ts`. Long-term fix is to move it to `@viona/shared`; a follow-up ticket should track this.
+
+- **No placeholders:** All code blocks contain runnable code; all commands include expected output. Manual infrastructure steps (Task 6 — RunPod endpoint in dashboard) have step-by-step instructions.
