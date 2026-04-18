@@ -123,8 +123,8 @@ export class E2BSandboxProvider implements SandboxProvider {
         // so killing it requires sudo. The respawn then runs as `user` — that's fine
         // because /workspace is chmod 777 and /app is world-readable.
         await sandbox.commands.run(
-          "sudo pkill -9 -f 'node /app/dist/entry.js' || true; sleep 1; nohup /app/entrypoint.sh > /tmp/sandbox.log 2>&1 &",
-          { background: true, timeoutMs: 15_000 }
+          "sudo pkill -9 -f 'node /app/dist/entry.js' 2>/dev/null || true; sleep 1; setsid /app/entrypoint.sh > /tmp/sandbox.log 2>&1 < /dev/null & disown; echo respawned",
+          { timeoutMs: 15_000 }
         );
         logger.info({ sandboxId: sandbox.sandboxId }, 'Respawned sandbox node process with fresh env');
         // Give the respawned node ~6s to boot Remotion + MCP + agent-server
