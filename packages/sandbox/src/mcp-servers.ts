@@ -10,6 +10,7 @@ import { validateAnimationQualityTool } from './tools/animation-quality.js';
 import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
 import { allTemplateTools } from './tools/template-tools.js';
+import { segmentSpeakerTool } from './tools/segment-speaker.js';
 
 /**
  * Convert a raw JSON schema property to a Zod type.
@@ -187,6 +188,11 @@ export function createMcpServers(
     tools: allTemplateTools.map(wrapTool),
   });
 
+  const inferenceServer = createSdkMcpServer({
+    name: 'inference',
+    tools: [wrapTool(segmentSpeakerTool)],
+  });
+
   return {
     manifest: manifestServer,
     scenes: scenesServer,
@@ -194,5 +200,6 @@ export function createMcpServers(
     widgets: widgetServer,
     analysis: analysisServer,
     templates: templatesServer,
+    inference: inferenceServer,
   };
 }
