@@ -38,7 +38,7 @@ BACKBONE = "resnet50"
 SCALE_FACTOR = 0.5
 MATTE_FPS = 0  # 0 = use source native frame rate (recommended for alignment)
 DOWNSAMPLE_RATIO = 0.8
-SEQ_CHUNK = 4
+SEQ_CHUNK = int(os.environ.get('RVM_SEQ_CHUNK', '4'))
 
 # Model download URLs (official RVM GitHub releases)
 MODEL_URLS = {
@@ -141,6 +141,11 @@ def load_rvm_model(backbone: str, device: torch.device, dtype: torch.dtype):
     model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model = torch.jit.script(model)
     model = torch.jit.freeze(model)
+    if os.environ.get('RVM_COMPILE') == '1' and device.type == 'cuda':
+        try:
+            model = torch.compile(model, mode='reduce-overhead')
+        except Exception as e:
+            print(f"torch.compile failed, falling back to eager: {e}", file=sys.stderr)
     print(f"Model loaded: {backbone} | {device} | {dtype} | JIT frozen", flush=True)
     return model
 
