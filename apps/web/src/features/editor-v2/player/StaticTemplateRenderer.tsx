@@ -8,7 +8,10 @@
 
 import React, { useState, useEffect, useCallback, Component, ErrorInfo } from 'react';
 import { AbsoluteFill } from 'remotion';
-import { getTemplate } from '@viona/templates';
+import { loadTemplate as loadTemplateRuntime } from '@viona/templates';
+import * as RemotionRT from 'remotion';
+import * as React_ForTemplates from 'react';
+import * as ReactDOM_ForTemplates from 'react-dom';
 
 interface StaticTemplateRendererProps {
   templateId: string;
@@ -97,17 +100,23 @@ export function StaticTemplateRenderer({
     setError(null);
 
     try {
-      const entry = getTemplate(templateId);
-      if (!entry) {
-        throw new Error(`Template "${templateId}" not found in registry`);
-      }
-
-      const module = await entry.getComponent();
-      const LoadedComponent = module.default as React.ComponentType<any>;
+      const { Component: Loaded } = await loadTemplateRuntime(templateId, {
+        resolveExternal: (mod) => {
+          switch (mod) {
+            case 'react': return React_ForTemplates;
+            case 'react-dom': return ReactDOM_ForTemplates;
+            case 'remotion': return RemotionRT;
+            default:
+              throw new Error(
+                `Template "${templateId}" needs external "${mod}" but web StaticTemplateRenderer doesn't provide it`
+              );
+          }
+        },
+      });
 
       // Cache the component
-      componentCache.set(templateId, LoadedComponent);
-      setComponent(() => LoadedComponent);
+      componentCache.set(templateId, Loaded);
+      setComponent(() => Loaded);
     } catch (err) {
       console.error('Failed to load template:', err);
       setError(err instanceof Error ? err.message : 'Failed to load template');
