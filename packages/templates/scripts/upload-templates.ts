@@ -42,13 +42,48 @@ const MANIFEST_PATH = join(DIST_DIR, 'manifest.json');
 
 // ── Config from env ─────────────────────────────────────────────────────────
 
-const S3_ENDPOINT = process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || 'localhost';
-const S3_PORT = parseInt(process.env.S3_PORT || process.env.MINIO_PORT || '9000', 10);
-const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || process.env.MINIO_ACCESS_KEY || 'minioadmin';
-const S3_SECRET_KEY = process.env.S3_SECRET_KEY || process.env.MINIO_SECRET_KEY || 'minioadmin';
-const S3_BUCKET = process.env.S3_BUCKET || process.env.MINIO_BUCKET || 'viona';
-const S3_USE_SSL = (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true';
+// Precedence: BUCKET_* (Railway prod) > S3_* > MINIO_* (legacy dev).
+// Prefer BUCKET_PUBLIC_* over BUCKET_* because this script runs from a developer
+// machine (or CI) and needs the externally reachable Railway domain, not the
+// `.railway.internal` endpoint which only resolves inside Railway's network.
+const S3_ENDPOINT =
+  process.env.BUCKET_PUBLIC_ENDPOINT ||
+  process.env.BUCKET_ENDPOINT ||
+  process.env.S3_ENDPOINT ||
+  process.env.MINIO_ENDPOINT ||
+  'localhost';
+const S3_PORT = parseInt(
+  process.env.BUCKET_PUBLIC_PORT ||
+    process.env.BUCKET_PORT ||
+    process.env.S3_PORT ||
+    process.env.MINIO_PORT ||
+    '9000',
+  10,
+);
+const S3_ACCESS_KEY =
+  process.env.BUCKET_ACCESS_KEY_ID ||
+  process.env.S3_ACCESS_KEY ||
+  process.env.MINIO_ACCESS_KEY ||
+  'minioadmin';
+const S3_SECRET_KEY =
+  process.env.BUCKET_SECRET_ACCESS_KEY ||
+  process.env.S3_SECRET_KEY ||
+  process.env.MINIO_SECRET_KEY ||
+  'minioadmin';
+const S3_BUCKET =
+  process.env.BUCKET_NAME ||
+  process.env.S3_BUCKET ||
+  process.env.MINIO_BUCKET ||
+  'viona';
+// If we resolved the public endpoint, assume SSL (Railway public domains are HTTPS);
+// otherwise respect the explicit S3_USE_SSL/MINIO_USE_SSL flag.
+const S3_USE_SSL = process.env.BUCKET_PUBLIC_ENDPOINT
+  ? true
+  : (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true';
+// Prefer DATABASE_PUBLIC_URL when running locally against Railway prod
+// (DATABASE_URL points at `.railway.internal` which only resolves inside Railway).
 const DATABASE_URL =
+  process.env.DATABASE_PUBLIC_URL ||
   process.env.DATABASE_URL ||
   'postgresql://postgres:postgres@localhost:5432/viona';
 

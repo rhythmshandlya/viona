@@ -37,16 +37,66 @@ const TEMP_DIR = join(PKG_ROOT, 'dist', '_screenshots_temp');
 const SCREENSHOTS_DIR = join(PKG_ROOT, 'dist', 'screenshots');
 
 // ── Config ─────────────────────────────────────────────────────────────────
-const S3_ENDPOINT = process.env.S3_ENDPOINT || 'localhost';
-const S3_PORT = parseInt(process.env.S3_PORT || '9000', 10);
-const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || 'minioadmin';
-const S3_SECRET_KEY = process.env.S3_SECRET_KEY || 'minioadmin';
-const S3_BUCKET = process.env.S3_BUCKET || 'viona';
-const S3_USE_SSL = process.env.S3_USE_SSL === 'true';
+// Precedence matches upload-templates.ts: BUCKET_PUBLIC_* > BUCKET_* > S3_* > MINIO_*
+const S3_ENDPOINT =
+  process.env.BUCKET_PUBLIC_ENDPOINT ||
+  process.env.BUCKET_ENDPOINT ||
+  process.env.S3_ENDPOINT ||
+  process.env.MINIO_ENDPOINT ||
+  'localhost';
+const S3_PORT = parseInt(
+  process.env.BUCKET_PUBLIC_PORT ||
+    process.env.BUCKET_PORT ||
+    process.env.S3_PORT ||
+    process.env.MINIO_PORT ||
+    '9000',
+  10,
+);
+const S3_ACCESS_KEY =
+  process.env.BUCKET_ACCESS_KEY_ID ||
+  process.env.S3_ACCESS_KEY ||
+  process.env.MINIO_ACCESS_KEY ||
+  'minioadmin';
+const S3_SECRET_KEY =
+  process.env.BUCKET_SECRET_ACCESS_KEY ||
+  process.env.S3_SECRET_KEY ||
+  process.env.MINIO_SECRET_KEY ||
+  'minioadmin';
+const S3_BUCKET =
+  process.env.BUCKET_NAME ||
+  process.env.S3_BUCKET ||
+  process.env.MINIO_BUCKET ||
+  'viona';
+const S3_USE_SSL = process.env.BUCKET_PUBLIC_ENDPOINT
+  ? true
+  : (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true';
 const DATABASE_URL =
+  process.env.DATABASE_PUBLIC_URL ||
   process.env.DATABASE_URL ||
   'postgresql://postgres:postgres@localhost:5432/viona';
 const S3_PREFIX = 'templates/';
+
+// Remotion's internal HTTP server (used during renderStill) can emit errors
+// from event listeners that escape our try/catch and would kill the whole
+// process — e.g. a template that fetches a relative proxy URL throws inside
+// the server's request listener. Install a soft uncaughtException handler so
+// a single misconfigured template doesn't abort the entire batch, and enforce
+// a per-template timeout so the process doesn't hang on a stuck renderStill.
+process.on('uncaughtException', (err) => {
+  console.error(`  [uncaughtException] ${err.message}`);
+  if (err.stack) {
+    console.error(`  ${err.stack.split('\n').slice(1, 3).join('\n  ')}`);
+  }
+});
+
+const TEMPLATE_TIMEOUT_MS = 120_000;
+
+// Slugs we know can't render offline (e.g. rely on runtime-only proxy URLs).
+// These are skipped during screenshot generation; their bundle + DB row are
+// still published by the upload step.
+const SCREENSHOT_SKIPLIST = new Set<string>([
+  'vox-document', // loads PDF via /proxy-pdf/* relative URL; Remotion renderer rejects it
+]);
 
 // ── Manifest types ─────────────────────────────────────────────────────────
 interface ManifestEntry {
@@ -198,12 +248,30 @@ async function main() {
   let successes = 0;
   let failures = 0;
 
+  let skipped = 0;
+
   for (const entry of manifest.templates) {
     console.log(`[${entry.slug}]`);
 
+    if (SCREENSHOT_SKIPLIST.has(entry.slug)) {
+      console.log(`  SKIPPED (in SCREENSHOT_SKIPLIST — cannot render offline)`);
+      skipped++;
+      console.log();
+      continue;
+    }
+
     try {
-      // Generate screenshot
-      const screenshotPath = await generateScreenshot(entry);
+      // Generate screenshot with a hard timeout so one stuck render
+      // doesn't hang the whole batch.
+      const screenshotPath = await Promise.race([
+        generateScreenshot(entry),
+        new Promise<string>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Timed out after ${TEMPLATE_TIMEOUT_MS}ms`)),
+            TEMPLATE_TIMEOUT_MS,
+          ),
+        ),
+      ]);
 
       // Upload to S3
       const s3Key = `${S3_PREFIX}${entry.slug}/screenshot.png`;
@@ -239,7 +307,7 @@ async function main() {
   if (existsSync(TEMP_DIR)) rmSync(TEMP_DIR, { recursive: true, force: true });
 
   console.log(
-    `Done. ${successes} screenshots generated, ${failures} failed.`,
+    `Done. ${successes} screenshots generated, ${failures} failed, ${skipped} skipped.`,
   );
 
   if (failures > 0) process.exit(1);
