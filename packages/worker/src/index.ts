@@ -10,11 +10,13 @@ import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-
 import { processRenderTemplateJob, RenderTemplateJobData } from './processors/render-template.js';
 import { processAnalyzeCaptions, AnalyzeCaptionsJobData } from './processors/analyze-captions.js';
 import { processSegmentationJob, SegmentationJobData } from './processors/segmentation.js';
+import { startInferenceWorker } from './processors/inference.js';
 import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
 import { eq, or, and, lt } from 'drizzle-orm';
 import { db, jobs } from './db/index.js';
 import { publishJobError } from './services/redis.js';
+import { config } from './config.js';
 
 const connection = redisConnection;
 
@@ -271,6 +273,12 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Segmentation job failed');
   });
 
+  // Generic inference worker — only when this process is the compute backend.
+  // In Railway prod (INFERENCE_PROVIDER=runpod) the worker doesn't consume
+  // the `inference` queue; RunPod is the executor and webhooks resolve jobs.
+  const inferenceWorker =
+    config.inference.provider === 'worker' ? startInferenceWorker() : null;
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown — close all workers in parallel, waiting for in-progress
@@ -281,6 +289,7 @@ async function main() {
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
     youtubeClipWorker, renderTemplateWorker, analyzeCaptionsWorker,
     segmentationWorker,
+    ...(inferenceWorker ? [inferenceWorker] : []),
   ];
 
   let shuttingDown = false;

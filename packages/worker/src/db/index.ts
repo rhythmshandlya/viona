@@ -143,6 +143,25 @@ export const templateExports = pgTable('template_exports', {
   completedAt: timestamp('completed_at'),
 });
 
+// Mirror of packages/api/src/db/schema.ts `inferenceJobs`. The worker writes
+// status/output/metrics/error on this table when INFERENCE_PROVIDER=worker.
+// Keep column definitions in sync with the API schema.
+export const inferenceJobs = pgTable('inference_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sandboxSessionId: uuid('sandbox_session_id'),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  capability: varchar('capability', { length: 64 }).notNull(),
+  provider: varchar('provider', { length: 16 }).notNull(),
+  status: varchar('status', { length: 32 }).notNull().default('pending'),
+  runpodJobId: varchar('runpod_job_id', { length: 128 }),
+  input: jsonb('input').notNull(),
+  output: jsonb('output'),
+  error: jsonb('error'),
+  metrics: jsonb('metrics'),
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+});
+
 const pool = new pg.Pool({
   connectionString: config.database.url,
   max: 10,                      // Workers have fewer concurrent queries
@@ -152,5 +171,5 @@ const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, {
-  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals, templates, templateExports },
+  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals, templates, templateExports, inferenceJobs },
 });

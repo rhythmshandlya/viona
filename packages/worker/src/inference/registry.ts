@@ -1,5 +1,8 @@
-// IMPORTANT: keep in sync with packages/worker/src/inference/registry.ts
+// IMPORTANT: keep in sync with packages/api/src/inference/registry.ts
 // (Long-term: move to @viona/shared so both packages import from a single source.)
+//
+// The worker needs a local copy because it dynamically imports per-capability
+// runner modules from ../inference/{workerModule}.js based on the registry.
 import { z } from 'zod';
 import { config } from '../config.js';
 
@@ -41,7 +44,7 @@ const segmentSpeakerInput = z.object({
       fps: z.number().int().min(0).default(0),
       downsampleRatio: z.number().positive().max(1).default(0.8),
     })
-    .default({}),
+    .optional(),
 });
 
 const segmentSpeakerOutput = z.object({
@@ -56,9 +59,11 @@ const segmentSpeaker: CapabilityDefinition = {
   name: 'segment-speaker',
   workerModule: 'segment-speaker',
   getEndpointId: () => {
-    const id = config.runpod.rvmEndpointId;
-    if (!id) throw new Error('RUNPOD_RVM_ENDPOINT_ID is not set');
-    return id;
+    // The worker never dispatches to RunPod — it is the compute backend when
+    // INFERENCE_PROVIDER=worker. If this ever fires we have a misrouted job.
+    throw new Error(
+      'getEndpointId() called from worker registry — worker mode does not dispatch to RunPod',
+    );
   },
   executionTimeoutSec: 900,
   inputSchema: segmentSpeakerInput,
@@ -71,6 +76,11 @@ const segmentSpeaker: CapabilityDefinition = {
     proxyFgr: { key: `mattes/${jobId}/fgr-proxy.mp4`, contentType: 'video/mp4' },
   }),
 };
+
+// Silence "unused" on the config import until a capability actually reads it.
+// The import is kept so future capabilities that need config.runpod.* values
+// don't have to re-add it (and to mirror the API registry's import list).
+void config;
 
 export const inferenceRegistry = {
   'segment-speaker': segmentSpeaker,
