@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS "inference_jobs" (
   "output" jsonb,
   "error" jsonb,
   "metrics" jsonb,
-  "submitted_at" timestamptz NOT NULL DEFAULT now(),
-  "completed_at" timestamptz
+  "submitted_at" timestamp NOT NULL DEFAULT now(),
+  "completed_at" timestamp
 );
 
 CREATE INDEX IF NOT EXISTS "inference_jobs_status_idx"
@@ -22,3 +22,11 @@ CREATE INDEX IF NOT EXISTS "inference_jobs_status_idx"
 CREATE INDEX IF NOT EXISTS "inference_jobs_runpod_pending_idx"
   ON "inference_jobs" ("submitted_at")
   WHERE "provider" = 'runpod' AND "status" IN ('pending', 'running');
+
+ALTER TABLE "inference_jobs"
+  ADD CONSTRAINT "inference_jobs_status_check"
+  CHECK ("status" IN ('pending', 'running', 'completed', 'failed', 'timed_out'));
+
+ALTER TABLE "inference_jobs"
+  ADD CONSTRAINT "inference_jobs_provider_check"
+  CHECK ("provider" IN ('runpod', 'worker'));

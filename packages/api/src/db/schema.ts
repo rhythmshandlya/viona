@@ -291,8 +291,8 @@ export type NewTheme = typeof themes.$inferInsert;
 
 export const inferenceJobs = pgTable('inference_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  sandboxSessionId: uuid('sandbox_session_id'),
-  projectId: uuid('project_id'),
+  sandboxSessionId: uuid('sandbox_session_id').references(() => sandboxSessions.id, { onDelete: 'set null' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   capability: varchar('capability', { length: 64 }).notNull(),
   provider: varchar('provider', { length: 16 }).notNull(),
   status: varchar('status', { length: 32 }).notNull().default('pending'),
