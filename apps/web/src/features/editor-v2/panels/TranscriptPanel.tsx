@@ -39,8 +39,15 @@ export function TranscriptPanel() {
   const project = useProject();
   const selectedSceneId = useSelectedSceneId();
   const { seek } = usePlaybackActions();
-  const { updateCaptionText, generateCaptions } = useCaptionActions();
-  const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
+  const { updateCaptionText } = useCaptionActions();
+  // The Captions tab is for reviewing / fixing transcription mistakes. It
+  // ALWAYS shows the transcript content — whether or not styled captions
+  // have been added to the timeline (that happens via the Styles tab).
+  // When the timeline has styled caption items we display those; otherwise
+  // we fall back to the raw transcript from the `transcripts` table.
+  const [transcriptPhrases, setTranscriptPhrases] = useState<
+    Array<{ text: string; startMs: number; endMs: number }>
+  >([]);
   const { select } = useTimelineActions();
   const { setSelectedScene } = useAIActions();
 
@@ -81,6 +88,54 @@ export function TranscriptPanel() {
         .then((data) => setScenes(data.scenes))
         .catch((err) => console.warn('Failed to fetch scenes:', err));
     }
+  }, [project?.id]);
+
+  // Fetch raw transcript once per project — used as fallback display when the
+  // timeline has no styled caption items. GET /api/projects/:id returns the
+  // `transcripts` row (words with startMs/endMs).
+  useEffect(() => {
+    if (!project?.id) { setTranscriptPhrases([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${project.id}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const body = await res.json();
+        const words: Array<{ text: string; startMs: number; endMs: number }> =
+          body?.transcript?.words ?? [];
+        if (!words.length || cancelled) return;
+
+        // Group words into phrase rows by pause (>400ms gap) OR max 8 words / 5s.
+        // Cheap client-side pass — the real on-timeline captions are generated
+        // by the Styles flow, this is just for reading the transcript.
+        const phrases: Array<{ text: string; startMs: number; endMs: number }> = [];
+        let buf: typeof words = [];
+        const flush = () => {
+          if (!buf.length) return;
+          phrases.push({
+            text: buf.map(w => w.text).join(' '),
+            startMs: buf[0].startMs,
+            endMs: buf[buf.length - 1].endMs,
+          });
+          buf = [];
+        };
+        for (let i = 0; i < words.length; i++) {
+          const w = words[i];
+          if (buf.length > 0) {
+            const prev = buf[buf.length - 1];
+            const gap = w.startMs - prev.endMs;
+            const spanMs = w.endMs - buf[0].startMs;
+            if (gap > 400 || buf.length >= 8 || spanMs > 5000) flush();
+          }
+          buf.push(w);
+        }
+        flush();
+        if (!cancelled) setTranscriptPhrases(phrases);
+      } catch (err) {
+        console.warn('Failed to fetch transcript:', err);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [project?.id]);
 
   // Find which scene a caption belongs to
@@ -222,30 +277,31 @@ export function TranscriptPanel() {
       {/* Caption list */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {filteredCaptions.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 p-6 text-center">
-            <div className="text-xs text-[var(--editor-text-muted)]">
-              {searchQuery ? 'No matches found' : 'No captions yet'}
+          // No timeline caption items yet — fall back to the raw transcript so the
+          // user can read along with the video and seek by phrase. Styling +
+          // timeline placement happens from the Styles tab.
+          transcriptPhrases.length === 0 ? (
+            <div className="p-4 text-center text-xs text-[var(--editor-text-muted)]">
+              {searchQuery ? 'No matches found' : 'No transcript available yet'}
             </div>
-            {!searchQuery && (
+          ) : (
+            (searchQuery
+              ? transcriptPhrases.filter(p => p.text.toLowerCase().includes(searchQuery.toLowerCase()))
+              : transcriptPhrases
+            ).map((phrase, idx) => (
               <button
+                key={`transcript-${idx}`}
                 type="button"
-                disabled={isGeneratingCaptions}
-                onClick={async () => {
-                  setIsGeneratingCaptions(true);
-                  try {
-                    generateCaptions();
-                  } finally {
-                    // Dispatch is fire-and-forget; sandbox creates captions asynchronously.
-                    // Clear the spinner after a short beat so the button isn't stuck.
-                    setTimeout(() => setIsGeneratingCaptions(false), 1500);
-                  }
-                }}
-                className="px-3 py-1.5 text-xs rounded-md border border-[var(--editor-border)] bg-[var(--editor-accent)] text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                onClick={() => handleSeek(phrase.startMs)}
+                className="w-full text-left px-4 py-2 text-sm text-[var(--editor-text)] hover:bg-[var(--editor-hover)] border-b border-[var(--editor-border)]/30 transition-colors"
               >
-                {isGeneratingCaptions ? 'Adding captions…' : 'Add captions from transcript'}
+                <div className="text-[10px] text-[var(--editor-text-muted)] mb-0.5">
+                  {formatTime(phrase.startMs)}
+                </div>
+                <div>{phrase.text}</div>
               </button>
-            )}
-          </div>
+            ))
+          )
         ) : (
           filteredCaptions.map((item, index) => {
             const data = item.data as CaptionItemData;
