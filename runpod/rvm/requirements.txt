@@ -1,0 +1,5 @@
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+Pillow==10.3.0
+requests==2.32.3
+runpod==1.7.7
