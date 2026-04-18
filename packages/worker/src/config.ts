@@ -101,4 +101,9 @@ export const config = {
 
   // Python path for running Python scripts (head-tracking)
   pythonPath: process.env.PYTHON_PATH || 'python',
+
+  // GPU inference dispatch
+  inference: {
+    provider: (process.env.INFERENCE_PROVIDER ?? (process.env.RAILWAY_ENVIRONMENT ? 'runpod' : 'worker')) as 'runpod' | 'worker',
+  },
 } as const;

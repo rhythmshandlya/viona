@@ -123,4 +123,21 @@ export const config = {
       return process.env.API_CALLBACK_URL || 'http://host.docker.internal:4000';
     },
   },
+
+  // GPU inference dispatch
+  inference: {
+    provider: (process.env.INFERENCE_PROVIDER ?? (process.env.RAILWAY_ENVIRONMENT ? 'runpod' : 'worker')) as 'runpod' | 'worker',
+  },
+
+  // RunPod Serverless (GPU inference; only needed when inference.provider=runpod)
+  runpod: {
+    apiKey: process.env.RUNPOD_API_KEY || '',
+    rvmEndpointId: process.env.RUNPOD_RVM_ENDPOINT_ID || '',
+    webhookSecret: process.env.RUNPOD_WEBHOOK_SECRET || '',
+    get webhookBaseUrl(): string {
+      if (process.env.RUNPOD_WEBHOOK_BASE_URL) return process.env.RUNPOD_WEBHOOK_BASE_URL;
+      if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+      return 'http://localhost:4000';
+    },
+  },
 } as const;
