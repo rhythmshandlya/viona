@@ -299,6 +299,27 @@ export async function queueSegmentationJob(data: SegmentationJobData) {
   });
 }
 
+// Generic GPU inference queue
+export interface InferenceJobData {
+  jobId: string;       // inference_jobs.id (NOT BullMQ job id)
+  capability: string;
+  input: unknown;
+}
+
+export const inferenceQueue = new Queue<InferenceJobData>('inference', {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 5000 },
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export async function queueInferenceJob(data: InferenceJobData) {
+  await inferenceQueue.add('inference', data, { jobId: data.jobId });
+}
+
 // Redis publisher for job cancellation
 const redisPublisher = new Redis(config.redis.url);
 

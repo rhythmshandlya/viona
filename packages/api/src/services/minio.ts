@@ -209,3 +209,9 @@ export async function deleteObjectsByPrefix(prefix: 'uploads' | 'outputs' | 'tem
   }
   return keys.length;
 }
+
+// Named exports for dispatcher (avoids importing raw config in inference layer)
+export const BUCKET_NAME = BUCKET;
+export const OUTPUTS_PREFIX = PREFIXES.outputs;
+export const UPLOADS_PREFIX = PREFIXES.uploads;
+export { presignedClient };
