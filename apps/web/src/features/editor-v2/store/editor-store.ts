@@ -901,7 +901,9 @@ export const useEditorStore = create<EditorStore>()(
         // Don't show the workspace until the player has a bundle to render.
         for (let i = 0; i < 60; i++) {
           try {
-            const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
+            // Same-origin via Next.js /api/* rewrite so the SameSite=Lax Stytch
+            // cookie is sent. Hitting API_URL cross-site 401'd in a loop.
+            const res = await fetch(`${bundleBaseUrl}/player-composition.cjs.js`, {
               method: 'HEAD',
               credentials: 'include',
             });
