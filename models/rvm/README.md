@@ -6,14 +6,34 @@ Runs RVM (Robust Video Matting) on GPU via presigned MinIO URLs.
 
 See `handler.py` docstring for full input/output JSON.
 
-## Build
+## Build & push (manual, to GHCR)
 
-No registry needed — RunPod builds from this repo via its GitHub integration. See "RunPod endpoint config" below.
+The image is hosted as a public GHCR package and RunPod pulls it by URL — RunPod never connects to GitHub.
+
+One-time setup (grant `write:packages` to your existing gh token, then log docker in):
+
+```bash
+gh auth refresh -s write:packages
+gh auth token | docker login ghcr.io -u <your-gh-user> --password-stdin
+```
+
+Build + push:
+
+```bash
+# Context = models/rvm/. Run from repo root:
+docker build -t ghcr.io/<your-gh-user>/viona-rvm:latest models/rvm
+docker push ghcr.io/<your-gh-user>/viona-rvm:latest
+```
+
+Make the package public (only needed on first push):
+
+```bash
+gh api -X PATCH /user/packages/container/viona-rvm/visibility -f visibility=public
+```
 
 Local test build (optional, for dev):
 
 ```bash
-# Context = models/rvm/. Run from repo root:
 docker build -t viona-rvm:local models/rvm
 ```
 
@@ -38,7 +58,12 @@ docker run --rm --gpus all -v /tmp:/tmp "$IMAGE" \
 
 ## RunPod endpoint config (set in dashboard)
 
-**Use GitHub integration:** Serverless → New Endpoint → Import from GitHub → select this repo → branch `main` → Dockerfile path `models/rvm/Dockerfile`.
+Serverless → New Endpoint → **Custom** (NOT "Import from GitHub").
+
+| Field | Value |
+|---|---|
+| Container image | `ghcr.io/<your-gh-user>/viona-rvm:latest` |
+| Container registry credentials | leave empty (image is public) |
 
 ### Recommended worker sizing (GPU + CPU saturation)
 

@@ -679,31 +679,79 @@ git commit -m "feat(runpod): rvm dockerfile + build instructions"
 
 ---
 
-### Task 6: Build, push, create RunPod endpoint
+### Task 6: Build image locally, push to GHCR as public, point RunPod at the URL
 
 **Files:** (none — infra setup)
 
-This task is manual / infrastructure. Record outputs in `.env` (local) and Railway variables (prod).
+**Path chosen:** push a public image to GHCR and have RunPod pull it by URL. RunPod never talks to GitHub — it just fetches an image like it would from Docker Hub.
 
-- [ ] **Step 1: Connect GitHub to RunPod**
+Record outputs in `.env` (local) and Railway variables (prod).
 
-In runpod.io dashboard:
-- Settings → Connections → GitHub → Connect
-- Authorize the repo (grant access to this repo specifically, not all repos)
+- [ ] **Step 1: Grant `write:packages` scope on the existing gh auth**
 
-- [ ] **Step 2: Create the Serverless endpoint from the repo**
+```bash
+gh auth refresh -s write:packages
+```
 
-In runpod.io dashboard → Serverless → New Endpoint → **Import from GitHub**:
+This adds the scope to your existing token (no new login). Verify:
+```bash
+gh auth status
+# expect scopes to now include write:packages
+```
+
+- [ ] **Step 2: Log docker in to GHCR using the gh token**
+
+```bash
+gh auth token | docker login ghcr.io -u rhythmshandlya --password-stdin
+```
+
+Expected: `Login Succeeded`.
+
+- [ ] **Step 3: Build the image**
+
+```bash
+# Build context = models/rvm. Expect 30-60 min first time (CUDA + torch + weights).
+docker build -t ghcr.io/rhythmshandlya/viona-rvm:latest models/rvm
+```
+
+Expected: final image ~8-12 GB. If build fails on weights download, check network; the `wget` lines are non-retrying.
+
+- [ ] **Step 4: Push to GHCR**
+
+```bash
+docker push ghcr.io/rhythmshandlya/viona-rvm:latest
+```
+
+First push uploads ~5-6 GB (CUDA + torch layers are the bulk). Expect 5-20 min depending on upload bandwidth.
+
+- [ ] **Step 5: Make the package public (so RunPod pulls without creds)**
+
+```bash
+gh api -X PATCH /user/packages/container/viona-rvm/visibility \
+  -f visibility=public
+```
+
+Verify:
+```bash
+gh api /user/packages/container/viona-rvm | \
+  python -c "import sys,json; d=json.load(sys.stdin); print('visibility:', d['visibility']); print('url:', d['html_url'])"
+```
+
+Expected: `visibility: public`.
+
+- [ ] **Step 6: Create the RunPod Serverless endpoint**
+
+In runpod.io dashboard → Serverless → **New Endpoint** → **Custom** (NOT "Import from GitHub"):
 
 | Field | Value |
 |---|---|
 | Name | `viona-rvm` |
-| Repository | your connected repo |
-| Branch | `main` (or `dev` while iterating) |
-| Dockerfile path | `models/rvm/Dockerfile` |
+| Container image | `ghcr.io/rhythmshandlya/viona-rvm:latest` |
+| Container registry credentials | **leave empty** (image is public) |
 | GPU types | L40S (primary), A40, RTX A5000 (fallbacks) |
 | vCPUs | 16 (or the max tier allows) |
 | RAM | 32 GB |
+| Container disk | 50 GB |
 | Min workers | 0 |
 | Max workers | 3 |
 | Idle timeout | 60s |
@@ -711,23 +759,21 @@ In runpod.io dashboard → Serverless → New Endpoint → **Import from GitHub*
 | Scaler | QUEUE_DELAY @ 4s |
 | FlashBoot | on |
 
-RunPod will start the first build automatically — expect ~30-60 min first time (CUDA base + torch + weights download). Subsequent builds use layer caching and are much faster (~5 min if only `handler.py` changed).
+**Copy the Endpoint ID** (visible once created — looks like `xxxxxxxxxxxxxx`).
 
-**Copy the Endpoint ID** (visible once the endpoint is created — looks like `xxxxxxxxxxxxxx`).
-
-- [ ] **Step 3: Record env vars**
+- [ ] **Step 7: Record env vars**
 
 Update local `.env`:
 ```bash
 RUNPOD_API_KEY=<from runpod.io → Settings → API Keys>
-RUNPOD_RVM_ENDPOINT_ID=<from step 2>
+RUNPOD_RVM_ENDPOINT_ID=<from step 6>
 RUNPOD_WEBHOOK_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
 RUNPOD_WEBHOOK_BASE_URL=http://localhost:4000   # ngrok URL if testing webhook locally
 ```
 
 Set the same vars in Railway (Dashboard → Variables) for the API service in prod.
 
-- [ ] **Step 4: Smoke test via `runsync`**
+- [ ] **Step 8: Smoke test via `runsync`**
 
 ```bash
 curl -X POST "https://api.runpod.ai/v2/$RUNPOD_RVM_ENDPOINT_ID/runsync" \
@@ -736,16 +782,26 @@ curl -X POST "https://api.runpod.ai/v2/$RUNPOD_RVM_ENDPOINT_ID/runsync" \
   -d '{"input": {"inputs": {}, "outputs": {}, "params": {}}}'
 ```
 
-Expected: HTTP 200 with `{"id": "...", "status": "IN_QUEUE" | "COMPLETED" | "FAILED", ...}`. A FAILED with a Python error about missing URL means the container is running and the handler was invoked — that's the success signal here. Logs in the RunPod dashboard should show "RVM warmup complete" from the warmup pass.
+Expected: HTTP 200. A FAILED status with a Python error about a missing URL means the container booted and invoked the handler — that's the success signal here. RunPod dashboard logs should show "RVM warmup complete" from the warmup pass.
 
-- [ ] **Step 5: (On future changes) Trigger rebuild**
+- [ ] **Step 9: (On future changes) Rebuild and push**
 
-RunPod's GitHub integration rebuilds on **creating a GitHub Release** (not every push). To deploy `models/rvm/` changes:
+When you change `handler.py` / `segment_person.py` / `Dockerfile`:
 
 ```bash
-git tag -a rvm-v0.1.1 -m "bump rvm handler"
-git push origin rvm-v0.1.1
-gh release create rvm-v0.1.1 --notes "rvm handler bump"
+docker build -t ghcr.io/rhythmshandlya/viona-rvm:latest models/rvm
+docker push ghcr.io/rhythmshandlya/viona-rvm:latest
+# Then in RunPod dashboard: click the endpoint → Workers → "Refresh" or purge cached workers
+```
+
+Layer caching makes subsequent builds fast (~2-5 min if only the Python files changed; longer if requirements changed; much longer if CUDA base changed).
+
+**Tag strategy (optional):** if you want immutable rollbacks, tag with a short SHA:
+```bash
+TAG=$(git rev-parse --short HEAD)
+docker build -t ghcr.io/rhythmshandlya/viona-rvm:$TAG -t ghcr.io/rhythmshandlya/viona-rvm:latest models/rvm
+docker push ghcr.io/rhythmshandlya/viona-rvm:$TAG
+docker push ghcr.io/rhythmshandlya/viona-rvm:latest
 ```
 
 (No git commit — infra only.)
