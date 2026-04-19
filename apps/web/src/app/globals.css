@@ -16,9 +16,12 @@
 
 /* Editor density: shrinks the rem base while the editor is mounted so that
    every Tailwind utility (which compiles to rem) scales proportionally,
-   without affecting the rest of the app (marketing, auth, project list). */
+   without affecting the rest of the app (marketing, auth, project list).
+   Viewport-responsive: stays around 13px on ~1366 laptops, grows on
+   larger displays so 4K doesn't render as a postage stamp. Clamped so
+   tiny viewports stay readable and ultra-wide 8K stops at 24px. */
 :root {
-  --editor-root-size: 13px;
+  --editor-root-size: clamp(12px, 0.4vw + 7.5px, 24px);
 }
 
 html.editor-density {
