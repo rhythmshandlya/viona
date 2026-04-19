@@ -144,5 +144,6 @@ export const config = {
   // Feature flags (env-var driven booleans)
   featureFlags: {
     assetSystemV2: process.env.ASSET_SYSTEM_V2 === 'true',
+    analysisWorkers: process.env.ANALYSIS_WORKERS === 'true',
   },
 } as const;
