@@ -215,3 +215,51 @@ export const BUCKET_NAME = BUCKET;
 export const OUTPUTS_PREFIX = PREFIXES.outputs;
 export const UPLOADS_PREFIX = PREFIXES.uploads;
 export { presignedClient };
+
+export interface MultipartPresignResult {
+  uploadId: string;
+  partUrls: { partNumber: number; url: string }[];
+  expiresAt: Date;
+}
+
+export interface MultipartPresignInput {
+  prefix: 'uploads' | 'outputs' | 'templates';
+  key: string;
+  partCount: number;
+  expirySeconds?: number;
+}
+
+/**
+ * Initiates an S3 multipart upload and returns presigned PUT URLs for each part.
+ * The client uploads each part directly to MinIO, then calls register with the
+ * final object key + uploadId for server-side completion in a later task.
+ */
+export async function getPresignedMultipartUploadUrls(
+  args: MultipartPresignInput,
+): Promise<MultipartPresignResult> {
+  if (args.partCount < 1) {
+    throw new Error('partCount must be >= 1');
+  }
+  const fullKey = PREFIXES[args.prefix] + args.key;
+  const expiry = args.expirySeconds ?? 3600;
+
+  const uploadId = await minioClient.initiateNewMultipartUpload(
+    BUCKET,
+    fullKey,
+    {},
+  );
+
+  const partUrls: { partNumber: number; url: string }[] = [];
+  for (let i = 1; i <= args.partCount; i++) {
+    const url = await presignedClient.presignedUrl(
+      'PUT',
+      BUCKET,
+      fullKey,
+      expiry,
+      { uploadId, partNumber: i.toString() },
+    );
+    partUrls.push({ partNumber: i, url });
+  }
+
+  return { uploadId, partUrls, expiresAt: new Date(Date.now() + expiry * 1000) };
+}
