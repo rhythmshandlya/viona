@@ -56,7 +56,7 @@ describe('processAssetMetadataJob', () => {
       id: 'a-1', userId: 'u', storageKey: 'users/u/assets/a-1/v.mp4',
       mimeType: 'video/mp4', sha256: 'abc',
     });
-    minioGet.mockResolvedValueOnce('/tmp/v.mp4');
+    minioGet.mockResolvedValueOnce({ path: '/tmp/v.mp4', cleanup: vi.fn().mockResolvedValue(undefined) });
     ffprobe.mockResolvedValueOnce({ durationMs: 12000, width: 1920, height: 1080, audioChannels: 2 });
     thumbnail.mockResolvedValueOnce(Buffer.from('thumb'));
     waveform.mockResolvedValueOnce(Buffer.from('wave'));
@@ -81,7 +81,7 @@ describe('processAssetMetadataJob', () => {
     seedSelectResult({
       id: 'a-2', userId: 'u', storageKey: 'k', mimeType: 'image/png', sha256: 'def',
     });
-    minioGet.mockResolvedValueOnce('/tmp/i.png');
+    minioGet.mockResolvedValueOnce({ path: '/tmp/i.png', cleanup: vi.fn().mockResolvedValue(undefined) });
     ffprobe.mockResolvedValueOnce({ durationMs: null, width: 800, height: 600, audioChannels: null });
     thumbnail.mockResolvedValueOnce(Buffer.from('t'));
 
@@ -100,7 +100,7 @@ describe('processAssetMetadataJob', () => {
     seedSelectResult({
       id: 'a-3', userId: 'u', storageKey: 'k', mimeType: 'audio/mpeg', sha256: 'xyz',
     });
-    minioGet.mockResolvedValueOnce('/tmp/a.mp3');
+    minioGet.mockResolvedValueOnce({ path: '/tmp/a.mp3', cleanup: vi.fn().mockResolvedValue(undefined) });
     ffprobe.mockResolvedValueOnce({ durationMs: 8000, width: null, height: null, audioChannels: 2 });
     waveform.mockResolvedValueOnce(Buffer.from('w'));
 
@@ -120,7 +120,7 @@ describe('processAssetMetadataJob', () => {
     seedSelectResult({
       id: 'a-4', userId: 'u', storageKey: 'k', mimeType: 'video/mp4', sha256: 'bad',
     });
-    minioGet.mockResolvedValueOnce('/tmp/fail.mp4');
+    minioGet.mockResolvedValueOnce({ path: '/tmp/fail.mp4', cleanup: vi.fn().mockResolvedValue(undefined) });
     ffprobe.mockRejectedValueOnce(new Error('probe-fail'));
 
     await expect(processAssetMetadataJob({ data: { assetId: 'a-4' } } as never)).rejects.toThrow('probe-fail');
@@ -133,5 +133,24 @@ describe('processAssetMetadataJob', () => {
   it('throws if asset row not found', async () => {
     seedSelectResult(null);
     await expect(processAssetMetadataJob({ data: { assetId: 'nope' } } as never)).rejects.toThrow(/not found/);
+  });
+
+  it('cleans up tmp directory on success', async () => {
+    seedSelectResult({ id: 'a', userId: 'u', storageKey: 'k', mimeType: 'image/png', sha256: 'c' });
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    minioGet.mockResolvedValueOnce({ path: '/tmp/x.png', cleanup });
+    ffprobe.mockResolvedValueOnce({ durationMs: null, width: 1, height: 1, audioChannels: null });
+    thumbnail.mockResolvedValueOnce(Buffer.from('t'));
+    await processAssetMetadataJob({ data: { assetId: 'a' } } as never);
+    expect(cleanup).toHaveBeenCalled();
+  });
+
+  it('cleans up tmp directory on failure', async () => {
+    seedSelectResult({ id: 'a', userId: 'u', storageKey: 'k', mimeType: 'video/mp4', sha256: 'c' });
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    minioGet.mockResolvedValueOnce({ path: '/tmp/x.mp4', cleanup });
+    ffprobe.mockRejectedValueOnce(new Error('boom'));
+    await expect(processAssetMetadataJob({ data: { assetId: 'a' } } as never)).rejects.toThrow('boom');
+    expect(cleanup).toHaveBeenCalled();
   });
 });

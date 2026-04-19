@@ -36,20 +36,20 @@ export async function processAssetMetadataJob(job: Job<AssetMetadataJobData>): P
     throw new Error(`asset not found: ${assetId}`);
   }
 
+  const download = await downloadToTmp(asset.storageKey);
   try {
-    const localPath = await downloadToTmp(asset.storageKey);
-    const probe = await runFfprobe(localPath);
+    const probe = await runFfprobe(download.path);
 
     const derivedPrefix = `users/${asset.userId}/derived/${asset.sha256}`;
     let thumbnailKey: string | null = null;
     let waveformKey: string | null = null;
 
     if (isVideo(asset.mimeType) || isImage(asset.mimeType)) {
-      const thumbBuf = await runFfmpegThumbnail(localPath, isVideo(asset.mimeType));
+      const thumbBuf = await runFfmpegThumbnail(download.path, isVideo(asset.mimeType));
       thumbnailKey = await uploadFile(`${derivedPrefix}/thumbnail.jpg`, thumbBuf, 'image/jpeg');
     }
     if (isVideo(asset.mimeType) || isAudio(asset.mimeType)) {
-      const waveBuf = await runFfmpegWaveform(localPath);
+      const waveBuf = await runFfmpegWaveform(download.path);
       waveformKey = await uploadFile(`${derivedPrefix}/waveform.png`, waveBuf, 'image/png');
     }
 
@@ -98,5 +98,7 @@ export async function processAssetMetadataJob(job: Job<AssetMetadataJobData>): P
       payload: { stage: 'metadata', message: (err as Error).message },
     });
     throw err;
+  } finally {
+    await download.cleanup();
   }
 }
