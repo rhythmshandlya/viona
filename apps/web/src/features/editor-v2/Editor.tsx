@@ -407,18 +407,23 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // When any caption gets selected from the timeline/preview, auto-open the
-  // Captions settings tab on the left. The right-side transcript editor opens
-  // through its own effect (Task 2), so the user lands with both panels visible.
+  // When any caption gets newly selected from the timeline/preview, auto-open
+  // the Captions settings tab on the left. Intentionally depends only on
+  // selectedIds: if the user later manually switches tabs (e.g. to Assets)
+  // while a caption is still selected, they stay where they put themselves.
+  // The right-side transcript editor opens through its own effect (Task 2).
+  const leftSidebarTabRef = useRef(leftSidebarTab);
+  leftSidebarTabRef.current = leftSidebarTab;
   useEffect(() => {
     if (selectedIds.length === 0) return;
     const state = useEditorStore.getState();
     const hasCaption = selectedIds.some((id) => state.items[id]?.type === 'caption');
-    if (hasCaption && leftSidebarTab !== 'captions' && leftSidebarTab !== 'agent') {
+    const currentTab = leftSidebarTabRef.current;
+    if (hasCaption && currentTab !== 'captions' && currentTab !== 'agent') {
       setLeftSidebarOpen(true);
       setLeftSidebarTab('captions');
     }
-  }, [selectedIds, leftSidebarTab]);
+  }, [selectedIds]);
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {
