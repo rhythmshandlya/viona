@@ -113,9 +113,15 @@ export interface UpdateAssetInput {
 }
 
 /**
- * Updates user-editable metadata fields on an asset the caller owns. Returns the
- * updated row or `null` when the asset does not exist / belongs to another user.
- * Emits a `renamed` event on success.
+ * Updates user-editable metadata (label, description, intent, tags) on an asset.
+ *
+ * Ownership-gated: returns `null` if no row matches `(id, userId)`.
+ *
+ * @remarks
+ * Emits a `renamed` event on every successful update regardless of which fields changed.
+ * Despite the event name, subscribers should treat it as a generic "asset metadata patched"
+ * signal and re-read if they need the specific fields. A more granular event vocabulary
+ * may be introduced in a later task.
  */
 export async function updateAssetMetadata(
   id: string,
