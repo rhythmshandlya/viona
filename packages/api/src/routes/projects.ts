@@ -768,6 +768,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         .where(eq(projects.id, id));
 
       await queueTranscribeJob({
+        mode: 'project',
         projectId: id,
         jobId: transcribeJob.id,
         videoKey: mediaKey,
@@ -795,6 +796,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     await Promise.all([
       queueTranscribeJob({
+        mode: 'project',
         projectId: id,
         jobId: transcribeJob.id,
         videoKey: mediaKey,

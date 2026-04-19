@@ -6,19 +6,33 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
-import { db, projects, tracks, timelineItems, transcripts, jobs } from '../db/index.js';
+import { createHash } from 'node:crypto';
+import { db, projects, tracks, timelineItems, transcripts, jobs, assets } from '../db/index.js';
 import { downloadFile } from '../services/minio.js';
+import { downloadToTmp, uploadFile as uploadAssetFile } from '../services/asset-storage.js';
+import { emitAssetEvent } from '../services/asset-events.js';
 import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { DEFAULT_SUBTITLE_STYLE } from '@viona/shared';
 import { redisConnection } from '../utils/redis.js';
 
-export interface TranscribeJobData {
-  projectId: string;
-  jobId: string;
-  videoKey: string;
-}
+/**
+ * Discriminated union describing both transcribe-job shapes.
+ *
+ * - `project`: legacy flow — transcribes a project's upload, writes to
+ *   `transcripts` table, updates `projects` + `jobs` rows, and materializes
+ *   an audio track for audio-only projects.
+ * - `asset`: asset-pipeline flow (Task 9) — transcribes a user-owned asset,
+ *   uploads the transcript JSON to MinIO as a derived asset, inserts a new
+ *   `assets` row with `source: 'derived'`, and links it back to the parent
+ *   via `transcriptAssetId`. Emits a `transcript_ready` asset event.
+ *
+ * The processor dispatches on `data.mode`.
+ */
+export type TranscribeJobData =
+  | { mode: 'project'; projectId: string; jobId: string; videoKey: string }
+  | { mode: 'asset'; assetId: string; userId: string; storageKey: string };
 
 interface WhisperXWord {
   text: string;
@@ -517,7 +531,14 @@ async function convertToWhisperWav(inputPath: string, outputPath: string): Promi
 }
 
 export async function processTranscribeJob(job: Job<TranscribeJobData>) {
-  const { projectId, jobId, videoKey } = job.data;
+  if (job.data.mode === 'asset') {
+    return processAssetTranscribe(job.data);
+  }
+  return processProjectTranscribe(job.data);
+}
+
+async function processProjectTranscribe(data: Extract<TranscribeJobData, { mode: 'project' }>) {
+  const { projectId, jobId, videoKey } = data;
   setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-${nanoid()}`);
 
@@ -682,5 +703,106 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     } catch {
       // Ignore cleanup errors
     }
+  }
+}
+
+/**
+ * Asset-pipeline transcribe (Task 9).
+ *
+ * Pulls the source media down, runs OpenAI Whisper against it, writes the
+ * transcript JSON to MinIO as a derived asset, inserts an `assets` row with
+ * `source: 'derived'` + `parentAssetIds: [parentId]`, links it back to the
+ * parent via `transcriptAssetId`, and emits a `transcript_ready` event.
+ *
+ * On any failure after download, emits a `failed` event (stage=transcribe)
+ * and rethrows so BullMQ can apply its retry policy. No partial asset row
+ * is inserted — the insert happens only after a successful STT run.
+ */
+async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: 'asset' }>) {
+  const { assetId, userId, storageKey } = data;
+  const download = await downloadToTmp(storageKey);
+  // We need a working dir for ffmpeg audio conversion since Whisper expects
+  // a 16kHz mono WAV. The downloaded file may be mp4/mp3/m4a/etc.
+  const workDir = join(tmpdir(), `viona-asset-transcribe-${nanoid()}`);
+  try {
+    await mkdir(workDir, { recursive: true });
+
+    // Convert (or extract) to 16kHz mono WAV for Whisper.
+    const audioPath = join(workDir, 'audio.wav');
+    const hasVideo = await hasVideoStream(download.path);
+    if (hasVideo) {
+      await extractAudio(download.path, audioPath);
+    } else {
+      await convertToWhisperWav(download.path, audioPath);
+    }
+
+    // Run STT. `runOpenAIWhisper` already returns word + segment timings in
+    // ms — we persist its full output in the derived transcript JSON.
+    const whisperxOutput = await runOpenAIWhisper(audioPath, `asset-${assetId}`, assetId);
+
+    const payloadJson = JSON.stringify({
+      text: whisperxOutput.segments.map((s) => s.text).join(' ').trim(),
+      segments: whisperxOutput.segments,
+      words: whisperxOutput.words,
+      language: whisperxOutput.language,
+    });
+    const derivedKey = `users/${userId}/derived/${assetId}/transcript.json`;
+    await uploadAssetFile(derivedKey, Buffer.from(payloadJson, 'utf8'), 'application/json');
+
+    const sha = createHash('sha256').update(payloadJson).digest('hex');
+    const fileSize = Buffer.byteLength(payloadJson, 'utf8');
+
+    const [derived] = await db.insert(assets).values({
+      userId,
+      source: 'derived',
+      status: 'ready',
+      sha256: sha,
+      storageKey: derivedKey,
+      filename: 'transcript.json',
+      mimeType: 'application/json',
+      fileSize,
+      label: 'Transcript',
+      parentAssetIds: [assetId],
+      thumbnailStatus: 'not_applicable',
+      waveformStatus: 'not_applicable',
+      transcriptStatus: 'not_applicable',
+    }).returning();
+
+    await db.update(assets).set({
+      transcriptAssetId: derived.id,
+      transcriptStatus: 'ready',
+      updatedAt: new Date(),
+    }).where(eq(assets.id, assetId));
+
+    const wordCount = whisperxOutput.words.length > 0
+      ? whisperxOutput.words.length
+      : whisperxOutput.segments.map((s) => s.text).join(' ').split(/\s+/).filter(Boolean).length;
+
+    await emitAssetEvent({
+      assetId,
+      userId,
+      projectId: null,
+      type: 'transcript_ready',
+      payload: {
+        transcriptAssetId: derived.id,
+        wordCount,
+      },
+    });
+
+    logger.info({ assetId, derivedId: derived.id, wordCount }, 'Asset transcribe complete');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    logger.error({ assetId, err }, 'Asset transcribe failed');
+    await emitAssetEvent({
+      assetId,
+      userId,
+      projectId: null,
+      type: 'failed',
+      payload: { stage: 'transcribe', message },
+    });
+    throw err;
+  } finally {
+    try { await rm(workDir, { recursive: true, force: true }); } catch { /* swallow */ }
+    await download.cleanup();
   }
 }

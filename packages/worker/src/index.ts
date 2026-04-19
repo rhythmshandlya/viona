@@ -53,7 +53,10 @@ async function main() {
   const transcribeWorker = new Worker<TranscribeJobData>(
     'transcribe',
     async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing transcribe job');
+      const logCtx = job.data.mode === 'asset'
+        ? { jobId: job.id, mode: 'asset', assetId: job.data.assetId }
+        : { jobId: job.id, mode: 'project', projectId: job.data.projectId };
+      logger.info(logCtx, 'Processing transcribe job');
       await processTranscribeJob(job);
     },
     {

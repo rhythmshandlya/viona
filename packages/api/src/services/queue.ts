@@ -32,11 +32,17 @@ export const sandboxRenderQueue = new Queue('sandbox-render', {
 });
 
 // Job data types
-export interface TranscribeJobData {
-  projectId: string;
-  jobId: string;
-  videoKey: string;
-}
+//
+// The transcribe processor (packages/worker/src/processors/transcribe.ts)
+// branches on `data.mode`:
+//   - 'project' — legacy flow (projects/jobs tables, subtitle pipeline).
+//   - 'asset'   — asset pipeline (Task 9) — derived transcript asset row.
+// API callers only enqueue `project` mode; asset-mode is enqueued by the
+// worker's asset-metadata processor. We still widen the API type to the
+// full union so both packages stay in sync.
+export type TranscribeJobData =
+  | { mode: 'project'; projectId: string; jobId: string; videoKey: string }
+  | { mode: 'asset'; assetId: string; userId: string; storageKey: string };
 
 export interface RenderJobData {
   projectId: string;
