@@ -4,10 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const insertValuesSpy = vi.fn();
 const insertReturning = vi.fn();
 const deleteWhereSpy = vi.fn();
-const deleteReturn = vi.fn();
+const deleteReturningReturn = vi.fn();
+// Two select paths now:
+//   1. `listProjectAssets` / legacy joined reads: .innerJoin().where().orderBy()
+//   2. Ownership lookup + conflict-path re-read:  .where().limit()
 const joinWhereSpy = vi.fn();
 const joinOrderBySpy = vi.fn();
 const joinReturn = vi.fn();
+const whereSpy = vi.fn();
+const whereLimitReturn = vi.fn();
 
 const emitEvent = vi.fn().mockResolvedValue(undefined);
 
@@ -23,17 +28,28 @@ vi.mock('../db/index.js', () => ({
         };
       },
     })),
+    // Delete now uses `.returning()` (Drizzle-idiomatic) instead of a driver-
+    // specific `rowCount`. The chain is: delete → where → returning → rows[].
     delete: vi.fn(() => ({
       where: (...a: unknown[]) => {
         deleteWhereSpy(...a);
-        return deleteReturn();
+        return {
+          returning: () => deleteReturningReturn(),
+        };
       },
     })),
-    // Covers both the existing-link lookup (no projection arg) and
-    // `listProjectAssets` (projects `{ asset }`). Both chains end in
-    // `.orderBy(...)` which resolves to `joinReturn()`.
+    // Supports BOTH select shapes:
+    //   - .from(...).where(...).limit(...)           → ownership + conflict re-read
+    //   - .from(...).innerJoin(...).where(...).orderBy(...) → listProjectAssets
+    // Each path has its own spy pair so tests can assert the exact chain used.
     select: vi.fn(() => ({
       from: vi.fn(() => ({
+        where: (...a: unknown[]) => {
+          whereSpy(...a);
+          return {
+            limit: () => whereLimitReturn(),
+          };
+        },
         innerJoin: vi.fn(() => ({
           where: (...a: unknown[]) => {
             joinWhereSpy(...a);
@@ -67,6 +83,8 @@ import {
 
 describe('linkAssetToProject', () => {
   it('inserts the link, forwards the exact values, and emits a linked event', async () => {
+    // First select call: ownership lookup succeeds.
+    whereLimitReturn.mockReturnValueOnce([{ id: 'a' }]);
     insertReturning.mockResolvedValueOnce([
       { id: 'l', assetId: 'a', projectId: 'p', addedVia: 'upload' },
     ]);
@@ -98,23 +116,22 @@ describe('linkAssetToProject', () => {
         payload: expect.objectContaining({ addedVia: 'upload' }),
       }),
     );
-    // The existing-link lookup MUST NOT run when the insert succeeded.
+    // Only the ownership lookup runs on the where+limit path — the conflict
+    // re-read must NOT fire when the insert succeeded.
+    expect(whereSpy).toHaveBeenCalledTimes(1);
+    // Joined lookup (inner-join path) is reserved for listProjectAssets and
+    // must not run here.
     expect(joinWhereSpy).not.toHaveBeenCalled();
   });
 
-  it('returns the existing link on conflict, does NOT emit, and uses the inner-join lookup', async () => {
+  it('returns the existing link on conflict, does NOT emit, and uses the where+limit lookup', async () => {
+    // Ownership ok → insert no-ops → re-read returns the existing link.
+    whereLimitReturn
+      .mockReturnValueOnce([{ id: 'a' }]) // ownership
+      .mockReturnValueOnce([
+        { id: 'l-existing', assetId: 'a', projectId: 'p', addedVia: 'library' },
+      ]); // existing link
     insertReturning.mockResolvedValueOnce([]); // insert no-op → existing link
-    joinReturn.mockReturnValueOnce([
-      {
-        asset_project_links: {
-          id: 'l-existing',
-          assetId: 'a',
-          projectId: 'p',
-          addedVia: 'library',
-        },
-        assets: { id: 'a' },
-      },
-    ]);
 
     const result = await linkAssetToProject({
       assetId: 'a',
@@ -126,18 +143,39 @@ describe('linkAssetToProject', () => {
     // Insert WAS attempted (proves idempotency went through the DB, not a
     // pre-check short-circuit).
     expect(insertValuesSpy).toHaveBeenCalledTimes(1);
-    // Existing-link lookup ran (inner join + where).
-    expect(joinWhereSpy).toHaveBeenCalledTimes(1);
+    // Two where+limit calls: ownership check, then existing-link re-read.
+    expect(whereSpy).toHaveBeenCalledTimes(2);
+    // The inner-join path is NOT used on the conflict branch anymore — the
+    // join was dead code and has been removed.
+    expect(joinWhereSpy).not.toHaveBeenCalled();
     // No event is emitted for no-op links.
     expect(emitEvent).not.toHaveBeenCalled();
-    // Service unwraps `asset_project_links` from the joined row.
+    // Service returns the plain link row (no asset_project_links unwrap needed).
     expect((result as { id?: string }).id).toBe('l-existing');
+  });
+
+  it('throws and does not insert or emit when the asset is not owned by the user', async () => {
+    // Ownership lookup returns empty → caller is not the owner.
+    whereLimitReturn.mockReturnValueOnce([]);
+
+    await expect(
+      linkAssetToProject({
+        assetId: 'a',
+        projectId: 'p',
+        userId: 'u',
+        addedVia: 'upload',
+      }),
+    ).rejects.toThrow(/not found or not owned/);
+
+    // Neither the insert nor the event should have been attempted.
+    expect(insertValuesSpy).not.toHaveBeenCalled();
+    expect(emitEvent).not.toHaveBeenCalled();
   });
 });
 
 describe('unlinkAssetFromProject', () => {
-  it('deletes the link and emits an unlinked event when rowCount > 0', async () => {
-    deleteReturn.mockReturnValueOnce({ rowCount: 1 });
+  it('deletes the link and emits an unlinked event when a row is returned', async () => {
+    deleteReturningReturn.mockReturnValueOnce([{ id: 'l-1' }]);
 
     const removed = await unlinkAssetFromProject({
       assetId: 'a',
@@ -160,8 +198,8 @@ describe('unlinkAssetFromProject', () => {
     );
   });
 
-  it('returns false and emits no event when rowCount is 0', async () => {
-    deleteReturn.mockReturnValueOnce({ rowCount: 0 });
+  it('returns false and emits no event when no rows are returned', async () => {
+    deleteReturningReturn.mockReturnValueOnce([]);
 
     const removed = await unlinkAssetFromProject({
       assetId: 'a',
@@ -192,5 +230,7 @@ describe('listProjectAssets', () => {
     expect(joinWhereSpy).toHaveBeenCalledTimes(1);
     expect(joinWhereSpy.mock.calls[0][0]).toBeTruthy();
     expect(joinOrderBySpy).toHaveBeenCalledTimes(1);
+    // The where+limit path is NOT used by listProjectAssets.
+    expect(whereSpy).not.toHaveBeenCalled();
   });
 });
