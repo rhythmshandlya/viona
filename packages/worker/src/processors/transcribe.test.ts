@@ -11,6 +11,8 @@ const emitEvent = vi.fn().mockResolvedValue(undefined);
 const downloadToTmp = vi.fn();
 const uploadAssetFile = vi.fn();
 const queueArrangement = vi.fn().mockResolvedValue(undefined);
+const insertPipelineMessageMock = vi.fn().mockResolvedValue({ id: 'm-1', conversationId: 'c-1', role: 'pipeline' });
+const getOrCreateConversationMock = vi.fn().mockResolvedValue({ id: 'c-1', projectId: 'p-1' });
 
 // db.select chain spies. Task 12 auto-trigger needs two reads:
 //   1. select projectId from asset_project_links where assetId = ...
@@ -73,17 +75,21 @@ vi.mock('../db/index.js', () => ({
             then: (resolve: (rows: unknown[]) => unknown, reject?: (err: unknown) => unknown) =>
               terminal().then(resolve, reject),
           };
+          const withLimit = {
+            ...afterWhere,
+            limit: (_n: number) => afterWhere,
+          };
           return {
             where: (...w: unknown[]) => {
               dbSelectWhere(...w);
-              return afterWhere;
+              return withLimit;
             },
             innerJoin: (joinTbl: unknown, joinOn: unknown) => {
               dbSelectInnerJoin(joinTbl, joinOn);
               return {
                 where: (...w: unknown[]) => {
                   dbSelectWhere(...w);
-                  return afterWhere;
+                  return withLimit;
                 },
               };
             },
@@ -118,6 +124,16 @@ vi.mock('../services/asset-events.js', () => ({
 vi.mock('../services/asset-storage.js', () => ({
   downloadToTmp: (...a: unknown[]) => downloadToTmp(...a),
   uploadFile: (...a: unknown[]) => uploadAssetFile(...a),
+}));
+
+vi.mock('../services/pipeline-messages.js', () => ({
+  insertPipelineMessage: (...a: unknown[]) => insertPipelineMessageMock(...a),
+}));
+
+vi.mock('../agent/conversation-store.js', () => ({
+  getOrCreateConversation: (...a: unknown[]) => getOrCreateConversationMock(...a),
+  addMessage: vi.fn().mockResolvedValue({ id: 'm-x', conversationId: 'c-1' }),
+  getConversationMessages: vi.fn().mockResolvedValue([]),
 }));
 
 // Stub out the legacy minio helper (only used by project-mode path; asset-mode
@@ -418,6 +434,8 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
 
   it('enqueues arrangement for each project where all linked assets have transcripts ready', async () => {
     primeHappyPath('a-1');
+    // Task 13: resolveProjectConversation link lookup — asset is linked to p-1.
+    selectResultQueue.push([{ projectId: 'p-1' }]);
     // First select — links for assetId=a-1 → one project.
     selectResultQueue.push([{ projectId: 'p-1' }]);
     // Second select — siblings of p-1, both ready.
@@ -436,6 +454,8 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
 
   it('treats not_applicable sibling transcripts as "done" and still enqueues', async () => {
     primeHappyPath('a-1b');
+    // Task 13: resolveProjectConversation link lookup.
+    selectResultQueue.push([{ projectId: 'p-3' }]);
     selectResultQueue.push([{ projectId: 'p-3' }]);
     // Mixed ready + not_applicable (e.g. image-only assets have no transcript).
     selectResultQueue.push([
@@ -453,6 +473,8 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
 
   it('does NOT enqueue arrangement if any sibling asset has transcriptStatus: "pending"', async () => {
     primeHappyPath('a-2');
+    // Task 13: resolveProjectConversation link lookup.
+    selectResultQueue.push([{ projectId: 'p-2' }]);
     selectResultQueue.push([{ projectId: 'p-2' }]);
     selectResultQueue.push([
       { transcriptStatus: 'ready' },
@@ -468,6 +490,8 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
 
   it('handles assets linked to multiple projects — enqueues only for ready projects', async () => {
     primeHappyPath('a-multi');
+    // Task 13: resolveProjectConversation link lookup — first project wins.
+    selectResultQueue.push([{ projectId: 'p-1' }, { projectId: 'p-2' }]);
     // Linked to both p-1 and p-2.
     selectResultQueue.push([{ projectId: 'p-1' }, { projectId: 'p-2' }]);
     // p-1: all ready
@@ -495,6 +519,8 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
     // error — otherwise BullMQ would retry the transcribe job and we'd STT
     // the same asset again. The processor swallows + logs instead.
     primeHappyPath('a-err');
+    // Task 13: resolveProjectConversation link lookup.
+    selectResultQueue.push([{ projectId: 'p-err' }]);
     selectResultQueue.push([{ projectId: 'p-err' }]);
     selectResultQueue.push([{ transcriptStatus: 'ready' }]);
     queueArrangement.mockRejectedValueOnce(new Error('redis down'));
@@ -507,5 +533,84 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
     const types = emitEvent.mock.calls.map((c: unknown[]) => (c[0] as { type: string }).type);
     expect(types).toContain('transcript_ready');
     expect(types).not.toContain('failed');
+  });
+});
+
+// -------------------- Task 13: pipeline chat bubbles --------------------
+
+describe('processAssetTranscribe — pipeline chat bubbles', () => {
+  it('inserts transcribing bubble before STT starts and transcribed bubble after success', async () => {
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    downloadToTmp.mockResolvedValueOnce({ path: '/tmp/bub.mp3', cleanup });
+    openaiCreate.mockResolvedValueOnce({
+      text: 'hello world',
+      words: [
+        { word: 'hello', start: 0, end: 0.5 },
+        { word: 'world', start: 0.5, end: 1.0 },
+      ],
+      segments: [{ text: 'hello world', start: 0, end: 1.0 }],
+    });
+    uploadAssetFile.mockResolvedValueOnce('users/u/derived/a-1/transcript.json');
+    (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: 'derived-bub' }];
+
+    getOrCreateConversationMock.mockResolvedValueOnce({ id: 'c-1', projectId: 'p-1' });
+
+    // resolveProjectConversation link lookup → p-1.
+    selectResultQueue.push([{ projectId: 'p-1' }]);
+    // enqueueArrangementIfReady link lookup + siblings → all ready.
+    selectResultQueue.push([{ projectId: 'p-1' }]);
+    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-1', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(getOrCreateConversationMock).toHaveBeenCalledWith('p-1');
+    expect(insertPipelineMessageMock).toHaveBeenCalledTimes(2);
+
+    // First call: transcribing bubble (before STT).
+    const firstCall = insertPipelineMessageMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(firstCall).toMatchObject({
+      eventType: 'transcribing',
+      conversationId: 'c-1',
+      projectId: 'p-1',
+      details: expect.objectContaining({ assetId: 'a-1' }),
+    });
+
+    // Last call: transcribed bubble with wordCount.
+    const lastCall = insertPipelineMessageMock.mock.calls[insertPipelineMessageMock.mock.calls.length - 1][0] as Record<string, unknown>;
+    expect(lastCall).toMatchObject({
+      eventType: 'transcribed',
+      conversationId: 'c-1',
+      projectId: 'p-1',
+      details: expect.objectContaining({
+        assetId: 'a-1',
+        wordCount: expect.any(Number),
+      }),
+    });
+  });
+
+  it('does not insert pipeline bubbles if the asset has no project link', async () => {
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    downloadToTmp.mockResolvedValueOnce({ path: '/tmp/nolink.mp3', cleanup });
+    openaiCreate.mockResolvedValueOnce({
+      text: 'nada',
+      words: [{ word: 'nada', start: 0, end: 0.3 }],
+      segments: [{ text: 'nada', start: 0, end: 0.3 }],
+    });
+    uploadAssetFile.mockResolvedValueOnce('users/u/derived/a-nolink/transcript.json');
+    (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: 'derived-nolink' }];
+
+    // resolveProjectConversation link lookup → empty.
+    selectResultQueue.push([]);
+    // enqueueArrangementIfReady link lookup → empty.
+    selectResultQueue.push([]);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-nolink', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(insertPipelineMessageMock).not.toHaveBeenCalled();
+    expect(getOrCreateConversationMock).not.toHaveBeenCalled();
   });
 });

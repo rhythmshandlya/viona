@@ -12,6 +12,8 @@ import { downloadFile } from '../services/minio.js';
 import { downloadToTmp, uploadFile as uploadAssetFile } from '../services/asset-storage.js';
 import { emitAssetEvent } from '../services/asset-events.js';
 import { queueArrangementJob } from '../services/queue.js';
+import { insertPipelineMessage } from '../services/pipeline-messages.js';
+import { getOrCreateConversation } from '../agent/conversation-store.js';
 import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
@@ -708,6 +710,28 @@ async function processProjectTranscribe(data: Extract<TranscribeJobData, { mode:
 }
 
 /**
+ * Resolves the first project the asset is linked to and returns its
+ * conversation id. If the asset has no project links (library-only), returns
+ * `null` — callers should skip pipeline-bubble insertion in that case.
+ *
+ * Task 13: used by `processAssetTranscribe` to attach `transcribing` /
+ * `transcribed` pipeline chat bubbles to the project's conversation so the
+ * editor UI can surface transcription progress live via SSE.
+ */
+async function resolveProjectConversation(
+  assetId: string,
+): Promise<{ projectId: string; conversationId: string } | null> {
+  const [link] = await db
+    .select({ projectId: assetProjectLinks.projectId })
+    .from(assetProjectLinks)
+    .where(eq(assetProjectLinks.assetId, assetId))
+    .limit(1);
+  if (!link) return null;
+  const convo = await getOrCreateConversation(link.projectId);
+  return { projectId: link.projectId, conversationId: convo.id };
+}
+
+/**
  * Auto-trigger arrangement (Task 12).
  *
  * Fires a first-pass arrangement job for every project this asset belongs to
@@ -757,6 +781,25 @@ async function enqueueArrangementIfReady(assetId: string): Promise<void> {
  */
 async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: 'asset' }>) {
   const { assetId, userId, storageKey } = data;
+
+  // Task 13: resolve the asset's project conversation ONCE so we can attach
+  // transcribing/transcribed pipeline chat bubbles. Library-only assets (no
+  // project link) return null → we simply skip bubble insertion below.
+  const ctx = await resolveProjectConversation(assetId);
+
+  if (ctx) {
+    // Best-effort: a failed bubble insert (e.g. Redis down) must not derail
+    // the transcribe job itself. The transcript write is the source of truth.
+    await insertPipelineMessage({
+      conversationId: ctx.conversationId,
+      projectId: ctx.projectId,
+      eventType: 'transcribing',
+      details: { assetId },
+    }).catch((err) => {
+      logger.warn({ assetId, err }, 'transcribing pipeline bubble insert failed (swallowed)');
+    });
+  }
+
   const download = await downloadToTmp(storageKey);
   // We need a working dir for ffmpeg audio conversion since Whisper expects
   // a 16kHz mono WAV. The downloaded file may be mp4/mp3/m4a/etc.
@@ -827,6 +870,20 @@ async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: '
     });
 
     logger.info({ assetId, derivedId: derived.id, wordCount }, 'Asset transcribe complete');
+
+    // Task 13: emit `transcribed` bubble BEFORE kicking off arrangement so
+    // the UI can flip the chat status before the next phase starts streaming.
+    // Best-effort (same rationale as `transcribing` above).
+    if (ctx) {
+      await insertPipelineMessage({
+        conversationId: ctx.conversationId,
+        projectId: ctx.projectId,
+        eventType: 'transcribed',
+        details: { assetId, wordCount },
+      }).catch((err) => {
+        logger.warn({ assetId, err }, 'transcribed pipeline bubble insert failed (swallowed)');
+      });
+    }
 
     // Best-effort: kick off arrangement for any project whose assets are now
     // all transcribed. Never rethrow — the transcript succeeded, and a retry
