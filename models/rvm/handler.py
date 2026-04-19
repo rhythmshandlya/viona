@@ -68,11 +68,18 @@ if _cuda_available:
         _vram_gb = 0
 
     # Bigger batches = better GPU utilisation for the recurrent RVM model.
-    # Defaults are conservative; override to saturate high-VRAM GPUs.
-    if _vram_gb >= 40:         # L40S (48GB), A40 (48GB), A100-80
-        os.environ.setdefault('RVM_SEQ_CHUNK', '16')
-    elif _vram_gb >= 20:       # RTX A5000 (24GB), RTX 4090 (24GB)
-        os.environ.setdefault('RVM_SEQ_CHUNK', '8')
+    # Monotonic ladder: each tier uses a VRAM floor so a card with more
+    # memory never falls into a smaller chunk.
+    if _vram_gb >= 70:         # H100 80GB, A100 80GB, H200
+        os.environ.setdefault('RVM_SEQ_CHUNK', '48')
+    elif _vram_gb >= 40:       # L40S, A40, A6000 (48GB)
+        os.environ.setdefault('RVM_SEQ_CHUNK', '32')
+    elif _vram_gb >= 28:       # RTX 5090 (32GB), RTX PRO 4500 (32GB)
+        os.environ.setdefault('RVM_SEQ_CHUNK', '20')
+    elif _vram_gb >= 20:       # RTX 4090/3090/A5000/L4/A4500 (20-24GB)
+        os.environ.setdefault('RVM_SEQ_CHUNK', '12')
+    elif _vram_gb >= 14:       # RTX 2000 Ada, T4 (16GB)
+        os.environ.setdefault('RVM_SEQ_CHUNK', '6')
     else:
         os.environ.setdefault('RVM_SEQ_CHUNK', '4')
 

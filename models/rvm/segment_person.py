@@ -39,6 +39,20 @@ SCALE_FACTOR = 0.5
 MATTE_FPS = 0  # 0 = use source native frame rate (recommended for alignment)
 DOWNSAMPLE_RATIO = 0.8
 SEQ_CHUNK = int(os.environ.get('RVM_SEQ_CHUNK', '4'))
+# TODO: graceful OOM fallback — if the first batch at SEQ_CHUNK OOMs, halve
+# and retry. Requires splitting the in-flight frames_np and re-running the
+# recurrent model with matching `rec` state, which is fiddly; the VRAM
+# ladder in handler.py is calibrated conservatively enough that OOM should
+# be rare in practice. Revisit if production hits boundary-case crashes.
+
+# GPU fast paths — safe on Ampere+ (no-op on older CUDA / CPU).
+# cudnn.benchmark is safe here because RVM input shape is fixed for the
+# duration of a single process_video() call (out_w/out_h never change), so
+# cuDNN's algorithm cache converges after the first batch rather than
+# thrashing on variable shapes.
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.benchmark = True
 
 # Model download URLs (official RVM GitHub releases)
 MODEL_URLS = {
@@ -187,6 +201,11 @@ def process_video(
     dtype = torch.float16 if use_fp16 else torch.float32
     print(f"Using device: {device} | {dtype}", flush=True)
 
+    # Dedicated H2D copy stream so batch N+1's upload overlaps batch N's
+    # compute on the default stream. wait_stream() before consuming `src`
+    # enforces the necessary ordering — recurrent `rec` state is untouched.
+    _h2d_stream = torch.cuda.Stream() if device.type == "cuda" else None
+
     print(f"Loading RVM model ({backbone})...", flush=True)
     model = load_rvm_model(backbone, device, dtype)
 
@@ -293,8 +312,19 @@ def process_video(
 
         if needs_inference:
             batch = np.stack(frames_rgb)
-            src = torch.from_numpy(batch).permute(0, 3, 1, 2).unsqueeze(0)
-            src = src.to(device, dtype=dtype, non_blocking=True).div(255.0)
+            # Build CPU tensor in pinned memory so the H2D copy can overlap
+            # compute of the previous batch on a dedicated stream.
+            if _h2d_stream is not None:
+                with torch.cuda.stream(_h2d_stream):
+                    src_cpu = torch.from_numpy(batch).permute(0, 3, 1, 2).unsqueeze(0).contiguous().pin_memory()
+                    src = src_cpu.to(device, dtype=dtype, non_blocking=True)
+                # Ensure the default (compute) stream waits for the H2D
+                # copy to finish before running the model on `src`.
+                torch.cuda.current_stream().wait_stream(_h2d_stream)
+                src = src.div(255.0)
+            else:
+                src = torch.from_numpy(batch).permute(0, 3, 1, 2).unsqueeze(0)
+                src = src.to(device, dtype=dtype, non_blocking=True).div(255.0)
 
             with torch.no_grad():
                 fgr, pha, *rec = model(src, *rec, downsample_ratio)
