@@ -29,7 +29,7 @@ export function RightPanel({ isOpen, onClose, layout = 'stacked', view = 'inspec
         : "flex-shrink-0 overflow-hidden editor-panel"
       }
       style={isSideBySide ? undefined : {
-        width: isOpen ? (view === 'transcript' ? 420 : 320) : 0,
+        width: isOpen ? (view === 'transcript' ? '26.25rem' : '20rem') : 0,
         transition: 'width 150ms ease-out',
       }}
     >

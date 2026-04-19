@@ -68,6 +68,7 @@ export function Editor({ projectId }: EditorProps) {
   // AI Assistant panel
   // AI panel is now a left sidebar tab ('agent')
 
+  // Kept in px: timelineHeight is driven by pixel-exact drag deltas and persisted as a numeric; rem conversion would fight the drag math.
   const [timelineHeight, setTimelineHeight] = useState(250);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -717,7 +718,7 @@ export function Editor({ projectId }: EditorProps) {
         <div
           className="flex-shrink-0 overflow-hidden editor-panel transition-all duration-150 ease-out"
           style={{
-            width: leftSidebarOpen && leftSidebarTab === 'agent' ? 488 : 0,
+            width: leftSidebarOpen && leftSidebarTab === 'agent' ? '30.5rem' : 0,
             opacity: leftSidebarOpen && leftSidebarTab === 'agent' ? 1 : 0,
             pointerEvents: leftSidebarOpen && leftSidebarTab === 'agent' ? 'auto' : 'none',
           }}
@@ -727,7 +728,7 @@ export function Editor({ projectId }: EditorProps) {
               <AIAssistantPanel
                 projectId={project.id}
                 onEditComplete={() => reloadVisuals(project.id)}
-                className="w-[488px]"
+                className="w-[30.5rem]"
               />
             </Suspense>
           </ErrorBoundary>
@@ -739,12 +740,12 @@ export function Editor({ projectId }: EditorProps) {
             <motion.div
               key="sidebar-panels"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 488, opacity: 1 }}
+              animate={{ width: '30.5rem', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
               className="flex-shrink-0 overflow-hidden editor-panel"
             >
-              <div className="w-[488px] flex flex-col h-full overflow-hidden">
+              <div className="w-[30.5rem] flex flex-col h-full overflow-hidden">
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
                   <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}
