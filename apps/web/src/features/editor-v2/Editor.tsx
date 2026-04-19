@@ -251,18 +251,9 @@ export function Editor({ projectId }: EditorProps) {
       setLeftSidebarOpen(true);
       useEditorStore.getState().select([detail.captionId], 'replace');
     };
-    const handleEditStyle = (e: Event) => {
-      const detail = (e as CustomEvent<{ captionId: string }>).detail;
-      if (!detail?.captionId) return;
-      setLeftSidebarTab('captions');
-      setLeftSidebarOpen(true);
-      useEditorStore.getState().select([detail.captionId], 'replace');
-    };
     window.addEventListener('viona:caption-edit-text', handleEditText);
-    window.addEventListener('viona:caption-edit-style', handleEditStyle);
     return () => {
       window.removeEventListener('viona:caption-edit-text', handleEditText);
-      window.removeEventListener('viona:caption-edit-style', handleEditStyle);
     };
   }, []);
 

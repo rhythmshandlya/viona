@@ -25,7 +25,6 @@ import {
   Timer,
   Layers,
   Type,
-  Palette,
   CornerLeftUp,
   CornerLeftDown,
   type LucideIcon,
@@ -231,18 +230,11 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
 
           return [
             {
-              label: 'Edit Text',
+              label: 'Edit Caption',
               shortcut: 'Enter',
               icon: Type,
               action: withSelection(() => {
                 window.dispatchEvent(new CustomEvent('viona:caption-edit-text', { detail: { captionId: itemId } }));
-              }),
-            },
-            {
-              label: 'Edit Style',
-              icon: Palette,
-              action: withSelection(() => {
-                window.dispatchEvent(new CustomEvent('viona:caption-edit-style', { detail: { captionId: itemId } }));
               }),
             },
             { type: 'separator' as const },
