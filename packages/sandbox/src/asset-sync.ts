@@ -60,6 +60,11 @@ function getPublicBaseUrl(): string | null {
 }
 
 export async function syncAssets(): Promise<void> {
+  if (process.env.ASSET_SYSTEM_V2 === 'true') {
+    logger.info('ASSET_SYSTEM_V2 active — asset-sync directory-sweep disabled; manifest hydration handles assets');
+    return;
+  }
+
   const bucket = process.env.MINIO_BUCKET || 'viona';
   const projectPrefix = process.env.SANDBOX_ID || 'unknown';
 
