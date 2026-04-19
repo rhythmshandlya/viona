@@ -38,6 +38,13 @@ export function createSandboxRoutes(manager: SandboxManager) {
         if (process.env.ANTHROPIC_API_KEY) env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
         if (process.env.CLAUDE_CODE_OAUTH_TOKEN) env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
         env.PROJECT_ID = projectId;
+        // VIDEO_KEY: bare MinIO key (no `uploads/` prefix) used by the
+        // segmentation MCP tools to call the inference dispatch endpoint,
+        // which expects the bare key and prepends UPLOADS_PREFIX itself.
+        // initData.videoUrl is `uploads/{videoKey}` (or '' if no video).
+        if (initData.videoUrl?.startsWith('uploads/')) {
+          env.VIDEO_KEY = initData.videoUrl.slice('uploads/'.length);
+        }
 
         const result = await manager.acquire(projectId, userId, { initData, env });
 

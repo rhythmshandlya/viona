@@ -27,6 +27,7 @@ import { URL } from "node:url";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { Open as unzipOpen } from "unzipper";
+import { Client as MinioClient } from "minio";
 import { parseWorkspace } from "./lib/parse-args.js";
 import { errorMessage } from "./lib/errors.js";
 import {
@@ -74,7 +75,140 @@ const PEXELS_API_KEY: string = process.env.PEXELS_API_KEY || "";
 const API_INTERNAL_URL: string = process.env.API_CALLBACK_URL || "";
 const SANDBOX_SECRET: string = process.env.SANDBOX_SECRET || "";
 const PROJECT_ID: string = process.env.PROJECT_ID || "";
+// Bare MinIO key for the source video (no `uploads/` prefix). Injected by the
+// sandbox orchestrator in packages/api/src/sandbox/routes.ts alongside PROJECT_ID.
+// Required by the new inference dispatch API (segment-speaker capability).
+const VIDEO_KEY: string = process.env.VIDEO_KEY || "";
 const MATTE_DIR: string = path.join(WORKSPACE, "public", "matte");
+
+// MinIO direct download (new inference API returns MinIO keys, not HTTP streams).
+// Env vars set by the sandbox orchestrator (see packages/api/src/sandbox/e2b.ts,
+// docker.ts, railway.ts).
+const MINIO_BUCKET: string = process.env.MINIO_BUCKET || "viona";
+
+let _minioClient: MinioClient | null = null;
+function getMinioClient(): MinioClient {
+  if (_minioClient) return _minioClient;
+  _minioClient = new MinioClient({
+    endPoint: process.env.MINIO_ENDPOINT || "localhost",
+    port: process.env.MINIO_PORT ? parseInt(process.env.MINIO_PORT, 10) : undefined,
+    useSSL: process.env.MINIO_USE_SSL === "true",
+    accessKey: process.env.MINIO_ACCESS_KEY || "",
+    secretKey: process.env.MINIO_SECRET_KEY || "",
+  });
+  return _minioClient;
+}
+
+/**
+ * In-tool mapping: inference jobId → sceneIds supplied by the agent in
+ * request_segmentation. The new inference API does not accept or echo sceneIds
+ * (it produces one shared matte per call), so we record them locally so that
+ * check_segmentation_status can write downloaded files under the expected
+ * per-scene paths (public/matte/{sceneId}.mp4 etc.).
+ */
+interface JobSceneMeta {
+  primarySceneId: string;
+  allSceneIds: string[];
+}
+const jobSceneMeta = new Map<string, JobSceneMeta>();
+
+/**
+ * Download a MinIO object to a local file. Parity with the helper in
+ * packages/sandbox/src/tools/segment-speaker.ts — stream chunks and write.
+ */
+async function downloadMinioObject(key: string, destPath: string): Promise<void> {
+  const minio = getMinioClient();
+  const stream = await minio.getObject(MINIO_BUCKET, key);
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream as AsyncIterable<Buffer>) {
+    chunks.push(chunk);
+  }
+  await writeFile(destPath, Buffer.concat(chunks));
+}
+
+/**
+ * Open an SSE stream for the given inference jobId and accumulate events
+ * until either (a) a terminal `complete`/`error` event arrives, (b) the
+ * overall deadline expires, or (c) the server ends the stream.
+ *
+ * SSE parsing mirrors packages/sandbox/src/tools/segment-speaker.ts: blocks
+ * split on `\n\n`, `event:`/`data:` lines extracted via regex, comment lines
+ * (starting with `:`, e.g. heartbeats) are skipped by the event/data regex
+ * match naturally (no `event:` line → the block is ignored).
+ */
+interface InferenceTerminalEvent {
+  kind: "complete" | "error";
+  data: {
+    jobId: string;
+    status: string;
+    output?: {
+      matteKey: string;
+      fgrKey: string;
+      bboxKey: string;
+      proxyMatteKey: string;
+      proxyFgrKey: string;
+    };
+    error?: { message?: string } | string | null;
+  };
+}
+
+async function readInferenceStream(
+  jobId: string,
+  opts: { deadlineMs: number },
+): Promise<InferenceTerminalEvent | null> {
+  const url = `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/inference/${jobId}/stream`;
+  const remaining = Math.max(0, opts.deadlineMs - Date.now());
+  if (remaining === 0) return null;
+
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), remaining);
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${SANDBOX_SECRET}` },
+      signal: abort.signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`SSE stream failed: ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      const blocks = buf.split("\n\n");
+      buf = blocks.pop() ?? "";
+
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+        const eventMatch = block.match(/^event: (\w+)$/m);
+        const dataMatch = block.match(/^data: (.+)$/m);
+        if (!eventMatch || !dataMatch) continue; // heartbeat `: …` or malformed — skip
+
+        const kind = eventMatch[1];
+        let data: any;
+        try {
+          data = JSON.parse(dataMatch[1]);
+        } catch {
+          continue;
+        }
+
+        if (kind === "complete" || kind === "error") {
+          return { kind, data };
+        }
+        // progress / ready — swallow
+      }
+    }
+    return null; // stream ended without terminal event
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1032,8 +1166,8 @@ server.registerTool(
     description:
       "Request background segmentation (person alpha matte extraction) for one or more " +
       "time ranges. Each range produces a separate matte video saved to public/matte/{sceneId}.mp4. " +
-      "Returns jobIds for polling with check_segmentation_status. Requires API_INTERNAL_URL " +
-      "and PROJECT_ID env vars (set by sandbox orchestrator).",
+      "Returns jobIds for polling with check_segmentation_status. Requires API_INTERNAL_URL, " +
+      "PROJECT_ID, and VIDEO_KEY env vars (set by sandbox orchestrator).",
     inputSchema: {
       ranges: z.array(z.object({
         startMs: z.number().describe("Start of time range in milliseconds"),
@@ -1053,14 +1187,40 @@ server.registerTool(
           isError: true,
         };
       }
+      if (!VIDEO_KEY) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: "Segmentation not available: VIDEO_KEY env var not set. The sandbox orchestrator " +
+              "must inject it alongside PROJECT_ID.",
+          }],
+          isError: true,
+        };
+      }
 
-      const res = await fetch(`${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment`, {
+      // New inference API: one job per dispatch call. We pass the full ranges
+      // array (stripped of sceneId — new schema doesn't accept it) and keep
+      // per-scene metadata locally so check_segmentation_status can name
+      // downloaded files consistently with the old behavior (primary sceneId
+      // as the shared matte/fgr/bbox filename, per-scene bg — though bg is
+      // now deprecated, see TODO in check_segmentation_status).
+      const apiRanges = ranges.map(r => ({ startMs: r.startMs, endMs: r.endMs }));
+      const allSceneIds = ranges.map(r => r.sceneId);
+      const primarySceneId = ranges[0].sceneId;
+
+      const res = await fetch(`${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/inference`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SANDBOX_SECRET}`,
         },
-        body: JSON.stringify({ ranges }),
+        body: JSON.stringify({
+          capability: "segment-speaker",
+          input: {
+            videoKey: VIDEO_KEY,
+            ranges: apiRanges,
+          },
+        }),
         signal: AbortSignal.timeout(30_000),
       });
 
@@ -1069,10 +1229,16 @@ server.registerTool(
         throw new Error(`API returned ${res.status}: ${(err as any).error || res.statusText}`);
       }
 
-      const data = await res.json() as { jobIds: string[]; allSceneIds: string[]; estimatedDurationMs: number };
-      const primarySceneId = ranges[0].sceneId;
+      const data = await res.json() as { jobId: string };
+      const jobIds = [data.jobId];
+      jobSceneMeta.set(data.jobId, { primarySceneId, allSceneIds });
 
-      // All scenes share the same matte/fgr (full-video pass), only bg images differ per scene
+      // Rough estimate — the new API doesn't echo one back. Preserve the old
+      // shape so the agent's downstream reasoning (if any) still works.
+      const estimatedDurationMs = 60_000 + ranges.length * 15_000;
+
+      // All scenes share the same matte/fgr (full-video pass). Return the old
+      // mattePaths shape for prompt compatibility.
       const mattePaths = ranges.map(r => ({
         sceneId: r.sceneId,
         mattePath: `public/matte/${primarySceneId}.mp4`,
@@ -1087,8 +1253,8 @@ server.registerTool(
           type: "text" as const,
           text: JSON.stringify({
             success: true,
-            jobIds: data.jobIds,
-            estimatedDurationMs: data.estimatedDurationMs,
+            jobIds,
+            estimatedDurationMs,
             mattePaths,
             nextStep: "Poll with check_segmentation_status({ jobIds }) until allComplete is true.",
           }),
@@ -1111,15 +1277,15 @@ server.registerTool(
   {
     description:
       "Check the status of previously requested segmentation jobs. When a job completes, " +
-      "the matte video is automatically downloaded to public/matte/{sceneId}.mp4. " +
-      "Returns per-job status, allComplete flag, and anyFailed flag. " +
-      "Set waitForCompletion=true to poll with adaptive intervals until all jobs finish (max 180s). " +
-      "This avoids repeated tool calls — the tool handles polling internally.",
+      "the matte/fgr/bbox files are automatically downloaded to public/matte/{sceneId}.mp4 " +
+      "(and -fgr.mp4, -bbox.json). Returns per-job status, allComplete flag, and anyFailed flag. " +
+      "Set waitForCompletion=true to wait up to timeoutMs (default 180s) for the job to finish via " +
+      "the inference SSE stream. This avoids repeated tool calls — the tool handles waiting internally.",
     inputSchema: {
       jobIds: z.array(z.string()).min(1).describe("Job IDs returned by request_segmentation"),
       waitForCompletion: z.boolean().optional().default(false).describe(
-        "If true, poll internally with adaptive intervals until all jobs complete or 180s timeout. " +
-        "Intervals start at 5s, increase to 10s after 30s, then 15s after 60s."
+        "If true, wait on the SSE stream until all jobs finish or timeoutMs elapses. " +
+        "If false, do a short (5s) read of the stream and return whatever state has arrived."
       ),
       timeoutMs: z.number().optional().default(180_000).describe("Max wait time in ms when waitForCompletion=true (default 180s)"),
     },
@@ -1136,182 +1302,185 @@ server.registerTool(
         };
       }
 
-      // Adaptive polling: if waitForCompletion, loop with increasing intervals
-      // 0-30s: check every 5s, 30-60s: every 10s, 60s+: every 15s
-      const getInterval = (elapsedMs: number) =>
-        elapsedMs < 30_000 ? 5_000 : elapsedMs < 60_000 ? 10_000 : 15_000;
-
       const startTime = Date.now();
-      let pollCount = 0;
+      // Without waitForCompletion, use a short snapshot window (5s): the new
+      // API has no "get current state" endpoint — the SSE stream is the only
+      // status channel. If already terminal in DB, the server emits and closes
+      // immediately; otherwise we just report `running` and let the agent
+      // call again.
+      const deadlineMs = waitForCompletion
+        ? startTime + timeoutMs
+        : startTime + 5_000;
 
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        pollCount++;
-
-      const params = new URLSearchParams({ jobIds: jobIds.join(",") });
-      const res = await fetch(
-        `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/status?${params}`,
-        {
-          headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-          signal: AbortSignal.timeout(15_000),
-        }
+      // Read each job's SSE stream in parallel. readInferenceStream returns
+      // null if the stream ended without a terminal event (e.g. still running
+      // and snapshot window elapsed).
+      const results = await Promise.all(
+        jobIds.map(async (jobId) => {
+          try {
+            const terminal = await readInferenceStream(jobId, { deadlineMs });
+            return { jobId, terminal, err: null as Error | null };
+          } catch (err) {
+            return { jobId, terminal: null, err: err as Error };
+          }
+        }),
       );
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(`API returned ${res.status}: ${(err as any).error || res.statusText}`);
-      }
-
-      const data = await res.json() as {
-        jobs: Array<{
-          jobId: string;
-          status: string;
-          progress: number;
-          sceneId: string | null;
-          allSceneIds?: string[];
-          outputKey: string | null;
-          error: string | null;
-        }>;
-        allComplete: boolean;
-        anyFailed: boolean;
-      };
-
-      // Download completed mattes to local workspace.
-      // One job produces ONE matte/fgr/bbox (shared across all overlay scenes)
-      // plus N bg images (one per scene). All scenes reference the same matte.
+      // Assemble a jobs[] shape compatible with the old response. Values per
+      // job: status is 'complete'|'failed'|'running'; outputKey is the matte
+      // MinIO key on completion; sceneId is the primary scene recorded at
+      // request time.
       await mkdir(MATTE_DIR, { recursive: true });
       const downloaded: string[] = [];
+      const jobs: Array<{
+        jobId: string;
+        status: "complete" | "failed" | "running";
+        progress: number;
+        sceneId: string | null;
+        outputKey: string | null;
+        error: string | null;
+      }> = [];
 
-      for (const job of data.jobs) {
-        if (job.status === "complete" && job.sceneId) {
-          const primarySceneId = job.sceneId;
-          // allSceneIds from job metadata — all overlay scenes sharing this matte
-          const allSceneIds: string[] = job.allSceneIds ?? [primarySceneId];
+      for (const r of results) {
+        const meta = jobSceneMeta.get(r.jobId) ?? null;
+        const primarySceneId = meta?.primarySceneId ?? null;
+        const allSceneIds = meta?.allSceneIds ?? (primarySceneId ? [primarySceneId] : []);
 
-          // Download matte/fgr/bbox ONCE using the primary scene ID
-          const localMattePath = path.join(MATTE_DIR, `${primarySceneId}.mp4`);
-          const localBboxPath = path.join(MATTE_DIR, `${primarySceneId}-bbox.json`);
-          const localFgrPath = path.join(MATTE_DIR, `${primarySceneId}-fgr.mp4`);
+        if (r.err) {
+          jobs.push({
+            jobId: r.jobId,
+            status: "failed",
+            progress: 0,
+            sceneId: primarySceneId,
+            outputKey: null,
+            error: r.err.message,
+          });
+          continue;
+        }
 
-          // Download matte video (skip if already exists)
+        if (!r.terminal) {
+          // No terminal event in the snapshot window — still running.
+          jobs.push({
+            jobId: r.jobId,
+            status: "running",
+            progress: 0,
+            sceneId: primarySceneId,
+            outputKey: null,
+            error: null,
+          });
+          continue;
+        }
+
+        if (r.terminal.kind === "error" || r.terminal.data.status !== "completed") {
+          const errMsg = typeof r.terminal.data.error === "string"
+            ? r.terminal.data.error
+            : r.terminal.data.error?.message ?? r.terminal.data.status;
+          jobs.push({
+            jobId: r.jobId,
+            status: "failed",
+            progress: 0,
+            sceneId: primarySceneId,
+            outputKey: null,
+            error: errMsg ?? "unknown error",
+          });
+          continue;
+        }
+
+        // Terminal complete — download artifacts from MinIO directly.
+        const output = r.terminal.data.output;
+        if (!output || !primarySceneId) {
+          jobs.push({
+            jobId: r.jobId,
+            status: "failed",
+            progress: 100,
+            sceneId: primarySceneId,
+            outputKey: null,
+            error: !output
+              ? "complete event missing output keys"
+              : "no sceneId metadata found for jobId (request_segmentation must be called from the same process)",
+          });
+          continue;
+        }
+
+        const localMattePath = path.join(MATTE_DIR, `${primarySceneId}.mp4`);
+        const localFgrPath = path.join(MATTE_DIR, `${primarySceneId}-fgr.mp4`);
+        const localBboxPath = path.join(MATTE_DIR, `${primarySceneId}-bbox.json`);
+        const localProxyMattePath = path.join(MATTE_DIR, `${primarySceneId}-proxy.mp4`);
+        const localProxyFgrPath = path.join(MATTE_DIR, `${primarySceneId}-fgr-proxy.mp4`);
+
+        const downloadPairs: Array<[string, string]> = [
+          [output.matteKey, localMattePath],
+          [output.fgrKey, localFgrPath],
+          [output.bboxKey, localBboxPath],
+          [output.proxyMatteKey, localProxyMattePath],
+          [output.proxyFgrKey, localProxyFgrPath],
+        ];
+
+        for (const [key, destPath] of downloadPairs) {
+          let exists = false;
+          try { await stat(destPath); exists = true; } catch { /* needs download */ }
+          if (exists) continue;
           try {
-            await stat(localMattePath);
-          } catch {
-            try {
-              const matteRes = await fetch(
-                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/matte`,
-                {
-                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-                  signal: AbortSignal.timeout(60_000),
-                }
-              );
-              if (matteRes.ok) {
-                const buf = Buffer.from(await matteRes.arrayBuffer());
-                await writeFile(localMattePath, buf);
-              }
-            } catch (dlErr) {
-              console.error(`[asset-server] Failed to download matte for ${primarySceneId}:`, dlErr);
-            }
-          }
-
-          // Download bbox JSON (skip if already exists)
-          try {
-            await stat(localBboxPath);
-          } catch {
-            try {
-              const bboxRes = await fetch(
-                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/bbox`,
-                {
-                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-                  signal: AbortSignal.timeout(15_000),
-                }
-              );
-              if (bboxRes.ok) {
-                const text = await bboxRes.text();
-                await writeFile(localBboxPath, text);
-              }
-            } catch {
-              // Bbox download is best-effort — speaker position falls back to defaults
-            }
-          }
-
-          // Download foreground video (skip if already exists)
-          try {
-            await stat(localFgrPath);
-          } catch {
-            try {
-              const fgrRes = await fetch(
-                `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/fgr`,
-                {
-                  headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-                  signal: AbortSignal.timeout(60_000),
-                }
-              );
-              if (fgrRes.ok) {
-                const buf = Buffer.from(await fgrRes.arrayBuffer());
-                await writeFile(localFgrPath, buf);
-              }
-            } catch {
-              // Foreground download is best-effort
-            }
-          }
-
-          // Generate proxy files locally for editor preview (must happen before syncAssets)
-          {
-            for (const fullPath of [localMattePath, localFgrPath]) {
-              let exists = false;
-              try { await stat(fullPath); exists = true; } catch { /* not yet downloaded */ }
-              if (!exists) continue;
-              const proxyPath = fullPath.replace('.mp4', '-proxy.mp4');
-              let proxyExists = false;
-              try { await stat(proxyPath); proxyExists = true; } catch { /* not yet generated */ }
-              if (proxyExists) continue;
-              try {
-                await execFileAsync('ffmpeg', [
-                  '-i', fullPath, '-vf', 'scale=-2:480',
-                  '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
-                  '-y', proxyPath,
-                ], { timeout: 30_000 });
-              } catch { /* non-critical */ }
-            }
-          }
-
-          // Download per-scene background images
-          for (const sid of allSceneIds) {
-            const localBgPath = path.join(WORKSPACE, "public", `bg-${sid}.png`);
-            try {
-              await stat(localBgPath);
-            } catch {
-              try {
-                const bgRes = await fetch(
-                  `${API_INTERNAL_URL}/internal/sandbox/${PROJECT_ID}/segment/${job.jobId}/bg?sceneId=${sid}`,
-                  {
-                    headers: { "Authorization": `Bearer ${SANDBOX_SECRET}` },
-                    signal: AbortSignal.timeout(30_000),
-                  }
-                );
-                if (bgRes.ok) {
-                  const buf = Buffer.from(await bgRes.arrayBuffer());
-                  await writeFile(localBgPath, buf);
-                }
-              } catch {
-                // Background download is best-effort
-              }
-            }
-          }
-
-          // All scenes share the same matte/fgr/bbox (full-video), only bg differs
-          for (const sid of allSceneIds) {
-            downloaded.push(sid);
+            await downloadMinioObject(key, destPath);
+          } catch (dlErr) {
+            console.error(`[asset-server] Failed to download ${key} → ${destPath}:`, dlErr);
           }
         }
+
+        // If proxies were not provided by the pipeline (older runs) fall back
+        // to generating them locally. The new RVM pipeline produces proxies
+        // upstream, so this usually no-ops.
+        for (const fullPath of [localMattePath, localFgrPath]) {
+          let srcExists = false;
+          try { await stat(fullPath); srcExists = true; } catch { /* not downloaded */ }
+          if (!srcExists) continue;
+          const proxyPath = fullPath.replace(".mp4", "-proxy.mp4");
+          let proxyExists = false;
+          try { await stat(proxyPath); proxyExists = true; } catch { /* not yet generated */ }
+          if (proxyExists) continue;
+          try {
+            await execFileAsync("ffmpeg", [
+              "-i", fullPath, "-vf", "scale=-2:480",
+              "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+              "-y", proxyPath,
+            ], { timeout: 30_000 });
+          } catch { /* non-critical */ }
+        }
+
+        // TODO: per-scene background images (bg-{sceneId}.png) are no longer
+        // auto-generated by the inference pipeline — the legacy worker job
+        // produced them via OpenAI inside the segmentation job, but the new
+        // `segment-speaker` capability is pure RVM (matte + fgr + bbox only).
+        // Scenes that relied on bg-{sceneId}.png must request backgrounds via
+        // a separate tool (not yet implemented — planned future capability).
+        // We keep the mattePaths.bgStaticFile field in the response for
+        // prompt compatibility, but the file will not exist on disk.
+
+        // All scenes sharing this matte reference the same primary files.
+        for (const sid of allSceneIds) {
+          downloaded.push(sid);
+        }
+
+        jobs.push({
+          jobId: r.jobId,
+          status: "complete",
+          progress: 100,
+          sceneId: primarySceneId,
+          outputKey: output.matteKey,
+          error: null,
+        });
       }
 
-      // Re-sync assets to MinIO so presigned URLs include newly downloaded matte files
+      const allComplete = jobs.length > 0 && jobs.every(j => j.status === "complete");
+      const anyFailed = jobs.some(j => j.status === "failed");
+
+      // Re-sync assets to MinIO so presigned URLs include newly downloaded matte files.
+      // (Assets are in the local sandbox workspace; sync-assets uploads them back
+      // under the project's asset prefix for the editor frontend to fetch.)
       if (downloaded.length > 0) {
         try {
-          await fetch('http://localhost:8081/sync-assets', {
-            method: 'POST',
+          await fetch("http://localhost:8081/sync-assets", {
+            method: "POST",
             signal: AbortSignal.timeout(30_000),
           });
         } catch {
@@ -1319,46 +1488,35 @@ server.registerTool(
         }
       }
 
-      // Build response: all scenes reference the primary matte/fgr, own bg
-      const primarySceneId = downloaded.length > 0
-        ? (data.jobs.find(j => j.status === "complete")?.sceneId ?? downloaded[0])
+      // Build response. Preserve the old top-level keys exactly:
+      //   { jobs, allComplete, anyFailed, downloaded, pollCount, elapsedMs, mattePaths }
+      // pollCount is kept for shape stability (always 1 now — we read the
+      // stream once rather than poll).
+      const primarySceneIdForPaths = downloaded.length > 0
+        ? (jobs.find(j => j.status === "complete")?.sceneId ?? downloaded[0])
         : null;
 
+      const uniqueScenes = Array.from(new Set(downloaded));
       const result = {
-        ...data,
-        downloaded,
-        pollCount,
+        jobs,
+        allComplete,
+        anyFailed,
+        downloaded: uniqueScenes,
+        downloadedScenes: uniqueScenes,
+        pollCount: 1,
         elapsedMs: Date.now() - startTime,
-        mattePaths: downloaded.map(id => ({
+        mattePaths: uniqueScenes.map(id => ({
           sceneId: id,
-          mattePath: `public/matte/${primarySceneId}.mp4`,
-          fgrPath: `public/matte/${primarySceneId}-fgr.mp4`,
+          mattePath: `public/matte/${primarySceneIdForPaths}.mp4`,
+          fgrPath: `public/matte/${primarySceneIdForPaths}-fgr.mp4`,
           bgPath: `public/bg-${id}.png`,
-          staticFile: `matte/${primarySceneId}.mp4`,
-          fgrStaticFile: `matte/${primarySceneId}-fgr.mp4`,
+          staticFile: `matte/${primarySceneIdForPaths}.mp4`,
+          fgrStaticFile: `matte/${primarySceneIdForPaths}-fgr.mp4`,
           bgStaticFile: `bg-${id}.png`,
         })),
       };
 
-      // If not waiting, or all complete/failed, return immediately
-      const allDone = data.allComplete || data.anyFailed;
-      if (!waitForCompletion || allDone) {
-        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-      }
-
-      // Check timeout
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= timeoutMs) {
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify({ ...result, timedOut: true }) }],
-        };
-      }
-
-      // Adaptive sleep — increasing intervals
-      const interval = getInterval(elapsed);
-      await new Promise(resolve => setTimeout(resolve, interval));
-
-      } // end while(true)
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err) {
       return {
         content: [{
