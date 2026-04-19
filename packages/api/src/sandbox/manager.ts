@@ -10,7 +10,7 @@
  */
 
 import { eq, and, inArray, sql } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js';
 import { touchActivity, removeActivity, onSandboxIdle } from './health.js';
 import { syncManifestToDb } from './sync.js';
@@ -173,6 +173,22 @@ export class SandboxManager {
       ))
       .limit(1);
     return session ?? null;
+  }
+
+  /**
+   * Verify a sandbox bearer token against the stored session secret for a project.
+   * Uses constant-time comparison to guard against timing side-channels. Returns
+   * `false` if there is no active session, no secret, or the lengths/bytes differ.
+   */
+  async verifySandboxSecret(projectId: string, token: string): Promise<boolean> {
+    if (!token) return false;
+    const session = await this.getActiveSession(projectId);
+    const secret = session?.sandboxSecret;
+    if (!secret) return false;
+    const a = Buffer.from(secret);
+    const b = Buffer.from(token);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
   }
 
   /** Convert a DB session row to the Sandbox interface */
