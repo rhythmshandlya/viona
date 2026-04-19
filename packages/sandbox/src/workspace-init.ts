@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { Client as MinioClient } from 'minio';
 import pino from 'pino';
 import { syncAssets } from './asset-sync.js';
+import { fetchAndWriteAssetsManifest } from './assets/manifest.js';
 import { initGitRepo } from './checkpoint.js';
 
 const execFileAsync = promisify(execFile);
@@ -490,6 +491,46 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
 }
 
 /**
+ * Asset bootstrap wrapper — gated on ASSET_SYSTEM_V2.
+ *
+ * When ASSET_SYSTEM_V2=true: fetch assets-manifest.json from the API and write
+ * it into the workspace. Required env: API_CALLBACK_URL, SANDBOX_ID,
+ * SANDBOX_SECRET. Missing any of these logs a warning and skips the v2 path
+ * without falling back to the legacy syncAssets — the flag is authoritative.
+ *
+ * When the flag is off (default): run legacy syncAssets() unchanged.
+ */
+async function runAssetBootstrap(syncAssetsArgs: Parameters<typeof syncAssets>): Promise<void> {
+  const assetSystemV2 = process.env.ASSET_SYSTEM_V2 === 'true';
+  if (assetSystemV2) {
+    const apiUrl = process.env.API_CALLBACK_URL;
+    const sandboxId = process.env.SANDBOX_ID;
+    const secret = process.env.SANDBOX_SECRET;
+    if (!apiUrl || !sandboxId || !secret) {
+      logger.warn(
+        { hasApiUrl: !!apiUrl, hasSandboxId: !!sandboxId, hasSecret: !!secret },
+        'assets-manifest env vars missing, skipping v2 bootstrap',
+      );
+      return;
+    }
+    try {
+      await fetchAndWriteAssetsManifest({
+        apiUrl,
+        sandboxId,
+        secret,
+        workspaceRoot: WORKSPACE,
+      });
+      logger.info('assets-manifest.json written (ASSET_SYSTEM_V2)');
+    } catch (err) {
+      logger.error({ err: (err as Error).message }, 'fetchAndWriteAssetsManifest failed');
+      throw err;
+    }
+    return;
+  }
+  await syncAssets(...syncAssetsArgs);
+}
+
+/**
  * Initialize workspace on first boot using atomic staging pattern.
  * Writes all files to /workspace/.staging first, then promotes to /workspace
  * on success. If init fails mid-way, the staging dir is cleaned up and the
@@ -527,8 +568,10 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     // Clean up staging directory
     rmSync(STAGING, { recursive: true, force: true });
 
-    // Asset sync runs after promotion — it reads/writes /workspace directly
-    await syncAssets();
+    // Asset sync runs after promotion — it reads/writes /workspace directly.
+    // Gated on ASSET_SYSTEM_V2: v2 fetches assets-manifest.json from the API,
+    // legacy path runs syncAssets() unchanged.
+    await runAssetBootstrap([]);
 
     // Initialize git repo for checkpoint system
     await initGitRepo();
