@@ -1,4 +1,5 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import Anthropic from '@anthropic-ai/sdk';
+import { config } from '../config.js';
 import {
   arrangementOutputSchema,
   type ArrangementInput,
@@ -9,55 +10,44 @@ import {
   FINALIZE_ARRANGEMENT_TOOL,
 } from './arrangement-prompt.js';
 
+const client = new Anthropic();  // reads ANTHROPIC_API_KEY from env
+
 /**
- * Runs the arrangement agent. Expects exactly one `finalize_arrangement` tool
- * call in the output. Returns the validated ArrangementOutput.
+ * Runs the arrangement agent as a single-turn tool-use call. Expects exactly one
+ * `finalize_arrangement` tool_use block in the response. Returns the validated
+ * ArrangementOutput.
  *
  * @remarks
- * If the agent refuses or malforms the call, this throws. The orchestrator
- * surfaces the failure as an `arranged` pipeline event with `ok: false`.
- *
- * SDK option shape:
- *   - `systemPrompt` uses the `{ type: 'preset', preset: 'claude_code', append }`
- *     form — matches how `packages/sandbox/src/orchestrator.ts` calls `query()`.
- *   - `model: 'opus'` per user preference.
- *   - `FINALIZE_ARRANGEMENT_TOOL` is passed via `extraArgs` → the SDK flattens
- *     unknown options onto the underlying Claude Code CLI; the sandbox
- *     orchestrator uses a similar escape hatch for MCP-registered custom tools.
- *     The test mocks the SDK wholesale, so the exact property names here are
- *     isolated from the parsing logic under test.
+ * Uses @anthropic-ai/sdk directly rather than @anthropic-ai/claude-agent-sdk because
+ * the Agent SDK's `tools` option restricts built-in Claude Code tool names (string[]),
+ * not custom JSON-schema tools. This is a single-turn agent; the full Agent SDK
+ * machinery (subagents, permissions, hooks) is overkill.
  */
 export async function runArrangementAgent(input: ArrangementInput): Promise<ArrangementOutput> {
   const systemPrompt = buildArrangementSystemPrompt(input);
 
-  const iter = query({
-    prompt: 'Produce the arrangement now by calling finalize_arrangement.',
-    options: {
-      model: 'opus',
-      systemPrompt: {
-        type: 'preset' as const,
-        preset: 'claude_code' as const,
-        append: systemPrompt,
-      },
-      // Custom tool schema passed through so the agent can emit a
-      // `finalize_arrangement` tool_use block. See file JSDoc for caveats.
-      tools: [FINALIZE_ARRANGEMENT_TOOL],
-    } as Parameters<typeof query>[0]['options'],
-  } as Parameters<typeof query>[0]);
+  const response = await client.messages.create({
+    model: config.anthropic.model,
+    max_tokens: 4096,
+    system: systemPrompt,
+    tools: [{
+      name: FINALIZE_ARRANGEMENT_TOOL.name,
+      description: FINALIZE_ARRANGEMENT_TOOL.description,
+      input_schema: FINALIZE_ARRANGEMENT_TOOL.input_schema as unknown as Anthropic.Tool.InputSchema,
+    }],
+    tool_choice: { type: 'tool', name: FINALIZE_ARRANGEMENT_TOOL.name },
+    messages: [{
+      role: 'user',
+      content: 'Produce the arrangement now by calling finalize_arrangement.',
+    }],
+  });
 
   let toolInput: unknown = null;
-  for await (const msg of iter as AsyncIterable<unknown>) {
-    const m = msg as { type?: string; message?: { content?: unknown[] } };
-    if (m.type !== 'assistant') continue;
-    const content = m.message?.content ?? [];
-    for (const block of content) {
-      const b = block as { type?: string; name?: string; input?: unknown };
-      if (b.type === 'tool_use' && b.name === 'finalize_arrangement') {
-        toolInput = b.input;
-        break;
-      }
+  for (const block of response.content) {
+    if (block.type === 'tool_use' && block.name === FINALIZE_ARRANGEMENT_TOOL.name) {
+      toolInput = block.input;
+      break;
     }
-    if (toolInput !== null) break;
   }
 
   if (toolInput === null) {
