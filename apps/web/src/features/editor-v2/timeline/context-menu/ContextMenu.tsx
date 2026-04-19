@@ -488,7 +488,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
         left: state.x,
         top: state.y,
         zIndex: 9999,
-        minWidth: 220,
+        minWidth: '13.75rem',
         padding: 4,
         borderRadius: 10,
         background: 'rgba(20, 20, 28, 0.92)',

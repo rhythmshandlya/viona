@@ -35,7 +35,7 @@ export function TrackHeaders({ rulerHeight = 24, className }: TrackHeadersProps)
   return (
     <div
       className={`flex flex-col border-r border-white/[0.04] ${className || ''}`}
-      style={{ width: 280 }}
+      style={{ width: '17.5rem' }}
     >
       {/* Header row aligned with ruler */}
       <div

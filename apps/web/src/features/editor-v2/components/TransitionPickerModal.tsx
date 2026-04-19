@@ -270,7 +270,7 @@ export function TransitionPickerModal() {
           border: '1px solid var(--editor-border-subtle, rgba(255,255,255,0.08))',
           borderRadius: 14,
           padding: 24,
-          width: 420,
+          width: '26.25rem',
           boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
         }}
       >
