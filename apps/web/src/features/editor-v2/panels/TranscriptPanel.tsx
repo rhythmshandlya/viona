@@ -342,7 +342,7 @@ export function TranscriptPanel() {
 
       {selectedIds.length === 0 && captionItems.length > 0 && (
         <div className="px-3 pt-2 text-[10px] text-[var(--editor-text-muted)] uppercase tracking-wide">
-          Editing all {captionItems.length} captions
+          Editing all {captionItems.length} {captionItems.length === 1 ? 'caption' : 'captions'}
         </div>
       )}
 
