@@ -203,27 +203,31 @@ def handler(job):
 
 
 def _warmup():
-    """Run a tiny dummy inference so the JIT / torch.compile paths are hot when
-    the first real job arrives. Called once at module load, best-effort."""
+    """Run a tiny dummy forward pass directly on a CUDA tensor so the JIT /
+    torch.compile / cudnn.benchmark paths are hot when the first real job
+    arrives. Called once at module load, best-effort.
+
+    Bypasses cv2.VideoWriter + ffmpeg entirely — the previous
+    process_video()-based warmup raced against NVENC initialization on fresh
+    RunPod workers and exited with Broken pipe before warming anything."""
     if not _cuda_available:
         return
     try:
-        import numpy as np
-        import tempfile
-        import cv2  # from opencv-python-headless in requirements
-        work = Path(tempfile.mkdtemp(prefix='rvm-warmup-'))
-        dummy = work / 'dummy.mp4'
-        # 1 second, 30fps, 320x180 black frames
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        vw = cv2.VideoWriter(str(dummy), fourcc, 30, (320, 180))
-        for _ in range(30):
-            vw.write(np.zeros((180, 320, 3), dtype=np.uint8))
-        vw.release()
-        process_video(
-            str(dummy), str(work / 'matte.mp4'),
-            backbone='resnet50', scale=0.5, fps=0, downsample_ratio=0.8,
-            matte_ranges=[],
-        )
+        from segment_person import load_rvm_model
+        device = _torch.device('cuda')
+        dtype = _torch.float16
+        model = load_rvm_model('resnet50', device, dtype)
+        # Shape (B=1, T=4, C=3, H=180, W=320). T matches the default
+        # SEQ_CHUNK so cudnn picks algorithms close to production shapes.
+        # `rec` starts as 4 Nones — recurrent state is empty on first call.
+        # `downsample_ratio` is passed positionally, matching segment_person.
+        src = _torch.zeros(1, 4, 3, 180, 320, dtype=dtype, device=device)
+        rec = [None] * 4
+        with _torch.no_grad():
+            _fgr, _pha, *_rec = model(src, *rec, 0.8)
+        _torch.cuda.synchronize()
+        del src, _fgr, _pha, _rec, rec, model
+        _torch.cuda.empty_cache()
         print('RVM warmup complete', flush=True)
     except Exception as e:
         print(f'RVM warmup failed (non-fatal): {e}', flush=True)
