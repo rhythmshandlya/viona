@@ -140,4 +140,9 @@ export const config = {
       return 'http://localhost:4000';
     },
   },
+
+  // Feature flags (env-var driven booleans)
+  featureFlags: {
+    assetSystemV2: process.env.ASSET_SYSTEM_V2 === 'true',
+  },
 } as const;

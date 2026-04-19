@@ -29,6 +29,9 @@ import { templateRoutes } from './routes/templates.js';
 import { templateBundleRoutes } from './routes/template-bundle.js';
 import { registerInferenceRoutes } from './inference/routes.js';
 import { startReconciler } from './inference/reconciler.js';
+import assetRoutes from './routes/assets.js';
+import projectAssetRoutes from './routes/project-assets.js';
+import assetEventsSseRoutes from './routes/asset-events-sse.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -322,6 +325,13 @@ async function main() {
   await fastify.register(templateRoutes, { prefix: '/api' });
   await fastify.register(templateBundleRoutes, { prefix: '/api' });
   await registerInferenceRoutes(fastify);
+
+  if (config.featureFlags.assetSystemV2) {
+    await fastify.register(assetRoutes);
+    await fastify.register(projectAssetRoutes);
+    await fastify.register(assetEventsSseRoutes);
+    fastify.log.info('Asset system v2 routes registered');
+  }
 
   // Setup WebSocket
   await setupWebSocket(fastify);
