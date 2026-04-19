@@ -11,29 +11,15 @@ import { TranscriptPanel } from '../panels';
 import { ItemInspector } from './inspector/ItemInspector';
 import { KeyframeEditor } from './keyframe-editor/KeyframeEditor';
 
-export type RightPanelTab = 'properties' | 'transcript' | 'item-properties';
-
 interface RightPanelProps {
   isOpen: boolean;
-  activeTab: RightPanelTab;
-  onTabChange: (tab: RightPanelTab) => void;
   onClose: () => void;
   layout?: 'stacked' | 'side-by-side';
-  embedded?: boolean;
   view?: 'inspector' | 'transcript';
 }
 
-export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false, view = 'inspector' }: RightPanelProps) {
+export function RightPanel({ isOpen, onClose, layout = 'stacked', view = 'inspector' }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
-
-  // Embedded mode — used when RightPanel is hosted inside the left sidebar (Captions tab)
-  if (embedded) {
-    return (
-      <div className="flex-1 overflow-y-auto -mx-4 -mt-3">
-        <TranscriptPanel />
-      </div>
-    );
-  }
 
   return (
     <div

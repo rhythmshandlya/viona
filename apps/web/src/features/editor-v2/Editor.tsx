@@ -14,7 +14,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 import { Header } from './components/Header';
 import { PreviewControls } from './components/PreviewControls';
-import { RightPanel, type RightPanelTab } from './components/RightPanel';
+import { RightPanel } from './components/RightPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { Scene } from './scene/Scene';
@@ -40,7 +40,6 @@ import {
   usePlaybackActions,
   useAIActions,
   useSelectedIds,
-  useCaptionItems,
   useAIEditRequested,
   useEditorStore,
   useIsDirty,
@@ -114,7 +113,6 @@ export function Editor({ projectId }: EditorProps) {
   const loadingMessage = useLoadingMessage();
   const error = useError();
   const selectedIds = useSelectedIds();
-  const captionItems = useCaptionItems();
 
   const rightPanelView = useMemo<'inspector' | 'transcript'>(() => {
     const items = useEditorStore.getState().items;
@@ -136,11 +134,6 @@ export function Editor({ projectId }: EditorProps) {
   const { updateEnhancementStatus } = useAudioActions();
   const { pause } = usePlaybackActions();
   const { setInspectModeEnabled } = useAIActions();
-
-  // Handle tab change (kept for embedded RightPanel compatibility)
-  const handleTabChange = useCallback((_tab: RightPanelTab) => {
-    // No-op: right panel no longer has tabs
-  }, []);
 
   // Auto-open right panel on selection or when in captions tab with no selection
   useEffect(() => {
@@ -854,8 +847,6 @@ export function Editor({ projectId }: EditorProps) {
           {panelOpen && (
             <RightPanel
               isOpen={panelOpen}
-              activeTab="item-properties"
-              onTabChange={handleTabChange}
               onClose={handleClosePanel}
               view={rightPanelView}
             />
