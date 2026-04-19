@@ -25,7 +25,9 @@ vi.mock('../services/queue.js', () => ({
   queueAssetMetadataJob: (...a: unknown[]) => queueMetadataSpy(...a),
 }));
 vi.mock('../middleware/auth.js', () => ({
-  authMiddleware: async (req: { userId: string }) => { req.userId = 'u-1'; },
+  authMiddleware: async (req: { user: { id: string } }) => {
+    req.user = { id: 'u-1' } as unknown as never;
+  },
 }));
 
 // Import after mocks are registered

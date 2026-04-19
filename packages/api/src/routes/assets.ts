@@ -15,8 +15,7 @@ import {
 } from '../services/asset-service.js';
 import { queueAssetMetadataJob } from '../services/queue.js';
 
-interface AuthedRequest { userId: string }
-
+const UPLOAD_URL_TTL_SECONDS = 3600;
 const ASSET_URL_TTL_SECONDS = 24 * 3600;
 
 const assetRoutes: FastifyPluginAsync = async (fastify) => {
@@ -30,12 +29,12 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
       partCount: number;
     };
   }>('/assets/upload-urls', async (request, reply) => {
-    const { filename, mimeType, fileSize, partCount } = request.body ?? {} as {
+    const { filename, mimeType, fileSize, partCount } = request.body ?? ({} as {
       filename?: string;
       mimeType?: string;
       fileSize?: number;
       partCount?: number;
-    };
+    });
     if (
       !filename ||
       !mimeType ||
@@ -44,13 +43,13 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
     ) {
       return reply.code(400).send({ error: 'invalid_upload_request' });
     }
-    const userId = (request as unknown as AuthedRequest).userId;
+    const userId = request.user!.id;
     const stagingKey = `users/${userId}/assets/pending/${nanoid()}/${filename}`;
     const presigned = await getPresignedMultipartUploadUrls({
       prefix: 'uploads',
       key: stagingKey,
       partCount,
-      expirySeconds: 3600,
+      expirySeconds: UPLOAD_URL_TTL_SECONDS,
     });
     return reply.send({
       uploadId: presigned.uploadId,
@@ -73,7 +72,7 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
       projectId?: string;
     };
   }>('/assets/register', async (request, reply) => {
-    const userId = (request as unknown as AuthedRequest).userId;
+    const userId = request.user!.id;
     const body = request.body;
     if (!body?.sha256 || !body?.storageKey || !body?.filename) {
       return reply.code(400).send({ error: 'missing_required_fields' });
@@ -97,20 +96,20 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get('/assets', async (request, reply) => {
-    const userId = (request as unknown as AuthedRequest).userId;
+    const userId = request.user!.id;
     const rows = await listUserAssets(userId);
     return reply.send({ assets: rows });
   });
 
   fastify.get<{ Params: { id: string } }>('/assets/:id', async (request, reply) => {
-    const userId = (request as unknown as AuthedRequest).userId;
+    const userId = request.user!.id;
     const asset = await getAssetById(request.params.id, userId);
     if (!asset) return reply.code(404).send({ error: 'not_found' });
     return reply.send({ asset });
   });
 
   fastify.get<{ Params: { id: string } }>('/assets/:id/url', async (request, reply) => {
-    const userId = (request as unknown as AuthedRequest).userId;
+    const userId = request.user!.id;
     const asset = await getAssetById(request.params.id, userId);
     if (!asset) return reply.code(404).send({ error: 'not_found' });
     const url = await getPresignedDownloadUrl('uploads', asset.storageKey, ASSET_URL_TTL_SECONDS);
@@ -129,14 +128,15 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
       tags?: string[];
     };
   }>('/assets/:id', async (request, reply) => {
-    const userId = (request as unknown as AuthedRequest).userId;
-    const updated = await updateAssetMetadata(request.params.id, userId, request.body ?? {});
+    const userId = request.user!.id;
+    const patch = request.body ?? {};
+    const updated = await updateAssetMetadata(request.params.id, userId, patch);
     if (!updated) return reply.code(404).send({ error: 'not_found' });
     return reply.send({ asset: updated });
   });
 
   fastify.delete<{ Params: { id: string } }>('/assets/:id', async (request, reply) => {
-    const userId = (request as unknown as AuthedRequest).userId;
+    const userId = request.user!.id;
     const ok = await softDeleteAsset(request.params.id, userId);
     if (!ok) return reply.code(404).send({ error: 'not_found' });
     return reply.send({ ok: true });
