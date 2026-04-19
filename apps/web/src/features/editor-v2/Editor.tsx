@@ -678,7 +678,7 @@ export function Editor({ projectId }: EditorProps) {
       <div className="flex-1 flex overflow-hidden" style={{ gap: 'var(--editor-panel-gap)', padding: 'var(--editor-panel-gap)' }}>
 
         {/* Icon Rail - always visible */}
-        <div className="w-16 flex flex-col items-center py-2 flex-shrink-0 editor-panel">
+        <div className="w-16 flex flex-col items-center gap-1 py-2 flex-shrink-0 editor-panel">
           {(['agent', 'captions', 'assets'] as const).map((tab) => {
             const icons = { agent: MessageSquareText, captions: Captions, assets: FolderOpen };
             const labels = { agent: 'Chat', captions: 'Captions', assets: 'Assets' };
@@ -696,10 +696,10 @@ export function Editor({ projectId }: EditorProps) {
                     setLeftSidebarOpen(true);
                   }
                 }}
-                className={`relative w-14 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all active:scale-[0.95] ${
+                className={`group relative w-14 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-colors duration-150 active:scale-[0.97] ${
                   active
-                    ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)] shadow-[inset_0_1px_0_rgba(139,92,246,0.15)]'
-                    : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] hover:bg-white/[0.06]'
+                    ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
+                    : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] hover:bg-white/[0.05]'
                 }`}
                 title={showActivityDot ? (agentActivity ? `${agentActivity.agent}: ${agentActivity.action || 'Working...'}` : 'Agent is working...') : labels[tab]}
               >
