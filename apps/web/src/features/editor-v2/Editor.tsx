@@ -132,19 +132,15 @@ export function Editor({ projectId }: EditorProps) {
     // No-op: right panel no longer has tabs
   }, []);
 
-  // Auto-open right panel when a non-caption item is selected, and seek to midpoint
+  // Auto-open right panel on selection or when in captions tab with no selection
   useEffect(() => {
     if (selectedIds.length > 0) {
-      const state = useEditorStore.getState();
-      const allCaptions = selectedIds.every((id) => state.items[id]?.type === 'caption');
-      if (!allCaptions) {
-        setPanelOpen(true);
-      } else {
-        setPanelOpen(false);
-      }
-      // Seek timeline to the midpoint of the first selected item — but only if
-      // the playhead is not already within the item's time range
+      // Caption selection now opens the right panel (transcript editor),
+      // not hides it like before.
+      setPanelOpen(true);
+
       if (selectedIds.length === 1) {
+        const state = useEditorStore.getState();
         const item = state.items[selectedIds[0]];
         if (item) {
           const currentMs = state.currentTimeMs;
@@ -156,9 +152,11 @@ export function Editor({ projectId }: EditorProps) {
         }
       }
     } else {
-      setPanelOpen(false);
+      // No selection — open the right panel only when the user is in the
+      // unified Captions tab (they're "editing captions"; treat all as selected).
+      setPanelOpen(leftSidebarTab === 'captions');
     }
-  }, [selectedIds]);
+  }, [selectedIds, leftSidebarTab]);
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
@@ -842,15 +840,26 @@ export function Editor({ projectId }: EditorProps) {
             </div>
           </div>
 
-          {/* Right Panel - Item Inspector */}
-          {panelOpen && (
-            <RightPanel
-              isOpen={panelOpen}
-              activeTab="item-properties"
-              onTabChange={handleTabChange}
-              onClose={handleClosePanel}
-            />
-          )}
+          {/* Right Panel - Item Inspector / Transcript Editor */}
+          {panelOpen && (() => {
+            const state = useEditorStore.getState();
+            const anyCaptionSelected =
+              selectedIds.length > 0 &&
+              selectedIds.some((id) => state.items[id]?.type === 'caption');
+            const noSelectionOnCaptionsTab =
+              selectedIds.length === 0 && leftSidebarTab === 'captions';
+            const view: 'inspector' | 'transcript' =
+              anyCaptionSelected || noSelectionOnCaptionsTab ? 'transcript' : 'inspector';
+            return (
+              <RightPanel
+                isOpen={panelOpen}
+                activeTab="item-properties"
+                onTabChange={handleTabChange}
+                onClose={handleClosePanel}
+                view={view}
+              />
+            );
+          })()}
         </div>
 
       </div>

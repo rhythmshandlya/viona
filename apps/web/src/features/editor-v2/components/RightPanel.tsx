@@ -20,9 +20,10 @@ interface RightPanelProps {
   onClose: () => void;
   layout?: 'stacked' | 'side-by-side';
   embedded?: boolean;
+  view?: 'inspector' | 'transcript';
 }
 
-export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false }: RightPanelProps) {
+export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false, view }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
 
   // Embedded mode — used when RightPanel is hosted inside the left sidebar (Captions tab)
@@ -41,12 +42,15 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
         : "flex-shrink-0 overflow-hidden editor-panel"
       }
       style={isSideBySide ? undefined : {
-        width: isOpen ? 320 : 0,
+        width: isOpen ? (view === 'transcript' ? 420 : 320) : 0,
         transition: 'width 150ms ease-out',
       }}
     >
       {/* Inner wrapper */}
-      <div className={isSideBySide ? "w-full h-full flex flex-col" : "w-80 h-full flex flex-col"}>
+      <div
+        className={isSideBySide ? "w-full h-full flex flex-col" : "h-full flex flex-col"}
+        style={isSideBySide ? undefined : { width: view === 'transcript' ? 420 : 320 }}
+      >
         {/* Close button header */}
         {!isSideBySide && (
           <div className="h-10 flex items-center justify-end border-b border-white/[0.06] flex-shrink-0 px-2">
@@ -60,10 +64,16 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
           </div>
         )}
 
-        {/* Content — single scrollable inspector */}
+        {/* Content */}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <ItemInspector />
-          <KeyframeEditor />
+          {view === 'transcript' ? (
+            <TranscriptPanel />
+          ) : (
+            <>
+              <ItemInspector />
+              <KeyframeEditor />
+            </>
+          )}
         </div>
       </div>
     </div>
