@@ -32,14 +32,23 @@ export interface AssetEventRow {
 }
 
 /**
- * Insert an asset event row and fan out to Redis pub/sub channels for SSE consumers.
+ * Inserts an asset event row and fans out to Redis pub/sub channels for SSE consumers.
  *
- * Publishes to:
- *   - `asset-events:<userId>` — always
- *   - `asset-events:project:<projectId>` — only when projectId is set
+ * Channels:
+ * - Always publishes to `asset-events:{userId}` for user-scoped SSE streams.
+ * - When `projectId` is set, also publishes to `asset-events:project:{projectId}` for
+ *   project-scoped streams.
  *
  * Reuses the shared `redis` client from `./redis.ts` (same IORedis instance used
  * elsewhere in the API). Do not duplicate Redis connections here.
+ *
+ * @remarks
+ * Redis publish is best-effort. If `redis.publish` throws, the DB row is already
+ * committed and the thrown error propagates to the caller. If the user-channel
+ * publish succeeds but the project-channel publish fails, the first fanout still
+ * landed. SSE reconnecting clients should reconcile by re-reading from the
+ * `asset_events` table on resubscribe rather than relying on the live stream being
+ * lossless.
  */
 export async function emitAssetEvent(
   input: EmitAssetEventInput,
