@@ -22,6 +22,7 @@ import {
   useTimelineActions,
   useAIActions,
   useProject,
+  useSelectedIds,
   useSelectedSceneId,
 } from '../store/use-editor-store';
 import { CaptionItemData, TimelineItem } from '../store/types';
@@ -52,6 +53,7 @@ export function TranscriptPanel() {
 
   const captionItems = useCaptionItems();
   const project = useProject();
+  const selectedIds = useSelectedIds();
   const selectedSceneId = useSelectedSceneId();
   const { seek } = usePlaybackActions();
   const { updateCaptionText, splitCaption, mergeCaptions } = useCaptionActions();
@@ -337,6 +339,12 @@ export function TranscriptPanel() {
           </button>
         </div>
       </div>
+
+      {selectedIds.length === 0 && captionItems.length > 0 && (
+        <div className="px-3 pt-2 text-[10px] text-[var(--editor-text-muted)] uppercase tracking-wide">
+          Editing all {captionItems.length} captions
+        </div>
+      )}
 
       {/* Scene indicator */}
       {showScenes && currentScene && (
