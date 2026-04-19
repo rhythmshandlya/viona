@@ -6,7 +6,7 @@
 'use client';
 
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, MessageSquareText, Captions, Paintbrush, FolderOpen, X } from 'lucide-react';
+import { Loader2, MessageSquareText, Captions, FolderOpen, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -59,7 +59,7 @@ interface EditorProps {
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'assets' | 'agent'>('agent');
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'assets' | 'agent'>('agent');
   const agentActivity = useAgentActivity();
   const agentBusy = useAgentBusy();
 
@@ -211,6 +211,33 @@ export function Editor({ projectId }: EditorProps) {
     }
   }, [aiEditRequested]);
 
+  // Global "click outside" deselect. Clicks in the header, the panel gaps,
+  // the background shell, and the black letterbox around the preview should
+  // all clear selection — any "dead" surface that isn't actively editable.
+  // Rules:
+  //   - never interrupt a form control, button, menu, or modal
+  //   - editor panels preserve selection by default (a click on a timeline
+  //     clip would otherwise deselect right after selecting)
+  //   - panels that OPT IN via `data-deselect-on-empty` behave the opposite:
+  //     any click inside that doesn't hit a control becomes a deselect.
+  //     The preview panel uses this so clicks on black space around the
+  //     Remotion player clear selection the same as clicks on the video.
+  useEffect(() => {
+    const handler = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (useEditorStore.getState().selectedIds.length === 0) return;
+      if (target.closest(
+        '[role="menu"], [role="dialog"], [data-keep-selection], input, textarea, select, button, [contenteditable="true"]',
+      )) return;
+      const panel = target.closest('.editor-panel');
+      if (panel && !panel.hasAttribute('data-deselect-on-empty')) return;
+      useEditorStore.getState().clearSelection();
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, []);
+
   // Route caption-specific context-menu actions to the correct sidebar tab.
   // The context menu is decoupled from the sidebar state, so it emits window
   // events that this shell listens for. TranscriptPanel picks up the same
@@ -226,7 +253,7 @@ export function Editor({ projectId }: EditorProps) {
     const handleEditStyle = (e: Event) => {
       const detail = (e as CustomEvent<{ captionId: string }>).detail;
       if (!detail?.captionId) return;
-      setLeftSidebarTab('style');
+      setLeftSidebarTab('captions');
       setLeftSidebarOpen(true);
       useEditorStore.getState().select([detail.captionId], 'replace');
     };
@@ -380,18 +407,16 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-switch to Style tab only when a caption is selected from somewhere
-  // OTHER than the Captions tab itself. If the user is already in Captions
-  // (editing transcript / clicking a word to seek), hijacking their tab is
-  // extremely disruptive — they get yanked away from the text they're editing.
+  // When any caption gets selected from the timeline/preview, auto-open the
+  // Captions settings tab on the left. The right-side transcript editor opens
+  // through its own effect (Task 2), so the user lands with both panels visible.
   useEffect(() => {
-    if (selectedIds.length === 1 && leftSidebarTab !== 'captions') {
-      const state = useEditorStore.getState();
-      const item = state.items[selectedIds[0]];
-      if (item?.type === 'caption') {
-        setLeftSidebarOpen(true);
-        setLeftSidebarTab('style');
-      }
+    if (selectedIds.length === 0) return;
+    const state = useEditorStore.getState();
+    const hasCaption = selectedIds.some((id) => state.items[id]?.type === 'caption');
+    if (hasCaption && leftSidebarTab !== 'captions' && leftSidebarTab !== 'agent') {
+      setLeftSidebarOpen(true);
+      setLeftSidebarTab('captions');
     }
   }, [selectedIds, leftSidebarTab]);
 
@@ -638,9 +663,9 @@ export function Editor({ projectId }: EditorProps) {
 
         {/* Icon Rail - always visible */}
         <div className="w-14 flex flex-col items-center py-2 flex-shrink-0 editor-panel">
-          {(['agent', 'captions', 'style', 'assets'] as const).map((tab) => {
-            const icons = { agent: MessageSquareText, captions: Captions, style: Paintbrush, assets: FolderOpen };
-            const labels = { agent: 'Chat', captions: 'Captions', style: 'Style', assets: 'Assets' };
+          {(['agent', 'captions', 'assets'] as const).map((tab) => {
+            const icons = { agent: MessageSquareText, captions: Captions, assets: FolderOpen };
+            const labels = { agent: 'Chat', captions: 'Captions', assets: 'Assets' };
             const Icon = icons[tab];
             const active = leftSidebarOpen && leftSidebarTab === tab;
             const showActivityDot = tab === 'agent' && (!!agentActivity || agentBusy) && !(leftSidebarOpen && leftSidebarTab === 'agent');
@@ -708,7 +733,6 @@ export function Editor({ projectId }: EditorProps) {
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
                   <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}
-                    {leftSidebarTab === 'style' && 'Style Settings'}
                     {leftSidebarTab === 'assets' && 'Visual Assets'}
                   </h3>
                   <button
@@ -721,19 +745,7 @@ export function Editor({ projectId }: EditorProps) {
 
                 <div className="flex-1 overflow-y-auto">
                   {leftSidebarTab === 'captions' && (
-                    <div className="px-4 pb-4">
-                      <RightPanel
-                        isOpen={true}
-                        activeTab="transcript"
-                        onTabChange={handleTabChange}
-                        onClose={handleClosePanel}
-                        layout="stacked"
-                        embedded={true}
-                      />
-                    </div>
-                  )}
-                  {leftSidebarTab === 'style' && (
-                    <ErrorBoundary name="Style Panel">
+                    <ErrorBoundary name="Caption Settings">
                       <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
                         <StylePanel />
                       </Suspense>
@@ -760,8 +772,10 @@ export function Editor({ projectId }: EditorProps) {
         <div className="flex-1 flex min-w-0 overflow-hidden" style={{ gap: 'var(--editor-panel-gap)' }}>
           {/* Center: preview + timeline */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ gap: 'var(--editor-panel-gap)' }}>
-            {/* Video Preview Area — contains scene + controls in one box */}
-            <div className="flex-1 relative overflow-hidden flex flex-col editor-panel">
+            {/* Video Preview Area — contains scene + controls in one box.
+                Opt into the global "click empty area deselects" pattern so
+                tapping the black letterbox around the video clears selection. */}
+            <div className="flex-1 relative overflow-hidden flex flex-col editor-panel" data-deselect-on-empty>
               {/* Workspace status indicators */}
               <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
                 {workspaceLockHolder === 'ai' && (
