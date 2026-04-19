@@ -353,6 +353,7 @@ function convertManifestItemV2(
       const data: CaptionItemData = {
         text,
         words,
+        ...(d.positionOverride ? { positionOverride: d.positionOverride } : {}),
       };
       return { ...base, data } as TimelineItem;
     }
@@ -500,7 +501,9 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         ...(w.role ? { role: w.role } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
       }));
-      return { words };
+      const result: Record<string, unknown> = { words };
+      if (d.positionOverride) result.positionOverride = d.positionOverride;
+      return result;
     }
 
     case 'visual':

@@ -507,6 +507,16 @@ export const updateItemTool = {
         if (input.endMs !== undefined) item.endMs = input.endMs;
         if (input.trackId !== undefined) item.trackId = input.trackId;
 
+        // Snapshot the transcript-relevant state BEFORE mutation so we can detect
+        // whether a resync is actually warranted. syncCaptions is destructive: it
+        // replaces every caption item with freshly-UUID'd copies, wiping per-item
+        // positionOverride / wordStyleOverrides — so we must only run it when the
+        // transcript or word set actually changed.
+        const oldWordsJson =
+          item.type === 'caption' ? JSON.stringify(item.data?.words ?? []) : '';
+        const oldStartMs = item.startMs;
+        const oldEndMs = item.endMs;
+
         // Deep-merge nested objects
         if (input.data) {
           item.data = { ...item.data, ...input.data };
@@ -526,9 +536,16 @@ export const updateItemTool = {
         }
 
         await writeManifest(manifest);
-        // Auto-sync transcript after update (timing changes shift the timeline)
-        if (input.startMs !== undefined || input.endMs !== undefined || input.data) {
-          syncTranscript().then(() => syncCaptions()).catch(() => {});
+        // Only re-sync transcript/captions when the change actually affects them.
+        // A per-item positionOverride or other metadata update on a caption must
+        // NOT trigger regeneration — that would destroy the user's customization.
+        if (item.type === 'caption') {
+          const timingChanged = item.startMs !== oldStartMs || item.endMs !== oldEndMs;
+          const newWordsJson = JSON.stringify(item.data?.words ?? []);
+          const wordsChanged = newWordsJson !== oldWordsJson;
+          if (timingChanged || wordsChanged) {
+            syncTranscript().then(() => syncCaptions()).catch(() => {});
+          }
         }
         return JSON.stringify(item);
       } catch (err: any) {

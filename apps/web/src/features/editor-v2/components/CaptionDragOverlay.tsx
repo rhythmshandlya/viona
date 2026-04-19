@@ -160,10 +160,14 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   // During move drag: overlay handles/border track this box (computed from drag delta, not DOM)
   const [dragRenderBox, setDragRenderBox] = useState<BoundingBox | null>(null);
-  // Store the last computed position during move drag so pointer-up can commit it
-  const lastMovePositionRef = useRef<CaptionPosition | null>(null);
-  // Which caption item is being moved (for per-phrase positioning)
-  const draggedCaptionIdRef = useRef<string | null>(null);
+  // Captions being moved, with their starting free-mode (x%, y%) positions. Multiple
+  // entries when the user has ≥2 caption items selected — the drag delta is applied
+  // to each one's own starting position so relative offsets are preserved.
+  const dragTargetsRef = useRef<Array<{ id: string; startX: number; startY: number }> | null>(null);
+  // Final (possibly snapped) delta in canvas percentage, committed on pointer up.
+  const lastMoveDeltaRef = useRef<{ dx: number; dy: number } | null>(null);
+  // Fallback preset position when there are no target captions (e.g. playhead between phrases).
+  const lastPresetPositionRef = useRef<CaptionPosition | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<BoundingBox | null>(null);
@@ -271,15 +275,38 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         startPosition: pos,
       };
 
-      // Track which caption phrase is being moved
+      // Build the target list for this drag. Captions in the current selection
+      // take priority; otherwise fall back to the phrase visible at the playhead.
+      // Each target carries its own starting free-mode (x, y) so the delta is
+      // applied relative to where that caption actually is (its per-item override
+      // if present, else the preset's resolved free-mode coords).
       if (mode === 'move') {
-        draggedCaptionIdRef.current = getVisibleCaptionId();
+        const state = useEditorStore.getState();
+        const selectedCaptionIds = selectedIds.filter((id) => state.items[id]?.type === 'caption');
+        const targetIds = selectedCaptionIds.length > 0
+          ? selectedCaptionIds
+          : (getVisibleCaptionId() ? [getVisibleCaptionId()!] : []);
+
+        const presetFree = pos.mode === 'free'
+          ? { x: pos.x ?? 50, y: pos.y ?? 85 }
+          : anchorToFreeCoords(pos);
+
+        dragTargetsRef.current = targetIds.map((id) => {
+          const override = (state.items[id]?.data as { positionOverride?: { x: number; y: number } })?.positionOverride;
+          return {
+            id,
+            startX: override?.x ?? presetFree.x,
+            startY: override?.y ?? presetFree.y,
+          };
+        });
+        lastMoveDeltaRef.current = null;
+        lastPresetPositionRef.current = null;
       }
 
       setIsDragging(true);
       setSnapState({ snappedVertical: null, snappedHorizontal: null });
     },
-    [getCaptionStyle, box]
+    [getCaptionStyle, box, selectedIds, getVisibleCaptionId]
   );
 
   const handlePointerMove = useCallback(
@@ -296,20 +323,28 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       const dy = (e.clientY - startY) / zoom;
 
       if (mode === 'move') {
-        // Auto-convert anchor mode to free mode on first drag
-        const isAnchorMode = startPosition.mode !== 'free';
+        // Primary target = the first caption being dragged; used for snap guides
+        // and the live position readout. When there are no targets (playhead
+        // between phrases, nothing selected) we fall back to moving the preset.
+        const targets = dragTargetsRef.current;
+        const primary = targets && targets.length > 0 ? targets[0] : null;
 
+        // Derive baseX/baseY for snapping
         let baseX: number;
         let baseY: number;
-
-        if (isAnchorMode) {
-          // Convert current anchor position to free coords
-          const freeCoords = anchorToFreeCoords(startPosition);
-          baseX = freeCoords.x;
-          baseY = freeCoords.y;
+        if (primary) {
+          baseX = primary.startX;
+          baseY = primary.startY;
         } else {
-          baseX = startPosition.x ?? 50;
-          baseY = startPosition.y ?? 85;
+          const isAnchorMode = startPosition.mode !== 'free';
+          if (isAnchorMode) {
+            const freeCoords = anchorToFreeCoords(startPosition);
+            baseX = freeCoords.x;
+            baseY = freeCoords.y;
+          } else {
+            baseX = startPosition.x ?? 50;
+            baseY = startPosition.y ?? 85;
+          }
         }
 
         const deltaX = (dx / canvasWidth) * 100;
@@ -318,14 +353,12 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         let newX = clamp(baseX + deltaX, 0, 100);
         let newY = clamp(baseY + deltaY, 0, 100);
 
-        // Snap to guides
+        // Snap to guides (based on the primary caption's center)
         const captionW = startPosition.width ?? 90;
         const leftEdge = newX - captionW / 2;
         const rightEdge = newX + captionW / 2;
 
-        // Check center snap
         let snappedV = findSnap(newX, canvasWidth);
-        // Also check left/right edge snaps
         if (snappedV == null) {
           const leftSnap = findSnap(leftEdge, canvasWidth);
           if (leftSnap != null) {
@@ -341,7 +374,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           }
         }
         if (snappedV != null) {
-          // Re-derive newX from the center snap if it was a center snap
           if (snappedV === findSnap(newX, canvasWidth)) {
             newX = snappedV;
           }
@@ -355,7 +387,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         setSnapState({ snappedVertical: snappedV, snappedHorizontal: snappedH });
         setDragPosition({ x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
 
-        // Instant visual feedback: move overlay handles to track the pointer
         setDragRenderBox({
           left: startBox.left + dx,
           top: startBox.top + dy,
@@ -363,7 +394,9 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           height: startBox.height,
         });
 
-        // Instant visual feedback: translate caption elements in the DOM
+        // Translate every rendered caption overlay together so a multi-select
+        // drag looks like a group move. Only the phrase visible at the playhead
+        // actually mounts, so this is typically a single element anyway.
         const container2 = containerRef.current;
         if (container2) {
           container2.querySelectorAll<HTMLElement>('[data-caption-overlay]').forEach((el) => {
@@ -371,13 +404,22 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           });
         }
 
-        // Store final position for commit on pointer up (not dispatched during drag)
-        lastMovePositionRef.current = {
-          ...startPosition,
-          mode: 'free',
-          x: Math.round(newX * 10) / 10,
-          y: Math.round(newY * 10) / 10,
-        };
+        if (primary) {
+          // Commit delta in canvas-percent space — pointer-up applies it to
+          // each target's own starting position (preserves relative offsets).
+          lastMoveDeltaRef.current = {
+            dx: newX - primary.startX,
+            dy: newY - primary.startY,
+          };
+        } else {
+          // No targets — remember the absolute new preset position for commit.
+          lastPresetPositionRef.current = {
+            ...startPosition,
+            mode: 'free',
+            x: Math.round(newX * 10) / 10,
+            y: Math.round(newY * 10) / 10,
+          };
+        }
       } else if (mode === 'resize-width' && handle) {
         // E/W handles change caption width
         const deltaPercent = (dx / canvasWidth) * 100;
@@ -444,30 +486,66 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         // Pointer already released
       }
 
-      // Commit the final move position
-      if (lastMovePositionRef.current) {
-        const captionId = draggedCaptionIdRef.current;
-        if (captionId) {
-          // Per-phrase position: update this specific caption item
-          const pos = lastMovePositionRef.current;
-          updateCaptionItemPosition(captionId, { x: pos.x ?? 50, y: pos.y ?? 85 });
-        } else {
-          // Fallback: update global preset
-          updateStyle({ position: lastMovePositionRef.current });
-        }
-        lastMovePositionRef.current = null;
-        draggedCaptionIdRef.current = null;
-      }
+      const targets = dragTargetsRef.current;
+      const delta = lastMoveDeltaRef.current;
 
-      // Clear DOM translate after Remotion re-renders at the new position
+      // Clear the DOM translate FIRST, in the same paint as the store commit.
+      // If we delay, React/Remotion re-renders the caption at its new position
+      // while the translate is still applied → the caption visibly overshoots
+      // by the drag delta for however long we wait. A synchronous clear means
+      // at most one frame of the caption being shown at its pre-drag spot
+      // before React repaints at the new position.
       const container = containerRef.current;
       if (container) {
-        setTimeout(() => {
-          container.querySelectorAll<HTMLElement>('[data-caption-overlay]').forEach((el) => {
-            el.style.translate = '';
-          });
-        }, 600);
+        container.querySelectorAll<HTMLElement>('[data-caption-overlay]').forEach((el) => {
+          el.style.translate = '';
+        });
       }
+
+      if (targets && targets.length > 0 && delta) {
+        // "Select all then drag" = global move. Update the preset position and
+        // wipe every per-item override so the whole caption set shares one
+        // anchor, matching what the user typically expects.
+        const isAllSelectedDrag =
+          captionItems.length > 0 && targets.length === captionItems.length;
+
+        if (isAllSelectedDrag) {
+          const preset = useEditorStore.getState().captionPreset;
+          const presetPos = resolvePosition(preset.position ?? 'bottom');
+          const presetFree = presetPos.mode === 'free'
+            ? { x: presetPos.x ?? 50, y: presetPos.y ?? 85 }
+            : anchorToFreeCoords(presetPos);
+          const newX = clamp(presetFree.x + delta.dx, 0, 100);
+          const newY = clamp(presetFree.y + delta.dy, 0, 100);
+          updateCaptionPreset({
+            position: {
+              ...presetPos,
+              mode: 'free',
+              x: Math.round(newX * 10) / 10,
+              y: Math.round(newY * 10) / 10,
+            },
+          });
+          for (const t of targets) {
+            updateCaptionItemPosition(t.id, null);
+          }
+        } else {
+          for (const t of targets) {
+            const newX = clamp(t.startX + delta.dx, 0, 100);
+            const newY = clamp(t.startY + delta.dy, 0, 100);
+            updateCaptionItemPosition(t.id, {
+              x: Math.round(newX * 10) / 10,
+              y: Math.round(newY * 10) / 10,
+            });
+          }
+        }
+      } else if (lastPresetPositionRef.current) {
+        // No per-item targets — treat the drag as a preset-level position edit.
+        updateStyle({ position: lastPresetPositionRef.current });
+      }
+
+      dragTargetsRef.current = null;
+      lastMoveDeltaRef.current = null;
+      lastPresetPositionRef.current = null;
 
       dragRef.current = null;
       setIsDragging(false);
@@ -475,7 +553,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       setSnapState({ snappedVertical: null, snappedHorizontal: null });
       setDragPosition(null);
     }
-  }, [containerRef, updateStyle, updateCaptionItemPosition, getVisibleCaptionId]);
+  }, [containerRef, updateStyle, updateCaptionItemPosition, updateCaptionPreset, captionItems.length]);
 
   // Sync local isSelected with store — clear when caption deselected externally
   const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
@@ -578,9 +656,13 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         }}
         onPointerDown={(e) => {
           setIsSelected(true);
-          // Select the first caption item in the store so style panel activates
-          if (captionItems.length > 0) {
-            select([captionItems[0].id], 'replace');
+          // Keep an existing multi-caption selection intact so the user can drag
+          // a group. Otherwise pick the caption visible at the playhead — that
+          // matches what the user is clicking on visually.
+          const selectedCaptionIds = selectedIds.filter((id) => captionItems.some((c) => c.id === id));
+          if (selectedCaptionIds.length === 0 && captionItems.length > 0) {
+            const visibleId = getVisibleCaptionId();
+            select([visibleId ?? captionItems[0].id], 'replace');
           }
           handlePointerDown(e, 'move');
         }}

@@ -12,6 +12,22 @@ let pendingCaptionPresetOp: { projectId: string; input: Record<string, unknown> 
 // Track whether we're already re-acquiring the sandbox to avoid concurrent attempts
 let reacquiring: Promise<void> | null = null;
 
+// Timestamp of the most recent user-initiated dispatch. The sandbox's
+// manifest-updated WS event is hardcoded to source:'ai' regardless of origin
+// (see packages/api/src/sandbox/routes.ts). When the user is actively editing,
+// every one of our own writes triggers a round-trip that overwrites local
+// in-flight state with a stale sandbox snapshot. Until source tagging is
+// fixed upstream, the FE suppresses remote manifest updates that arrive
+// within USER_OP_QUIET_MS of a local dispatch.
+let lastUserDispatchTs = 0;
+export const USER_OP_QUIET_MS = 2000;
+export function markUserDispatch(): void {
+  lastUserDispatchTs = Date.now();
+}
+export function isRecentUserDispatch(now: number = Date.now()): boolean {
+  return now - lastUserDispatchTs < USER_OP_QUIET_MS;
+}
+
 /** Re-acquire the sandbox session when it has expired/crashed */
 async function reacquireSandbox(projectId: string): Promise<boolean> {
   try {
@@ -38,6 +54,7 @@ function flushCaptionPresetOp() {
   if (!pendingCaptionPresetOp) return;
   const { projectId, input } = pendingCaptionPresetOp;
   pendingCaptionPresetOp = null;
+  markUserDispatch();
   sendOp(projectId, 'updateCaptionPreset', input).catch((err) => {
     console.error('Sandbox dispatch error: updateCaptionPreset', err);
   });
@@ -73,6 +90,7 @@ export async function dispatchToSandbox(
   projectId: string,
   ops: SandboxOp[],
 ): Promise<void> {
+  if (ops.length > 0) markUserDispatch();
   for (const op of ops) {
     // Debounce caption preset updates
     if (op.tool === 'updateCaptionPreset') {

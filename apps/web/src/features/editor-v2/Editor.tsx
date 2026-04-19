@@ -48,6 +48,7 @@ import {
   useAgentBusy,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
+import { isRecentUserDispatch } from './store/manifest-dispatch';
 import { api } from '@/lib/api';
 import { clearCompositionCache } from './player/useWorkspaceComposition';
 
@@ -210,6 +211,33 @@ export function Editor({ projectId }: EditorProps) {
     }
   }, [aiEditRequested]);
 
+  // Route caption-specific context-menu actions to the correct sidebar tab.
+  // The context menu is decoupled from the sidebar state, so it emits window
+  // events that this shell listens for. TranscriptPanel picks up the same
+  // 'viona:caption-edit-text' event to auto-enter edit mode on the target row.
+  useEffect(() => {
+    const handleEditText = (e: Event) => {
+      const detail = (e as CustomEvent<{ captionId: string }>).detail;
+      if (!detail?.captionId) return;
+      setLeftSidebarTab('captions');
+      setLeftSidebarOpen(true);
+      useEditorStore.getState().select([detail.captionId], 'replace');
+    };
+    const handleEditStyle = (e: Event) => {
+      const detail = (e as CustomEvent<{ captionId: string }>).detail;
+      if (!detail?.captionId) return;
+      setLeftSidebarTab('style');
+      setLeftSidebarOpen(true);
+      useEditorStore.getState().select([detail.captionId], 'replace');
+    };
+    window.addEventListener('viona:caption-edit-text', handleEditText);
+    window.addEventListener('viona:caption-edit-style', handleEditStyle);
+    return () => {
+      window.removeEventListener('viona:caption-edit-text', handleEditText);
+      window.removeEventListener('viona:caption-edit-style', handleEditStyle);
+    };
+  }, []);
+
   // Workspace WebSocket events (Plan 3)
   useWorkspaceWS(projectId, {
     onWorkspaceReady: (data) => {
@@ -219,19 +247,24 @@ export function Editor({ projectId }: EditorProps) {
       }
     },
     onManifestUpdated: async (data) => {
-      if (data.source === 'ai' && projectId) {
-        // Retry up to 3 times — manifest write may be in-flight when we read
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            const manifest = await api.readSandboxManifest(projectId);
-            useEditorStore.getState().applyRemoteManifestUpdate(manifest);
-            break;
-          } catch (err) {
-            if (attempt < 2) {
-              await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
-            } else {
-              console.error('Failed to apply remote manifest update:', err);
-            }
+      if (data.source !== 'ai' || !projectId) return;
+      // The sandbox mis-tags user edits as source:'ai' (API hardcode). If we
+      // just dispatched ops, the event is the echo of our own write — refetching
+      // overwrites in-flight local state with a stale snapshot (e.g. a debounced
+      // preset update not yet flushed), causing the caption to flash back to
+      // the old position. Suppress the round-trip in that window.
+      if (isRecentUserDispatch()) return;
+      // Retry up to 3 times — manifest write may be in-flight when we read
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const manifest = await api.readSandboxManifest(projectId);
+          useEditorStore.getState().applyRemoteManifestUpdate(manifest);
+          break;
+        } catch (err) {
+          if (attempt < 2) {
+            await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+          } else {
+            console.error('Failed to apply remote manifest update:', err);
           }
         }
       }
@@ -347,9 +380,12 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-switch to Style tab only when a caption is selected
+  // Auto-switch to Style tab only when a caption is selected from somewhere
+  // OTHER than the Captions tab itself. If the user is already in Captions
+  // (editing transcript / clicking a word to seek), hijacking their tab is
+  // extremely disruptive — they get yanked away from the text they're editing.
   useEffect(() => {
-    if (selectedIds.length === 1) {
+    if (selectedIds.length === 1 && leftSidebarTab !== 'captions') {
       const state = useEditorStore.getState();
       const item = state.items[selectedIds[0]];
       if (item?.type === 'caption') {
@@ -357,7 +393,7 @@ export function Editor({ projectId }: EditorProps) {
         setLeftSidebarTab('style');
       }
     }
-  }, [selectedIds]);
+  }, [selectedIds, leftSidebarTab]);
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {

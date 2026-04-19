@@ -24,6 +24,10 @@ import {
   ClipboardPaste,
   Timer,
   Layers,
+  Type,
+  Palette,
+  CornerLeftUp,
+  CornerLeftDown,
   type LucideIcon,
 } from 'lucide-react';
 import { ContextMenuState, ContextMenuTarget } from './useContextMenu';
@@ -33,6 +37,7 @@ import {
   useAIActions,
   useSafeZoneActions,
   useTransformActions,
+  useCaptionActions,
   useSelectedIds,
   useItems,
   useTracks,
@@ -40,6 +45,7 @@ import {
   useSelectedTimeRange,
   useEditorStore,
 } from '../../store/use-editor-store';
+import type { CaptionItemData } from '../../store/types';
 
 // ============================================
 // Types
@@ -105,6 +111,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
   const { requestAIEdit } = useAIActions();
   const { openTransitionPicker } = useSafeZoneActions();
   const { updateTransform, updateFilters, updateKeyframes, addKeyframeAtTime } = useTransformActions();
+  const { splitCaption, mergeCaptions } = useCaptionActions();
 
   // Close on outside click
   useEffect(() => {
@@ -195,6 +202,106 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           }
           action();
         };
+
+        // ────────────────────────────────────────────
+        // Caption items — transcript-centric actions.
+        // The generic Split-at-playhead / Add-keyframe / Reset-transform
+        // options don't apply: captions are a transcript-driven primitive,
+        // not a transformable clip. Mirror the Captions tab row actions so
+        // the user has parity across entry points.
+        // ────────────────────────────────────────────
+        if (item?.type === 'caption') {
+          const data = item.data as CaptionItemData;
+          const captionList = Object.values(items)
+            .filter((i) => i.type === 'caption' && i.trackId === item.trackId)
+            .sort((a, b) => a.startMs - b.startMs);
+          const idx = captionList.findIndex((c) => c.id === itemId);
+          const prev = idx > 0 ? captionList[idx - 1] : null;
+          const next = idx >= 0 && idx < captionList.length - 1 ? captionList[idx + 1] : null;
+
+          // Pick a word index to split at: prefer the word playing at the
+          // current playhead; else midpoint.
+          const splitAtPlayheadWordIndex = (): number => {
+            const t = useEditorStore.getState().currentTimeMs;
+            const rel = t - item.startMs;
+            const wi = (data.words ?? []).findIndex((w) => rel >= w.startMs && rel < w.endMs);
+            if (wi > 0) return wi;
+            return Math.floor((data.words?.length ?? 0) / 2);
+          };
+
+          return [
+            {
+              label: 'Edit Text',
+              shortcut: 'Enter',
+              icon: Type,
+              action: withSelection(() => {
+                window.dispatchEvent(new CustomEvent('viona:caption-edit-text', { detail: { captionId: itemId } }));
+              }),
+            },
+            {
+              label: 'Edit Style',
+              icon: Palette,
+              action: withSelection(() => {
+                window.dispatchEvent(new CustomEvent('viona:caption-edit-style', { detail: { captionId: itemId } }));
+              }),
+            },
+            { type: 'separator' as const },
+            {
+              label: 'Split at Playhead',
+              shortcut: 'S',
+              icon: Scissors,
+              action: withSelection(() => {
+                const wi = splitAtPlayheadWordIndex();
+                if (wi > 0 && wi < (data.words?.length ?? 0)) splitCaption(itemId, wi);
+              }),
+              disabled: !data.words || data.words.length < 2,
+            },
+            {
+              label: 'Merge with Previous',
+              icon: CornerLeftUp,
+              action: withSelection(() => {
+                if (prev) mergeCaptions(prev.id, itemId);
+              }),
+              disabled: !prev,
+            },
+            {
+              label: 'Merge with Next',
+              icon: CornerLeftDown,
+              action: withSelection(() => {
+                if (next) mergeCaptions(itemId, next.id);
+              }),
+              disabled: !next,
+            },
+            { type: 'separator' as const },
+            {
+              label: 'Copy',
+              shortcut: '⌘C',
+              icon: Copy,
+              action: withSelection(() => copyItems(idsForAction)),
+            },
+            {
+              label: 'Duplicate',
+              shortcut: '⌘D',
+              icon: CopyPlus,
+              action: withSelection(() => duplicateItems(idsForAction)),
+            },
+            {
+              label: 'Delete',
+              shortcut: '⌫',
+              icon: Trash2,
+              action: withSelection(() => deleteItems(idsForAction)),
+            },
+            { type: 'separator' as const },
+            {
+              label: isLocked ? 'Unlock Track' : 'Lock Track',
+              icon: isLocked ? Unlock : Lock,
+              action: () => {
+                if (track) updateTrack(track.id, { locked: !isLocked });
+              },
+              disabled: !track,
+            },
+          ];
+        }
 
         return [
           {
@@ -364,6 +471,8 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       updateFilters,
       updateKeyframes,
       addKeyframeAtTime,
+      splitCaption,
+      mergeCaptions,
     ]
   );
 
@@ -371,16 +480,32 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
 
   const entries = buildMenuEntries(state.target);
 
+  const itemClass =
+    'w-full flex items-center justify-between gap-4 px-3 py-1.5 text-[12px] text-white/85 ' +
+    'rounded-md transition-colors duration-75 ' +
+    'enabled:hover:bg-white/10 enabled:hover:text-white ' +
+    'disabled:opacity-35 disabled:cursor-not-allowed';
+
   return createPortal(
     <div
       ref={menuRef}
       role="menu"
-      className="context-menu-glass"
+      className="editor-theme"
       style={{
         position: 'fixed',
         left: state.x,
         top: state.y,
         zIndex: 9999,
+        minWidth: 220,
+        padding: 4,
+        borderRadius: 10,
+        background: 'rgba(20, 20, 28, 0.92)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow:
+          '0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+        WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+        backdropFilter: 'blur(24px) saturate(160%)',
+        color: 'rgba(255, 255, 255, 0.85)',
       }}
     >
       {entries.map((entry, index) => {
@@ -388,7 +513,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           return (
             <div
               key={`sep-${index}`}
-              className="h-px bg-white/[0.06] mx-2 my-1"
+              className="h-px bg-white/[0.08] mx-1 my-1"
             />
           );
         }
@@ -407,14 +532,14 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                     role="menuitem"
                     disabled={subItem.disabled}
                     onClick={() => handleAction(subItem.action)}
-                    className={`context-menu-item ${subItem.disabled ? 'opacity-40 cursor-default' : 'cursor-pointer'}`}
+                    className={itemClass}
                   >
-                    <span className="flex items-center gap-2.5">
-                      {Icon && <Icon className="w-[15px] h-[15px] text-white/40 flex-shrink-0" />}
-                      <span>{subItem.label}</span>
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      {Icon && <Icon className="w-[14px] h-[14px] text-white/50 flex-shrink-0" />}
+                      <span className="truncate">{subItem.label}</span>
                     </span>
                     {subItem.shortcut && (
-                      <span className="text-[11px] text-white/25 ml-4 font-mono">
+                      <span className="text-[10.5px] text-white/35 font-mono tabular-nums flex-shrink-0">
                         {subItem.shortcut}
                       </span>
                     )}
@@ -432,14 +557,14 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             role="menuitem"
             disabled={entry.disabled}
             onClick={() => handleAction(entry.action)}
-            className={`context-menu-item ${entry.disabled ? 'opacity-40 cursor-default' : 'cursor-pointer'}`}
+            className={itemClass}
           >
-            <span className="flex items-center gap-2.5">
-              {Icon && <Icon className="w-[15px] h-[15px] text-white/40 flex-shrink-0" />}
-              <span>{entry.label}</span>
+            <span className="flex items-center gap-2.5 min-w-0">
+              {Icon && <Icon className="w-[14px] h-[14px] text-white/50 flex-shrink-0" />}
+              <span className="truncate">{entry.label}</span>
             </span>
             {entry.shortcut && (
-              <span className="text-[11px] text-white/25 ml-4 font-mono">
+              <span className="text-[10.5px] text-white/35 font-mono tabular-nums flex-shrink-0">
                 {entry.shortcut}
               </span>
             )}

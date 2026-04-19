@@ -5,6 +5,7 @@ import { RotateCcw, Wand2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import {
   useCaptionPreset,
+  useCaptionItems,
   useSelectedIds,
   useCaptionActions,
   useTimelineActions,
@@ -61,7 +62,8 @@ const FONT_PAIR_ORDER = ['classic', 'cinematic', 'poster'] as const;
 export function StylePanel() {
   const style = useCaptionPreset();
   const selectedIds = useSelectedIds();
-  const { updateCaptionPreset } = useCaptionActions();
+  const { updateCaptionPreset, generateCaptions } = useCaptionActions();
+  const captionItems = useCaptionItems();
   const { clearSelection, selectAll } = useTimelineActions();
 
   const videoUrl = useVideoUrl();
@@ -181,6 +183,14 @@ export function StylePanel() {
         cinematicScales: preset.cinematicScales,
       } : { useCinematicRenderer: false }),
     });
+
+    // If the timeline has no caption items yet, the user's intent for picking a
+    // style is "make captions appear in this style" — auto-generate them from
+    // the transcript. The preset update flushes first (see manifest-dispatch.ts
+    // `flushCaptionPresetOp`), so the new captions inherit the just-picked style.
+    if (captionItems.length === 0) {
+      generateCaptions({ wordsPerPhrase: preset.wordsPerPhrase ?? 5 });
+    }
   };
 
   const resetToPreset = () => {

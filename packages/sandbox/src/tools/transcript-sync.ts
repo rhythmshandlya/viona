@@ -172,6 +172,18 @@ export async function syncCaptions(): Promise<void> {
 
     const wordsPerPhrase = manifest.captionPreset?.wordsPerPhrase ?? manifest.captionStyle?.wordsPerPhrase ?? 5;
 
+    // Collect existing caption items. We'll reuse their IDs and per-item overrides
+    // whenever a regenerated phrase has the same startMs — otherwise every word
+    // edit / timing tweak would invalidate IDs the frontend is still holding and
+    // blow away positionOverride / keyframes the user has customized.
+    const existingCaptions: any[] = (manifest.items ?? []).filter(
+      (i: any) => i.trackId === captionTrack.id,
+    );
+    const existingByStart = new Map<number, any>();
+    for (const ex of existingCaptions) {
+      existingByStart.set(ex.startMs, ex);
+    }
+
     // Remove existing caption items
     manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== captionTrack.id);
 
@@ -186,20 +198,31 @@ export async function syncCaptions(): Promise<void> {
       const startMs = chunk[0].startMs;
       const endMs = chunk[chunk.length - 1].endMs;
 
+      const prior = existingByStart.get(startMs);
+      const newWords = chunk.map(w => ({
+        text: w.text,
+        startMs: w.startMs,
+        endMs: w.endMs,
+      }));
+
       newCaptionItems.push({
-        id: randomUUID(),
+        id: prior?.id ?? randomUUID(),
         type: 'caption',
         trackId: captionTrack.id,
         startMs,
         endMs,
         data: {
-          words: chunk.map(w => ({
-            text: w.text,
-            startMs: w.startMs,
-            endMs: w.endMs,
-          })),
+          ...(prior?.data ?? {}),
+          words: newWords,
+          // Preserve per-item overrides across regenerations.
+          ...(prior?.data?.positionOverride
+            ? { positionOverride: prior.data.positionOverride }
+            : {}),
+          ...(prior?.data?.aiWordOverrides
+            ? { aiWordOverrides: prior.data.aiWordOverrides }
+            : {}),
         },
-        keyframes: [],
+        keyframes: prior?.keyframes ?? [],
       });
     }
 

@@ -1348,10 +1348,16 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       syncWorkspaceManifest();
-      const updatedItem = get().items[captionId];
-      if (updatedItem) {
-        dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: updatedItem.data } }]);
-      }
+      // Send only the positionOverride delta — the sandbox deep-merges `data`,
+      // so including text/words (which use relative word timestamps in the store
+      // but absolute in the manifest) would confuse the diff guard in updateItem
+      // and trigger an unwanted syncCaptions that nukes every caption's ID.
+      dispatchOps([
+        {
+          tool: 'updateItem',
+          input: { itemId: captionId, data: { positionOverride: position ?? null } },
+        },
+      ]);
     },
 
     setApplyStyleToAll: (value: boolean) => {

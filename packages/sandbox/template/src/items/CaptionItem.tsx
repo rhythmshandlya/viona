@@ -12,6 +12,7 @@ interface CaptionWord {
 
 interface CaptionItemData {
   words: CaptionWord[];
+  positionOverride?: { x: number; y: number };
 }
 
 interface CaptionItemProps {
@@ -497,7 +498,8 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
   };
 
   const position = captionPreset.position;
-  const posMode = position?.mode;
+  const override = data.positionOverride;
+  const posMode = override ? 'free' : position?.mode;
   const anchor = position?.anchor ?? 'bottom';
   const offsetX = position?.offsetX ?? 0;
   const offsetY = position?.offsetY ?? 0;
@@ -518,8 +520,8 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
         : 'center';
 
   if (posMode === 'free') {
-    const x = position?.x ?? 50;
-    const y = position?.y ?? 85;
+    const x = override?.x ?? position?.x ?? 50;
+    const y = override?.y ?? position?.y ?? 85;
     const width = position?.width ?? 90;
     positionStyles.left = `${x}%`;
     positionStyles.top = `${y}%`;
