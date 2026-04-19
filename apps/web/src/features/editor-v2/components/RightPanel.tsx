@@ -16,9 +16,10 @@ interface RightPanelProps {
   onClose: () => void;
   layout?: 'stacked' | 'side-by-side';
   view?: 'inspector' | 'transcript';
+  canClose?: boolean;
 }
 
-export function RightPanel({ isOpen, onClose, layout = 'stacked', view = 'inspector' }: RightPanelProps) {
+export function RightPanel({ isOpen, onClose, layout = 'stacked', view = 'inspector', canClose = true }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
 
   return (
@@ -35,7 +36,7 @@ export function RightPanel({ isOpen, onClose, layout = 'stacked', view = 'inspec
       {/* Inner wrapper */}
       <div className="w-full h-full flex flex-col">
         {/* Close button header */}
-        {!isSideBySide && (
+        {!isSideBySide && canClose && (
           <div className="h-10 flex items-center justify-end border-b border-white/[0.06] flex-shrink-0 px-2">
             <button
               onClick={onClose}

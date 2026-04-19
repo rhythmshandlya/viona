@@ -123,6 +123,8 @@ export function Editor({ projectId }: EditorProps) {
       selectedIds.length === 0 && leftSidebarTab === 'captions';
     return anyCaptionSelected || noSelectionOnCaptionsTab ? 'transcript' : 'inspector';
   }, [selectedIds, leftSidebarTab]);
+  const rightPanelViewRef = useRef(rightPanelView);
+  rightPanelViewRef.current = rightPanelView;
 
   // Workspace state
   const workspaceLockHolder = useEditorStore((s) => s.workspaceLockHolder);
@@ -163,7 +165,13 @@ export function Editor({ projectId }: EditorProps) {
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
-    setPanelOpen(false);
+    // On the transcript view the panel is persistent (it's the Captions-tab
+    // content on the right side). Treat close as "clear selection" only;
+    // the auto-open effect will keep the panel visible because leftSidebarTab
+    // is 'captions'.
+    if (rightPanelViewRef.current !== 'transcript') {
+      setPanelOpen(false);
+    }
     clearSelection();
   }, [clearSelection]);
 
@@ -840,6 +848,7 @@ export function Editor({ projectId }: EditorProps) {
               isOpen={panelOpen}
               onClose={handleClosePanel}
               view={rightPanelView}
+              canClose={rightPanelView !== 'transcript'}
             />
           )}
         </div>
