@@ -1,8 +1,12 @@
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { sandboxManager } from '../sandbox/manager.js';
-import { listProjectAssets } from '../services/asset-link-service.js';
+import { listProjectAssets, linkAssetToProject, type AddedVia } from '../services/asset-link-service.js';
+import { createOrDedupAsset } from '../services/asset-service.js';
 import { minioClient } from '../services/minio.js';
 import { config } from '../config.js';
+import { db } from '../db/index.js';
+import { projects } from '../db/schema.js';
 
 function parseBearer(req: FastifyRequest): string | null {
   const h = req.headers.authorization;
@@ -22,6 +26,14 @@ async function authGate(req: FastifyRequest, reply: FastifyReply, sid: string): 
     return false;
   }
   return true;
+}
+
+async function getProjectOwner(projectId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  return row?.userId ?? null;
 }
 
 const internalSandboxAssetsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -64,6 +76,53 @@ const internalSandboxAssetsRoutes: FastifyPluginAsync = async (fastify) => {
       reply.header('Content-Type', asset.mimeType);
       reply.header('Content-Length', String(asset.fileSize));
       return reply.send(stream);
+    },
+  );
+
+  fastify.post<{
+    Params: { sid: string };
+    Body: {
+      sha256: string;
+      storageKey: string;
+      filename: string;
+      mimeType: string;
+      fileSize: number;
+      source: 'generated' | 'derived';
+      parentAssetIds?: string[];
+      label?: string;
+    };
+  }>(
+    '/internal/sandbox/:sid/asset/register',
+    async (request, reply) => {
+      const { sid } = request.params;
+      if (!(await authGate(request, reply, sid))) return;
+
+      const userId = await getProjectOwner(sid);
+      if (!userId) return reply.code(404).send({ error: 'project_not_found' });
+
+      const body = request.body;
+      const result = await createOrDedupAsset({
+        userId,
+        sha256: body.sha256,
+        storageKey: body.storageKey,
+        filename: body.filename,
+        mimeType: body.mimeType,
+        fileSize: body.fileSize,
+        source: body.source,
+        parentAssetIds: body.parentAssetIds,
+        label: body.label,
+        projectIdForEvent: sid,
+      });
+
+      const addedVia: AddedVia = 'generated';
+      await linkAssetToProject({
+        assetId: result.asset.id,
+        projectId: sid,
+        userId,
+        addedVia,
+      });
+
+      return reply.send({ asset: result.asset, deduped: result.deduped });
     },
   );
 };

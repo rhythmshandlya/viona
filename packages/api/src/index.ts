@@ -33,6 +33,7 @@ import assetRoutes from './routes/assets.js';
 import projectAssetRoutes from './routes/project-assets.js';
 import assetEventsSseRoutes from './routes/asset-events-sse.js';
 import arrangementRoutes from './routes/arrangement.js';
+import internalSandboxAssetsRoutes from './routes/internal-sandbox-assets.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -332,6 +333,7 @@ async function main() {
     await fastify.register(projectAssetRoutes);
     await fastify.register(assetEventsSseRoutes);
     await fastify.register(arrangementRoutes);
+    await fastify.register(internalSandboxAssetsRoutes);
     fastify.log.info('Asset system v2 routes registered');
   }
 

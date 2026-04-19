@@ -5,10 +5,17 @@ const spies = vi.hoisted(() => ({
   listProjectAssets: vi.fn(),
   verifySecret: vi.fn(),
   getObject: vi.fn(),
+  createOrDedupAsset: vi.fn(),
+  linkAssetToProject: vi.fn(),
+  dbSelectWhere: vi.fn(),
 }));
 
+vi.mock('../services/asset-service.js', () => ({
+  createOrDedupAsset: spies.createOrDedupAsset,
+}));
 vi.mock('../services/asset-link-service.js', () => ({
   listProjectAssets: spies.listProjectAssets,
+  linkAssetToProject: spies.linkAssetToProject,
 }));
 vi.mock('../sandbox/manager.js', () => ({
   sandboxManager: { verifySandboxSecret: spies.verifySecret },
@@ -18,6 +25,18 @@ vi.mock('../services/minio.js', () => ({
 }));
 vi.mock('../config.js', () => ({
   config: { storage: { bucket: 'viona' } },
+}));
+vi.mock('../db/index.js', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: (...a: unknown[]) => {
+          spies.dbSelectWhere(...a);
+          return Promise.resolve(spies.dbSelectWhere.mock.results.at(-1)?.value ?? []);
+        },
+      })),
+    })),
+  },
 }));
 
 import internalSandboxAssetsRoutes from './internal-sandbox-assets.js';
@@ -131,5 +150,103 @@ describe('GET /internal/sandbox/:sid/asset/:aid/stream', () => {
     expect(res.headers['content-length']).toBe('3');
     expect(res.rawPayload.toString()).toBe('abc');
     expect(spies.getObject).toHaveBeenCalledWith('viona', 'users/u/assets/abc/hero.mp4');
+  });
+});
+
+describe('POST /internal/sandbox/:sid/asset/register', () => {
+  it('returns 401 when Bearer missing', async () => {
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/sandbox/p-1/asset/register',
+      payload: { sha256: 'abc', storageKey: 'k', filename: 'f.mp4', mimeType: 'video/mp4', fileSize: 1, source: 'generated' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 404 if the project does not exist', async () => {
+    spies.verifySecret.mockResolvedValueOnce(true);
+    spies.dbSelectWhere.mockImplementationOnce(() => []);  // no project row
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/sandbox/p-missing/asset/register',
+      headers: { authorization: 'Bearer good-secret', 'content-type': 'application/json' },
+      payload: { sha256: 'abc', storageKey: 'k', filename: 'f.mp4', mimeType: 'video/mp4', fileSize: 1, source: 'generated' },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe('project_not_found');
+    expect(spies.createOrDedupAsset).not.toHaveBeenCalled();
+  });
+
+  it('creates + links the asset to the sandbox project', async () => {
+    spies.verifySecret.mockResolvedValueOnce(true);
+    spies.dbSelectWhere.mockImplementationOnce(() => [{ userId: 'u-1' }]);
+    spies.createOrDedupAsset.mockResolvedValueOnce({
+      asset: { id: 'a-new', userId: 'u-1' },
+      deduped: false,
+    });
+    spies.linkAssetToProject.mockResolvedValueOnce({ id: 'l-1' });
+
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/sandbox/p-1/asset/register',
+      headers: { authorization: 'Bearer good-secret', 'content-type': 'application/json' },
+      payload: {
+        sha256: 'abc',
+        storageKey: 'sandbox/p-1/assets/abc/render.mp4',
+        filename: 'render.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 5000,
+        source: 'generated',
+        parentAssetIds: ['a-parent'],
+        label: 'First render',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().asset.id).toBe('a-new');
+    expect(res.json().deduped).toBe(false);
+
+    expect(spies.createOrDedupAsset).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u-1',
+      sha256: 'abc',
+      storageKey: 'sandbox/p-1/assets/abc/render.mp4',
+      filename: 'render.mp4',
+      mimeType: 'video/mp4',
+      fileSize: 5000,
+      source: 'generated',
+      parentAssetIds: ['a-parent'],
+      label: 'First render',
+      projectIdForEvent: 'p-1',
+    }));
+    expect(spies.linkAssetToProject).toHaveBeenCalledWith(expect.objectContaining({
+      assetId: 'a-new',
+      projectId: 'p-1',
+      userId: 'u-1',
+      addedVia: 'generated',
+    }));
+  });
+
+  it('still calls linkAssetToProject on the dedup path (idempotent)', async () => {
+    spies.verifySecret.mockResolvedValueOnce(true);
+    spies.dbSelectWhere.mockImplementationOnce(() => [{ userId: 'u-1' }]);
+    spies.createOrDedupAsset.mockResolvedValueOnce({
+      asset: { id: 'a-existing', userId: 'u-1' },
+      deduped: true,
+    });
+    spies.linkAssetToProject.mockResolvedValueOnce({ id: 'l-existing' });
+
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/sandbox/p-1/asset/register',
+      headers: { authorization: 'Bearer good-secret', 'content-type': 'application/json' },
+      payload: { sha256: 'abc', storageKey: 'k', filename: 'f.mp4', mimeType: 'video/mp4', fileSize: 1, source: 'generated' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deduped).toBe(true);
+    expect(spies.linkAssetToProject).toHaveBeenCalled();
   });
 });
