@@ -718,7 +718,7 @@ export function Editor({ projectId }: EditorProps) {
         <div
           className="flex-shrink-0 overflow-hidden editor-panel transition-all duration-150 ease-out"
           style={{
-            width: leftSidebarOpen && leftSidebarTab === 'agent' ? '30.5rem' : 0,
+            width: leftSidebarOpen && leftSidebarTab === 'agent' ? 'var(--editor-left-panel-width)' : 0,
             opacity: leftSidebarOpen && leftSidebarTab === 'agent' ? 1 : 0,
             pointerEvents: leftSidebarOpen && leftSidebarTab === 'agent' ? 'auto' : 'none',
           }}
@@ -728,7 +728,7 @@ export function Editor({ projectId }: EditorProps) {
               <AIAssistantPanel
                 projectId={project.id}
                 onEditComplete={() => reloadVisuals(project.id)}
-                className="w-[30.5rem]"
+                className="w-[var(--editor-left-panel-width)]"
               />
             </Suspense>
           </ErrorBoundary>
@@ -740,12 +740,12 @@ export function Editor({ projectId }: EditorProps) {
             <motion.div
               key="sidebar-panels"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: '30.5rem', opacity: 1 }}
+              animate={{ width: 'var(--editor-left-panel-width)', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
               className="flex-shrink-0 overflow-hidden editor-panel"
             >
-              <div className="w-[30.5rem] flex flex-col h-full overflow-hidden">
+              <div className="w-[var(--editor-left-panel-width)] flex flex-col h-full overflow-hidden">
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
                   <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}

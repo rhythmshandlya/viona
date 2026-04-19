@@ -621,6 +621,7 @@ input[type="number"]::-webkit-outer-spin-button {
   --editor-bg-canvas: rgba(12, 12, 18, 0.6);
   --editor-panel-gap: 0.25rem;
   --editor-panel-radius: 1rem;
+  --editor-left-panel-width: 30.5rem;
   --editor-panel-border: 1px solid rgba(255, 255, 255, 0.09);
   --editor-panel-shadow:
     0 8px 32px rgba(0, 0, 0, 0.35),
