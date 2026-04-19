@@ -678,7 +678,7 @@ export function Editor({ projectId }: EditorProps) {
       <div className="flex-1 flex overflow-hidden" style={{ gap: 'var(--editor-panel-gap)', padding: 'var(--editor-panel-gap)' }}>
 
         {/* Icon Rail - always visible */}
-        <div className="w-16 flex flex-col items-center gap-1 py-2 flex-shrink-0 editor-panel">
+        <div className="w-16 flex flex-col items-center gap-1 py-1 flex-shrink-0 editor-panel">
           {(['agent', 'captions', 'assets'] as const).map((tab) => {
             const icons = { agent: MessageSquareText, captions: Captions, assets: FolderOpen };
             const labels = { agent: 'Chat', captions: 'Captions', assets: 'Assets' };
