@@ -25,3 +25,31 @@ export function getMinioClient(): Client {
 }
 
 export const BUCKET = process.env.MINIO_BUCKET || 'viona';
+
+/**
+ * Lazy-initialized MinIO client proxy. Forwards property access to the
+ * underlying singleton from getMinioClient(), so construction is deferred
+ * until a method is actually called. Matches the `minioClient` shape used
+ * by newer tools (register-asset).
+ */
+export const minioClient: Client = new Proxy({} as Client, {
+  get(_target, prop: string | symbol) {
+    const real = getMinioClient() as unknown as Record<string | symbol, unknown>;
+    const value = real[prop];
+    if (typeof value === 'function') {
+      return (value as (...args: unknown[]) => unknown).bind(real);
+    }
+    return value;
+  },
+});
+
+/**
+ * Returns the configured MinIO bucket, throwing if MINIO_BUCKET is not set.
+ * Prefer this over the `BUCKET` constant in new code — it fails fast instead
+ * of silently defaulting to 'viona' when config is missing.
+ */
+export function getBucket(): string {
+  const b = process.env.MINIO_BUCKET;
+  if (!b) throw new Error('MINIO_BUCKET env var not set');
+  return b;
+}
