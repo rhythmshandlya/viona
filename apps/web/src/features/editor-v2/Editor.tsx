@@ -202,6 +202,16 @@ export function Editor({ projectId }: EditorProps) {
     loadProject(projectId);
   }, [projectId, loadProject]);
 
+  // Scope the rem root to the editor: shrinks every Tailwind utility
+  // proportionally while the editor is mounted, without affecting the
+  // rest of the app (marketing, auth, project list).
+  useEffect(() => {
+    document.documentElement.classList.add('editor-density');
+    return () => {
+      document.documentElement.classList.remove('editor-density');
+    };
+  }, []);
+
   // Periodically refresh presigned media URLs before they expire (TTL = 8h, refresh every 3h)
   useEffect(() => {
     const REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours

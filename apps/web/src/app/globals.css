@@ -14,6 +14,17 @@
   }
 }
 
+/* Editor density: shrinks the rem base while the editor is mounted so that
+   every Tailwind utility (which compiles to rem) scales proportionally,
+   without affecting the rest of the app (marketing, auth, project list). */
+:root {
+  --editor-root-size: 13px;
+}
+
+html.editor-density {
+  font-size: var(--editor-root-size);
+}
+
 @theme inline {
   --font-sans: var(--font-sora), sans-serif;
   --font-size-xs: 0.75rem;         /* 12px */
@@ -608,7 +619,7 @@ input[type="number"]::-webkit-outer-spin-button {
   --editor-bg-elevated: rgba(38, 38, 48, 0.65);
   --editor-bg-hover: rgba(255, 255, 255, 0.06);
   --editor-bg-canvas: rgba(12, 12, 18, 0.6);
-  --editor-panel-gap: 8px;
+  --editor-panel-gap: 4px;
   --editor-panel-radius: 16px;
   --editor-panel-border: 1px solid rgba(255, 255, 255, 0.09);
   --editor-panel-shadow:
