@@ -1,11 +1,13 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
+import { sql } from 'drizzle-orm';
 import { config } from '../config.js';
 import {
   pgTable,
   uuid,
   varchar,
   integer,
+  bigint,
   boolean,
   timestamp,
   jsonb,
@@ -162,6 +164,57 @@ export const inferenceJobs = pgTable('inference_jobs', {
   completedAt: timestamp('completed_at'),
 });
 
+// User-owned assets (mirror of api schema — keep columns in sync).
+// Added for Task 8 asset-metadata processor which probes uploaded files and
+// fills in durationMs/width/height/thumbnailKey/waveformKey/status columns.
+export const assets = pgTable('assets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  parentAssetIds: uuid('parent_asset_ids').array().notNull().default(sql`ARRAY[]::uuid[]`),
+
+  source: varchar('source', { length: 20 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull(),
+
+  sha256: varchar('sha256', { length: 64 }).notNull(),
+  storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+
+  label: varchar('label', { length: 255 }).notNull(),
+  userDescription: text('user_description'),
+  userIntent: text('user_intent'),
+  autoDescription: text('auto_description'),
+  tags: text('tags').array().notNull().default(sql`ARRAY[]::text[]`),
+
+  durationMs: integer('duration_ms'),
+  width: integer('width'),
+  height: integer('height'),
+
+  thumbnailKey: varchar('thumbnail_key', { length: 500 }),
+  waveformKey: varchar('waveform_key', { length: 500 }),
+  thumbnailStatus: varchar('thumbnail_status', { length: 20 }).notNull().default('pending'),
+  waveformStatus: varchar('waveform_status', { length: 20 }).notNull().default('pending'),
+
+  transcriptAssetId: uuid('transcript_asset_id'),
+  transcriptStatus: varchar('transcript_status', { length: 20 }).notNull().default('pending'),
+
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Asset events (mirror of api schema). Used by the worker's emitAssetEvent.
+export const assetEvents = pgTable('asset_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id').notNull(),
+  projectId: uuid('project_id'),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  type: varchar('type', { length: 30 }).notNull(),
+  payload: jsonb('payload').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 const pool = new pg.Pool({
   connectionString: config.database.url,
   max: 10,                      // Workers have fewer concurrent queries
@@ -171,5 +224,5 @@ const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, {
-  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals, templates, templateExports, inferenceJobs },
+  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals, templates, templateExports, inferenceJobs, assets, assetEvents },
 });

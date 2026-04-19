@@ -9,6 +9,7 @@ import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from '.
 import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
 import { processRenderTemplateJob, RenderTemplateJobData } from './processors/render-template.js';
 import { processAnalyzeCaptions, AnalyzeCaptionsJobData } from './processors/analyze-captions.js';
+import { processAssetMetadataJob, AssetMetadataJobData } from './processors/asset-metadata.js';
 import { startInferenceWorker } from './processors/inference.js';
 import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
@@ -248,6 +249,30 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Render-template job failed');
   });
 
+  // Asset metadata worker — ffprobe + thumbnail + waveform for uploaded assets.
+  // Queued by the API after a successful upload register (Task 7+).
+  const assetMetadataWorker = new Worker<AssetMetadataJobData>(
+    'asset-metadata',
+    async (job) => {
+      logger.info({ jobId: job.id, assetId: job.data.assetId }, 'Processing asset-metadata job');
+      await processAssetMetadataJob(job);
+    },
+    {
+      connection,
+      concurrency: 2,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
+    }
+  );
+
+  assetMetadataWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Asset-metadata job completed');
+  });
+
+  assetMetadataWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Asset-metadata job failed');
+  });
+
   // Generic inference worker — only when this process is the compute backend.
   // In Railway prod (INFERENCE_PROVIDER=runpod) the worker doesn't consume
   // the `inference` queue; RunPod is the executor and webhooks resolve jobs.
@@ -263,6 +288,7 @@ async function main() {
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
     youtubeClipWorker, renderTemplateWorker, analyzeCaptionsWorker,
+    assetMetadataWorker,
     ...(inferenceWorker ? [inferenceWorker] : []),
   ];
 
