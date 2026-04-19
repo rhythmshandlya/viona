@@ -23,7 +23,7 @@ interface RightPanelProps {
   view?: 'inspector' | 'transcript';
 }
 
-export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false, view }: RightPanelProps) {
+export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false, view = 'inspector' }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
 
   // Embedded mode — used when RightPanel is hosted inside the left sidebar (Captions tab)
@@ -47,10 +47,7 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
       }}
     >
       {/* Inner wrapper */}
-      <div
-        className={isSideBySide ? "w-full h-full flex flex-col" : "h-full flex flex-col"}
-        style={isSideBySide ? undefined : { width: view === 'transcript' ? 420 : 320 }}
-      >
+      <div className="w-full h-full flex flex-col">
         {/* Close button header */}
         {!isSideBySide && (
           <div className="h-10 flex items-center justify-end border-b border-white/[0.06] flex-shrink-0 px-2">

@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MessageSquareText, Captions, FolderOpen, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
@@ -115,6 +115,16 @@ export function Editor({ projectId }: EditorProps) {
   const error = useError();
   const selectedIds = useSelectedIds();
   const captionItems = useCaptionItems();
+
+  const rightPanelView = useMemo<'inspector' | 'transcript'>(() => {
+    const items = useEditorStore.getState().items;
+    const anyCaptionSelected =
+      selectedIds.length > 0 &&
+      selectedIds.some((id) => items[id]?.type === 'caption');
+    const noSelectionOnCaptionsTab =
+      selectedIds.length === 0 && leftSidebarTab === 'captions';
+    return anyCaptionSelected || noSelectionOnCaptionsTab ? 'transcript' : 'inspector';
+  }, [selectedIds, leftSidebarTab]);
 
   // Workspace state
   const workspaceLockHolder = useEditorStore((s) => s.workspaceLockHolder);
@@ -841,25 +851,15 @@ export function Editor({ projectId }: EditorProps) {
           </div>
 
           {/* Right Panel - Item Inspector / Transcript Editor */}
-          {panelOpen && (() => {
-            const state = useEditorStore.getState();
-            const anyCaptionSelected =
-              selectedIds.length > 0 &&
-              selectedIds.some((id) => state.items[id]?.type === 'caption');
-            const noSelectionOnCaptionsTab =
-              selectedIds.length === 0 && leftSidebarTab === 'captions';
-            const view: 'inspector' | 'transcript' =
-              anyCaptionSelected || noSelectionOnCaptionsTab ? 'transcript' : 'inspector';
-            return (
-              <RightPanel
-                isOpen={panelOpen}
-                activeTab="item-properties"
-                onTabChange={handleTabChange}
-                onClose={handleClosePanel}
-                view={view}
-              />
-            );
-          })()}
+          {panelOpen && (
+            <RightPanel
+              isOpen={panelOpen}
+              activeTab="item-properties"
+              onTabChange={handleTabChange}
+              onClose={handleClosePanel}
+              view={rightPanelView}
+            />
+          )}
         </div>
 
       </div>
