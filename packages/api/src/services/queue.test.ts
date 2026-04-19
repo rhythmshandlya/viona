@@ -29,7 +29,12 @@ vi.mock('../config.js', () => ({
 }));
 
 // Import AFTER mocks.
-import { queueAssetMetadataJob, assetMetadataQueue } from './queue.js';
+import {
+  queueAssetMetadataJob,
+  assetMetadataQueue,
+  queueArrangementJob,
+  arrangementQueue,
+} from './queue.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -48,6 +53,23 @@ describe('queueAssetMetadataJob', () => {
       'asset-metadata',
       { assetId: 'a-1' },
       expect.objectContaining({ attempts: 3 }),
+    );
+  });
+});
+
+describe('arrangementQueue', () => {
+  it('constructs a queue named "arrangement"', () => {
+    expect(arrangementQueue.name).toBe('arrangement');
+  });
+});
+
+describe('queueArrangementJob', () => {
+  it('adds the job to the queue with the expected name and payload', async () => {
+    await queueArrangementJob({ projectId: 'p-1' });
+    expect(addSpy).toHaveBeenCalledWith(
+      'arrangement',
+      { projectId: 'p-1' },
+      expect.objectContaining({ attempts: 2 }),
     );
   });
 });

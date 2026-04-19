@@ -106,4 +106,11 @@ export const config = {
   inference: {
     provider: (process.env.INFERENCE_PROVIDER ?? (process.env.RAILWAY_ENVIRONMENT ? 'runpod' : 'worker')) as 'runpod' | 'worker',
   },
+
+  // Anthropic (Arrangement Agent). Requires ANTHROPIC_API_KEY in environment.
+  // Mirror of packages/api/src/config.ts — kept in sync so the API + worker
+  // invoke the same model for parity.
+  anthropic: {
+    model: process.env.ANTHROPIC_MODEL || 'claude-opus-4-6',
+  },
 } as const;

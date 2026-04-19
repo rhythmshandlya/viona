@@ -17,6 +17,7 @@
     "push-tokens": "node scripts/push-claude-tokens.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
     "@remotion/bundler": "4.0.422",
     "@remotion/captions": "4.0.422",
     "@remotion/cli": "4.0.422",

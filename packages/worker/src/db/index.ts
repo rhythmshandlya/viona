@@ -215,6 +215,35 @@ export const assetEvents = pgTable('asset_events', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+// Asset→project links (mirror of api schema). Read by the arrangement
+// orchestrator to list the assets attached to a project.
+export const assetProjectLinks = pgTable('asset_project_links', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  addedVia: varchar('added_via', { length: 20 }).notNull(),
+  addedAt: timestamp('added_at').notNull().defaultNow(),
+});
+
+// Creative Director agent conversations (mirror of api schema). The
+// arrangement orchestrator reads the first user message as the "prompt"
+// and writes pipeline events + the agent's summary back as messages.
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  sdkSessionId: varchar('sdk_session_id', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const conversationMessages = pgTable('conversation_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(),
+  content: jsonb('content').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 const pool = new pg.Pool({
   connectionString: config.database.url,
   max: 10,                      // Workers have fewer concurrent queries
@@ -224,5 +253,5 @@ const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, {
-  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals, templates, templateExports, inferenceJobs, assets, assetEvents },
+  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals, templates, templateExports, inferenceJobs, assets, assetEvents, assetProjectLinks, conversations, conversationMessages },
 });

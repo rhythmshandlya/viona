@@ -319,3 +319,26 @@ export const assetMetadataQueue = new Queue<AssetMetadataJobData>('asset-metadat
 export async function queueAssetMetadataJob(data: AssetMetadataJobData): Promise<void> {
   await assetMetadataQueue.add('asset-metadata', data, { attempts: 3 });
 }
+
+// Arrangement queue — async path for `computeArrangement`. Task 10 exposes a
+// synchronous HTTP endpoint; this queue lets callers (the post-transcription
+// trigger in Task 12) invoke the same orchestrator in the background, with
+// BullMQ retries. The worker-side processor mirrors `computeArrangement`'s
+// business logic using the worker's own mirrored DB + services.
+export interface ArrangementJobData {
+  projectId: string;
+}
+
+export const arrangementQueue = new Queue<ArrangementJobData>('arrangement', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 200 },
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  },
+});
+
+export async function queueArrangementJob(data: ArrangementJobData): Promise<void> {
+  await arrangementQueue.add('arrangement', data, { attempts: 2 });
+}
