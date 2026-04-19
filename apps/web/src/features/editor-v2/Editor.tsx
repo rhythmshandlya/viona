@@ -65,19 +65,8 @@ export function Editor({ projectId }: EditorProps) {
   // Right panel state (item inspector)
   const [panelOpen, setPanelOpen] = useState(false);
 
-  // AI Assistant panel stays mounted to preserve SSE + chat state, but when
-  // another tab is active we pull it out of flex flow after the slide-out
-  // animation so it stops eating a flex-gap on either side.
+  // Agent tab is active (used by the unified left-panel slot).
   const isAgentActive = leftSidebarOpen && leftSidebarTab === 'agent';
-  const [aiInFlow, setAiInFlow] = useState(isAgentActive);
-  useEffect(() => {
-    if (isAgentActive) {
-      setAiInFlow(true);
-    } else {
-      const t = setTimeout(() => setAiInFlow(false), 160);
-      return () => clearTimeout(t);
-    }
-  }, [isAgentActive]);
 
   // Kept in px: timelineHeight is driven by pixel-exact drag deltas and persisted as a numeric; rem conversion would fight the drag math.
   const [timelineHeight, setTimelineHeight] = useState(250);
@@ -724,83 +713,85 @@ export function Editor({ projectId }: EditorProps) {
           })}
         </div>
 
-        {/* AI Assistant Panel — always mounted to preserve SSE connection and state.
-            Visually hidden (width: 0, overflow: hidden) when another tab is active,
-            then pulled out of flex flow after the slide-out animation so it stops
-            contributing a flex-gap on either side. */}
+        {/* Unified Left Panel Slot.
+            Open/close animates width via CSS transition. Inside, the AI
+            panel is always mounted (SSE persistence) and overlaid with the
+            captions/assets content — every tab switch is a simple opacity
+            cross-fade at the same position. Nothing collapses or reflows. */}
         <div
-          className="flex-shrink-0 overflow-hidden editor-panel transition-all duration-150 ease-out"
-          style={{
-            width: isAgentActive ? 'var(--editor-left-panel-width)' : 0,
-            opacity: isAgentActive ? 1 : 0,
-            pointerEvents: isAgentActive ? 'auto' : 'none',
-            position: aiInFlow ? undefined : 'absolute',
-            visibility: aiInFlow ? undefined : 'hidden',
-          }}
+          className="flex-shrink-0 overflow-hidden editor-panel transition-[width] duration-150 ease-out"
+          style={{ width: leftSidebarOpen ? 'var(--editor-left-panel-width)' : 0 }}
         >
-          <ErrorBoundary name="AI Assistant">
-            <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-              <AIAssistantPanel
-                projectId={project.id}
-                onEditComplete={() => reloadVisuals(project.id)}
-                className="w-[var(--editor-left-panel-width)]"
-              />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-
-        {/* Other Left Sidebar Panels.
-            Keyed by tab so AnimatePresence treats tab switches as a full
-            exit-then-enter — matches the open/close animation so every
-            transition in this rail looks the same. */}
-        <AnimatePresence mode="wait">
-          {leftSidebarOpen && leftSidebarTab !== 'agent' && (
+          <div
+            className="relative h-full"
+            style={{ width: 'var(--editor-left-panel-width)' }}
+          >
+            {/* AI Assistant — always mounted, cross-faded via opacity */}
             <motion.div
-              key={`sidebar-panel-${leftSidebarTab}`}
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'var(--editor-left-panel-width)', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="flex-shrink-0 overflow-hidden editor-panel"
+              className="absolute inset-0"
+              animate={{ opacity: isAgentActive ? 1 : 0 }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+              style={{ pointerEvents: isAgentActive ? 'auto' : 'none' }}
             >
-              <div className="w-[var(--editor-left-panel-width)] flex flex-col h-full overflow-hidden">
-                <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-                  <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
-                    {leftSidebarTab === 'captions' && 'Caption Settings'}
-                    {leftSidebarTab === 'assets' && 'Visual Assets'}
-                  </h3>
-                  <button
-                    onClick={() => setLeftSidebarOpen(false)}
-                    className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto">
-                  {leftSidebarTab === 'captions' && (
-                    <ErrorBoundary name="Caption Settings">
-                      <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-                        <StylePanel />
-                      </Suspense>
-                    </ErrorBoundary>
-                  )}
-                  {leftSidebarTab === 'assets' && (
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-                      <AssetsPanel
-                        onEditWithAI={() => {
-                          setLeftSidebarTab('agent');
-                          useEditorStore.setState({ aiEditRequested: true });
-                        }}
-                        onYouTubeClipAdded={handleYouTubeClipAdded}
-                      />
-                    </Suspense>
-                  )}
-                </div>
-              </div>
+              <ErrorBoundary name="AI Assistant">
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                  <AIAssistantPanel
+                    projectId={project.id}
+                    onEditComplete={() => reloadVisuals(project.id)}
+                    className="w-full h-full"
+                  />
+                </Suspense>
+              </ErrorBoundary>
             </motion.div>
-          )}
-        </AnimatePresence>
+
+            {/* Captions / Assets — mounted on demand, cross-fade on switch */}
+            <AnimatePresence>
+              {leftSidebarOpen && leftSidebarTab !== 'agent' && (
+                <motion.div
+                  key={leftSidebarTab}
+                  className="absolute inset-0 flex flex-col"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
+                >
+                  <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+                    <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
+                      {leftSidebarTab === 'captions' && 'Caption Settings'}
+                      {leftSidebarTab === 'assets' && 'Visual Assets'}
+                    </h3>
+                    <button
+                      onClick={() => setLeftSidebarOpen(false)}
+                      className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {leftSidebarTab === 'captions' && (
+                      <ErrorBoundary name="Caption Settings">
+                        <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                          <StylePanel />
+                        </Suspense>
+                      </ErrorBoundary>
+                    )}
+                    {leftSidebarTab === 'assets' && (
+                      <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                        <AssetsPanel
+                          onEditWithAI={() => {
+                            setLeftSidebarTab('agent');
+                            useEditorStore.setState({ aiEditRequested: true });
+                          }}
+                          onYouTubeClipAdded={handleYouTubeClipAdded}
+                        />
+                      </Suspense>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
         {/* Main content + right panel */}
         <div className="flex-1 flex min-w-0 overflow-hidden" style={{ gap: 'var(--editor-panel-gap)' }}>
