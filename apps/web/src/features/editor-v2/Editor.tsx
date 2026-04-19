@@ -65,8 +65,19 @@ export function Editor({ projectId }: EditorProps) {
   // Right panel state (item inspector)
   const [panelOpen, setPanelOpen] = useState(false);
 
-  // AI Assistant panel
-  // AI panel is now a left sidebar tab ('agent')
+  // AI Assistant panel stays mounted to preserve SSE + chat state, but when
+  // another tab is active we pull it out of flex flow after the slide-out
+  // animation so it stops eating a flex-gap on either side.
+  const isAgentActive = leftSidebarOpen && leftSidebarTab === 'agent';
+  const [aiInFlow, setAiInFlow] = useState(isAgentActive);
+  useEffect(() => {
+    if (isAgentActive) {
+      setAiInFlow(true);
+    } else {
+      const t = setTimeout(() => setAiInFlow(false), 160);
+      return () => clearTimeout(t);
+    }
+  }, [isAgentActive]);
 
   // Kept in px: timelineHeight is driven by pixel-exact drag deltas and persisted as a numeric; rem conversion would fight the drag math.
   const [timelineHeight, setTimelineHeight] = useState(250);
@@ -714,13 +725,17 @@ export function Editor({ projectId }: EditorProps) {
         </div>
 
         {/* AI Assistant Panel — always mounted to preserve SSE connection and state.
-            Visually hidden (width: 0, overflow: hidden) when another tab is active. */}
+            Visually hidden (width: 0, overflow: hidden) when another tab is active,
+            then pulled out of flex flow after the slide-out animation so it stops
+            contributing a flex-gap on either side. */}
         <div
           className="flex-shrink-0 overflow-hidden editor-panel transition-all duration-150 ease-out"
           style={{
-            width: leftSidebarOpen && leftSidebarTab === 'agent' ? 'var(--editor-left-panel-width)' : 0,
-            opacity: leftSidebarOpen && leftSidebarTab === 'agent' ? 1 : 0,
-            pointerEvents: leftSidebarOpen && leftSidebarTab === 'agent' ? 'auto' : 'none',
+            width: isAgentActive ? 'var(--editor-left-panel-width)' : 0,
+            opacity: isAgentActive ? 1 : 0,
+            pointerEvents: isAgentActive ? 'auto' : 'none',
+            position: aiInFlow ? undefined : 'absolute',
+            visibility: aiInFlow ? undefined : 'hidden',
           }}
         >
           <ErrorBoundary name="AI Assistant">
@@ -734,11 +749,14 @@ export function Editor({ projectId }: EditorProps) {
           </ErrorBoundary>
         </div>
 
-        {/* Other Left Sidebar Panels */}
+        {/* Other Left Sidebar Panels.
+            Keyed by tab so AnimatePresence treats tab switches as a full
+            exit-then-enter — matches the open/close animation so every
+            transition in this rail looks the same. */}
         <AnimatePresence mode="wait">
           {leftSidebarOpen && leftSidebarTab !== 'agent' && (
             <motion.div
-              key="sidebar-panels"
+              key={`sidebar-panel-${leftSidebarTab}`}
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'var(--editor-left-panel-width)', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
