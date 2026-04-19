@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { sandboxManager } from '../sandbox/manager.js';
 import { listProjectAssets } from '../services/asset-link-service.js';
+import { minioClient } from '../services/minio.js';
+import { config } from '../config.js';
 
 function parseBearer(req: FastifyRequest): string | null {
   const h = req.headers.authorization;
@@ -43,6 +45,25 @@ const internalSandboxAssetsRoutes: FastifyPluginAsync = async (fastify) => {
         transcriptAssetId: a.transcriptAssetId ?? null,
       }));
       return reply.send({ projectId: sid, assets, generatedAt: new Date().toISOString() });
+    },
+  );
+
+  fastify.get<{ Params: { sid: string; aid: string } }>(
+    '/internal/sandbox/:sid/asset/:aid/stream',
+    async (request, reply) => {
+      const { sid, aid } = request.params;
+      if (!(await authGate(request, reply, sid))) return;
+
+      const rows = await listProjectAssets(sid);
+      const asset = rows.find((a) => a.id === aid);
+      if (!asset) {
+        return reply.code(403).send({ error: 'not_in_project' });
+      }
+
+      const stream = await minioClient.getObject(config.storage.bucket, asset.storageKey);
+      reply.header('Content-Type', asset.mimeType);
+      reply.header('Content-Length', String(asset.fileSize));
+      return reply.send(stream);
     },
   );
 };
