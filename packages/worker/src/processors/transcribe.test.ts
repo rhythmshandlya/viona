@@ -10,6 +10,18 @@ const dbUpdateWhere = vi.fn();
 const emitEvent = vi.fn().mockResolvedValue(undefined);
 const downloadToTmp = vi.fn();
 const uploadAssetFile = vi.fn();
+const queueArrangement = vi.fn().mockResolvedValue(undefined);
+
+// db.select chain spies. Task 12 auto-trigger needs two reads:
+//   1. select projectId from asset_project_links where assetId = ...
+//   2. select transcriptStatus from assets join asset_project_links where projectId = ...
+// We expose a programmable queue of results and a callsite tracker so tests
+// can assert which `.from(...)` was invoked for each call.
+const dbSelectColumns = vi.fn();
+const dbSelectFrom = vi.fn();
+const dbSelectInnerJoin = vi.fn();
+const dbSelectWhere = vi.fn();
+const selectResultQueue: unknown[][] = [];
 
 // Whisper + audio helpers. These live inside transcribe.ts as non-exported
 // functions, so we can't mock them directly — we instead mock the OpenAI SDK
@@ -42,13 +54,61 @@ vi.mock('../db/index.js', () => ({
         };
       },
     })),
+    // `select(cols).from(tbl).where(pred)` is used by Task 12's
+    // enqueueArrangementIfReady (link lookup). It's also used with an extra
+    // .innerJoin(...).where(...) hop for the sibling-status read. We make the
+    // terminal `.where(...)` and `.innerJoin(...).where(...)` both return the
+    // next queued result as a thenable array — drizzle's select-builder is a
+    // PromiseLike that resolves to the rows.
+    select: vi.fn((cols?: unknown) => {
+      dbSelectColumns(cols);
+      return {
+        from: (tbl: unknown) => {
+          dbSelectFrom(tbl);
+          const terminal = () => {
+            const next = selectResultQueue.shift();
+            return Promise.resolve(next ?? []);
+          };
+          const afterWhere = {
+            then: (resolve: (rows: unknown[]) => unknown, reject?: (err: unknown) => unknown) =>
+              terminal().then(resolve, reject),
+          };
+          return {
+            where: (...w: unknown[]) => {
+              dbSelectWhere(...w);
+              return afterWhere;
+            },
+            innerJoin: (joinTbl: unknown, joinOn: unknown) => {
+              dbSelectInnerJoin(joinTbl, joinOn);
+              return {
+                where: (...w: unknown[]) => {
+                  dbSelectWhere(...w);
+                  return afterWhere;
+                },
+              };
+            },
+          };
+        },
+      };
+    }),
   },
-  assets: {},
+  assets: { id: 'assets.id', transcriptStatus: 'assets.transcriptStatus' },
+  assetProjectLinks: {
+    assetId: 'asset_project_links.assetId',
+    projectId: 'asset_project_links.projectId',
+  },
   projects: {},
   tracks: {},
   timelineItems: {},
   transcripts: {},
   jobs: {},
+}));
+
+vi.mock('../services/queue.js', () => ({
+  queueArrangementJob: (...a: unknown[]) => queueArrangement(...a),
+  // queueTranscribeJob is untouched by transcribe.ts itself but the module may
+  // still be pulled in via the graph — keep it stubbed for safety.
+  queueTranscribeJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../services/asset-events.js', () => ({
@@ -165,6 +225,7 @@ function installSuccessfulSpawn() {
 beforeEach(() => {
   vi.clearAllMocks();
   (dbInsertReturning as unknown as { _result?: unknown[] })._result = undefined;
+  selectResultQueue.length = 0;
   installSuccessfulSpawn();
 });
 
@@ -325,10 +386,126 @@ describe('processTranscribeJob — asset mode', () => {
     uploadAssetFile.mockResolvedValueOnce('k');
     (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: 'derived-2' }];
 
+    // No project links — enqueueArrangementIfReady reads an empty link list
+    // and short-circuits without doing sibling reads or firing arrangement.
+    selectResultQueue.push([]);
+
     await processTranscribeJob({
       data: { mode: 'asset', assetId: 'a-3', userId: 'u', storageKey: 'k' },
     } as never);
 
     expect(cleanup).toHaveBeenCalled();
+  });
+});
+
+// -------------------- Task 12: auto-trigger arrangement --------------------
+
+describe('processAssetTranscribe — auto-trigger arrangement', () => {
+  // Shared happy-path setup: STT resolves, upload resolves, derived row insert
+  // returns an id. The individual tests only vary the select-queue.
+  function primeHappyPath(assetId: string, derivedId = 'derived-auto') {
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    downloadToTmp.mockResolvedValueOnce({ path: '/tmp/auto.mp3', cleanup });
+    openaiCreate.mockResolvedValueOnce({
+      text: 'hello',
+      words: [{ word: 'hello', start: 0, end: 0.5 }],
+      segments: [{ text: 'hello', start: 0, end: 0.5 }],
+    });
+    uploadAssetFile.mockResolvedValueOnce(`users/u/derived/${assetId}/transcript.json`);
+    (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: derivedId }];
+    return { cleanup };
+  }
+
+  it('enqueues arrangement for each project where all linked assets have transcripts ready', async () => {
+    primeHappyPath('a-1');
+    // First select — links for assetId=a-1 → one project.
+    selectResultQueue.push([{ projectId: 'p-1' }]);
+    // Second select — siblings of p-1, both ready.
+    selectResultQueue.push([
+      { transcriptStatus: 'ready' },
+      { transcriptStatus: 'ready' },
+    ]);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-1', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(queueArrangement).toHaveBeenCalledTimes(1);
+    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-1' });
+  });
+
+  it('treats not_applicable sibling transcripts as "done" and still enqueues', async () => {
+    primeHappyPath('a-1b');
+    selectResultQueue.push([{ projectId: 'p-3' }]);
+    // Mixed ready + not_applicable (e.g. image-only assets have no transcript).
+    selectResultQueue.push([
+      { transcriptStatus: 'ready' },
+      { transcriptStatus: 'not_applicable' },
+    ]);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-1b', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(queueArrangement).toHaveBeenCalledTimes(1);
+    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-3' });
+  });
+
+  it('does NOT enqueue arrangement if any sibling asset has transcriptStatus: "pending"', async () => {
+    primeHappyPath('a-2');
+    selectResultQueue.push([{ projectId: 'p-2' }]);
+    selectResultQueue.push([
+      { transcriptStatus: 'ready' },
+      { transcriptStatus: 'pending' }, // blocks
+    ]);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-2', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(queueArrangement).not.toHaveBeenCalled();
+  });
+
+  it('handles assets linked to multiple projects — enqueues only for ready projects', async () => {
+    primeHappyPath('a-multi');
+    // Linked to both p-1 and p-2.
+    selectResultQueue.push([{ projectId: 'p-1' }, { projectId: 'p-2' }]);
+    // p-1: all ready
+    selectResultQueue.push([
+      { transcriptStatus: 'ready' },
+      { transcriptStatus: 'not_applicable' },
+    ]);
+    // p-2: still has a pending sibling
+    selectResultQueue.push([
+      { transcriptStatus: 'ready' },
+      { transcriptStatus: 'pending' },
+    ]);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-multi', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(queueArrangement).toHaveBeenCalledTimes(1);
+    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-1' });
+    expect(queueArrangement).not.toHaveBeenCalledWith({ projectId: 'p-2' });
+  });
+
+  it('does not throw if the arrangement auto-trigger fails mid-flight', async () => {
+    // Transcript write succeeded, so we must not propagate a trigger-layer
+    // error — otherwise BullMQ would retry the transcribe job and we'd STT
+    // the same asset again. The processor swallows + logs instead.
+    primeHappyPath('a-err');
+    selectResultQueue.push([{ projectId: 'p-err' }]);
+    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
+    queueArrangement.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-err', userId: 'u', storageKey: 'k' },
+    } as never)).resolves.not.toThrow();
+
+    // transcript_ready event still emitted — success path was not cancelled.
+    const types = emitEvent.mock.calls.map((c: unknown[]) => (c[0] as { type: string }).type);
+    expect(types).toContain('transcript_ready');
+    expect(types).not.toContain('failed');
   });
 });

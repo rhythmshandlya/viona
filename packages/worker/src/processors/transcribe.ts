@@ -7,10 +7,11 @@ import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
 import { createHash } from 'node:crypto';
-import { db, projects, tracks, timelineItems, transcripts, jobs, assets } from '../db/index.js';
+import { db, projects, tracks, timelineItems, transcripts, jobs, assets, assetProjectLinks } from '../db/index.js';
 import { downloadFile } from '../services/minio.js';
 import { downloadToTmp, uploadFile as uploadAssetFile } from '../services/asset-storage.js';
 import { emitAssetEvent } from '../services/asset-events.js';
+import { queueArrangementJob } from '../services/queue.js';
 import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
@@ -707,6 +708,42 @@ async function processProjectTranscribe(data: Extract<TranscribeJobData, { mode:
 }
 
 /**
+ * Auto-trigger arrangement (Task 12).
+ *
+ * Fires a first-pass arrangement job for every project this asset belongs to
+ * whose linked-asset set has now fully transcribed (all `transcriptStatus` in
+ * `'ready' | 'not_applicable'`). This kicks off the editor auto-layout as
+ * soon as the last transcript lands, without waiting for a user interaction.
+ *
+ * Best-effort: any failure here is logged and swallowed. The transcript row
+ * was already written and the `transcript_ready` event was already emitted —
+ * throwing would trigger a BullMQ retry of the transcribe job, which would
+ * re-run STT (cost + time). The user can always retrigger arrangement from
+ * the editor if this fires-and-misses.
+ */
+async function enqueueArrangementIfReady(assetId: string): Promise<void> {
+  const links = await db
+    .select({ projectId: assetProjectLinks.projectId })
+    .from(assetProjectLinks)
+    .where(eq(assetProjectLinks.assetId, assetId));
+
+  for (const { projectId } of links) {
+    const siblings = await db
+      .select({ transcriptStatus: assets.transcriptStatus })
+      .from(assets)
+      .innerJoin(assetProjectLinks, eq(assets.id, assetProjectLinks.assetId))
+      .where(eq(assetProjectLinks.projectId, projectId));
+
+    const allDone = siblings.every(
+      (s) => s.transcriptStatus === 'ready' || s.transcriptStatus === 'not_applicable',
+    );
+    if (allDone) {
+      await queueArrangementJob({ projectId });
+    }
+  }
+}
+
+/**
  * Asset-pipeline transcribe (Task 9).
  *
  * Pulls the source media down, runs OpenAI Whisper against it, writes the
@@ -790,6 +827,18 @@ async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: '
     });
 
     logger.info({ assetId, derivedId: derived.id, wordCount }, 'Asset transcribe complete');
+
+    // Best-effort: kick off arrangement for any project whose assets are now
+    // all transcribed. Never rethrow — the transcript succeeded, and a retry
+    // at this layer would re-run STT. See `enqueueArrangementIfReady` doc.
+    try {
+      await enqueueArrangementIfReady(assetId);
+    } catch (triggerErr) {
+      logger.warn(
+        { assetId, err: triggerErr },
+        'Arrangement auto-trigger failed (swallowed — transcript already persisted)',
+      );
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     logger.error({ assetId, err }, 'Asset transcribe failed');
