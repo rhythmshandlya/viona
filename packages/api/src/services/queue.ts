@@ -295,13 +295,21 @@ export async function publishJobCancel(jobId: string): Promise<void> {
 }
 
 // Asset metadata extraction job — probes ffprobe, extracts metadata, and
-// emits a `metadata_ready` asset event. Real implementation lands in Task 7.
+// emits a `metadata_ready` asset event. Worker lands in Task 8.
 export interface AssetMetadataJobData {
   assetId: string;
 }
 
-export async function queueAssetMetadataJob(_data: AssetMetadataJobData): Promise<void> {
-  // Stub: replaced by Task 7 with a real BullMQ Queue.add call. Route layer
-  // depends on this symbol existing so Task 6 can land independently; it is
-  // mocked in tests and is a no-op at runtime until Task 7 lands.
+export const assetMetadataQueue = new Queue<AssetMetadataJobData>('asset-metadata', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  },
+});
+
+export async function queueAssetMetadataJob(data: AssetMetadataJobData): Promise<void> {
+  await assetMetadataQueue.add('asset-metadata', data, { attempts: 3 });
 }
