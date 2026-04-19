@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, integer, boolean, timestamp, jsonb, text, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, bigint, boolean, timestamp, jsonb, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -150,6 +151,76 @@ export const projectAssets = pgTable('project_assets', {
   height: integer('height'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// User-owned assets (new model, replaces projectAssets-only path)
+export const assets = pgTable('assets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  parentAssetIds: uuid('parent_asset_ids').array().notNull().default(sql`ARRAY[]::uuid[]`),
+
+  source: varchar('source', { length: 20 }).notNull(),          // upload|generated|chat|derived
+  status: varchar('status', { length: 20 }).notNull(),          // uploading|ready|failed|deleted
+
+  sha256: varchar('sha256', { length: 64 }).notNull(),
+  storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+
+  label: varchar('label', { length: 255 }).notNull(),
+  userDescription: text('user_description'),
+  userIntent: text('user_intent'),
+  autoDescription: text('auto_description'),
+  tags: text('tags').array().notNull().default(sql`ARRAY[]::text[]`),
+
+  durationMs: integer('duration_ms'),
+  width: integer('width'),
+  height: integer('height'),
+
+  thumbnailKey: varchar('thumbnail_key', { length: 500 }),
+  waveformKey: varchar('waveform_key', { length: 500 }),
+  thumbnailStatus: varchar('thumbnail_status', { length: 20 }).notNull().default('pending'),
+  waveformStatus: varchar('waveform_status', { length: 20 }).notNull().default('pending'),
+
+  transcriptAssetId: uuid('transcript_asset_id'),
+  transcriptStatus: varchar('transcript_status', { length: 20 }).notNull().default('pending'),
+
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userSha256Unique: uniqueIndex('assets_user_sha256_uniq').on(table.userId, table.sha256),
+  userIdIdx: index('assets_user_id_idx').on(table.userId),
+  statusIdx: index('assets_status_idx').on(table.status),
+}));
+
+export const assetProjectLinks = pgTable('asset_project_links', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id')
+    .notNull()
+    .references(() => assets.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  addedVia: varchar('added_via', { length: 20 }).notNull(),   // upload|chat|generated|library
+  addedAt: timestamp('added_at').notNull().defaultNow(),
+}, (table) => ({
+  assetProjectUnique: uniqueIndex('asset_project_links_uniq').on(table.assetId, table.projectId),
+  projectIdx: index('asset_project_links_project_idx').on(table.projectId),
+}));
+
+export const assetEvents = pgTable('asset_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id').notNull(),
+  projectId: uuid('project_id'),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  type: varchar('type', { length: 30 }).notNull(),
+  payload: jsonb('payload').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  userCreatedIdx: index('asset_events_user_created_idx').on(table.userId, table.createdAt),
+  projectCreatedIdx: index('asset_events_project_created_idx').on(table.projectId, table.createdAt),
+}));
 
 // Conversations for Creative Director agent
 export const conversations = pgTable('conversations', {
