@@ -11,6 +11,8 @@ import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
 import { allTemplateTools } from './tools/template-tools.js';
 import { segmentSpeakerTool } from './tools/segment-speaker.js';
+import { readAssetTool } from './tools/read-asset.js';
+import { registerAssetTool } from './tools/register-asset.js';
 
 /**
  * Convert a raw JSON schema property to a Zod type.
@@ -193,6 +195,16 @@ export function createMcpServers(
     tools: [wrapTool(segmentSpeakerTool)],
   });
 
+  const assetSystemV2 = process.env.ASSET_SYSTEM_V2 === 'true';
+
+  const assetsServer = assetSystemV2
+    ? createSdkMcpServer({
+        name: 'assets',
+        version: '1.0.0',
+        tools: [wrapTool(readAssetTool), wrapTool(registerAssetTool)],
+      })
+    : null;
+
   return {
     manifest: manifestServer,
     scenes: scenesServer,
@@ -201,5 +213,6 @@ export function createMcpServers(
     analysis: analysisServer,
     templates: templatesServer,
     inference: inferenceServer,
+    ...(assetsServer ? { assets: assetsServer } : {}),
   };
 }
