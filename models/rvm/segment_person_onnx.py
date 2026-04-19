@@ -172,10 +172,62 @@ def load_rvm_onnx(backbone: str, providers=None) -> ort.InferenceSession:
     return sess
 
 
+_nvenc_cached = None
+_nvdec_cached = None
+
+def _has_nvenc() -> bool:
+    """Probe actual NVENC availability by attempting a tiny encode.
+    Needs the libnvidia-encode.so driver lib present in the container."""
+    global _nvenc_cached
+    if _nvenc_cached is not None:
+        return _nvenc_cached
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error",
+             "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1",
+             "-c:v", "h264_nvenc", "-f", "null", "-"],
+            capture_output=True, timeout=15,
+        )
+        _nvenc_cached = r.returncode == 0
+    except Exception:
+        _nvenc_cached = False
+    print(f"NVENC probe: {'available' if _nvenc_cached else 'unavailable — falling back to libx264'}", flush=True)
+    return _nvenc_cached
+
+def _has_nvdec() -> bool:
+    """Probe actual NVCUVID decoder availability.
+    Needs the libnvcuvid.so driver lib present in the container."""
+    global _nvdec_cached
+    if _nvdec_cached is not None:
+        return _nvdec_cached
+    try:
+        # ffmpeg -hwaccels lists cuda regardless of driver presence,
+        # so run a real tiny decode-with-hwaccel to truly verify.
+        enc = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+             "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.2",
+             "-c:v", "libx264", "-preset", "ultrafast", "-f", "mp4", "/tmp/_probe.mp4"],
+            capture_output=True, timeout=15,
+        )
+        if enc.returncode != 0:
+            _nvdec_cached = False
+        else:
+            r = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-loglevel", "error",
+                 "-hwaccel", "cuda", "-i", "/tmp/_probe.mp4",
+                 "-f", "null", "-"],
+                capture_output=True, timeout=15,
+            )
+            _nvdec_cached = r.returncode == 0
+    except Exception:
+        _nvdec_cached = False
+    print(f"NVDEC probe: {'available' if _nvdec_cached else 'unavailable — software decode'}", flush=True)
+    return _nvdec_cached
+
+
 def make_ffmpeg_encoder(output_path: str, w: int, h: int, fps_str: str, qp: int = 18):
     """Create FFmpeg encoder subprocess for RGB matte output (NVENC with libx264 fallback)."""
-    use_nvenc = w <= 4096 and h <= 4096
-    if use_nvenc:
+    if _has_nvenc():
         codec_args = ["-c:v", "h264_nvenc", "-preset", "p1", "-rc", "constqp", "-qp", str(qp)]
     else:
         # libx264 CRF is ~2-3 points more aggressive than NVENC QP at the same value
@@ -291,7 +343,8 @@ def process_video(
     decode_cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
     ]
-    if device_label == 'cuda':
+    # Only request hardware decode if the driver libs are actually usable.
+    if device_label == 'cuda' and _has_nvdec():
         decode_cmd.extend(["-hwaccel", "cuda"])
     # When using native fps (fps=0), don't apply fps filter — preserves exact frame correspondence.
     # When resampling (fps>0), apply fps filter to convert frame rate.

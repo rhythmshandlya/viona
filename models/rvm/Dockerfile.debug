@@ -1,0 +1,22 @@
+# Minimal debug handler — proves worker boot + job dispatch work.
+# If this image runs, our ONNX image has a real bug. If this hangs too,
+# it's auth/registry/RunPod infra — not our code.
+FROM python:3.10-slim
+
+RUN pip install --no-cache-dir runpod==1.7.7
+
+WORKDIR /app
+RUN cat > /app/handler.py <<'PY'
+import runpod, time, sys
+print("=== DEBUG HANDLER BOOTED ===", flush=True)
+print("python:", sys.version, flush=True)
+
+def handler(job):
+    t0 = time.time()
+    print("job received:", job.get("id"), "input:", job.get("input"), flush=True)
+    return {"echo": job.get("input"), "elapsed_ms": int((time.time() - t0) * 1000), "ok": True}
+
+runpod.serverless.start({"handler": handler})
+PY
+
+CMD ["python", "/app/handler.py"]
