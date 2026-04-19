@@ -619,8 +619,8 @@ input[type="number"]::-webkit-outer-spin-button {
   --editor-bg-elevated: rgba(38, 38, 48, 0.65);
   --editor-bg-hover: rgba(255, 255, 255, 0.06);
   --editor-bg-canvas: rgba(12, 12, 18, 0.6);
-  --editor-panel-gap: 4px;
-  --editor-panel-radius: 16px;
+  --editor-panel-gap: 0.25rem;
+  --editor-panel-radius: 1rem;
   --editor-panel-border: 1px solid rgba(255, 255, 255, 0.09);
   --editor-panel-shadow:
     0 8px 32px rgba(0, 0, 0, 0.35),
@@ -673,26 +673,26 @@ input[type="number"]::-webkit-outer-spin-button {
   --editor-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
 
   /* Spacing scale */
-  --editor-space-xs: 4px;
-  --editor-space-sm: 8px;
-  --editor-space-md: 12px;
-  --editor-space-lg: 16px;
+  --editor-space-xs: 0.25rem;
+  --editor-space-sm: 0.5rem;
+  --editor-space-md: 0.75rem;
+  --editor-space-lg: 1rem;
 
   /* Type scale */
-  --editor-text-xs: 11px;
-  --editor-text-sm: 13px;
-  --editor-text-base: 14px;
+  --editor-text-xs: 0.6875rem;
+  --editor-text-sm: 0.8125rem;
+  --editor-text-base: 0.875rem;
 
   /* Icon sizes */
-  --editor-icon-sm: 14px;
-  --editor-icon-md: 16px;
-  --editor-icon-lg: 20px;
+  --editor-icon-sm: 0.875rem;
+  --editor-icon-md: 1rem;
+  --editor-icon-lg: 1.25rem;
 
   /* Border radius - fluid rounded */
-  --editor-radius-sm: 6px;
-  --editor-radius-md: 10px;
-  --editor-radius-lg: 14px;
-  --editor-radius-xl: 18px;
+  --editor-radius-sm: 0.375rem;
+  --editor-radius-md: 0.625rem;
+  --editor-radius-lg: 0.875rem;
+  --editor-radius-xl: 1.125rem;
 
   /* Z-index scale */
   --editor-z-sticky: 10;
