@@ -293,3 +293,15 @@ const redisPublisher = new Redis(config.redis.url);
 export async function publishJobCancel(jobId: string): Promise<void> {
   await redisPublisher.publish('job:cancel', JSON.stringify({ jobId }));
 }
+
+// Asset metadata extraction job — probes ffprobe, extracts metadata, and
+// emits a `metadata_ready` asset event. Real implementation lands in Task 7.
+export interface AssetMetadataJobData {
+  assetId: string;
+}
+
+export async function queueAssetMetadataJob(_data: AssetMetadataJobData): Promise<void> {
+  // Stub: replaced by Task 7 with a real BullMQ Queue.add call. Route layer
+  // depends on this symbol existing so Task 6 can land independently; it is
+  // mocked in tests and is a no-op at runtime until Task 7 lands.
+}
