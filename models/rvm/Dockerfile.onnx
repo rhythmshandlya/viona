@@ -1,0 +1,77 @@
+# syntax=docker/dockerfile:1.6
+#
+# ONNX Runtime variant of the RVM RunPod handler.
+# Targets ~5 GB final image (vs ~9.65 GB for the torch build).
+#
+# Savings come from:
+#   * Dropping torch + torchvision wheels (~2 GB+ of bundled CUDA libs + ATen).
+#   * Dropping the git clone of RobustVideoMatting repo (not needed for ORT).
+#   * Shipping only pre-exported ONNX weights (resnet50 ~52 MB, mobilenetv3 ~7 MB).
+#   * onnxruntime-gpu wheel is ~200-300 MB (CUDA 12.x / cuDNN 9 compatible).
+#
+# Build context: `models/rvm/` (Dockerfile.onnx + segment_person_onnx.py + handler_onnx.py + requirements-onnx.txt).
+# Build command: `docker build -f Dockerfile.onnx -t rvm-onnx .`
+
+############################
+# 1. Builder stage — CUDA runtime + cuDNN 9 needed by onnxruntime-gpu
+############################
+FROM nvidia/cuda:12.2.0-cudnn9-runtime-ubuntu22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 python3-pip python3.10-venv \
+    wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Isolated venv so final stage copies only what's needed
+RUN python3.10 -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+
+COPY requirements-onnx.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+# Strip site-packages cruft (tests, pyc cache, build artifacts)
+RUN find /opt/venv -type d \( -name __pycache__ -o -name tests -o -name test \) -prune -exec rm -rf {} + \
+ && find /opt/venv -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "*.a" -o -name "*.so.debug" \) -delete
+
+# Pre-download RVM ONNX weights. Final stage reads them from /models.
+RUN mkdir -p /models \
+ && wget -q -O /models/rvm_resnet50_fp16.onnx \
+    https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_resnet50_fp16.onnx \
+ && wget -q -O /models/rvm_mobilenetv3_fp16.onnx \
+    https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp16.onnx
+
+
+############################
+# 2. Final runtime stage
+############################
+FROM nvidia/cuda:12.2.0-cudnn9-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/opt/venv/bin:$PATH \
+    RVM_MODELS_DIR=/models
+
+# Runtime needs: python interpreter (no pip/venv), ffmpeg for decode/encode.
+# CUDA libs + cuDNN ship in the base image; onnxruntime-gpu uses them at runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3.10 /usr/local/bin/python
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /models /models
+
+WORKDIR /app
+# Rename the _onnx-suffixed files at COPY time so imports inside the image
+# stay stable (handler_onnx.py imports from segment_person, not segment_person_onnx).
+COPY segment_person_onnx.py /app/segment_person.py
+COPY handler_onnx.py /app/handler.py
+
+CMD ["python", "/app/handler.py"]
