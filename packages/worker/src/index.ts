@@ -9,7 +9,6 @@ import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from '.
 import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
 import { processRenderTemplateJob, RenderTemplateJobData } from './processors/render-template.js';
 import { processAnalyzeCaptions, AnalyzeCaptionsJobData } from './processors/analyze-captions.js';
-import { processSegmentationJob, SegmentationJobData } from './processors/segmentation.js';
 import { startInferenceWorker } from './processors/inference.js';
 import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
@@ -249,30 +248,6 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Render-template job failed');
   });
 
-  // Segmentation worker — RVM person matting (GPU)
-  const segmentationWorker = new Worker<SegmentationJobData>(
-    'segmentation',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId, sceneId: job.data.sceneId }, 'Processing segmentation job');
-      await processSegmentationJob(job);
-    },
-    {
-      connection,
-      concurrency: 1, // GPU can only run one RVM inference at a time
-      lockDuration: 5 * 60 * 1000, // 5 minutes
-      stalledInterval: 2 * 60 * 1000,
-      maxStalledCount: 2,
-    }
-  );
-
-  segmentationWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Segmentation job completed');
-  });
-
-  segmentationWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Segmentation job failed');
-  });
-
   // Generic inference worker — only when this process is the compute backend.
   // In Railway prod (INFERENCE_PROVIDER=runpod) the worker doesn't consume
   // the `inference` queue; RunPod is the executor and webhooks resolve jobs.
@@ -288,7 +263,6 @@ async function main() {
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
     youtubeClipWorker, renderTemplateWorker, analyzeCaptionsWorker,
-    segmentationWorker,
     ...(inferenceWorker ? [inferenceWorker] : []),
   ];
 
