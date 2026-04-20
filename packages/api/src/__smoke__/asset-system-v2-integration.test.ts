@@ -105,6 +105,7 @@ vi.mock('../middleware/auth.js', () => ({
 import assetRoutes from '../routes/assets.js';
 import projectAssetRoutes from '../routes/project-assets.js';
 import arrangementRoutes from '../routes/arrangement.js';
+import compositionRoutes from '../routes/composition.js';
 import { db } from '../db/index.js';
 import {
   projects,
@@ -112,6 +113,8 @@ import {
   assets,
   assetProjectLinks,
   assetEvents,
+  tracks,
+  timelineItems,
 } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { insertPipelineMessage } from '../services/pipeline-messages.js';
@@ -146,6 +149,9 @@ describe.skipIf(!enabled)('asset-system-v2 integration (§6.8 Phase 1+2)', () =>
     await app.register(assetRoutes);
     await app.register(projectAssetRoutes);
     await app.register(arrangementRoutes);
+    // composition-v2 route lives under /api prefix — matches production mount
+    // and lets us assert the full `/api/projects/:id/composition-v2` path.
+    await app.register(compositionRoutes, { prefix: '/api' });
     await app.ready();
 
     // Seed two users + one project each. Using real inserts so foreign-key
@@ -191,6 +197,11 @@ describe.skipIf(!enabled)('asset-system-v2 integration (§6.8 Phase 1+2)', () =>
       await db.delete(assetEvents).where(eq(assetEvents.userId, otherId));
       await db.delete(assetProjectLinks).where(eq(assetProjectLinks.projectId, ownerProjectId));
       await db.delete(assetProjectLinks).where(eq(assetProjectLinks.projectId, otherProjectId));
+      // tracks → timeline_items cascade on delete; projects → tracks cascade
+      // on delete, so deleting projects below would also sweep these. Explicit
+      // cleanup still runs first in case project delete fails partway.
+      await db.delete(tracks).where(eq(tracks.projectId, ownerProjectId));
+      await db.delete(tracks).where(eq(tracks.projectId, otherProjectId));
       await db.delete(assets).where(eq(assets.userId, ownerId));
       await db.delete(assets).where(eq(assets.userId, otherId));
       await db.delete(projects).where(eq(projects.id, ownerProjectId));
@@ -484,5 +495,100 @@ describe.skipIf(!enabled)('asset-system-v2 integration (§6.8 Phase 1+2)', () =>
     );
     const payload = spies.redisPublish.mock.calls[0][1] as string;
     expect(payload).toContain('"kind":"pipeline_message"');
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Scenario 12: GET /api/projects/:id/composition-v2 returns tracks +
+  //              timelineItems + resolved asset URLs after arrangement-agent
+  //              persists its output. Seeds the rows directly via drizzle
+  //              since earlier scenarios already exercise the register flow.
+  // ──────────────────────────────────────────────────────────────────────
+  it('12. GET /api/projects/:id/composition-v2 returns tracks + items + resolved assets after arrangement persists', async () => {
+    // Presigned URL generation for the seeded asset — the composition-loader
+    // calls getPresignedDownloadUrl('uploads', storageKey, ttl) once per
+    // unique asset, so a single mock return is enough.
+    spies.presignDownload.mockResolvedValue('https://s3.mock/get/seed.mp4');
+
+    const [seedAsset] = await db
+      .insert(assets)
+      .values({
+        userId: ownerId,
+        source: 'upload',
+        status: 'ready',
+        sha256: 'composition-seed-' + Date.now(),
+        storageKey: `users/${ownerId}/assets/xyz/seed.mp4`,
+        filename: 'seed.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1000,
+        label: 'seed.mp4',
+        durationMs: 3000,
+        parentAssetIds: [],
+        thumbnailStatus: 'not_applicable',
+        waveformStatus: 'not_applicable',
+        transcriptStatus: 'not_applicable',
+      })
+      .returning();
+
+    // Seed a track + timelineItem simulating arrangement-agent output.
+    const [seedTrack] = await db
+      .insert(tracks)
+      .values({
+        projectId: ownerProjectId,
+        type: 'video',
+        name: 'Track 1',
+        position: 0,
+        locked: false,
+        visible: true,
+      })
+      .returning();
+    await db.insert(timelineItems).values({
+      trackId: seedTrack.id,
+      type: 'video',
+      startMs: 0,
+      endMs: 3000,
+      data: {
+        assetId: seedAsset.id,
+        sourceStartMs: 0,
+        sourceDurationMs: 3000,
+        source: 'arrangement_agent',
+      },
+    });
+
+    // Note: composition route is mounted under `/api` prefix per production
+    // registration, so the inject URL must match.
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${ownerProjectId}/composition-v2`,
+      headers: { 'x-test-user-id': ownerId },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.tracks).toHaveLength(1);
+    expect(body.tracks[0].id).toBe(seedTrack.id);
+    expect(body.timelineItems).toHaveLength(1);
+    expect(body.timelineItems[0].data).toMatchObject({
+      assetId: seedAsset.id,
+      source: 'arrangement_agent',
+    });
+    expect(body.assets[seedAsset.id]).toMatchObject({
+      filename: 'seed.mp4',
+      mimeType: 'video/mp4',
+      durationMs: 3000,
+      url: expect.stringContaining('http'),
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Scenario 13: GET /api/projects/:id/composition-v2 by non-owner → 403.
+  // Confirms composition-v2 honors the same ownership gate the rest of
+  // the project-scoped routes do.
+  // ──────────────────────────────────────────────────────────────────────
+  it('13. GET /api/projects/:id/composition-v2 returns 403 to non-owner', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${ownerProjectId}/composition-v2`,
+      headers: { 'x-test-user-id': otherId },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
