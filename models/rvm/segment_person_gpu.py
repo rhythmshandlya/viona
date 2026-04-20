@@ -67,6 +67,7 @@ RVM_MODELS_DIR = os.environ.get("RVM_MODELS_DIR", "/models")
 # Kernel 1: NV12 (src_h×src_w) → fp16 NCHW (out_h×out_w), nearest-neighbor resize
 # + BT.601 YUV→RGB + [0,1] normalize. Single kernel, one pass.
 _nv12_to_fp16_nchw_src = r"""
+#include <cuda_fp16.h>
 extern "C" __global__
 void nv12_to_fp16_nchw_scaled(
     const unsigned char* __restrict__ nv12,
@@ -109,6 +110,7 @@ void nv12_to_fp16_nchw_scaled(
 # Kernel 2: pha (1,1,H,W) fp16 → matte NV12 grayscale.
 # Y = pha*255, UV = 128 (neutral gray).
 _pha_to_nv12_src = r"""
+#include <cuda_fp16.h>
 extern "C" __global__
 void pha_to_nv12_grayscale(
     const __half* __restrict__ pha,
@@ -138,6 +140,7 @@ void pha_to_nv12_grayscale(
 # Kernel 3: fgr (1,3,H,W) RGB fp16 → fgr NV12 YUV.
 # BT.601 RGB→YUV, 4:2:0 subsample.
 _fgr_rgb_to_nv12_src = r"""
+#include <cuda_fp16.h>
 extern "C" __global__
 void fgr_rgb_fp16_to_nv12(
     const __half* __restrict__ fgr,
@@ -189,33 +192,32 @@ def _launch_2d(kernel, w: int, h: int, args: tuple) -> None:
 # ---------------------------------------------------------------------------
 
 def probe_video(input_path: str) -> dict:
+    """ffprobe via JSON — CSV field ordering is inconsistent when mixing
+    show_entries sections, so use JSON for safety."""
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0",
          "-show_entries", "stream=width,height,r_frame_rate,duration,codec_name",
          "-show_entries", "format=duration",
-         "-of", "csv=p=0", input_path],
+         "-of", "json", input_path],
         capture_output=True, text=True,
     )
-    lines = probe.stdout.strip().split("\n")
-    parts = lines[0].split(",")
-    src_w, src_h = int(parts[0]), int(parts[1])
-    fps_frac = parts[2].strip()
+    data = json.loads(probe.stdout)
+    stream = data["streams"][0]
+    src_w = int(stream["width"])
+    src_h = int(stream["height"])
+    fps_frac = stream["r_frame_rate"].strip()  # e.g. "30/1" or "30000/1001"
     fps_num, fps_den = map(int, fps_frac.split("/"))
     fps = fps_num / fps_den
-    codec = parts[3].strip().lower()
+    codec = str(stream.get("codec_name", "")).lower()
 
     duration_s = 0.0
-    for p in parts[4:]:
+    for candidate in (stream.get("duration"), data.get("format", {}).get("duration")):
         try:
-            duration_s = float(p)
-            break
-        except (ValueError, IndexError):
-            pass
-    if duration_s == 0.0 and len(lines) > 1:
-        try:
-            duration_s = float(lines[1].strip())
-        except (ValueError, IndexError):
-            pass
+            duration_s = float(candidate)
+            if duration_s > 0:
+                break
+        except (TypeError, ValueError):
+            continue
 
     return {
         "width": src_w, "height": src_h, "fps": fps,
@@ -446,17 +448,21 @@ def process_video(
         usedevicememory=True,
     )
 
-    # ---- NVENC encoders (matte = grayscale, fgr = color), both NV12 input ----
+    # ---- NVENC encoders (matte = grayscale, fgr = color), NV12 input ----
+    # usecpuinutbuffer=True: we pass numpy (H2D copy ~3 MB at 1080p, trivial).
+    # The GPU-CAI path is rejected by PyNvVideoCodec 1.0.2 with "incorrect usage
+    # of CPU inut buffer" for non-DecodedFrame sources. The CPU path still wins
+    # big (~60 ms/frame of libx264 eliminated vs ~2 ms for the copy).
     matte_enc = nvc.CreateEncoder(
         width=out_w, height=out_h, fmt="NV12",
-        usecpuinputbuffer=False, codec="h264",
+        usecpuinutbuffer=True, codec="h264",
         preset="P1", tuning_info="low_latency",
         rc="constqp", constqp=24,
         gop=60, idrperiod=60, bf=0, repeatspspps=1,
     )
     fgr_enc = nvc.CreateEncoder(
         width=out_w, height=out_h, fmt="NV12",
-        usecpuinputbuffer=False, codec="h264",
+        usecpuinutbuffer=True, codec="h264",
         preset="P1", tuning_info="low_latency",
         rc="constqp", constqp=21,
         gop=60, idrperiod=60, bf=0, repeatspspps=1,
@@ -493,10 +499,11 @@ def process_video(
 
                 if skip_mask is not None and frame_idx < len(skip_mask) and skip_mask[frame_idx]:
                     # Emit black frame to both encoders; do NOT advance rec state
-                    mb = matte_enc.Encode(black_nv12)
+                    black_host = cp.asnumpy(black_nv12)
+                    mb = matte_enc.Encode(black_host)
                     if mb:
                         matte_mux.stdin.write(bytes(mb))
-                    fb = fgr_enc.Encode(black_nv12)
+                    fb = fgr_enc.Encode(black_host)
                     if fb:
                         fgr_mux.stdin.write(bytes(fb))
                     frame_idx += 1
@@ -525,10 +532,13 @@ def process_video(
                 )
 
                 # Encode via NVENC. Input is a CUDA buffer; output is Annex-B bytes.
-                mb = matte_enc.Encode(matte_nv12)
+                # D2H the NV12 buffers for NVENC CPU-input path (see encoder ctor)
+                matte_host = cp.asnumpy(matte_nv12)
+                fgr_host = cp.asnumpy(fgr_nv12)
+                mb = matte_enc.Encode(matte_host)
                 if mb:
                     matte_mux.stdin.write(bytes(mb))
-                fb = fgr_enc.Encode(fgr_nv12)
+                fb = fgr_enc.Encode(fgr_host)
                 if fb:
                     fgr_mux.stdin.write(bytes(fb))
 
@@ -551,34 +561,10 @@ def process_video(
                           f"{fps_now:.1f} fps | ETA {eta:.0f}s", flush=True)
                     last_report = now
 
-        # Flush decoder (B-frame reordering)
-        for decoded in dec.Decode(None) or []:
-            # Same loop body as above, minus skip check since we don't know frame index offset here.
-            # In practice for low-latency encode (bf=0 above) there should be no flush frames.
-            nv12_src = cp.from_dlpack(decoded)
-            _launch_2d(
-                _KERNEL_NV12_TO_FP16, out_w, out_h,
-                (nv12_src, src_buf, np.int32(src_w), np.int32(src_h),
-                 np.int32(out_w), np.int32(out_h)),
-            )
-            _bind_inputs(src_buf.data.ptr, rec_in)
-            _bind_outputs(rec_out)
-            sess.run_with_iobinding(io)
-            _launch_2d(_KERNEL_PHA_TO_NV12, out_w, out_h,
-                       (pha_buf, matte_nv12, np.int32(out_w), np.int32(out_h)))
-            _launch_2d(_KERNEL_FGR_TO_NV12, out_w, out_h,
-                       (fgr_buf, fgr_nv12, np.int32(out_w), np.int32(out_h)))
-            mb = matte_enc.Encode(matte_nv12)
-            if mb:
-                matte_mux.stdin.write(bytes(mb))
-            fb = fgr_enc.Encode(fgr_nv12)
-            if fb:
-                fgr_mux.stdin.write(bytes(fb))
-            bb = _compute_bbox_gpu(pha_buf, out_w, out_h, frame_idx, erode_kernel)
-            if bb is not None:
-                bbox_frames.append(bb)
-            rec_in, rec_out = rec_out, rec_in
-            frame_idx += 1
+        # No decoder flush: our encoder config sets bf=0 (no B-frames) so the
+        # demuxer+decoder should emit all frames in-order. If that ever changes,
+        # restore a flush loop using the PyNvVideoCodec flush API (which is NOT
+        # Decode(None) — that errors; would need an empty PacketData instance).
 
     finally:
         # Flush NVENC

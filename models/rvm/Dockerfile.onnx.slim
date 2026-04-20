@@ -105,6 +105,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libcufft-12-6 \
       libcurand-12-6 \
       libcudnn9-cuda-12 \
+      # CuPy JIT compiles RawKernels at runtime via libnvrtc.so.12.
+      # Also needs:
+      #   libnvjitlink (required by nvrtc since CUDA 12.x)
+      #   cuda-cudart-dev-12-6 (vector_types.h etc — CuPy #includes these in its
+      #     generated kernel code at JIT compile time)
+      #   cuda-cccl-12-6 (CUDA C++ core library headers — dependency of cudart-dev)
+      cuda-nvrtc-12-6 \
+      libnvjitlink-12-6 \
+      cuda-cudart-dev-12-6 \
+      cuda-cccl-12-6 \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3.10 /usr/local/bin/python \
     # cuDNN ships with static archives we don't use. Shared .so.9 is all ORT needs.
@@ -164,16 +174,16 @@ RUN set -eux; \
     python -c "import runpod; import runpod.serverless; print('runpod.serverless ok')"
 
 # ---- Strip 2: general site-packages cruft across all remaining packages ----
-# NOTE: we deliberately do NOT strip directories named `docs` / `doc` here —
-# boto3/botocore use `botocore.docs.docstring` as a real runtime module, not
-# documentation. Same care for `tests` — onnxruntime has `providers/cuda/tests`
-# as a runtime artifact? Haven't hit that yet, but if onnxruntime breaks at
-# init, add it to the exception list.
+# NOTE: we deliberately do NOT strip directories named:
+#   - `docs` / `doc` — boto3/botocore use `botocore.docs.docstring` at runtime
+#   - `testing` — CuPy imports `cupy.testing` at module load (circular import if missing)
+# Strip `tests` and `test` only — those are leaf test trees that packages
+# don't import from at runtime. If onnxruntime or similar breaks at init,
+# add to this exception list.
 RUN find /opt/venv -type d \( \
       -name __pycache__ -o \
       -name tests -o \
       -name test -o \
-      -name testing -o \
       -name examples \
     \) -prune -exec rm -rf {} + \
  && find /opt/venv -type f \( \
@@ -184,8 +194,6 @@ RUN find /opt/venv -type d \( \
       -name "*.so.debug" -o \
       -name "*.c" -o \
       -name "*.cpp" -o \
-      -name "*.h" -o \
-      -name "*.hpp" -o \
       -name "README*" -o \
       -name "CHANGELOG*" -o \
       -name "CHANGES*" -o \
@@ -194,6 +202,10 @@ RUN find /opt/venv -type d \( \
       -name "NOTICE*" \
     \) -delete \
  && find /opt/venv -type d -empty -delete 2>/dev/null || true
+ # NOTE: we do NOT strip *.h / *.hpp — CuPy JIT-compiles user kernels at
+ # runtime and needs its own header tree (cupy/_core/include/*). If we strip
+ # those, the first `cp.ones()` call fails with FileNotFoundError. The ~15 MB
+ # saved isn't worth the landmine.
 
 # ---- RVM ONNX weights (unchanged from Dockerfile.onnx) ----
 RUN mkdir -p /models \
