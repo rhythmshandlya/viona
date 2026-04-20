@@ -1,11 +1,23 @@
 'use client';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { uploadAndRegister } from '@/lib/assets/upload-client';
+import { isAssetSystemV2 } from '@/lib/feature-flags';
 
 export default function NewProjectPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isAssetSystemV2()) {
+      router.push('/projects');
+    }
+  }, [router]);
+
+  if (!isAssetSystemV2()) {
+    return null; // avoids flash of V2 UI during redirect
+  }
+
   const [prompt, setPrompt] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
