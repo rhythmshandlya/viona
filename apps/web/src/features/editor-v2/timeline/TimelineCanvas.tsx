@@ -33,6 +33,9 @@ import {
 import { DragState, SnapTarget, TimelineItem } from '../store/types';
 import { findOrCreateTrack } from '../utils/track-utils';
 import { useContextMenu, ContextMenu } from './context-menu';
+import { AssetsApi } from '@/lib/api/assets';
+
+const assetsApi = new AssetsApi(process.env.NEXT_PUBLIC_API_URL ?? '');
 
 interface TimelineCanvasProps {
   className?: string;
@@ -510,16 +513,41 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
 
   // Handle drop from AssetsPanel
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       const assetJson = e.dataTransfer.getData('application/x-project-asset')
         || e.dataTransfer.getData('application/x-broll-asset');
       if (!assetJson) return;
 
       try {
-        const asset = JSON.parse(assetJson);
+        const asset = JSON.parse(assetJson) as {
+          id?: string;
+          url?: string;
+          mimeType?: string;
+          filename?: string;
+          label?: string;
+          durationMs?: number;
+          [key: string]: unknown;
+        };
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
+
+        // V2 payload has { id, mimeType, filename, ... } with NO url — resolve via API.
+        // Legacy payload already has `url` — use as-is.
+        let src: string | undefined = asset.url;
+        if (!src && asset.id) {
+          try {
+            const resolved = await assetsApi.getAssetUrl(asset.id);
+            src = resolved.url;
+          } catch (err) {
+            console.error('[timeline drop] getAssetUrl failed', err);
+            return;
+          }
+        }
+        if (!src) {
+          console.warn('[timeline drop] payload has neither url nor resolvable id', asset);
+          return;
+        }
 
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -561,7 +589,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           trackId,
           startMs,
           endMs: startMs + durationMs,
-          data: { src: asset.url, volume: 1 } as any,
+          data: { src, assetId: asset.id, volume: 1 } as any,
           ...(itemType !== 'audio' ? {
             transform: { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 },
           } : {}),
@@ -609,7 +637,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   );
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full ${className || ''}`} onDragOver={handleDragOver} onDrop={handleDrop}>
+    <div ref={containerRef} className={`relative w-full h-full ${className || ''}`} onDragOver={handleDragOver} onDrop={(e) => { void handleDrop(e); }}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
