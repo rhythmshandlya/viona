@@ -595,6 +595,36 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         return;
       }
 
+      // pipeline_message — standalone message from backend pipeline jobs
+      // (transcribing/arranging/etc). Dedupe by messageId so SSE + history
+      // reload don't double-render the same row.
+      if (eventType === 'pipeline_message') {
+        const envelope = data as {
+          messageId?: string;
+          conversationId?: string;
+          eventType?: string;
+          details?: Record<string, unknown>;
+        };
+        if (!envelope?.messageId || !envelope.eventType) return;
+        const nowIso = new Date().toISOString();
+        const newMsg: Message = {
+          id: envelope.messageId,
+          role: 'pipeline',
+          content: [{
+            type: 'pipeline_event',
+            eventType: envelope.eventType,
+            details: envelope.details ?? {},
+            ts: nowIso,
+          } as unknown as MessageBlock],
+          createdAt: nowIso,
+        };
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === envelope.messageId)) return prev;
+          return [...prev, newMsg];
+        });
+        return;
+      }
+
       // Content-modifying events
       setMessages((prev) =>
         prev.map((m) => {
