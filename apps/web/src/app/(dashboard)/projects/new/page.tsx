@@ -6,17 +6,12 @@ import { uploadAndRegister } from '@/lib/assets/upload-client';
 import { isAssetSystemV2 } from '@/lib/feature-flags';
 
 export default function NewProjectPage() {
+  // Hooks MUST run unconditionally on every render to satisfy
+  // react-hooks/rules-of-hooks. Keep all hook calls (router, state, callbacks,
+  // effects) above any early return. The feature-flag gate below is an early
+  // return _after_ all hooks, so hook count stays stable across renders even
+  // if the flag ever becomes dynamic.
   const router = useRouter();
-
-  useEffect(() => {
-    if (!isAssetSystemV2()) {
-      router.push('/projects');
-    }
-  }, [router]);
-
-  if (!isAssetSystemV2()) {
-    return null; // avoids flash of V2 UI during redirect
-  }
 
   const [prompt, setPrompt] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -65,6 +60,16 @@ export default function NewProjectPage() {
       setBusy(false);
     }
   }, [files, prompt, router]);
+
+  useEffect(() => {
+    if (!isAssetSystemV2()) {
+      router.push('/projects');
+    }
+  }, [router]);
+
+  if (!isAssetSystemV2()) {
+    return null; // avoids flash of V2 UI during redirect
+  }
 
   const canSubmit = !busy && files.length > 0 && prompt.trim() !== '';
 
