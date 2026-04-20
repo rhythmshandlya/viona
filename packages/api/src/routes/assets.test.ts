@@ -319,7 +319,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/victim-id/assets/pending/nano/f.mp4', // wrong user
+        storageKey: 'users/victim-id/assets/pending/nano/f.mp4', // wrong user
         sha256: 'abc',
         filename: 'f.mp4',
         mimeType: 'video/mp4',
