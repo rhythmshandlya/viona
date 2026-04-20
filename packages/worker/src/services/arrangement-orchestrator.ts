@@ -3,6 +3,7 @@ import { runArrangementAgent } from '../agent/arrangement-agent.js';
 import { persistArrangement } from './arrangement-persister.js';
 import { insertPipelineMessage } from './pipeline-messages.js';
 import { getOrCreateConversation, addMessage } from '../agent/conversation-store.js';
+import { redis } from './redis.js';
 import type { ArrangementOutput } from '../agent/arrangement-types.js';
 
 // Mirror of `packages/api/src/services/arrangement-orchestrator.ts`. The
@@ -60,5 +61,12 @@ export async function computeArrangement(projectId: string): Promise<Arrangement
       details: { ok: false, error: (err as Error).message },
     });
     throw err;
+  } finally {
+    // Prod blocker 2: release the SETNX idempotency lock acquired by
+    // `enqueueArrangementIfReady` in transcribe.ts. Runs on both the success
+    // and failure paths so a failed arrangement doesn't block retries for
+    // 5 minutes. If the lock wasn't acquired here (e.g. manual endpoint or
+    // direct invocation), `del` is a no-op — safe to call unconditionally.
+    await redis.del(`arrangement:in-flight:${projectId}`).catch(() => { /* swallow */ });
   }
 }

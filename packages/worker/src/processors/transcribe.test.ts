@@ -14,6 +14,12 @@ const queueArrangement = vi.fn().mockResolvedValue(undefined);
 const insertPipelineMessageMock = vi.fn().mockResolvedValue({ id: 'm-1', conversationId: 'c-1', role: 'pipeline' });
 const getOrCreateConversationMock = vi.fn().mockResolvedValue({ id: 'c-1', projectId: 'p-1' });
 
+// Prod blocker 2: SETNX idempotency lock spies. Default behavior is "lock
+// acquired" so existing tests still fire arrangement. Individual tests
+// override with `mockResolvedValueOnce(null)` to simulate contention.
+const redisSetMock = vi.fn().mockResolvedValue('OK');
+const redisDelMock = vi.fn().mockResolvedValue(1);
+
 // db.select chain spies. Task 12 auto-trigger needs two reads:
 //   1. select projectId from asset_project_links where assetId = ...
 //   2. select transcriptStatus from assets join asset_project_links where projectId = ...
@@ -147,6 +153,13 @@ vi.mock('../services/redis.js', () => ({
   publishJobComplete: vi.fn().mockResolvedValue(undefined),
   publishJobError: vi.fn().mockResolvedValue(undefined),
   setJobProjectId: vi.fn(),
+  // Prod blocker 2: the processor now imports `redis` and calls
+  // `redis.set(key, '1', 'EX', 300, 'NX')` before enqueuing arrangement, and
+  // `redis.del(key)` on enqueue failure. Expose both as spies.
+  redis: {
+    set: (...a: unknown[]) => redisSetMock(...a),
+    del: (...a: unknown[]) => redisDelMock(...a),
+  },
 }));
 
 vi.mock('../utils/redis.js', () => ({
@@ -242,6 +255,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   (dbInsertReturning as unknown as { _result?: unknown[] })._result = undefined;
   selectResultQueue.length = 0;
+  // Restore SETNX default ("lock acquired") after clearAllMocks wipes it.
+  redisSetMock.mockResolvedValue('OK');
+  redisDelMock.mockResolvedValue(1);
   installSuccessfulSpawn();
 });
 
@@ -514,6 +530,60 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
     expect(queueArrangement).not.toHaveBeenCalledWith({ projectId: 'p-2' });
   });
 
+  it('skips arrangement enqueue when the SETNX idempotency lock is already held', async () => {
+    // Prod blocker 2: simulate a sibling worker already holding the lock.
+    // `allDone` is true, but `redis.set(..., 'NX')` returns null → we must
+    // skip `queueArrangementJob` silently rather than fire a duplicate.
+    primeHappyPath('a-lock');
+    // resolveProjectConversation link lookup.
+    selectResultQueue.push([{ projectId: 'p-lock' }]);
+    // enqueueArrangementIfReady link lookup + siblings all ready.
+    selectResultQueue.push([{ projectId: 'p-lock' }]);
+    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
+
+    // SETNX returns null — another worker already acquired the lock.
+    redisSetMock.mockResolvedValueOnce(null);
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-lock', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(redisSetMock).toHaveBeenCalledWith(
+      'arrangement:in-flight:p-lock',
+      '1',
+      'EX',
+      300,
+      'NX',
+    );
+    expect(queueArrangement).not.toHaveBeenCalled();
+  });
+
+  it('acquires SETNX lock and enqueues arrangement when not already in-flight', async () => {
+    // Prod blocker 2: verify the happy path explicitly — SETNX is called with
+    // the correct key/TTL/NX flag, returns 'OK', and then the arrangement
+    // job is enqueued exactly once.
+    primeHappyPath('a-ok');
+    selectResultQueue.push([{ projectId: 'p-ok' }]);
+    selectResultQueue.push([{ projectId: 'p-ok' }]);
+    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
+
+    redisSetMock.mockResolvedValueOnce('OK');
+
+    await processTranscribeJob({
+      data: { mode: 'asset', assetId: 'a-ok', userId: 'u', storageKey: 'k' },
+    } as never);
+
+    expect(redisSetMock).toHaveBeenCalledWith(
+      'arrangement:in-flight:p-ok',
+      '1',
+      'EX',
+      300,
+      'NX',
+    );
+    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-ok' });
+    expect(queueArrangement).toHaveBeenCalledTimes(1);
+  });
+
   it('does not throw if the arrangement auto-trigger fails mid-flight', async () => {
     // Transcript write succeeded, so we must not propagate a trigger-layer
     // error — otherwise BullMQ would retry the transcribe job and we'd STT
@@ -533,6 +603,10 @@ describe('processAssetTranscribe — auto-trigger arrangement', () => {
     const types = emitEvent.mock.calls.map((c: unknown[]) => (c[0] as { type: string }).type);
     expect(types).toContain('transcript_ready');
     expect(types).not.toContain('failed');
+
+    // Prod blocker 2 rollback: enqueue failed → lock was released so a
+    // subsequent retry isn't blocked by the 5-min TTL.
+    expect(redisDelMock).toHaveBeenCalledWith('arrangement:in-flight:p-err');
   });
 });
 
