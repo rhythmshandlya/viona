@@ -27,6 +27,9 @@ import { ChatInput } from './ai-chat/ChatInput';
 import type { ChatInputHandle, ContextChip, AttachmentChip } from './ai-chat/ChatInput';
 import type { Message, MessageBlock, WidgetBlock, PlanBlock, ProgressState, ActiveTask, AgentPlan } from './ai-chat/types';
 import { AgentPlanView } from '@/components/ui/agent-plan';
+import { ChatDropZone } from './ai-chat/ChatDropZone';
+import { uploadAndRegister } from '@/lib/assets/upload-client';
+import { isAssetSystemV2 } from '@/lib/feature-flags';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1188,10 +1191,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   }));
 
   // -----------------------------------------------------------------------
+  // Chat drop-zone (asset system v2): drops become source='chat' assets.
+  // -----------------------------------------------------------------------
+
+  const handleFilesDropped = useCallback(async (files: File[]) => {
+    const userIntent = input?.trim() || undefined;
+    await Promise.allSettled(files.map((file) =>
+      uploadAndRegister({ file, source: 'chat', userIntent, projectId })
+    ));
+  }, [input, projectId]);
+
+  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
 
-  return (
+  const panelContent = (
     <div className={`flex flex-col h-full bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-12 border-b border-[var(--editor-border-subtle)]">
@@ -1373,4 +1387,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       />
     </div>
   );
+
+  return isAssetSystemV2()
+    ? <ChatDropZone onFilesDropped={handleFilesDropped}>{panelContent}</ChatDropZone>
+    : panelContent;
 }
