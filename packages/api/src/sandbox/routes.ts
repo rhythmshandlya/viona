@@ -37,6 +37,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
         const env: Record<string, string> = {};
         if (process.env.ANTHROPIC_API_KEY) env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
         if (process.env.CLAUDE_CODE_OAUTH_TOKEN) env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+        if (process.env.ASSET_SYSTEM_V2) env.ASSET_SYSTEM_V2 = process.env.ASSET_SYSTEM_V2;
         env.PROJECT_ID = projectId;
         // VIDEO_KEY: bare MinIO key (no `uploads/` prefix) used by the
         // segmentation MCP tools to call the inference dispatch endpoint,
