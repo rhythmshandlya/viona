@@ -12,6 +12,7 @@ import { emitWorkspaceReady, emitBundleReady, emitManifestUpdated } from '../wor
 import { sandboxSessions } from '../db/schema.js';
 import type { SandboxManager, InitData } from './manager.js';
 import { syncManifestToDb } from './sync.js';
+import { prewarmInference } from '../inference/dispatcher.js';
 
 // ---------------------------------------------------------------------------
 // Factory: createSandboxRoutes(manager)
@@ -46,6 +47,12 @@ export function createSandboxRoutes(manager: SandboxManager) {
         }
 
         const result = await manager.acquire(projectId, userId, { initData, env });
+
+        // Fire-and-forget: kick RunPod to boot a segmentation worker NOW so
+        // by the time the user reaches segmentation later in the pipeline,
+        // the worker is warm via FlashBoot (or at least has image layers
+        // cached on the host). No-op when INFERENCE_PROVIDER=worker.
+        void prewarmInference('segment-speaker');
 
         const response: Record<string, unknown> = {
           status: result.sandbox.status,

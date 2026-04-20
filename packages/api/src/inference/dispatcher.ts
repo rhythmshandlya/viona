@@ -110,3 +110,27 @@ async function dispatchRunpod(
 async function dispatchWorker(jobId: string, capability: string, validated: any) {
   await queueInferenceJob({ jobId, capability, input: validated });
 }
+
+/**
+ * Fire a no-op RunPod job to warm a worker. Does NOT create an inferenceJobs
+ * row — the job intentionally fails fast with KeyError on a warm worker.
+ * Its only purpose: kick RunPod's allocator to pull the image + boot a pod
+ * so subsequent real dispatches land on a warm worker (or at least a host
+ * with the image layers cached).
+ *
+ * No-op when INFERENCE_PROVIDER=worker (nothing to prewarm locally).
+ * Fire-and-forget — never throws; logs and swallows errors.
+ */
+export async function prewarmInference(capability: string): Promise<void> {
+  if (config.inference.provider !== 'runpod') return;
+  try {
+    const cap = getCapability(capability);
+    await runpodSubmit(cap.getEndpointId(), {
+      input: { inputs: {}, outputs: {}, params: {} },
+      policy: { executionTimeout: 30_000 },
+    });
+    logger.info({ capability }, 'Inference prewarm fired');
+  } catch (err) {
+    logger.warn({ capability, err: (err as Error).message }, 'Inference prewarm failed (non-fatal)');
+  }
+}

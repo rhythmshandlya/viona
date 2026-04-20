@@ -5,7 +5,7 @@ import { inferenceJobs, sandboxSessions } from '../db/schema.js';
 import { getRedis, getRedisSubscriber } from '../services/redis.js';
 import { logger } from '../logger.js';
 import { getCapability } from './registry.js';
-import { dispatchInference } from './dispatcher.js';
+import { dispatchInference, prewarmInference } from './dispatcher.js';
 import { verifyWebhookToken } from './webhook-auth.js';
 
 interface SandboxBearerContext {
@@ -49,6 +49,19 @@ async function validateSandboxBearer(
 }
 
 export async function registerInferenceRoutes(fastify: FastifyInstance): Promise<void> {
+  // ---- POST /internal/inference/prewarm ----
+  // Fire-and-forget worker warmup. No bearer auth — internal-only, callable
+  // from any trusted service inside the platform network. The dispatched
+  // RunPod "job" intentionally fails fast (~80ms on a warm worker); its only
+  // purpose is to kick RunPod's allocator so subsequent real dispatches land
+  // on a warm pod (or at least a host with the image layers cached).
+  fastify.post('/internal/inference/prewarm', async (request, reply) => {
+    const body = request.body as { capability?: string };
+    if (!body?.capability) return reply.status(400).send({ error: 'capability required' });
+    void prewarmInference(body.capability); // fire-and-forget
+    return { ok: true };
+  });
+
   // ---- POST /internal/sandbox/:id/inference ----
   fastify.post('/internal/sandbox/:id/inference', async (request, reply) => {
     const ctx = await validateSandboxBearer(request, reply);
