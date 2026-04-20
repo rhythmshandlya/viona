@@ -128,6 +128,17 @@ RUN /opt/venv/bin/pip install \
 # ---- Pip layer 3/3: runpod SDK ----
 RUN /opt/venv/bin/pip install runpod==1.7.7
 
+# ---- Pip layer 4/4: GPU-resident pipeline deps (segment_person_gpu.py) ----
+# PyNvVideoCodec — NVDEC/NVENC Python bindings. Dynamically loads
+# libnvcuvid.so.1 + libnvidia-encode.so.1 which the host-driver injects via
+# nvidia-container-runtime *only* when NVIDIA_DRIVER_CAPABILITIES includes
+# 'video' (ENV above). Wheel bundles ffmpeg libs for its internal demuxer.
+# CuPy — drives our 3 custom RawKernels (NV12→fp16 NCHW + postprocess) and
+# GPU bbox compute (cupyx.scipy.ndimage.binary_erosion).
+RUN /opt/venv/bin/pip install \
+      PyNvVideoCodec==1.0.2 \
+      cupy-cuda12x==13.3.0
+
 # ---- Strip 1: safe pip strips (non-runpod-transitive) ----
 # Originally tried to strip boto3/paramiko/cryptography but runpod-python 1.7.7
 # transitively imports them at module-load time via the CLI and rp_upload
@@ -193,9 +204,14 @@ RUN mkdir -p /models \
 
 # ---- App code ----
 WORKDIR /app
-# Same rename trick as Dockerfile.onnx: handler imports `segment_person`, not
-# `segment_person_onnx`, so we COPY with a rewritten path.
+# Handler imports `segment_person`, not `segment_person_onnx` — COPY with rewrite.
+# segment_person_gpu.py is the GPU-resident implementation selected via env
+# RVM_GPU_PIPELINE=1 in handler.py; fall-through to legacy rgb24-pipe path when 0.
 COPY segment_person_onnx.py /app/segment_person.py
-COPY handler_onnx.py /app/handler.py
+COPY segment_person_gpu.py  /app/segment_person_gpu.py
+COPY handler_onnx.py        /app/handler.py
+
+# Default to the GPU pipeline; set RVM_GPU_PIPELINE=0 to fall back.
+ENV RVM_GPU_PIPELINE=1
 
 CMD ["python", "/app/handler.py"]

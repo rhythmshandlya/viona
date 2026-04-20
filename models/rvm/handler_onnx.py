@@ -114,10 +114,25 @@ except Exception:
 # suffix is dropped at COPY time), so try both import names for local-dev and
 # container-runtime compatibility.
 sys.path.insert(0, '/app')
-try:
-    from segment_person_onnx import process_video  # dev/local
-except ImportError:
-    from segment_person import process_video  # in-container (renamed by Dockerfile)
+
+# Backend selection: RVM_GPU_PIPELINE=1 → GPU-resident (NVDEC + CuPy kernels
+# + ORT IOBinding + NVENC), 0 → legacy ffmpeg rgb24 pipe + numpy CPU pipeline.
+# Default 1 in production; flip to 0 to roll back without a redeploy.
+_USE_GPU_PIPELINE = os.environ.get("RVM_GPU_PIPELINE", "1") == "1"
+
+if _USE_GPU_PIPELINE:
+    try:
+        from segment_person_gpu import process_video
+        print("Using GPU-resident pipeline (segment_person_gpu)", flush=True)
+    except ImportError as e:
+        print(f"RVM_GPU_PIPELINE=1 but import failed: {e}; falling back to legacy", flush=True)
+        _USE_GPU_PIPELINE = False
+
+if not _USE_GPU_PIPELINE:
+    try:
+        from segment_person_onnx import process_video  # dev/local
+    except ImportError:
+        from segment_person import process_video  # in-container (renamed by Dockerfile)
 
 
 def _download(url: str, dest: Path) -> None:
