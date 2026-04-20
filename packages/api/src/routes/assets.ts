@@ -13,6 +13,7 @@ import {
   softDeleteAsset,
   type AssetSource,
 } from '../services/asset-service.js';
+import { linkAssetToProject } from '../services/asset-link-service.js';
 import { queueAssetMetadataJob } from '../services/queue.js';
 
 const UPLOAD_URL_TTL_SECONDS = 3600;
@@ -39,7 +40,7 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
       !filename ||
       !mimeType ||
       typeof fileSize !== 'number' || fileSize <= 0 ||
-      typeof partCount !== 'number' || partCount < 1
+      typeof partCount !== 'number' || partCount < 1 || partCount > 10000
     ) {
       return reply.code(400).send({ error: 'invalid_upload_request' });
     }
@@ -77,6 +78,17 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
     if (!body?.sha256 || !body?.storageKey || !body?.filename) {
       return reply.code(400).send({ error: 'missing_required_fields' });
     }
+    // S1: validate storageKey is scoped to the caller's pending prefix.
+    // Prevents an attacker from claiming ownership of arbitrary S3 objects
+    // and then generating presigned download URLs via /assets/:id/url.
+    const expectedPrefix = `uploads/users/${userId}/assets/pending/`;
+    if (!body.storageKey.startsWith(expectedPrefix)) {
+      return reply.code(400).send({ error: 'invalid_storage_key' });
+    }
+    const afterPrefix = body.storageKey.slice(expectedPrefix.length);
+    if (afterPrefix.split('/').length !== 2 || afterPrefix.includes('..')) {
+      return reply.code(400).send({ error: 'invalid_storage_key' });
+    }
     const result = await createOrDedupAsset({
       userId,
       sha256: body.sha256,
@@ -91,6 +103,18 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
     });
     if (!result.deduped) {
       await queueAssetMetadataJob({ assetId: result.asset.id });
+    }
+    // B1: auto-link to project so the asset shows up in the Project tab,
+    // arrangement fires, and the sandbox manifest isn't empty.
+    // Idempotent (asset-link-service uses onConflictDoNothing).
+    if (body.projectId) {
+      const addedVia = body.source === 'chat' ? 'chat' : 'upload';
+      await linkAssetToProject({
+        assetId: result.asset.id,
+        projectId: body.projectId,
+        userId,
+        addedVia,
+      });
     }
     return reply.send({ asset: result.asset, deduped: result.deduped });
   });

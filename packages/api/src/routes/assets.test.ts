@@ -9,6 +9,7 @@ const listUserAssetsSpy = vi.fn();
 const updateAssetMetadataSpy = vi.fn();
 const softDeleteSpy = vi.fn();
 const queueMetadataSpy = vi.fn();
+const linkAssetToProjectSpy = vi.fn();
 
 vi.mock('../services/minio.js', () => ({
   getPresignedMultipartUploadUrls: (...a: unknown[]) => presignMultipartSpy(...a),
@@ -23,6 +24,9 @@ vi.mock('../services/asset-service.js', () => ({
 }));
 vi.mock('../services/queue.js', () => ({
   queueAssetMetadataJob: (...a: unknown[]) => queueMetadataSpy(...a),
+}));
+vi.mock('../services/asset-link-service.js', () => ({
+  linkAssetToProject: (...a: unknown[]) => linkAssetToProjectSpy(...a),
 }));
 vi.mock('../middleware/auth.js', () => ({
   authMiddleware: async (req: { user: { id: string } }) => {
@@ -113,6 +117,34 @@ describe('POST /assets/upload-urls', () => {
     expect(res.json()).toEqual({ error: 'invalid_upload_request' });
     expect(presignMultipartSpy).not.toHaveBeenCalled();
   });
+
+  it('rejects partCount > 10000 (S4)', async () => {
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/upload-urls',
+      payload: { filename: 'f.mp4', mimeType: 'video/mp4', fileSize: 100, partCount: 10001 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_upload_request');
+    expect(presignMultipartSpy).not.toHaveBeenCalled();
+  });
+
+  it('accepts partCount at the 10000 boundary', async () => {
+    presignMultipartSpy.mockResolvedValueOnce({
+      uploadId: 'mp',
+      partUrls: [],
+      storageKey: 'k',
+      expiresAt: new Date(),
+    });
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/upload-urls',
+      payload: { filename: 'f.mp4', mimeType: 'video/mp4', fileSize: 100, partCount: 10000 },
+    });
+    expect(res.statusCode).toBe(200);
+  });
 });
 
 describe('POST /assets/register', () => {
@@ -121,12 +153,13 @@ describe('POST /assets/register', () => {
       asset: { id: 'asset-new', userId: 'u-1', sha256: 'abc' },
       deduped: false,
     });
+    linkAssetToProjectSpy.mockResolvedValueOnce({ id: 'l-existing' });
     const app = await build();
     const res = await app.inject({
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
         sha256: 'abc',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
@@ -145,7 +178,7 @@ describe('POST /assets/register', () => {
       expect.objectContaining({
         userId: 'u-1',
         sha256: 'abc',
-        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
         fileSize: 1,
@@ -168,7 +201,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
         sha256: 'abc',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
@@ -188,7 +221,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
         fileSize: 1,
@@ -199,6 +232,122 @@ describe('POST /assets/register', () => {
     expect(res.json()).toEqual({ error: 'missing_required_fields' });
     expect(createOrDedupSpy).not.toHaveBeenCalled();
     expect(queueMetadataSpy).not.toHaveBeenCalled();
+  });
+
+  it('auto-links asset to project when projectId is in body (B1)', async () => {
+    createOrDedupSpy.mockResolvedValueOnce({
+      asset: { id: 'a-1', userId: 'u-1' },
+      deduped: false,
+    });
+    linkAssetToProjectSpy.mockResolvedValueOnce({ id: 'l-1' });
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'uploads/users/u-1/assets/pending/nano/f.mp4',
+        sha256: 'abc',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+        projectId: 'p-1',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(linkAssetToProjectSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assetId: 'a-1',
+        projectId: 'p-1',
+        userId: 'u-1',
+        addedVia: 'upload',
+      }),
+    );
+  });
+
+  it('does NOT link when projectId omitted', async () => {
+    createOrDedupSpy.mockResolvedValueOnce({
+      asset: { id: 'a-2', userId: 'u-1' },
+      deduped: false,
+    });
+    const app = await build();
+    await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'uploads/users/u-1/assets/pending/nano/f.mp4',
+        sha256: 'xyz',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+      },
+    });
+    expect(linkAssetToProjectSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses addedVia="chat" when source is chat (B1)', async () => {
+    createOrDedupSpy.mockResolvedValueOnce({
+      asset: { id: 'a-3', userId: 'u-1' },
+      deduped: false,
+    });
+    linkAssetToProjectSpy.mockResolvedValueOnce({ id: 'l-2' });
+    const app = await build();
+    await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'uploads/users/u-1/assets/pending/nano/f.png',
+        sha256: 'def',
+        filename: 'f.png',
+        mimeType: 'image/png',
+        fileSize: 1,
+        source: 'chat',
+        projectId: 'p-1',
+      },
+    });
+    expect(linkAssetToProjectSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        addedVia: 'chat',
+      }),
+    );
+  });
+
+  it('rejects storageKey that does not match user-scoped pending path (S1)', async () => {
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'uploads/users/victim-id/assets/pending/nano/f.mp4', // wrong user
+        sha256: 'abc',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_storage_key');
+    expect(createOrDedupSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects storageKey with path-traversal attempt (S1)', async () => {
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'arbitrary/other/bucket/path',
+        sha256: 'abc',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_storage_key');
   });
 });
 
@@ -242,7 +391,7 @@ describe('GET /assets/:id/url', () => {
     const asset = {
       id: 'a1',
       userId: 'u-1',
-      storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
+      storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
     };
     getAssetByIdSpy.mockResolvedValueOnce(asset);
     presignDownloadSpy.mockResolvedValueOnce('https://s3/download?sig=abc');
@@ -259,7 +408,7 @@ describe('GET /assets/:id/url', () => {
     // Passes raw storageKey (no prefix stripping) + 24h TTL to the minio helper.
     expect(presignDownloadSpy).toHaveBeenCalledWith(
       'uploads',
-      'users/u-1/assets/pending/xyz/a.mp4',
+      'uploads/users/u-1/assets/pending/xyz/a.mp4',
       24 * 3600,
     );
   });
