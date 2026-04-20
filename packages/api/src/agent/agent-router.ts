@@ -254,8 +254,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
                 const envelope = JSON.parse(payload);
                 if (envelope?.kind === 'pipeline_message') {
                   write('pipeline_message', envelope);
-                } else if (envelope?.kind === 'composition_updated') {
-                  write('composition_updated', envelope);
                 }
               } catch {
                 // ignore malformed payload
