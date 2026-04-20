@@ -55,5 +55,18 @@ export async function insertPipelineMessage(input: PipelineMessageInput): Promis
   });
   await redis.publish(`conversation:${input.projectId}`, envelope);
 
+  // If the arrangement worker successfully persisted timeline items, also emit a
+  // composition_updated envelope so the editor refetches its timeline state.
+  // Frontend relay happens in agent-router's SSE side-channel.
+  if (input.eventType === 'arranged' && (input.details as { ok?: unknown }).ok === true) {
+    const compositionEnvelope = JSON.stringify({
+      kind: 'composition_updated',
+      projectId: input.projectId,
+      trigger: 'arranged',
+      itemCount: (input.details as { itemCount?: number }).itemCount ?? null,
+    });
+    await redis.publish(`conversation:${input.projectId}`, compositionEnvelope);
+  }
+
   return row as PipelineMessageRow;
 }
