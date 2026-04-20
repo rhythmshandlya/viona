@@ -4,15 +4,34 @@ import React, { memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { PipelineBubble, type PipelineEventBlock } from './PipelineBubble';
 
 interface ChatBubbleProps {
-  role: 'user' | 'assistant';
-  text: string;
+  role: 'user' | 'assistant' | 'pipeline';
+  text?: string;
   isStreaming?: boolean;
+  /** When role === 'pipeline', the jsonb content array of pipeline_event blocks. */
+  content?: unknown;
 }
 
-export const ChatBubble = memo(function ChatBubble({ role, text, isStreaming }: ChatBubbleProps) {
+function extractPipelineEvents(content: unknown): PipelineEventBlock[] {
+  if (!Array.isArray(content)) return [];
+  return content.filter(
+    (b): b is PipelineEventBlock =>
+      !!b &&
+      typeof b === 'object' &&
+      (b as { type?: unknown }).type === 'pipeline_event' &&
+      typeof (b as { eventType?: unknown }).eventType === 'string',
+  );
+}
+
+export const ChatBubble = memo(function ChatBubble({ role, text, isStreaming, content }: ChatBubbleProps) {
+  if (role === 'pipeline') {
+    return <PipelineBubble content={extractPipelineEvents(content)} />;
+  }
+
   const isUser = role === 'user';
+  const safeText = text ?? '';
 
   return (
     <motion.div
@@ -27,10 +46,10 @@ export const ChatBubble = memo(function ChatBubble({ role, text, isStreaming }: 
       )}
     >
       {isUser ? (
-        <p className="whitespace-pre-wrap break-words">{text}</p>
+        <p className="whitespace-pre-wrap break-words">{safeText}</p>
       ) : (
         <div className="prose-agent">
-          <MarkdownRenderer>{text}</MarkdownRenderer>
+          <MarkdownRenderer>{safeText}</MarkdownRenderer>
           {isStreaming && (
             <span className="inline-block w-1.5 h-4 ml-0.5 bg-white/40 rounded-sm animate-pulse align-middle" />
           )}
