@@ -14,8 +14,8 @@ cat > /tmp/minio-cors.json << 'CORS_EOF'
 {
   "CORSRules": [{
     "AllowedOrigins": ["http://localhost:3000", "http://localhost:4000", "https://*.up.railway.app"],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": ["Range"],
+    "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
+    "AllowedHeaders": ["*"],
     "ExposeHeaders": ["Content-Range", "Content-Length", "Accept-Ranges", "ETag", "Content-Type"],
     "MaxAgeSeconds": 86400
   }]
