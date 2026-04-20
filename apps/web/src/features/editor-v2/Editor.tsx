@@ -25,6 +25,7 @@ import { Timeline } from './timeline/Timeline';
 const AIAssistantPanel = lazy(() => import('./components/AIAssistantPanel').then(m => ({ default: m.AIAssistantPanel })));
 const StylePanel = lazy(() => import('./panels/StylePanel').then(m => ({ default: m.StylePanel })));
 const AssetsPanel = lazy(() => import('./panels/AssetsPanel').then(m => ({ default: m.AssetsPanel })));
+const AssetsPanelV2 = lazy(() => import('./panels/AssetsPanelV2').then(m => ({ default: m.AssetsPanelV2 })));
 const TransitionPickerModal = lazy(() => import('./components/TransitionPickerModal').then(m => ({ default: m.TransitionPickerModal })));
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
@@ -49,6 +50,7 @@ import {
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { isRecentUserDispatch } from './store/manifest-dispatch';
 import { api } from '@/lib/api';
+import { isAssetSystemV2 } from '@/lib/feature-flags';
 import { clearCompositionCache } from './player/useWorkspaceComposition';
 
 interface EditorProps {
@@ -777,13 +779,17 @@ export function Editor({ projectId }: EditorProps) {
                     )}
                     {leftSidebarTab === 'assets' && (
                       <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-                        <AssetsPanel
-                          onEditWithAI={() => {
-                            setLeftSidebarTab('agent');
-                            useEditorStore.setState({ aiEditRequested: true });
-                          }}
-                          onYouTubeClipAdded={handleYouTubeClipAdded}
-                        />
+                        {isAssetSystemV2() ? (
+                          <AssetsPanelV2 projectId={project.id} />
+                        ) : (
+                          <AssetsPanel
+                            onEditWithAI={() => {
+                              setLeftSidebarTab('agent');
+                              useEditorStore.setState({ aiEditRequested: true });
+                            }}
+                            onYouTubeClipAdded={handleYouTubeClipAdded}
+                          />
+                        )}
                       </Suspense>
                     )}
                   </div>
