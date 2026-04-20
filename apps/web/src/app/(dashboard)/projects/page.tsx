@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { AnimatedAIChat } from "@/components/ui/animated-ai-chat";
 import { TextShimmer } from "@/components/ui/text-shimmer";
+import { isAssetSystemV2 } from "@/lib/feature-flags";
 
 // ============================================
 // Utility Functions
@@ -461,6 +462,11 @@ export default function ProjectsPage() {
 
   // Handle chat send — create project from attached file + brief
   const handleChatSend = useCallback(async (message: string, files: File[]) => {
+    if (isAssetSystemV2()) {
+      router.push('/projects/new');
+      return;
+    }
+
     if (files.length === 0 && !message.trim()) return;
     if (files.length === 0) return;
 
