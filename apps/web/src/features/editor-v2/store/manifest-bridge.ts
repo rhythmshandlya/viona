@@ -30,6 +30,18 @@ import {
   DEFAULT_CAPTION_STYLE,
 } from './types';
 
+import { AssetsApi } from '@/lib/api/assets';
+
+// Lazily-constructed — avoids a module-eval side effect and lets tests mock
+// AssetsApi. Intentionally not exported.
+let _assetsApi: AssetsApi | null = null;
+function getAssetsApi(): AssetsApi {
+  if (!_assetsApi) {
+    _assetsApi = new AssetsApi(process.env.NEXT_PUBLIC_API_URL ?? '');
+  }
+  return _assetsApi;
+}
+
 // ============================================
 // Types
 // ============================================
@@ -45,6 +57,19 @@ export interface ManifestToStoreContext {
   visualMeta?: Record<string, { bundleUrl?: string; compositionId?: string }>;
   /** v2 asset key to presigned URL mapping */
   assets?: Record<string, string>;
+  /**
+   * Project ID — required to batch-resolve timeline items carrying
+   * `data.assetId` (arrangement subagent items) into presigned URLs via
+   * `GET /projects/:id/assets` (PR-D Task 7). When omitted, items that
+   * rely solely on `data.assetId` will fall back to empty `src`.
+   */
+  projectId?: string;
+  /**
+   * Optional asset-id → presigned URL map. If provided, skips the
+   * internal `listProjectAssets` call — useful for tests or when the
+   * caller has already fetched the asset list.
+   */
+  assetUrlById?: Record<string, string>;
 }
 
 export interface ManifestToStoreResult {
@@ -110,11 +135,17 @@ function stripRedundantSceneKeyframePositions(keyframes: Keyframe[], transform: 
 
 /**
  * Convert a Manifest (from @viona/shared) into the shape expected by the Zustand editor store.
+ *
+ * Async because v2 items written by the arrangement subagent carry only
+ * `data.assetId` (no `src` or entry in the manifest's top-level `assets`
+ * map). When we detect such items, we batch-fetch
+ * `GET /projects/:id/assets` once to build an `asset-id → presigned-url`
+ * map (PR-D Task 7). Sync callers have been migrated to `await`.
  */
-export function manifestToStore(
+export async function manifestToStore(
   manifest: any,
   context: ManifestToStoreContext,
-): ManifestToStoreResult {
+): Promise<ManifestToStoreResult> {
   const tracks = (manifest.tracks as any[]).map<Track>((t: any) => ({
     id: t.id,
     type: t.type === 'overlay' ? 'overlay' : t.type as Track['type'],
@@ -133,6 +164,32 @@ export function manifestToStore(
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
 
+  // Build asset-id → URL map. Prefer caller-supplied map; otherwise collect
+  // unique `data.assetId` values and fetch them in one round-trip.
+  // Only runs when there's at least one item carrying an assetId AND a
+  // projectId is in context. Arrangement subagent items look like:
+  //   { data: { assetId: 'a-1', sourceStartMs: ..., sourceDurationMs: ... } }
+  let urlByAssetId: Record<string, string> = context.assetUrlById ?? {};
+  if (!context.assetUrlById && context.projectId) {
+    const needsResolution = (manifest.items as any[]).some(
+      (it) => it?.data?.assetId && !it?.data?.src,
+    );
+    if (needsResolution) {
+      try {
+        const res = await getAssetsApi().listProjectAssets(context.projectId);
+        urlByAssetId = Object.fromEntries(
+          res.assets
+            .filter((a) => a.url)
+            .map((a) => [a.id, a.url as string]),
+        );
+      } catch (err) {
+        // Non-fatal — items will fall back to empty src and simply fail to
+        // render, matching pre-PR-D behavior. Log for observability.
+        console.warn('[manifest-bridge] listProjectAssets failed; data.assetId items will not resolve', err);
+      }
+    }
+  }
+
   /** Resolve an asset key (e.g. "asset:main-video") to a presigned/proxy URL */
   const resolvedSrc = (key: string) => {
     if (!key) return context.videoUrl ?? '';
@@ -149,6 +206,14 @@ export function manifestToStore(
   };
 
   for (const manifestItem of manifest.items) {
+    // If the item carries data.assetId and no data.src, inject the resolved
+    // URL before running the per-type conversion. This keeps the resolvedSrc
+    // fallback logic intact (absolute URLs / sandbox-relative paths still
+    // work unchanged) and avoids duplicating knowledge in every case-branch.
+    const d = manifestItem?.data;
+    if (d && d.assetId && !d.src && urlByAssetId[d.assetId]) {
+      manifestItem.data = { ...d, src: urlByAssetId[d.assetId] };
+    }
     const storeItem = convertManifestItemV2(manifestItem, context, resolvedSrc);
     items[storeItem.id] = storeItem;
     itemIds.push(storeItem.id);

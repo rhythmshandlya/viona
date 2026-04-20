@@ -795,12 +795,13 @@ export const useEditorStore = create<EditorStore>()(
         const bundleBaseUrl = api.getSandboxBundleUrl(projectId);
 
         const manifestAssets = (manifest as any).assets as Record<string, string> | undefined;
-        const bridgeResult = manifestToStore(manifest, {
+        const bridgeResult = await manifestToStore(manifest, {
           videoUrl,
           bundleUrl: bundleBaseUrl,
           compositionId: (apiProject as any).compositionId ?? '',
           visualMeta: (apiProject as any).visualMeta,
           assets: manifestAssets,
+          projectId,
         });
 
         // Set same-origin proxy URLs on media items for timeline rendering (avoids CORS / relative path issues)
@@ -2824,11 +2825,12 @@ export const useEditorStore = create<EditorStore>()(
         .find(item => item?.type === 'visual');
       const existingVisualData = existingVisualItem?.data as VisualItemData | undefined;
 
-      const bridgeResult = manifestToStore(manifest, {
+      const bridgeResult = await manifestToStore(manifest, {
         videoUrl: (existingVideoItem?.data as VideoItemData)?.src ?? '',
         bundleUrl: state.workspaceBundleUrl ?? '',
         compositionId: existingVisualData?.compositionId ?? '',
         visualMeta: undefined,
+        projectId,
       });
 
       // Set same-origin proxy URLs on media items (same as loadProject)

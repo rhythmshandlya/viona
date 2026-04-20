@@ -441,41 +441,72 @@ describe('POST /assets/register', () => {
 });
 
 describe('GET /assets', () => {
-  it('returns 200 with { assets } array from listUserAssets (thumbnailUrl null when no thumbnailKey)', async () => {
+  it('returns 200 with { assets } array from listUserAssets (thumbnailUrl null when no thumbnailKey; url presigned from storageKey)', async () => {
     const rows = [
-      { id: 'a1', userId: 'u-1', thumbnailKey: null },
-      { id: 'a2', userId: 'u-1', thumbnailKey: null },
+      { id: 'a1', userId: 'u-1', thumbnailKey: null, storageKey: 'k/a1' },
+      { id: 'a2', userId: 'u-1', thumbnailKey: null, storageKey: 'k/a2' },
     ];
     listUserAssetsSpy.mockResolvedValueOnce(rows);
+    // Concurrent Promise.all — key mock off storageKey so ordering is stable.
+    presignDownloadSpy.mockImplementation(async (_prefix: string, key: string) => {
+      if (key === 'k/a1') return 'https://s3/url-a1?sig=1';
+      if (key === 'k/a2') return 'https://s3/url-a2?sig=2';
+      throw new Error(`unexpected presign key: ${key}`);
+    });
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/assets' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       assets: [
-        { id: 'a1', userId: 'u-1', thumbnailKey: null, thumbnailUrl: null },
-        { id: 'a2', userId: 'u-1', thumbnailKey: null, thumbnailUrl: null },
+        {
+          id: 'a1',
+          userId: 'u-1',
+          thumbnailKey: null,
+          storageKey: 'k/a1',
+          thumbnailUrl: null,
+          url: 'https://s3/url-a1?sig=1',
+        },
+        {
+          id: 'a2',
+          userId: 'u-1',
+          thumbnailKey: null,
+          storageKey: 'k/a2',
+          thumbnailUrl: null,
+          url: 'https://s3/url-a2?sig=2',
+        },
       ],
     });
     expect(listUserAssetsSpy).toHaveBeenCalledWith('u-1');
-    expect(presignDownloadSpy).not.toHaveBeenCalled();
+    // 2 url calls, 0 thumb calls.
+    expect(presignDownloadSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('includes presigned thumbnailUrl when asset has thumbnailKey', async () => {
+  it('includes presigned thumbnailUrl when asset has thumbnailKey (and url for the main asset)', async () => {
     const rows = [
-      { id: 'a1', userId: 'u-1', thumbnailKey: 'thumbs/a1.jpg' },
-      { id: 'a2', userId: 'u-1', thumbnailKey: null },
+      { id: 'a1', userId: 'u-1', thumbnailKey: 'thumbs/a1.jpg', storageKey: 'k/a1' },
+      { id: 'a2', userId: 'u-1', thumbnailKey: null, storageKey: 'k/a2' },
     ];
     listUserAssetsSpy.mockResolvedValueOnce(rows);
-    presignDownloadSpy.mockResolvedValueOnce('https://s3/signed/thumb-a1?sig=abc');
+    // Concurrent Promise.all — key mock off key so ordering is stable.
+    presignDownloadSpy.mockImplementation(async (_prefix: string, key: string) => {
+      if (key === 'thumbs/a1.jpg') return 'https://s3/signed/thumb-a1?sig=abc';
+      if (key === 'k/a1') return 'https://s3/signed/url-a1?sig=def';
+      if (key === 'k/a2') return 'https://s3/signed/url-a2?sig=ghi';
+      throw new Error(`unexpected presign key: ${key}`);
+    });
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/assets' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.assets[0].thumbnailUrl).toBe('https://s3/signed/thumb-a1?sig=abc');
+    expect(body.assets[0].url).toBe('https://s3/signed/url-a1?sig=def');
     expect(body.assets[1].thumbnailUrl).toBeNull();
-    // presign helper called once with the thumbnailKey + 24h TTL.
-    expect(presignDownloadSpy).toHaveBeenCalledTimes(1);
+    expect(body.assets[1].url).toBe('https://s3/signed/url-a2?sig=ghi');
+    // 3 calls: thumb-a1, url-a1, url-a2.
+    expect(presignDownloadSpy).toHaveBeenCalledTimes(3);
     expect(presignDownloadSpy).toHaveBeenCalledWith('uploads', 'thumbs/a1.jpg', 24 * 3600);
+    expect(presignDownloadSpy).toHaveBeenCalledWith('uploads', 'k/a1', 24 * 3600);
+    expect(presignDownloadSpy).toHaveBeenCalledWith('uploads', 'k/a2', 24 * 3600);
   });
 });
 

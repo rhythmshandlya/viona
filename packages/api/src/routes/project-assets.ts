@@ -80,12 +80,17 @@ const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
     // Enrich each row with a presigned thumbnailUrl so the frontend (Assets
     // panel, chat, etc.) can render a preview without a second round-trip.
     // null when the asset has no thumbnail yet (e.g. metadata job not done).
+    // Also include `url` — the presigned download URL to the asset itself —
+    // so manifest-bridge can resolve timeline items written with `data.assetId`
+    // (e.g. by the arrangement subagent) without N extra `/assets/:id/url`
+    // round-trips (PR-D Task 7).
     const assetsWithUrls = await Promise.all(
       assets.map(async (a) => ({
         ...a,
         thumbnailUrl: a.thumbnailKey
           ? await getPresignedDownloadUrl('uploads', a.thumbnailKey, ASSET_URL_TTL_SECONDS)
           : null,
+        url: await getPresignedDownloadUrl('uploads', a.storageKey, ASSET_URL_TTL_SECONDS),
       })),
     );
     return reply.send({ assets: assetsWithUrls });

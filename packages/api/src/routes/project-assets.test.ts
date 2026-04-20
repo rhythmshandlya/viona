@@ -147,38 +147,77 @@ describe('DELETE /projects/:id/assets/:assetId', () => {
 });
 
 describe('GET /projects/:id/assets', () => {
-  it('returns all assets linked to the project (thumbnailUrl null when no thumbnailKey)', async () => {
+  it('returns all assets linked to the project (thumbnailUrl null when no thumbnailKey; url presigned from storageKey)', async () => {
     seedProjectOwner('u-1');
     listSpy.mockResolvedValueOnce([
-      { id: 'a-1', thumbnailKey: null },
-      { id: 'a-2', thumbnailKey: null },
+      { id: 'a-1', thumbnailKey: null, storageKey: 'users/u-1/assets/p/a1.mp4' },
+      { id: 'a-2', thumbnailKey: null, storageKey: 'users/u-1/assets/p/a2.mp4' },
     ]);
+    // Per-row presign calls run concurrently via Promise.all — key the mock
+    // off the requested storageKey so order doesn't matter.
+    presignDownloadSpy.mockImplementation(async (_prefix: string, key: string) => {
+      if (key === 'users/u-1/assets/p/a1.mp4') return 'https://s3/signed/a1?sig=1';
+      if (key === 'users/u-1/assets/p/a2.mp4') return 'https://s3/signed/a2?sig=2';
+      throw new Error(`unexpected presign key: ${key}`);
+    });
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/projects/p-1/assets' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.assets).toHaveLength(2);
     expect(body.assets[0].thumbnailUrl).toBeNull();
+    expect(body.assets[0].url).toBe('https://s3/signed/a1?sig=1');
     expect(body.assets[1].thumbnailUrl).toBeNull();
+    expect(body.assets[1].url).toBe('https://s3/signed/a2?sig=2');
     expect(listSpy).toHaveBeenCalledWith('p-1');
-    expect(presignDownloadSpy).not.toHaveBeenCalled();
+    // Called once per asset for the url, none for thumbnails.
+    expect(presignDownloadSpy).toHaveBeenCalledTimes(2);
+    expect(presignDownloadSpy).toHaveBeenCalledWith(
+      'uploads',
+      'users/u-1/assets/p/a1.mp4',
+      24 * 3600,
+    );
   });
 
-  it('includes presigned thumbnailUrl when asset has thumbnailKey', async () => {
+  it('includes presigned thumbnailUrl when asset has thumbnailKey, and url for main asset', async () => {
     seedProjectOwner('u-1');
     listSpy.mockResolvedValueOnce([
-      { id: 'a-1', thumbnailKey: 'thumbs/a1.jpg' },
-      { id: 'a-2', thumbnailKey: null },
+      {
+        id: 'a-1',
+        thumbnailKey: 'thumbs/a1.jpg',
+        storageKey: 'users/u-1/assets/p/a1.mp4',
+      },
+      {
+        id: 'a-2',
+        thumbnailKey: null,
+        storageKey: 'users/u-1/assets/p/a2.mp4',
+      },
     ]);
-    presignDownloadSpy.mockResolvedValueOnce('https://s3/signed/thumb-a1?sig=abc');
+    // Promise.all runs the two row-converters concurrently and the order in
+    // which the mock's `mockResolvedValueOnce` queue is consumed is not
+    // deterministic. Key the mock off the (prefix, key) args instead.
+    presignDownloadSpy.mockImplementation(async (_prefix: string, key: string) => {
+      if (key === 'thumbs/a1.jpg') return 'https://s3/signed/thumb-a1?sig=abc';
+      if (key === 'users/u-1/assets/p/a1.mp4') return 'https://s3/signed/url-a1?sig=def';
+      if (key === 'users/u-1/assets/p/a2.mp4') return 'https://s3/signed/url-a2?sig=ghi';
+      throw new Error(`unexpected presign key: ${key}`);
+    });
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/projects/p-1/assets' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.assets[0].thumbnailUrl).toBe('https://s3/signed/thumb-a1?sig=abc');
+    expect(body.assets[0].url).toBe('https://s3/signed/url-a1?sig=def');
     expect(body.assets[1].thumbnailUrl).toBeNull();
-    expect(presignDownloadSpy).toHaveBeenCalledTimes(1);
+    expect(body.assets[1].url).toBe('https://s3/signed/url-a2?sig=ghi');
+    // 3 calls total: thumb-a1, url-a1, url-a2. (a-2 has no thumbnailKey.)
+    expect(presignDownloadSpy).toHaveBeenCalledTimes(3);
     expect(presignDownloadSpy).toHaveBeenCalledWith('uploads', 'thumbs/a1.jpg', 24 * 3600);
+    expect(presignDownloadSpy).toHaveBeenCalledWith(
+      'uploads',
+      'users/u-1/assets/p/a1.mp4',
+      24 * 3600,
+    );
   });
 });
 

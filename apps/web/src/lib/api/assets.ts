@@ -31,6 +31,13 @@ export interface Asset {
    * because single-asset endpoints return the raw row without enrichment.
    */
   thumbnailUrl?: string | null;
+  /**
+   * Presigned URL to the asset's main file. Populated by the list endpoints
+   * only (same as `thumbnailUrl`). Used by manifest-bridge to resolve
+   * timeline items that carry `data.assetId` (e.g. arrangement subagent
+   * items) without an extra `/assets/:id/url` round-trip.
+   */
+  url?: string;
 }
 
 export interface UploadUrlsRequest {
