@@ -1,12 +1,11 @@
 /**
  * asset-system-v2 integration smoke test (§6.8 Phase 1+2 critical path)
  *
- * Goal: exercise the end-to-end asset ingest → link → list → arrangement flow
- * through REAL service code (`asset-service`, `asset-link-service`,
- * `asset-events`, `pipeline-messages`, `project-assets` + `arrangement` route
- * ownership checks) against a real Postgres DB, with only the
- * _infrastructure_ (MinIO, BullMQ queue, Redis pub/sub, arrangement
- * orchestrator, Stytch auth) mocked.
+ * Goal: exercise the end-to-end asset ingest → link → list flow through REAL
+ * service code (`asset-service`, `asset-link-service`, `asset-events`,
+ * `pipeline-messages`, `project-assets`) against a real Postgres DB, with
+ * only the _infrastructure_ (MinIO, BullMQ queue, Redis pub/sub, Stytch
+ * auth) mocked.
  *
  * Catches inter-PR integration bugs that per-task unit tests miss — wrong
  * channel name, endpoint path mismatch, event-type union drift, cross-service
@@ -39,7 +38,6 @@ const spies = vi.hoisted(() => ({
   queueAssetMetadata: vi.fn().mockResolvedValue(undefined),
   redisPublish: vi.fn().mockResolvedValue(1),
   redisDuplicate: vi.fn(),
-  computeArrangement: vi.fn(),
 }));
 
 // MinIO helpers — presigned URL generation must not hit a real S3.
@@ -67,12 +65,6 @@ vi.mock('../services/redis.js', () => {
     getRedisSubscriber: () => spies.redisDuplicate(),
   };
 });
-
-// Arrangement orchestrator runs the Claude Agent SDK — fully mock, the point
-// of this test is route wiring + ownership, not the agent itself.
-vi.mock('../services/arrangement-orchestrator.js', () => ({
-  computeArrangement: (...a: unknown[]) => spies.computeArrangement(...a),
-}));
 
 // Header-driven fake auth middleware: sets request.user from x-test-user-id.
 // Real Stytch path is untestable in-process. Both the assets and
@@ -104,7 +96,6 @@ vi.mock('../middleware/auth.js', () => ({
 // ---------------------------------------------------------------------------
 import assetRoutes from '../routes/assets.js';
 import projectAssetRoutes from '../routes/project-assets.js';
-import arrangementRoutes from '../routes/arrangement.js';
 import compositionRoutes from '../routes/composition.js';
 import { db } from '../db/index.js';
 import {
@@ -148,7 +139,6 @@ describe.skipIf(!enabled)('asset-system-v2 integration (§6.8 Phase 1+2)', () =>
     app = Fastify({ logger: false });
     await app.register(assetRoutes);
     await app.register(projectAssetRoutes);
-    await app.register(arrangementRoutes);
     // composition-v2 route lives under /api prefix — matches production mount
     // and lets us assert the full `/api/projects/:id/composition-v2` path.
     await app.register(compositionRoutes, { prefix: '/api' });
@@ -220,7 +210,6 @@ describe.skipIf(!enabled)('asset-system-v2 integration (§6.8 Phase 1+2)', () =>
     spies.presignDownload.mockReset();
     spies.queueAssetMetadata.mockClear();
     spies.redisPublish.mockClear().mockResolvedValue(1);
-    spies.computeArrangement.mockReset();
   });
 
   // Shared state mutated across tests in sequence — each scenario builds on
@@ -357,39 +346,6 @@ describe.skipIf(!enabled)('asset-system-v2 integration (§6.8 Phase 1+2)', () =>
     });
     expect(res.statusCode).toBe(403);
     expect(res.json()).toEqual({ error: 'forbidden' });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Scenario 6: POST /projects/:id/arrangement/compute by OWNER → delegates
-  //             to orchestrator (mocked).
-  // ──────────────────────────────────────────────────────────────────────
-  it('6. POST /projects/:id/arrangement/compute by owner invokes orchestrator', async () => {
-    spies.computeArrangement.mockResolvedValueOnce({
-      timelineItems: [{ assetId: registeredAssetId, trackIndex: 0, startMs: 0, durationMs: 3000 }],
-      summary: 'ok',
-    });
-    const res = await app.inject({
-      method: 'POST',
-      url: `/projects/${ownerProjectId}/arrangement/compute`,
-      headers: { 'x-test-user-id': ownerId },
-    });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().summary).toBe('ok');
-    expect(spies.computeArrangement).toHaveBeenCalledWith(ownerProjectId);
-  });
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Scenario 7: POST /projects/:id/arrangement/compute by NON-owner → 403 (S2).
-  // ──────────────────────────────────────────────────────────────────────
-  it('7. POST /projects/:id/arrangement/compute by non-owner returns 403 (S2)', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: `/projects/${ownerProjectId}/arrangement/compute`,
-      headers: { 'x-test-user-id': otherId },
-    });
-    expect(res.statusCode).toBe(403);
-    expect(res.json()).toEqual({ error: 'forbidden' });
-    expect(spies.computeArrangement).not.toHaveBeenCalled();
   });
 
   // ──────────────────────────────────────────────────────────────────────

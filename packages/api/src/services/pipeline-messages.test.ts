@@ -63,44 +63,16 @@ describe('insertPipelineMessage', () => {
     expect(spies.publish).toHaveBeenCalledTimes(1);
   });
 
-  it('also publishes composition_updated when eventType is "arranged" with ok:true', async () => {
+  it('publishes exactly one envelope (pipeline_message) on arranged+ok:true', async () => {
     spies.addMessage.mockResolvedValueOnce({ id: 'm-1', conversationId: 'c-1', role: 'pipeline' });
     await insertPipelineMessage({
       conversationId: 'c-1', projectId: 'p-1',
       eventType: 'arranged',
       details: { ok: true, itemCount: 5 },
     });
-    const payloads = spies.publish.mock.calls.map((c) => c[1] as string);
-    const compositionPayload = payloads.find((p) => p.includes('"kind":"composition_updated"'));
-    expect(compositionPayload).toBeDefined();
-    expect(compositionPayload).toContain('"projectId":"p-1"');
-    expect(compositionPayload).toContain('"itemCount":5');
-    // Both envelopes land on the same conversation channel:
-    const channels = spies.publish.mock.calls.map((c) => c[0]);
-    expect(channels.filter((c) => c === 'conversation:p-1')).toHaveLength(2);  // pipeline_message + composition_updated
-  });
-
-  it('does NOT publish composition_updated on arranged with ok:false', async () => {
-    spies.addMessage.mockResolvedValueOnce({ id: 'm-2', conversationId: 'c-1', role: 'pipeline' });
-    await insertPipelineMessage({
-      conversationId: 'c-1', projectId: 'p-1',
-      eventType: 'arranged',
-      details: { ok: false, error: 'boom' },
-    });
-    const payloads = spies.publish.mock.calls.map((c) => c[1] as string);
-    const compositionPayload = payloads.find((p) => p.includes('"kind":"composition_updated"'));
-    expect(compositionPayload).toBeUndefined();
-  });
-
-  it('does NOT publish composition_updated on unrelated event types', async () => {
-    spies.addMessage.mockResolvedValueOnce({ id: 'm-3', conversationId: 'c-1', role: 'pipeline' });
-    await insertPipelineMessage({
-      conversationId: 'c-1', projectId: 'p-1',
-      eventType: 'transcribed',
-      details: { assetId: 'a-1', wordCount: 42 },
-    });
-    const payloads = spies.publish.mock.calls.map((c) => c[1] as string);
-    const compositionPayload = payloads.find((p) => p.includes('"kind":"composition_updated"'));
-    expect(compositionPayload).toBeUndefined();
+    expect(spies.publish).toHaveBeenCalledTimes(1);
+    const payload = spies.publish.mock.calls[0][1] as string;
+    expect(payload).toContain('"kind":"pipeline_message"');
+    expect(payload).not.toContain('composition_updated');
   });
 });

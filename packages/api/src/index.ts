@@ -32,7 +32,6 @@ import { startReconciler } from './inference/reconciler.js';
 import assetRoutes from './routes/assets.js';
 import projectAssetRoutes from './routes/project-assets.js';
 import assetEventsSseRoutes from './routes/asset-events-sse.js';
-import arrangementRoutes from './routes/arrangement.js';
 import compositionRoutes from './routes/composition.js';
 import internalSandboxAssetsRoutes from './routes/internal-sandbox-assets.js';
 
@@ -333,7 +332,6 @@ async function main() {
     await fastify.register(assetRoutes);
     await fastify.register(projectAssetRoutes);
     await fastify.register(assetEventsSseRoutes);
-    await fastify.register(arrangementRoutes);
     await fastify.register(compositionRoutes, { prefix: '/api' });
     // Internal sandbox-facing routes live under /api/internal/sandbox/* to match
     // the existing `createSandboxRoutes` convention (registered with prefix '/api'
