@@ -148,14 +148,17 @@ RUN set -eux; \
     python -c "import runpod; import runpod.serverless; print('runpod.serverless ok')"
 
 # ---- Strip 2: general site-packages cruft across all remaining packages ----
+# NOTE: we deliberately do NOT strip directories named `docs` / `doc` here —
+# boto3/botocore use `botocore.docs.docstring` as a real runtime module, not
+# documentation. Same care for `tests` — onnxruntime has `providers/cuda/tests`
+# as a runtime artifact? Haven't hit that yet, but if onnxruntime breaks at
+# init, add it to the exception list.
 RUN find /opt/venv -type d \( \
       -name __pycache__ -o \
       -name tests -o \
       -name test -o \
       -name testing -o \
-      -name examples -o \
-      -name docs -o \
-      -name doc \
+      -name examples \
     \) -prune -exec rm -rf {} + \
  && find /opt/venv -type f \( \
       -name "*.pyc" -o \

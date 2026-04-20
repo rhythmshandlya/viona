@@ -1,12 +1,28 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { getAssetById } from '../services/asset-service.js';
+import { db, projects } from '../db/index.js';
 import {
   linkAssetToProject,
   unlinkAssetFromProject,
   listProjectAssets,
   type AddedVia,
 } from '../services/asset-link-service.js';
+
+/**
+ * Returns true iff the given user owns the given project.
+ * Used to gate the /projects/:id/assets/* endpoints so one user cannot
+ * read/mutate another user's project's asset links (S3/S6).
+ */
+async function requireProjectOwnership(projectId: string, userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (rows.length === 0) return false;
+  return rows[0].userId === userId;
+}
 
 const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authMiddleware);
@@ -16,6 +32,10 @@ const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const userId = request.user!.id;
       const { id: projectId } = request.params;
+      if (!(await requireProjectOwnership(projectId, userId))) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
+
       const { assetId, addedVia } = request.body;
 
       const asset = await getAssetById(assetId, userId);
@@ -31,6 +51,9 @@ const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const userId = request.user!.id;
       const { id: projectId, assetId } = request.params;
+      if (!(await requireProjectOwnership(projectId, userId))) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
 
       const asset = await getAssetById(assetId, userId);
       if (!asset) return reply.code(403).send({ error: 'forbidden' });
@@ -42,11 +65,15 @@ const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Lists all non-deleted assets linked to the given project.
-   * TODO: Add project-ownership enforcement once project ACLs are wired (PR-A2+).
-   * Current behavior: any authenticated user can read any project's asset list if they know its ID.
+   * Requires the caller to own the project; otherwise 403.
    */
   fastify.get<{ Params: { id: string } }>('/projects/:id/assets', async (request, reply) => {
-    const assets = await listProjectAssets(request.params.id);
+    const userId = request.user!.id;
+    const { id: projectId } = request.params;
+    if (!(await requireProjectOwnership(projectId, userId))) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+    const assets = await listProjectAssets(projectId);
     return reply.send({ assets });
   });
 };
