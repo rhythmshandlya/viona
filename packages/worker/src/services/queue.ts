@@ -27,25 +27,3 @@ const transcribeQueue = new Queue('transcribe', {
 export async function queueTranscribeJob(data: TranscribeJobData): Promise<void> {
   await transcribeQueue.add('transcribe', data, { attempts: 1 });
 }
-
-// Arrangement queue — the worker's transcribe processor (Task 12) auto-triggers
-// a first-pass arrangement for a project once all of its linked assets finish
-// transcribing. This is the same `arrangement` queue the API enqueues onto in
-// packages/api/src/services/queue.ts; either side can push, the worker consumes.
-export interface ArrangementJobData {
-  projectId: string;
-}
-
-const arrangementQueue = new Queue<ArrangementJobData>('arrangement', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 100 },
-    removeOnFail: { count: 200 },
-    attempts: 2,
-    backoff: { type: 'exponential', delay: 10000 },
-  },
-});
-
-export async function queueArrangementJob(data: ArrangementJobData): Promise<void> {
-  await arrangementQueue.add('arrangement', data, { attempts: 2 });
-}

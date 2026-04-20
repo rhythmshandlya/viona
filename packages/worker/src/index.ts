@@ -10,7 +10,6 @@ import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-
 import { processRenderTemplateJob, RenderTemplateJobData } from './processors/render-template.js';
 import { processAnalyzeCaptions, AnalyzeCaptionsJobData } from './processors/analyze-captions.js';
 import { processAssetMetadataJob, AssetMetadataJobData } from './processors/asset-metadata.js';
-import { processArrangementJob, ArrangementJobData } from './processors/arrangement.js';
 import { startInferenceWorker } from './processors/inference.js';
 import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
@@ -277,31 +276,6 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Asset-metadata job failed');
   });
 
-  // Arrangement worker — async path for `computeArrangement` (Task 11).
-  // Task 12 will auto-enqueue these after transcription completes; the
-  // synchronous HTTP endpoint from Task 10 still works independently.
-  const arrangementWorker = new Worker<ArrangementJobData>(
-    'arrangement',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing arrangement job');
-      await processArrangementJob(job);
-    },
-    {
-      connection,
-      concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
-    }
-  );
-
-  arrangementWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Arrangement job completed');
-  });
-
-  arrangementWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Arrangement job failed');
-  });
-
   // Generic inference worker — only when this process is the compute backend.
   // In Railway prod (INFERENCE_PROVIDER=runpod) the worker doesn't consume
   // the `inference` queue; RunPod is the executor and webhooks resolve jobs.
@@ -317,7 +291,7 @@ async function main() {
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
     youtubeClipWorker, renderTemplateWorker, analyzeCaptionsWorker,
-    assetMetadataWorker, arrangementWorker,
+    assetMetadataWorker,
     ...(inferenceWorker ? [inferenceWorker] : []),
   ];
 

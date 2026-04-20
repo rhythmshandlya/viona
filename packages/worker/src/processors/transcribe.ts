@@ -11,21 +11,13 @@ import { db, projects, tracks, timelineItems, transcripts, jobs, assets, assetPr
 import { downloadFile } from '../services/minio.js';
 import { downloadToTmp, uploadFile as uploadAssetFile } from '../services/asset-storage.js';
 import { emitAssetEvent } from '../services/asset-events.js';
-import { queueArrangementJob } from '../services/queue.js';
 import { insertPipelineMessage } from '../services/pipeline-messages.js';
 import { getOrCreateConversation } from '../agent/conversation-store.js';
 import { logger } from '../logger.js';
-import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId, redis } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { DEFAULT_SUBTITLE_STYLE } from '@viona/shared';
 import { redisConnection } from '../utils/redis.js';
-
-/**
- * Idempotency lock TTL (seconds) for arrangement enqueue. Acts as a safety net
- * if the orchestrator crashes before releasing the lock in its `finally` block.
- * 5 minutes is longer than any realistic arrangement run.
- */
-const ARRANGEMENT_LOCK_TTL_SECONDS = 300;
 
 /**
  * Discriminated union describing both transcribe-job shapes.
@@ -739,67 +731,6 @@ async function resolveProjectConversation(
 }
 
 /**
- * Auto-trigger arrangement (Task 12).
- *
- * Fires a first-pass arrangement job for every project this asset belongs to
- * whose linked-asset set has now fully transcribed (all `transcriptStatus` in
- * `'ready' | 'not_applicable'`). This kicks off the editor auto-layout as
- * soon as the last transcript lands, without waiting for a user interaction.
- *
- * Best-effort: any failure here is logged and swallowed. The transcript row
- * was already written and the `transcript_ready` event was already emitted —
- * throwing would trigger a BullMQ retry of the transcribe job, which would
- * re-run STT (cost + time). The user can always retrigger arrangement from
- * the editor if this fires-and-misses.
- */
-async function enqueueArrangementIfReady(assetId: string): Promise<void> {
-  const links = await db
-    .select({ projectId: assetProjectLinks.projectId })
-    .from(assetProjectLinks)
-    .where(eq(assetProjectLinks.assetId, assetId));
-
-  for (const { projectId } of links) {
-    const siblings = await db
-      .select({ transcriptStatus: assets.transcriptStatus })
-      .from(assets)
-      .innerJoin(assetProjectLinks, eq(assets.id, assetProjectLinks.assetId))
-      .where(eq(assetProjectLinks.projectId, projectId));
-
-    const allDone = siblings.every(
-      (s) => s.transcriptStatus === 'ready' || s.transcriptStatus === 'not_applicable',
-    );
-    if (!allDone) continue;
-
-    // Prod blocker 2: when multiple transcripts finish near-simultaneously,
-    // every worker observes `allDone === true` and each one calls
-    // `queueArrangementJob`. Combined with BullMQ `attempts: 2` retries, this
-    // produces duplicate arrangement runs per project — duplicate Anthropic
-    // calls and duplicate timeline writes. Serialize with a Redis SETNX lock
-    // scoped to the project id. Only the worker that acquires the lock
-    // enqueues; the rest skip silently. The lock is released by the
-    // orchestrator's `finally` block (see arrangement-orchestrator.ts) on
-    // both the success and failure paths. The 5-min TTL is a safety net if
-    // the worker crashes before the orchestrator runs.
-    const lockKey = `arrangement:in-flight:${projectId}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', ARRANGEMENT_LOCK_TTL_SECONDS, 'NX');
-    if (acquired !== 'OK') {
-      // Another worker already queued the arrangement for this project.
-      continue;
-    }
-
-    try {
-      await queueArrangementJob({ projectId });
-    } catch (err) {
-      // Rollback: if enqueue fails, release the lock so a retry (same job or
-      // a sibling worker) can proceed. Otherwise the lock would hold for
-      // 5 minutes and block every subsequent attempt during that window.
-      await redis.del(lockKey).catch(() => { /* swallow */ });
-      throw err;
-    }
-  }
-}
-
-/**
  * Asset-pipeline transcribe (Task 9).
  *
  * Pulls the source media down, runs OpenAI Whisper against it, writes the
@@ -903,8 +834,7 @@ async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: '
 
     logger.info({ assetId, derivedId: derived.id, wordCount }, 'Asset transcribe complete');
 
-    // Task 13: emit `transcribed` bubble BEFORE kicking off arrangement so
-    // the UI can flip the chat status before the next phase starts streaming.
+    // Task 13: emit `transcribed` bubble so the UI can flip the chat status.
     // Best-effort (same rationale as `transcribing` above).
     if (ctx) {
       await insertPipelineMessage({
@@ -915,18 +845,6 @@ async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: '
       }).catch((err) => {
         logger.warn({ assetId, err }, 'transcribed pipeline bubble insert failed (swallowed)');
       });
-    }
-
-    // Best-effort: kick off arrangement for any project whose assets are now
-    // all transcribed. Never rethrow — the transcript succeeded, and a retry
-    // at this layer would re-run STT. See `enqueueArrangementIfReady` doc.
-    try {
-      await enqueueArrangementIfReady(assetId);
-    } catch (triggerErr) {
-      logger.warn(
-        { assetId, err: triggerErr },
-        'Arrangement auto-trigger failed (swallowed — transcript already persisted)',
-      );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

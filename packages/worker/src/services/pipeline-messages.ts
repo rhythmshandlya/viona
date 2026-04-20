@@ -1,18 +1,16 @@
 import { addMessage } from '../agent/conversation-store.js';
 import { redis } from './redis.js';
 
-// Mirror of `packages/api/src/services/pipeline-messages.ts`. The worker emits
-// `arranging` / `arranged` pipeline events when the `arrangement` queue fires
-// (Task 11) — these land as pipeline-role conversation messages + a Redis
-// publish so the frontend chat stream picks them up live.
+// Mirror of `packages/api/src/services/pipeline-messages.ts`. Emits
+// pipeline-role conversation messages + a Redis publish so the frontend chat
+// stream picks them up live. Currently used for `transcribing` / `transcribed`
+// events from the asset-mode transcribe processor.
 
 export type PipelineEventType =
   | 'transcribing'
   | 'transcribed'
   | 'analyzing'
   | 'analyzed'
-  | 'arranging'
-  | 'arranged'
   | 'ready';
 
 export interface PipelineMessageInput {
@@ -54,19 +52,6 @@ export async function insertPipelineMessage(input: PipelineMessageInput): Promis
     details: input.details,
   });
   await redis.publish(`conversation:${input.projectId}`, envelope);
-
-  // If the arrangement worker successfully persisted timeline items, also emit a
-  // composition_updated envelope so the editor refetches its timeline state.
-  // Frontend relay happens in agent-router's SSE side-channel.
-  if (input.eventType === 'arranged' && (input.details as { ok?: unknown }).ok === true) {
-    const compositionEnvelope = JSON.stringify({
-      kind: 'composition_updated',
-      projectId: input.projectId,
-      trigger: 'arranged',
-      itemCount: (input.details as { itemCount?: number }).itemCount ?? null,
-    });
-    await redis.publish(`conversation:${input.projectId}`, compositionEnvelope);
-  }
 
   return row as PipelineMessageRow;
 }

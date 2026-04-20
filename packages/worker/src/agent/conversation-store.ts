@@ -2,9 +2,9 @@ import { eq, desc } from 'drizzle-orm';
 import { db, conversations, conversationMessages } from '../db/index.js';
 
 // Mirror of `packages/api/src/agent/conversation-store.ts`. Subset used by the
-// arrangement orchestrator (Task 11 / 13):
+// asset-mode transcribe processor + pipeline-messages service:
 //   - getOrCreateConversation: resolves/creates the project's conversation row
-//   - getConversationMessages: reads history (used to pull the first user prompt)
+//   - getConversationMessages: reads history (available for future consumers)
 //   - addMessage: inserts pipeline / assistant messages
 
 export async function getOrCreateConversation(projectId: string) {

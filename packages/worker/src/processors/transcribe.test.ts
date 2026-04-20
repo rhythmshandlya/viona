@@ -10,21 +10,13 @@ const dbUpdateWhere = vi.fn();
 const emitEvent = vi.fn().mockResolvedValue(undefined);
 const downloadToTmp = vi.fn();
 const uploadAssetFile = vi.fn();
-const queueArrangement = vi.fn().mockResolvedValue(undefined);
 const insertPipelineMessageMock = vi.fn().mockResolvedValue({ id: 'm-1', conversationId: 'c-1', role: 'pipeline' });
 const getOrCreateConversationMock = vi.fn().mockResolvedValue({ id: 'c-1', projectId: 'p-1' });
 
-// Prod blocker 2: SETNX idempotency lock spies. Default behavior is "lock
-// acquired" so existing tests still fire arrangement. Individual tests
-// override with `mockResolvedValueOnce(null)` to simulate contention.
-const redisSetMock = vi.fn().mockResolvedValue('OK');
-const redisDelMock = vi.fn().mockResolvedValue(1);
-
-// db.select chain spies. Task 12 auto-trigger needs two reads:
-//   1. select projectId from asset_project_links where assetId = ...
-//   2. select transcriptStatus from assets join asset_project_links where projectId = ...
-// We expose a programmable queue of results and a callsite tracker so tests
-// can assert which `.from(...)` was invoked for each call.
+// db.select chain spies. The asset-mode path performs a single read:
+//   select projectId from asset_project_links where assetId = ... limit 1
+// (via resolveProjectConversation). We expose a programmable queue of
+// results so tests can drive that lookup.
 const dbSelectColumns = vi.fn();
 const dbSelectFrom = vi.fn();
 const dbSelectInnerJoin = vi.fn();
@@ -62,12 +54,10 @@ vi.mock('../db/index.js', () => ({
         };
       },
     })),
-    // `select(cols).from(tbl).where(pred)` is used by Task 12's
-    // enqueueArrangementIfReady (link lookup). It's also used with an extra
-    // .innerJoin(...).where(...) hop for the sibling-status read. We make the
-    // terminal `.where(...)` and `.innerJoin(...).where(...)` both return the
-    // next queued result as a thenable array — drizzle's select-builder is a
-    // PromiseLike that resolves to the rows.
+    // `select(cols).from(tbl).where(pred).limit(n)` is used by
+    // resolveProjectConversation (link lookup). We make the terminal
+    // `.where(...)` return the next queued result as a thenable array —
+    // drizzle's select-builder is a PromiseLike that resolves to the rows.
     select: vi.fn((cols?: unknown) => {
       dbSelectColumns(cols);
       return {
@@ -117,7 +107,6 @@ vi.mock('../db/index.js', () => ({
 }));
 
 vi.mock('../services/queue.js', () => ({
-  queueArrangementJob: (...a: unknown[]) => queueArrangement(...a),
   // queueTranscribeJob is untouched by transcribe.ts itself but the module may
   // still be pulled in via the graph — keep it stubbed for safety.
   queueTranscribeJob: vi.fn().mockResolvedValue(undefined),
@@ -153,13 +142,6 @@ vi.mock('../services/redis.js', () => ({
   publishJobComplete: vi.fn().mockResolvedValue(undefined),
   publishJobError: vi.fn().mockResolvedValue(undefined),
   setJobProjectId: vi.fn(),
-  // Prod blocker 2: the processor now imports `redis` and calls
-  // `redis.set(key, '1', 'EX', 300, 'NX')` before enqueuing arrangement, and
-  // `redis.del(key)` on enqueue failure. Expose both as spies.
-  redis: {
-    set: (...a: unknown[]) => redisSetMock(...a),
-    del: (...a: unknown[]) => redisDelMock(...a),
-  },
 }));
 
 vi.mock('../utils/redis.js', () => ({
@@ -255,9 +237,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   (dbInsertReturning as unknown as { _result?: unknown[] })._result = undefined;
   selectResultQueue.length = 0;
-  // Restore SETNX default ("lock acquired") after clearAllMocks wipes it.
-  redisSetMock.mockResolvedValue('OK');
-  redisDelMock.mockResolvedValue(1);
   installSuccessfulSpawn();
 });
 
@@ -418,8 +397,8 @@ describe('processTranscribeJob — asset mode', () => {
     uploadAssetFile.mockResolvedValueOnce('k');
     (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: 'derived-2' }];
 
-    // No project links — enqueueArrangementIfReady reads an empty link list
-    // and short-circuits without doing sibling reads or firing arrangement.
+    // No project links — resolveProjectConversation returns null and the
+    // processor skips pipeline-bubble insertion for library-only assets.
     selectResultQueue.push([]);
 
     await processTranscribeJob({
@@ -427,186 +406,6 @@ describe('processTranscribeJob — asset mode', () => {
     } as never);
 
     expect(cleanup).toHaveBeenCalled();
-  });
-});
-
-// -------------------- Task 12: auto-trigger arrangement --------------------
-
-describe('processAssetTranscribe — auto-trigger arrangement', () => {
-  // Shared happy-path setup: STT resolves, upload resolves, derived row insert
-  // returns an id. The individual tests only vary the select-queue.
-  function primeHappyPath(assetId: string, derivedId = 'derived-auto') {
-    const cleanup = vi.fn().mockResolvedValue(undefined);
-    downloadToTmp.mockResolvedValueOnce({ path: '/tmp/auto.mp3', cleanup });
-    openaiCreate.mockResolvedValueOnce({
-      text: 'hello',
-      words: [{ word: 'hello', start: 0, end: 0.5 }],
-      segments: [{ text: 'hello', start: 0, end: 0.5 }],
-    });
-    uploadAssetFile.mockResolvedValueOnce(`users/u/derived/${assetId}/transcript.json`);
-    (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: derivedId }];
-    return { cleanup };
-  }
-
-  it('enqueues arrangement for each project where all linked assets have transcripts ready', async () => {
-    primeHappyPath('a-1');
-    // Task 13: resolveProjectConversation link lookup — asset is linked to p-1.
-    selectResultQueue.push([{ projectId: 'p-1' }]);
-    // First select — links for assetId=a-1 → one project.
-    selectResultQueue.push([{ projectId: 'p-1' }]);
-    // Second select — siblings of p-1, both ready.
-    selectResultQueue.push([
-      { transcriptStatus: 'ready' },
-      { transcriptStatus: 'ready' },
-    ]);
-
-    await processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-1', userId: 'u', storageKey: 'k' },
-    } as never);
-
-    expect(queueArrangement).toHaveBeenCalledTimes(1);
-    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-1' });
-  });
-
-  it('treats not_applicable sibling transcripts as "done" and still enqueues', async () => {
-    primeHappyPath('a-1b');
-    // Task 13: resolveProjectConversation link lookup.
-    selectResultQueue.push([{ projectId: 'p-3' }]);
-    selectResultQueue.push([{ projectId: 'p-3' }]);
-    // Mixed ready + not_applicable (e.g. image-only assets have no transcript).
-    selectResultQueue.push([
-      { transcriptStatus: 'ready' },
-      { transcriptStatus: 'not_applicable' },
-    ]);
-
-    await processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-1b', userId: 'u', storageKey: 'k' },
-    } as never);
-
-    expect(queueArrangement).toHaveBeenCalledTimes(1);
-    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-3' });
-  });
-
-  it('does NOT enqueue arrangement if any sibling asset has transcriptStatus: "pending"', async () => {
-    primeHappyPath('a-2');
-    // Task 13: resolveProjectConversation link lookup.
-    selectResultQueue.push([{ projectId: 'p-2' }]);
-    selectResultQueue.push([{ projectId: 'p-2' }]);
-    selectResultQueue.push([
-      { transcriptStatus: 'ready' },
-      { transcriptStatus: 'pending' }, // blocks
-    ]);
-
-    await processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-2', userId: 'u', storageKey: 'k' },
-    } as never);
-
-    expect(queueArrangement).not.toHaveBeenCalled();
-  });
-
-  it('handles assets linked to multiple projects — enqueues only for ready projects', async () => {
-    primeHappyPath('a-multi');
-    // Task 13: resolveProjectConversation link lookup — first project wins.
-    selectResultQueue.push([{ projectId: 'p-1' }, { projectId: 'p-2' }]);
-    // Linked to both p-1 and p-2.
-    selectResultQueue.push([{ projectId: 'p-1' }, { projectId: 'p-2' }]);
-    // p-1: all ready
-    selectResultQueue.push([
-      { transcriptStatus: 'ready' },
-      { transcriptStatus: 'not_applicable' },
-    ]);
-    // p-2: still has a pending sibling
-    selectResultQueue.push([
-      { transcriptStatus: 'ready' },
-      { transcriptStatus: 'pending' },
-    ]);
-
-    await processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-multi', userId: 'u', storageKey: 'k' },
-    } as never);
-
-    expect(queueArrangement).toHaveBeenCalledTimes(1);
-    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-1' });
-    expect(queueArrangement).not.toHaveBeenCalledWith({ projectId: 'p-2' });
-  });
-
-  it('skips arrangement enqueue when the SETNX idempotency lock is already held', async () => {
-    // Prod blocker 2: simulate a sibling worker already holding the lock.
-    // `allDone` is true, but `redis.set(..., 'NX')` returns null → we must
-    // skip `queueArrangementJob` silently rather than fire a duplicate.
-    primeHappyPath('a-lock');
-    // resolveProjectConversation link lookup.
-    selectResultQueue.push([{ projectId: 'p-lock' }]);
-    // enqueueArrangementIfReady link lookup + siblings all ready.
-    selectResultQueue.push([{ projectId: 'p-lock' }]);
-    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
-
-    // SETNX returns null — another worker already acquired the lock.
-    redisSetMock.mockResolvedValueOnce(null);
-
-    await processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-lock', userId: 'u', storageKey: 'k' },
-    } as never);
-
-    expect(redisSetMock).toHaveBeenCalledWith(
-      'arrangement:in-flight:p-lock',
-      '1',
-      'EX',
-      300,
-      'NX',
-    );
-    expect(queueArrangement).not.toHaveBeenCalled();
-  });
-
-  it('acquires SETNX lock and enqueues arrangement when not already in-flight', async () => {
-    // Prod blocker 2: verify the happy path explicitly — SETNX is called with
-    // the correct key/TTL/NX flag, returns 'OK', and then the arrangement
-    // job is enqueued exactly once.
-    primeHappyPath('a-ok');
-    selectResultQueue.push([{ projectId: 'p-ok' }]);
-    selectResultQueue.push([{ projectId: 'p-ok' }]);
-    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
-
-    redisSetMock.mockResolvedValueOnce('OK');
-
-    await processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-ok', userId: 'u', storageKey: 'k' },
-    } as never);
-
-    expect(redisSetMock).toHaveBeenCalledWith(
-      'arrangement:in-flight:p-ok',
-      '1',
-      'EX',
-      300,
-      'NX',
-    );
-    expect(queueArrangement).toHaveBeenCalledWith({ projectId: 'p-ok' });
-    expect(queueArrangement).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not throw if the arrangement auto-trigger fails mid-flight', async () => {
-    // Transcript write succeeded, so we must not propagate a trigger-layer
-    // error — otherwise BullMQ would retry the transcribe job and we'd STT
-    // the same asset again. The processor swallows + logs instead.
-    primeHappyPath('a-err');
-    // Task 13: resolveProjectConversation link lookup.
-    selectResultQueue.push([{ projectId: 'p-err' }]);
-    selectResultQueue.push([{ projectId: 'p-err' }]);
-    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
-    queueArrangement.mockRejectedValueOnce(new Error('redis down'));
-
-    await expect(processTranscribeJob({
-      data: { mode: 'asset', assetId: 'a-err', userId: 'u', storageKey: 'k' },
-    } as never)).resolves.not.toThrow();
-
-    // transcript_ready event still emitted — success path was not cancelled.
-    const types = emitEvent.mock.calls.map((c: unknown[]) => (c[0] as { type: string }).type);
-    expect(types).toContain('transcript_ready');
-    expect(types).not.toContain('failed');
-
-    // Prod blocker 2 rollback: enqueue failed → lock was released so a
-    // subsequent retry isn't blocked by the 5-min TTL.
-    expect(redisDelMock).toHaveBeenCalledWith('arrangement:in-flight:p-err');
   });
 });
 
@@ -631,9 +430,6 @@ describe('processAssetTranscribe — pipeline chat bubbles', () => {
 
     // resolveProjectConversation link lookup → p-1.
     selectResultQueue.push([{ projectId: 'p-1' }]);
-    // enqueueArrangementIfReady link lookup + siblings → all ready.
-    selectResultQueue.push([{ projectId: 'p-1' }]);
-    selectResultQueue.push([{ transcriptStatus: 'ready' }]);
 
     await processTranscribeJob({
       data: { mode: 'asset', assetId: 'a-1', userId: 'u', storageKey: 'k' },
@@ -676,8 +472,6 @@ describe('processAssetTranscribe — pipeline chat bubbles', () => {
     (dbInsertReturning as unknown as { _result?: unknown[] })._result = [{ id: 'derived-nolink' }];
 
     // resolveProjectConversation link lookup → empty.
-    selectResultQueue.push([]);
-    // enqueueArrangementIfReady link lookup → empty.
     selectResultQueue.push([]);
 
     await processTranscribeJob({
