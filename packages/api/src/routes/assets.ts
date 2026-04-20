@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import type { FastifyPluginAsync } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   getPresignedMultipartUploadUrls,
@@ -15,9 +16,26 @@ import {
 } from '../services/asset-service.js';
 import { linkAssetToProject } from '../services/asset-link-service.js';
 import { queueAssetMetadataJob } from '../services/queue.js';
+import { db, projects } from '../db/index.js';
 
 const UPLOAD_URL_TTL_SECONDS = 3600;
 const ASSET_URL_TTL_SECONDS = 24 * 3600;
+
+/**
+ * Returns true iff the given user owns the given project.
+ * Used to gate /assets/register when body.projectId is set, so one user
+ * cannot attach their own asset to another user's project (M3).
+ * Duplicates the inline helper in arrangement.ts / project-assets.ts /
+ * composition.ts — extraction to a shared helper is cleanup-debt.
+ */
+async function requireProjectOwnership(projectId: string, userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (rows.length === 0) return false;
+  return rows[0].userId === userId;
+}
 
 const assetRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authMiddleware);
@@ -91,6 +109,15 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
     const afterPrefix = body.storageKey.slice(expectedPrefix.length);
     if (afterPrefix.split('/').length !== 2 || afterPrefix.includes('..')) {
       return reply.code(400).send({ error: 'invalid_storage_key' });
+    }
+    // M3: when a projectId is attached to the register, verify the caller
+    // owns it before we insert an asset row or create a link — otherwise a
+    // user could attach their asset to someone else's project (asset
+    // pollution, unwanted tiles, wasted event fanout).
+    if (body.projectId) {
+      if (!(await requireProjectOwnership(body.projectId, userId))) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
     }
     const result = await createOrDedupAsset({
       userId,

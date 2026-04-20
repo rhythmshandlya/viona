@@ -10,6 +10,7 @@ const updateAssetMetadataSpy = vi.fn();
 const softDeleteSpy = vi.fn();
 const queueMetadataSpy = vi.fn();
 const linkAssetToProjectSpy = vi.fn();
+const selectProjectOwnerSpy = vi.fn();
 
 vi.mock('../services/minio.js', () => ({
   getPresignedMultipartUploadUrls: (...a: unknown[]) => presignMultipartSpy(...a),
@@ -32,6 +33,19 @@ vi.mock('../middleware/auth.js', () => ({
   authMiddleware: async (req: { user: { id: string } }) => {
     req.user = { id: 'u-1' } as unknown as never;
   },
+}));
+vi.mock('../db/index.js', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: (...a: unknown[]) => {
+          const rows = selectProjectOwnerSpy(...a);
+          return Promise.resolve(rows ?? []);
+        },
+      })),
+    })),
+  },
+  projects: { id: 'projects.id', userId: 'projects.userId' },
 }));
 
 // Import after mocks are registered
@@ -149,6 +163,7 @@ describe('POST /assets/upload-urls', () => {
 
 describe('POST /assets/register', () => {
   it('returns 200 with deduped: false and queues metadata job for new asset', async () => {
+    selectProjectOwnerSpy.mockImplementationOnce(() => [{ userId: 'u-1' }]);
     createOrDedupSpy.mockResolvedValueOnce({
       asset: { id: 'asset-new', userId: 'u-1', sha256: 'abc' },
       deduped: false,
@@ -235,6 +250,7 @@ describe('POST /assets/register', () => {
   });
 
   it('auto-links asset to project when projectId is in body (B1)', async () => {
+    selectProjectOwnerSpy.mockImplementationOnce(() => [{ userId: 'u-1' }]);
     createOrDedupSpy.mockResolvedValueOnce({
       asset: { id: 'a-1', userId: 'u-1' },
       deduped: false,
@@ -287,6 +303,7 @@ describe('POST /assets/register', () => {
   });
 
   it('uses addedVia="chat" when source is chat (B1)', async () => {
+    selectProjectOwnerSpy.mockImplementationOnce(() => [{ userId: 'u-1' }]);
     createOrDedupSpy.mockResolvedValueOnce({
       asset: { id: 'a-3', userId: 'u-1' },
       deduped: false,
@@ -348,6 +365,78 @@ describe('POST /assets/register', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('invalid_storage_key');
+  });
+
+  it('returns 403 when body.projectId is not owned by caller (M3)', async () => {
+    // Seed project owned by someone else.
+    selectProjectOwnerSpy.mockImplementationOnce(() => [{ userId: 'other-user' }]);
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'users/u-1/assets/pending/nano/f.mp4',
+        sha256: 'abc',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+        projectId: 'p-other',
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ error: 'forbidden' });
+    // The critical security property: no link row was ever created.
+    expect(linkAssetToProjectSpy).not.toHaveBeenCalled();
+    // And we short-circuited before inserting the asset row.
+    expect(createOrDedupSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when body.projectId does not exist (M3)', async () => {
+    selectProjectOwnerSpy.mockImplementationOnce(() => []);
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'users/u-1/assets/pending/nano/f.mp4',
+        sha256: 'abc',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+        projectId: 'p-missing',
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ error: 'forbidden' });
+    expect(linkAssetToProjectSpy).not.toHaveBeenCalled();
+    expect(createOrDedupSpy).not.toHaveBeenCalled();
+  });
+
+  it('succeeds when body.projectId is owned by caller (M3)', async () => {
+    selectProjectOwnerSpy.mockImplementationOnce(() => [{ userId: 'u-1' }]);
+    createOrDedupSpy.mockResolvedValueOnce({
+      asset: { id: 'a-1', userId: 'u-1' },
+      deduped: false,
+    });
+    linkAssetToProjectSpy.mockResolvedValueOnce({ id: 'l-1' });
+    const app = await build();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/assets/register',
+      payload: {
+        storageKey: 'users/u-1/assets/pending/nano/f.mp4',
+        sha256: 'abc',
+        filename: 'f.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 1,
+        source: 'upload',
+        projectId: 'p-1',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(linkAssetToProjectSpy).toHaveBeenCalled();
   });
 });
 
