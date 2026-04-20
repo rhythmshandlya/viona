@@ -333,7 +333,11 @@ async function main() {
     await fastify.register(projectAssetRoutes);
     await fastify.register(assetEventsSseRoutes);
     await fastify.register(arrangementRoutes);
-    await fastify.register(internalSandboxAssetsRoutes);
+    // Internal sandbox-facing routes live under /api/internal/sandbox/* to match
+    // the existing `createSandboxRoutes` convention (registered with prefix '/api'
+    // above). Docker provider's API_CALLBACK_URL includes the /api prefix, so
+    // sandbox calls to /internal/sandbox/:sid/assets-manifest etc. resolve here.
+    await fastify.register(internalSandboxAssetsRoutes, { prefix: '/api' });
     fastify.log.info('Asset system v2 routes registered');
   }
 
