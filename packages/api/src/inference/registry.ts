@@ -39,7 +39,7 @@ const segmentSpeakerInput = z.object({
       backbone: z.enum(['resnet50', 'mobilenetv3']).default('resnet50'),
       scale: z.number().positive().max(1).default(0.5),
       fps: z.number().int().min(0).default(0),
-      downsampleRatio: z.number().positive().max(1).default(0.8),
+      downsampleRatio: z.number().positive().max(1).default(0.25),
     })
     .default({}),
 });

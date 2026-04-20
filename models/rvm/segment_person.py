@@ -37,7 +37,7 @@ import torch
 BACKBONE = "resnet50"
 SCALE_FACTOR = 0.5
 MATTE_FPS = 0  # 0 = use source native frame rate (recommended for alignment)
-DOWNSAMPLE_RATIO = 0.8
+DOWNSAMPLE_RATIO = 0.25  # paper default for 1080p; 0.125 for 4K. 0.8 was ~10× the prescribed internal pixel count.
 SEQ_CHUNK = int(os.environ.get('RVM_SEQ_CHUNK', '4'))
 # TODO: graceful OOM fallback — if the first batch at SEQ_CHUNK OOMs, halve
 # and retry. Requires splitting the in-flight frames_np and re-running the
@@ -178,7 +178,8 @@ def _has_nvenc() -> bool:
     try:
         r = subprocess.run(
             ["ffmpeg", "-hide_banner", "-loglevel", "error",
-             "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1",
+             # 256x256 — NVENC H.264 minimum is 145×49; 64×64 always fails
+             "-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.1",
              "-c:v", "h264_nvenc", "-f", "null", "-"],
             capture_output=True, timeout=15,
         )
@@ -196,7 +197,7 @@ def _has_nvdec() -> bool:
     try:
         enc = subprocess.run(
             ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-             "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.2",
+             "-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.2",
              "-c:v", "libx264", "-preset", "ultrafast", "-f", "mp4", "/tmp/_probe.mp4"],
             capture_output=True, timeout=15,
         )

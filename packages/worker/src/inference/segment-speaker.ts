@@ -83,7 +83,7 @@ export async function run(
       '--backbone', input.params?.backbone ?? 'resnet50',
       '--scale', String(input.params?.scale ?? 0.5),
       '--fps', String(input.params?.fps ?? 0),
-      '--downsample-ratio', String(input.params?.downsampleRatio ?? 0.8),
+      '--downsample-ratio', String(input.params?.downsampleRatio ?? 0.25),
     ];
     if (input.ranges?.length) {
       pythonArgs.push('--matte-ranges', JSON.stringify(input.ranges));

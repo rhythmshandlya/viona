@@ -48,7 +48,7 @@ cat > /tmp/local-input.json <<'JSON'
     "fgr":   "https://<presigned-put>",
     "bbox":  "https://<presigned-put>"
   },
-  "params": { "backbone": "resnet50", "scale": 0.5, "downsampleRatio": 0.8 }
+  "params": { "backbone": "resnet50", "scale": 0.5, "downsampleRatio": 0.25 }
 }
 JSON
 

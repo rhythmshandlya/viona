@@ -67,7 +67,7 @@ async function main() {
     input: {
       inputs: { video: inputUrl },
       outputs,
-      params: { backbone: 'resnet50', scale: 0.5, downsampleRatio: 0.8 },
+      params: { backbone: 'resnet50', scale: 0.5, downsampleRatio: 0.25 },
     },
   });
   console.log('jobId:', submitted.id);

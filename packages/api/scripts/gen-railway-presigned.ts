@@ -35,7 +35,7 @@ async function main() {
   const payload = {
     inputs: { video: inputUrl },
     outputs,
-    params: { backbone: 'resnet50', scale: 0.5, downsampleRatio: 0.8 },
+    params: { backbone: 'resnet50', scale: 0.5, downsampleRatio: 0.25 },
   };
 
   writeFileSync('/tmp/rvm-input.json', JSON.stringify(payload, null, 2));

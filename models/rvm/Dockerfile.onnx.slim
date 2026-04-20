@@ -78,7 +78,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PATH=/opt/venv/bin:$PATH \
-    RVM_MODELS_DIR=/models
+    RVM_MODELS_DIR=/models \
+    # Base CUDA image sets NVIDIA_DRIVER_CAPABILITIES=compute,utility. We need 'video'
+    # so nvidia-container-runtime mounts libnvcuvid.so.1 + libnvidia-encode.so.1,
+    # enabling ffmpeg's h264_nvenc encode and `-hwaccel cuda` NVDEC decode.
+    # Without this, ffmpeg silently falls back to libx264 CPU-only.
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 
 # ---- System libs ----
 # Required by libonnxruntime_providers_cuda.so (hand-picked — see header):

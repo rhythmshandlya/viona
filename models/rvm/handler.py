@@ -17,7 +17,7 @@ Input JSON:
       "backbone":         "resnet50" | "mobilenetv3",
       "scale":            0.5,
       "fps":              0,
-      "downsampleRatio":  0.8,
+      "downsampleRatio":  0.25,
       "ranges":           [{ "startMs": 0, "endMs": 120000 }, ...]   // optional
     }
   }
@@ -158,7 +158,7 @@ def handler(job):
         backbone=params.get('backbone', 'resnet50'),
         scale=params.get('scale', 0.5),
         fps=params.get('fps', 0),
-        downsample_ratio=params.get('downsampleRatio', 0.8),
+        downsample_ratio=params.get('downsampleRatio', 0.25),
         matte_ranges=params.get('ranges', []),
     )
 

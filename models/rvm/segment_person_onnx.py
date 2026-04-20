@@ -43,7 +43,7 @@ import onnxruntime as ort
 BACKBONE = "resnet50"
 SCALE_FACTOR = 0.5
 MATTE_FPS = 0  # 0 = use source native frame rate (recommended for alignment)
-DOWNSAMPLE_RATIO = 0.8
+DOWNSAMPLE_RATIO = 0.25  # paper default for 1080p; 0.125 for 4K. 0.8 was ~10× the prescribed internal pixel count.
 SEQ_CHUNK = int(os.environ.get('RVM_SEQ_CHUNK', '4'))
 # RVM_COMPILE is ignored in the ORT variant — no torch.compile equivalent.
 
@@ -177,14 +177,21 @@ _nvdec_cached = None
 
 def _has_nvenc() -> bool:
     """Probe actual NVENC availability by attempting a tiny encode.
-    Needs the libnvidia-encode.so driver lib present in the container."""
+    Needs the libnvidia-encode.so driver lib present in the container.
+
+    NOTE: NVENC H.264 has a minimum input dimension (145×49 per NVIDIA's
+    Video Codec SDK). A 64×64 probe ALWAYS fails with "Frame Dimension less
+    than the minimum supported value" — earlier versions of this function
+    used 64×64 and gave false negatives even on working containers. 256×256
+    is safe for H.264, HEVC, and AV1 encoders.
+    """
     global _nvenc_cached
     if _nvenc_cached is not None:
         return _nvenc_cached
     try:
         r = subprocess.run(
             ["ffmpeg", "-hide_banner", "-loglevel", "error",
-             "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1",
+             "-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.1",
              "-c:v", "h264_nvenc", "-f", "null", "-"],
             capture_output=True, timeout=15,
         )
@@ -203,9 +210,11 @@ def _has_nvdec() -> bool:
     try:
         # ffmpeg -hwaccels lists cuda regardless of driver presence,
         # so run a real tiny decode-with-hwaccel to truly verify.
+        # Use 256x256 to match NVENC's minimum (so the encode step of the
+        # probe pipeline doesn't fail before we get to test decode).
         enc = subprocess.run(
             ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-             "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.2",
+             "-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.2",
              "-c:v", "libx264", "-preset", "ultrafast", "-f", "mp4", "/tmp/_probe.mp4"],
             capture_output=True, timeout=15,
         )
