@@ -130,7 +130,10 @@ RUN /opt/venv/bin/pip install runpod==1.7.7
 #   - rp_fastapi unconditionally imports fastapi + uvicorn (KEEP fastapi+uvicorn).
 #   - boto3 is only imported by runpod.serverless.utils.rp_upload — our handler
 #     uses requests.put(presignedUrl) instead (DROP boto3+botocore+s3transfer).
-#   - paramiko/pynacl/bcrypt are CLI-only (DROP).
+#   - paramiko/pynacl/bcrypt/cryptography are transitively imported by
+#     runpod.serverless.start → runpod.http_client → runpod.cli.groups.config
+#     → runpod.cli.groups.ssh.functions (import paramiko). KEEP — stripping
+#     them breaks the entrypoint the handler uses.
 #   - sympy/mpmath are onnxruntime deps for symbolic shape inference; RVM's
 #     ONNX export has fully static shapes so they're never exercised (DROP).
 #   - uvloop is a fastapi[all] extra; stock asyncio works fine (DROP).
@@ -144,8 +147,6 @@ RUN set -eux; \
     rm -rf \
       boto3 botocore s3transfer jmespath \
       boto3-*.dist-info botocore-*.dist-info s3transfer-*.dist-info jmespath-*.dist-info \
-      paramiko nacl bcrypt cryptography \
-      paramiko-*.dist-info pynacl-*.dist-info bcrypt-*.dist-info cryptography-*.dist-info \
       sympy mpmath \
       sympy-*.dist-info mpmath-*.dist-info \
       pygments rich inquirerpy prompt_toolkit pfzy \

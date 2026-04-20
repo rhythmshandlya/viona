@@ -581,6 +581,11 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   return (
     <div
       className="absolute inset-0 z-20"
+      // Opt out of the global "click empty preview area deselects" handler —
+      // otherwise pointer-down inside the caption overlay (bounding box, handles,
+      // rotation knob) would wipe a multi-caption selection before the drag
+      // handler reads it, and only the single visible caption would end up moving.
+      data-keep-selection
       style={{ pointerEvents: isSelected || isDragging ? 'auto' : 'none' }}
       onPointerDown={(e) => {
         // Click on background (not a child) to deselect
