@@ -5,6 +5,7 @@ const linkSpy = vi.fn();
 const unlinkSpy = vi.fn();
 const listSpy = vi.fn();
 const getAssetSpy = vi.fn();
+const presignDownloadSpy = vi.fn();
 const selectProjectOwnerSpy = vi.fn();
 
 vi.mock('../services/asset-link-service.js', () => ({
@@ -14,6 +15,9 @@ vi.mock('../services/asset-link-service.js', () => ({
 }));
 vi.mock('../services/asset-service.js', () => ({
   getAssetById: (...a: unknown[]) => getAssetSpy(...a),
+}));
+vi.mock('../services/minio.js', () => ({
+  getPresignedDownloadUrl: (...a: unknown[]) => presignDownloadSpy(...a),
 }));
 vi.mock('../middleware/auth.js', () => ({
   authMiddleware: async (req: { user: { id: string } }) => {
@@ -143,14 +147,38 @@ describe('DELETE /projects/:id/assets/:assetId', () => {
 });
 
 describe('GET /projects/:id/assets', () => {
-  it('returns all assets linked to the project', async () => {
+  it('returns all assets linked to the project (thumbnailUrl null when no thumbnailKey)', async () => {
     seedProjectOwner('u-1');
-    listSpy.mockResolvedValueOnce([{ id: 'a-1' }, { id: 'a-2' }]);
+    listSpy.mockResolvedValueOnce([
+      { id: 'a-1', thumbnailKey: null },
+      { id: 'a-2', thumbnailKey: null },
+    ]);
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/projects/p-1/assets' });
     expect(res.statusCode).toBe(200);
-    expect(res.json().assets).toHaveLength(2);
+    const body = res.json();
+    expect(body.assets).toHaveLength(2);
+    expect(body.assets[0].thumbnailUrl).toBeNull();
+    expect(body.assets[1].thumbnailUrl).toBeNull();
     expect(listSpy).toHaveBeenCalledWith('p-1');
+    expect(presignDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('includes presigned thumbnailUrl when asset has thumbnailKey', async () => {
+    seedProjectOwner('u-1');
+    listSpy.mockResolvedValueOnce([
+      { id: 'a-1', thumbnailKey: 'thumbs/a1.jpg' },
+      { id: 'a-2', thumbnailKey: null },
+    ]);
+    presignDownloadSpy.mockResolvedValueOnce('https://s3/signed/thumb-a1?sig=abc');
+    const app = await build();
+    const res = await app.inject({ method: 'GET', url: '/projects/p-1/assets' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.assets[0].thumbnailUrl).toBe('https://s3/signed/thumb-a1?sig=abc');
+    expect(body.assets[1].thumbnailUrl).toBeNull();
+    expect(presignDownloadSpy).toHaveBeenCalledTimes(1);
+    expect(presignDownloadSpy).toHaveBeenCalledWith('uploads', 'thumbs/a1.jpg', 24 * 3600);
   });
 });
 

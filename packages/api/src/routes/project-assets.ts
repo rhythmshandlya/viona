@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { getAssetById } from '../services/asset-service.js';
+import { getPresignedDownloadUrl } from '../services/minio.js';
 import { db, projects } from '../db/index.js';
 import {
   linkAssetToProject,
@@ -9,6 +10,8 @@ import {
   listProjectAssets,
   type AddedVia,
 } from '../services/asset-link-service.js';
+
+const ASSET_URL_TTL_SECONDS = 24 * 3600;
 
 /**
  * Returns true iff the given user owns the given project.
@@ -74,7 +77,18 @@ const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(403).send({ error: 'forbidden' });
     }
     const assets = await listProjectAssets(projectId);
-    return reply.send({ assets });
+    // Enrich each row with a presigned thumbnailUrl so the frontend (Assets
+    // panel, chat, etc.) can render a preview without a second round-trip.
+    // null when the asset has no thumbnail yet (e.g. metadata job not done).
+    const assetsWithUrls = await Promise.all(
+      assets.map(async (a) => ({
+        ...a,
+        thumbnailUrl: a.thumbnailKey
+          ? await getPresignedDownloadUrl('uploads', a.thumbnailKey, ASSET_URL_TTL_SECONDS)
+          : null,
+      })),
+    );
+    return reply.send({ assets: assetsWithUrls });
   });
 };
 

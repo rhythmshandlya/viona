@@ -352,17 +352,41 @@ describe('POST /assets/register', () => {
 });
 
 describe('GET /assets', () => {
-  it('returns 200 with { assets } array from listUserAssets', async () => {
+  it('returns 200 with { assets } array from listUserAssets (thumbnailUrl null when no thumbnailKey)', async () => {
     const rows = [
-      { id: 'a1', userId: 'u-1' },
-      { id: 'a2', userId: 'u-1' },
+      { id: 'a1', userId: 'u-1', thumbnailKey: null },
+      { id: 'a2', userId: 'u-1', thumbnailKey: null },
     ];
     listUserAssetsSpy.mockResolvedValueOnce(rows);
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/assets' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ assets: rows });
+    expect(res.json()).toEqual({
+      assets: [
+        { id: 'a1', userId: 'u-1', thumbnailKey: null, thumbnailUrl: null },
+        { id: 'a2', userId: 'u-1', thumbnailKey: null, thumbnailUrl: null },
+      ],
+    });
     expect(listUserAssetsSpy).toHaveBeenCalledWith('u-1');
+    expect(presignDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('includes presigned thumbnailUrl when asset has thumbnailKey', async () => {
+    const rows = [
+      { id: 'a1', userId: 'u-1', thumbnailKey: 'thumbs/a1.jpg' },
+      { id: 'a2', userId: 'u-1', thumbnailKey: null },
+    ];
+    listUserAssetsSpy.mockResolvedValueOnce(rows);
+    presignDownloadSpy.mockResolvedValueOnce('https://s3/signed/thumb-a1?sig=abc');
+    const app = await build();
+    const res = await app.inject({ method: 'GET', url: '/assets' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.assets[0].thumbnailUrl).toBe('https://s3/signed/thumb-a1?sig=abc');
+    expect(body.assets[1].thumbnailUrl).toBeNull();
+    // presign helper called once with the thumbnailKey + 24h TTL.
+    expect(presignDownloadSpy).toHaveBeenCalledTimes(1);
+    expect(presignDownloadSpy).toHaveBeenCalledWith('uploads', 'thumbs/a1.jpg', 24 * 3600);
   });
 });
 

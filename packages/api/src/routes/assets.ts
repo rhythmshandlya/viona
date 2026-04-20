@@ -125,7 +125,18 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/assets', async (request, reply) => {
     const userId = request.user!.id;
     const rows = await listUserAssets(userId);
-    return reply.send({ assets: rows });
+    // Enrich each row with a presigned thumbnailUrl so the frontend (Assets
+    // panel, chat, etc.) can render a preview without a second round-trip.
+    // null when the asset has no thumbnail yet (e.g. metadata job not done).
+    const assetsWithUrls = await Promise.all(
+      rows.map(async (a) => ({
+        ...a,
+        thumbnailUrl: a.thumbnailKey
+          ? await getPresignedDownloadUrl('uploads', a.thumbnailKey, ASSET_URL_TTL_SECONDS)
+          : null,
+      })),
+    );
+    return reply.send({ assets: assetsWithUrls });
   });
 
   fastify.get<{ Params: { id: string } }>('/assets/:id', async (request, reply) => {
