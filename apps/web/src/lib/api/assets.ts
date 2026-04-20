@@ -64,18 +64,6 @@ export interface RegisterAssetResponse {
   deduped: boolean;
 }
 
-export interface ArrangementOutput {
-  timelineItems: {
-    assetId: string;
-    trackIndex: number;
-    startMs: number;
-    durationMs: number;
-    sourceStartMs?: number;
-    sourceDurationMs?: number;
-  }[];
-  summary: string;
-}
-
 export class AssetsApi {
   constructor(private readonly baseUrl: string) {}
 
@@ -138,9 +126,5 @@ export class AssetsApi {
 
   listProjectAssets(projectId: string): Promise<{ assets: Asset[] }> {
     return this.send(`/projects/${projectId}/assets`);
-  }
-
-  computeArrangement(projectId: string): Promise<ArrangementOutput> {
-    return this.send(`/projects/${projectId}/arrangement/compute`, { method: 'POST' });
   }
 }

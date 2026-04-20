@@ -61,12 +61,6 @@ describe('AssetsApi', () => {
     );
   });
 
-  it('computeArrangement POSTs to /projects/:id/arrangement/compute', async () => {
-    spies.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ timelineItems: [], summary: 'done' }) });
-    const res = await api.computeArrangement('p-1');
-    expect(res.summary).toBe('done');
-  });
-
   it('throws on non-2xx with status in message', async () => {
     spies.fetch.mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'boom' });
     await expect(api.listUserAssets()).rejects.toThrow(/500/);

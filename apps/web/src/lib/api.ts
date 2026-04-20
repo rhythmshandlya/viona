@@ -1106,5 +1106,4 @@ export type {
   Asset, AssetSource, AssetStatus, AddedVia,
   UploadUrlsRequest, UploadUrlsResponse,
   RegisterAssetRequest, RegisterAssetResponse,
-  ArrangementOutput,
 } from './api/assets';

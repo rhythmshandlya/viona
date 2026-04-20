@@ -13,7 +13,6 @@ import {
   Target, Box, Layers, ListChecks, ChevronDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { CompositionApi } from '@/lib/api/composition';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearCompositionCache } from '../player/useWorkspaceComposition';
 import {
@@ -36,8 +35,6 @@ import { isAssetSystemV2 } from '@/lib/feature-flags';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const compositionApi = new CompositionApi(process.env.NEXT_PUBLIC_API_URL ?? '');
 
 function generateId(): string {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -595,27 +592,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const planData = data as AgentPlan;
         setCurrentPlan(planData);
         setPlanExpanded(true);
-        return;
-      }
-
-      // composition_updated — backend persisted a new composition (arrangement,
-      // manual edit, etc). Refetch the resolved composition and dispatch a
-      // window event so the editor-store (Task 6) can pick it up without
-      // creating a circular import or requiring a store action that doesn't
-      // exist yet.
-      if (eventType === 'composition_updated') {
-        (async () => {
-          try {
-            const envelope = data as { projectId?: string };
-            if (envelope.projectId !== projectId) return;
-            const composition = await compositionApi.getComposition(projectId);
-            window.dispatchEvent(new CustomEvent('editor:composition-updated', {
-              detail: { composition, projectId },
-            }));
-          } catch (err) {
-            console.error('[composition-updated] refetch failed', err);
-          }
-        })();
         return;
       }
 
