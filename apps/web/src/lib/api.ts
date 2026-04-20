@@ -1100,3 +1100,11 @@ export const youtubeApi = {
     throw new Error('Clip extraction timed out');
   },
 };
+
+export { AssetsApi } from './api/assets';
+export type {
+  Asset, AssetSource, AssetStatus, AddedVia,
+  UploadUrlsRequest, UploadUrlsResponse,
+  RegisterAssetRequest, RegisterAssetResponse,
+  ArrangementOutput,
+} from './api/assets';
