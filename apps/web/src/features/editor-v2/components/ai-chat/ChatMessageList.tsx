@@ -82,32 +82,41 @@ export const ChatMessageList = memo(function ChatMessageList({
   return (
     <>
       {messages
-        .filter((m) => m.content.length > 0 || m.role === 'assistant')
-        .map((msg, i, filtered) => (
-          <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : ''}>
-            <div className={msg.role === 'user' ? 'max-w-[85%]' : 'w-full space-y-2'}>
-              {/* Empty assistant placeholder — streaming dots (hidden when tasks are showing) */}
-              {msg.role === 'assistant' && msg.content.length === 0 && i === filtered.length - 1 && isStreaming && !busy && (
-                <div className="w-fit bg-[var(--chat-bubble-assistant-bg)] border border-[var(--chat-bubble-assistant-border)] rounded-2xl rounded-bl-md px-3 py-2 backdrop-blur-xl">
-                  <div className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        .filter((m) => m.content.length > 0 || m.role === 'assistant' || m.role === 'pipeline')
+        .map((msg, i, filtered) => {
+          if (msg.role === 'pipeline') {
+            return (
+              <div key={msg.id} className="w-full">
+                <ChatBubble role="pipeline" content={msg.content} />
+              </div>
+            );
+          }
+          return (
+            <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : ''}>
+              <div className={msg.role === 'user' ? 'max-w-[85%]' : 'w-full space-y-2'}>
+                {/* Empty assistant placeholder — streaming dots (hidden when tasks are showing) */}
+                {msg.role === 'assistant' && msg.content.length === 0 && i === filtered.length - 1 && isStreaming && !busy && (
+                  <div className="w-fit bg-[var(--chat-bubble-assistant-bg)] border border-[var(--chat-bubble-assistant-border)] rounded-2xl rounded-bl-md px-3 py-2 backdrop-blur-xl">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
                   </div>
-                </div>
-              )}
-              {renderMessageBlocks(
-                msg,
-                i === filtered.length - 1,
-                isStreaming,
-                isTextActive,
-                onWidgetResponse,
-                onEditScene,
-                onScenesUpdate,
-              )}
+                )}
+                {renderMessageBlocks(
+                  msg,
+                  i === filtered.length - 1,
+                  isStreaming,
+                  isTextActive,
+                  onWidgetResponse,
+                  onEditScene,
+                  onScenesUpdate,
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
       {/* Active task list — replaces the old ProgressIndicator */}
       <ActiveTaskList tasks={activeTasks} busy={busy} isVisible={isStreaming} />

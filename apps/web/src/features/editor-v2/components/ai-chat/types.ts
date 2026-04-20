@@ -44,7 +44,7 @@ export type MessageBlock = TextBlock | WidgetBlock | PlanBlock | ProgressBlock;
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'pipeline';
   content: MessageBlock[];
   createdAt: string;
   queued?: boolean;
