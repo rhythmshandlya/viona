@@ -62,6 +62,7 @@ vi.mock('@/lib/sse/useAssetEvents', () => ({
 }));
 
 import { AssetsPanelV2 } from './AssetsPanelV2';
+import { useAssetEvents as useAssetEventsMock } from '@/lib/sse/useAssetEvents';
 
 beforeEach(() => { vi.clearAllMocks(); });
 
@@ -102,5 +103,43 @@ describe('AssetsPanelV2', () => {
     const payload = dt.getData('application/x-project-asset');
     expect(payload).toContain('"id":"a-1"');
     expect(payload).toContain('"mimeType":"video/mp4"');
+  });
+});
+
+describe('AssetsPanelV2 SSE live refresh', () => {
+  it('refetches when a "linked" event fires', async () => {
+    // First fetch: empty. Second fetch (after event): 1 asset.
+    spies.listProjectAssets
+      .mockResolvedValueOnce({ assets: [] })
+      .mockResolvedValueOnce({ assets: [{ id: 'a-new', filename: 'just-added.mp4', label: 'just-added.mp4', mimeType: 'video/mp4', status: 'ready' }] });
+
+    let capturedOnEvent: ((e: { type: string }) => void) | null = null;
+    (useAssetEventsMock as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce((opts: { onEvent: (e: { type: string }) => void }) => {
+      capturedOnEvent = opts.onEvent;
+    });
+
+    render(<AssetsPanelV2 projectId="p-1" />);
+    await waitFor(() => expect(spies.listProjectAssets).toHaveBeenCalledTimes(1));
+
+    // Simulate an event callback.
+    capturedOnEvent!({ type: 'linked' });
+
+    await waitFor(() => expect(spies.listProjectAssets).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not refetch on unrelated event types (e.g. failed)', async () => {
+    spies.listProjectAssets.mockResolvedValue({ assets: [] });
+    let capturedOnEvent: ((e: { type: string }) => void) | null = null;
+    (useAssetEventsMock as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce((opts: { onEvent: (e: { type: string }) => void }) => {
+      capturedOnEvent = opts.onEvent;
+    });
+
+    render(<AssetsPanelV2 projectId="p-1" />);
+    await waitFor(() => expect(spies.listProjectAssets).toHaveBeenCalledTimes(1));
+
+    capturedOnEvent!({ type: 'failed' });
+    // Wait a tick; no new fetch should be triggered.
+    await new Promise((r) => setTimeout(r, 30));
+    expect(spies.listProjectAssets).toHaveBeenCalledTimes(1);
   });
 });

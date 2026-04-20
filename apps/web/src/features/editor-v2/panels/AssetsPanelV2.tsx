@@ -30,10 +30,18 @@ export function AssetsPanelV2({ projectId }: AssetsPanelV2Props): ReactElement {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Task 7 wires this more fully; stub subscription here so the hook-mock in tests runs.
   useAssetEvents({
-    enabled: false,  // turned on in Task 7
-    onEvent: () => {},
+    enabled: true,
+    onEvent: (event) => {
+      if (
+        event.type === 'created' || event.type === 'ready' ||
+        event.type === 'metadata_ready' || event.type === 'linked' ||
+        event.type === 'unlinked' || event.type === 'renamed' ||
+        event.type === 'deleted'
+      ) {
+        void refresh();
+      }
+    },
   });
 
   return (
