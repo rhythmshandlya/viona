@@ -7,6 +7,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Sparkles, Loader2, RotateCcw, RefreshCw,
   Target, Box, Layers, ListChecks, ChevronDown,
@@ -1133,6 +1134,27 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
 
   const autoGreetSent = useRef(false);
+
+  // Auto-send ?initialPrompt from URL (set by /projects/new redirect).
+  // Only fires on the first mount of a fresh conversation — skips if history already
+  // contains messages (avoids replay on reload; backend persists the user message).
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const initialPromptSent = useRef(false);
+  useEffect(() => {
+    if (initialPromptSent.current) return;
+    if (!historyLoaded) return;
+    const initial = searchParams?.get('initialPrompt');
+    if (!initial) return;
+    // Only fire if conversation has no messages yet (backend persisted the first send already).
+    if (messages.length > 0) return;
+    initialPromptSent.current = true;
+    autoGreetSent.current = true; // suppress auto-greet; initialPrompt supersedes it
+    sendMessage(initial).catch(() => { initialPromptSent.current = false; autoGreetSent.current = false; });
+    // Clear the query param so reloads don't re-fire.
+    try { router.replace(`/edit/${projectId}`); } catch { /* best effort */ }
+  }, [searchParams, historyLoaded, messages.length, projectId, router, sendMessage]);
+
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
       autoGreetSent.current = true;
