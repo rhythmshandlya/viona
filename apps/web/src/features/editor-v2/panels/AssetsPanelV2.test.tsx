@@ -106,6 +106,59 @@ describe('AssetsPanelV2', () => {
   });
 });
 
+describe('AssetsPanelV2 tile rendering', () => {
+  it('renders thumbnail img when thumbnailUrl is present', async () => {
+    spies.listProjectAssets.mockResolvedValueOnce({
+      assets: [{
+        id: 'a-1', filename: 'hero.mp4', label: 'hero.mp4', mimeType: 'video/mp4',
+        status: 'ready', durationMs: 5000,
+        thumbnailUrl: 'https://signed/thumb.jpg',
+      }],
+    });
+    render(<AssetsPanelV2 projectId="p-1" />);
+    await waitFor(() => screen.getByText(/hero\.mp4/i));
+    const tile = screen.getByTestId('asset-tile-a-1');
+    const img = tile.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe('https://signed/thumb.jpg');
+  });
+
+  it('renders MIME type placeholder when thumbnailUrl is null', async () => {
+    spies.listProjectAssets.mockResolvedValueOnce({
+      assets: [{
+        id: 'a-2', filename: 'clip.wav', label: 'clip.wav', mimeType: 'audio/wav',
+        status: 'ready', thumbnailUrl: null,
+      }],
+    });
+    render(<AssetsPanelV2 projectId="p-1" />);
+    await waitFor(() => screen.getByText(/clip\.wav/i));
+    expect(screen.getByText('AUD')).toBeInTheDocument();
+  });
+
+  it('renders duration badge when durationMs is present', async () => {
+    spies.listProjectAssets.mockResolvedValueOnce({
+      assets: [{
+        id: 'a-3', filename: 'hero.mp4', label: 'hero.mp4', mimeType: 'video/mp4',
+        status: 'ready', durationMs: 15000, thumbnailUrl: null,
+      }],
+    });
+    render(<AssetsPanelV2 projectId="p-1" />);
+    await waitFor(() => expect(screen.getByText('0:15')).toBeInTheDocument());
+  });
+
+  it('does NOT render duration badge when durationMs is null/undefined', async () => {
+    spies.listProjectAssets.mockResolvedValueOnce({
+      assets: [{
+        id: 'a-4', filename: 'static.png', label: 'static.png', mimeType: 'image/png',
+        status: 'ready', durationMs: null, thumbnailUrl: null,
+      }],
+    });
+    render(<AssetsPanelV2 projectId="p-1" />);
+    await waitFor(() => screen.getByText(/static\.png/i));
+    expect(screen.queryByText(/^\d+:\d{2}$/)).not.toBeInTheDocument();
+  });
+});
+
 describe('AssetsPanelV2 SSE live refresh', () => {
   it('refetches when a "linked" event fires', async () => {
     // First fetch: empty. Second fetch (after event): 1 asset.

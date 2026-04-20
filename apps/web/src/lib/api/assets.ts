@@ -25,6 +25,12 @@ export interface Asset {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * Presigned URL to the asset's thumbnail image. Populated by the list
+   * endpoints (`GET /assets`, `GET /projects/:id/assets`) only; optional
+   * because single-asset endpoints return the raw row without enrichment.
+   */
+  thumbnailUrl?: string | null;
 }
 
 export interface UploadUrlsRequest {

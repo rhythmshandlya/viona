@@ -11,6 +11,22 @@ export interface AssetsPanelV2Props {
   projectId: string;
 }
 
+/** Format ms as M:SS. Returns null when duration is missing so callers can
+ *  conditionally render the badge. */
+function formatDuration(ms: number | null | undefined): string | null {
+  if (ms == null) return null;
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Short MIME-type placeholder text shown when no thumbnail is available. */
+function mimeTypeLabel(mimeType: string): string {
+  if (mimeType.startsWith('video/')) return 'VID';
+  if (mimeType.startsWith('audio/')) return 'AUD';
+  if (mimeType.startsWith('image/')) return 'IMG';
+  return 'FILE';
+}
+
 export function AssetsPanelV2({ projectId }: AssetsPanelV2Props): ReactElement {
   const [tab, setTab] = useState<Tab>('project');
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -72,25 +88,50 @@ export function AssetsPanelV2({ projectId }: AssetsPanelV2Props): ReactElement {
           </div>
         )}
         <ul className="flex flex-col gap-1">
-          {assets.map((a) => (
-            <li
-              key={a.id}
-              data-testid={`asset-tile-${a.id}`}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('application/x-project-asset', JSON.stringify({
-                  id: a.id,
-                  mimeType: a.mimeType,
-                  filename: a.filename,
-                  label: a.label,
-                  durationMs: a.durationMs,
-                }));
-              }}
-              className="rounded border px-2 py-1 text-sm cursor-grab hover:bg-accent"
-            >
-              {a.filename}
-            </li>
-          ))}
+          {assets.map((a) => {
+            const duration = formatDuration(a.durationMs);
+            return (
+              <li
+                key={a.id}
+                data-testid={`asset-tile-${a.id}`}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/x-project-asset', JSON.stringify({
+                    id: a.id,
+                    mimeType: a.mimeType,
+                    filename: a.filename,
+                    label: a.label,
+                    durationMs: a.durationMs,
+                  }));
+                }}
+                className="rounded border cursor-grab hover:bg-accent"
+              >
+                <div className="flex items-center gap-2 px-2 py-1">
+                  {a.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={a.thumbnailUrl}
+                      alt=""
+                      className="h-8 w-12 rounded object-cover flex-shrink-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-8 w-12 rounded bg-muted flex-shrink-0 flex items-center justify-center text-[10px] text-muted-foreground">
+                      {mimeTypeLabel(a.mimeType)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm">{a.filename}</div>
+                  </div>
+                  {duration && (
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {duration}
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
