@@ -24,6 +24,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 // One shared client is enough — the API is stateless and the baseUrl is fixed.
 const compositionApi = new CompositionApi(API_URL);
 
+// Presigned asset URLs returned by `GET /composition-v2` expire after 24h.
+// Refetch every 3h so long-open tabs never hit expiry. Matches the legacy
+// manifest refresh cadence in Editor.tsx.
+const COMPOSITION_REFRESH_INTERVAL_MS = 3 * 60 * 60 * 1000;
+
 export function useCompositionUpdates(projectId: string): void {
   const applyCompositionV2 = useApplyCompositionV2();
 
@@ -51,6 +56,28 @@ export function useCompositionUpdates(projectId: string): void {
     return () => {
       cancelled = true;
     };
+  }, [projectId, applyCompositionV2]);
+
+  // Periodic refresh so presigned asset URLs never expire on long-open tabs.
+  // Presigned URLs have 24h TTL; we refresh at 3h cadence to stay well ahead.
+  // Skip apply when composition is empty so we don't wipe legacy timeline state.
+  useEffect(() => {
+    if (!projectId) return;
+    if (!isAssetSystemV2()) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const composition = await compositionApi.getComposition(projectId);
+        if (composition.timelineItems.length === 0 && composition.tracks.length === 0) {
+          return;
+        }
+        applyCompositionV2(composition);
+      } catch (err) {
+        console.error('[useCompositionUpdates] periodic refresh failed', err);
+      }
+    }, COMPOSITION_REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(interval);
   }, [projectId, applyCompositionV2]);
 
   // SSE-triggered refetches from Task 5. The AIAssistantPanel fetches the
