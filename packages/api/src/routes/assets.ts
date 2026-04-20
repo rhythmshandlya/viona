@@ -81,7 +81,10 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
     // S1: validate storageKey is scoped to the caller's pending prefix.
     // Prevents an attacker from claiming ownership of arbitrary S3 objects
     // and then generating presigned download URLs via /assets/:id/url.
-    const expectedPrefix = `uploads/users/${userId}/assets/pending/`;
+    // Note: no leading "uploads/" — that prefix is applied internally by
+    // minio helpers (see getPresignedDownloadUrl in services/minio.ts),
+    // and /assets/upload-urls returns the raw key matching this shape.
+    const expectedPrefix = `users/${userId}/assets/pending/`;
     if (!body.storageKey.startsWith(expectedPrefix)) {
       return reply.code(400).send({ error: 'invalid_storage_key' });
     }

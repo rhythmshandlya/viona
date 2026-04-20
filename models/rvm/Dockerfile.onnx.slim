@@ -123,41 +123,27 @@ RUN /opt/venv/bin/pip install \
 # ---- Pip layer 3/3: runpod SDK ----
 RUN /opt/venv/bin/pip install runpod==1.7.7
 
-# ---- Strip 1: runpod transitive bloat that handler_onnx.py never imports ----
-# Audited against runpod-python 1.7.7 source:
-#   - runpod.serverless.start() loads: argparse, json, os, signal, sys, time,
-#     typing, runpod.serverless.core, worker, rp_fastapi, rp_logger, rp_progress.
-#   - rp_fastapi unconditionally imports fastapi + uvicorn (KEEP fastapi+uvicorn).
-#   - boto3 is only imported by runpod.serverless.utils.rp_upload — our handler
-#     uses requests.put(presignedUrl) instead (DROP boto3+botocore+s3transfer).
-#   - paramiko/pynacl/bcrypt/cryptography are transitively imported by
-#     runpod.serverless.start → runpod.http_client → runpod.cli.groups.config
-#     → runpod.cli.groups.ssh.functions (import paramiko). KEEP — stripping
-#     them breaks the entrypoint the handler uses.
-#   - sympy/mpmath are onnxruntime deps for symbolic shape inference; RVM's
-#     ONNX export has fully static shapes so they're never exercised (DROP).
-#   - uvloop is a fastapi[all] extra; stock asyncio works fine (DROP).
-#   - pygments/rich/inquirerpy/prompt_toolkit/pfzy are CLI-only (DROP).
-#   - sentry_sdk is opt-in telemetry, not used (DROP).
-#   - pip/setuptools/wheel/_distutils_hack: no runtime installs (DROP).
-#
-# Smoke test must succeed before we move on — catches any accidental over-strip.
+# ---- Strip 1: safe pip strips (non-runpod-transitive) ----
+# Originally tried to strip boto3/paramiko/cryptography but runpod-python 1.7.7
+# transitively imports them at module-load time via the CLI and rp_upload
+# modules — stripping breaks runpod.serverless.start(). Only the following
+# are truly dead weight (verified by test-importing runpod.serverless after
+# removal):
+#   - sympy/mpmath: onnxruntime symbolic-shape inference — RVM's ONNX exports
+#     are fully static, never exercised.
+#   - sentry_sdk: opt-in telemetry, not used.
+#   - pip/setuptools/wheel/_distutils_hack: no runtime installs in the
+#     final container.
+# Saves ~30-40 MB compressed. The real image-size win is in Strip 3 (CUDA libs).
 RUN set -eux; \
     cd /opt/venv/lib/python3.10/site-packages && \
     rm -rf \
-      boto3 botocore s3transfer jmespath \
-      boto3-*.dist-info botocore-*.dist-info s3transfer-*.dist-info jmespath-*.dist-info \
       sympy mpmath \
       sympy-*.dist-info mpmath-*.dist-info \
-      pygments rich inquirerpy prompt_toolkit pfzy \
-      pygments-*.dist-info rich-*.dist-info inquirerpy-*.dist-info prompt_toolkit-*.dist-info pfzy-*.dist-info \
       sentry_sdk sentry_sdk-*.dist-info \
-      uvloop uvloop-*.dist-info \
-      fastar rignore fastar-*.dist-info rignore-*.dist-info \
       pip setuptools pkg_resources _distutils_hack wheel \
       pip-*.dist-info setuptools-*.dist-info wheel-*.dist-info \
     ; \
-    # Smoke test: confirm segment_person_onnx.py + handler_onnx.py imports still resolve
     python -c "import onnxruntime, numpy, cv2, PIL, requests; print('core ok')" && \
     python -c "import runpod; import runpod.serverless; print('runpod.serverless ok')"
 

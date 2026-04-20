@@ -159,7 +159,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
         sha256: 'abc',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
@@ -178,7 +178,7 @@ describe('POST /assets/register', () => {
       expect.objectContaining({
         userId: 'u-1',
         sha256: 'abc',
-        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
         fileSize: 1,
@@ -201,7 +201,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
         sha256: 'abc',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
@@ -221,7 +221,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/u-1/assets/pending/xyz/a.mp4',
+        storageKey: 'users/u-1/assets/pending/xyz/a.mp4',
         filename: 'a.mp4',
         mimeType: 'video/mp4',
         fileSize: 1,
@@ -245,7 +245,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/u-1/assets/pending/nano/f.mp4',
+        storageKey: 'users/u-1/assets/pending/nano/f.mp4',
         sha256: 'abc',
         filename: 'f.mp4',
         mimeType: 'video/mp4',
@@ -275,7 +275,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/u-1/assets/pending/nano/f.mp4',
+        storageKey: 'users/u-1/assets/pending/nano/f.mp4',
         sha256: 'xyz',
         filename: 'f.mp4',
         mimeType: 'video/mp4',
@@ -297,7 +297,7 @@ describe('POST /assets/register', () => {
       method: 'POST',
       url: '/assets/register',
       payload: {
-        storageKey: 'uploads/users/u-1/assets/pending/nano/f.png',
+        storageKey: 'users/u-1/assets/pending/nano/f.png',
         sha256: 'def',
         filename: 'f.png',
         mimeType: 'image/png',
