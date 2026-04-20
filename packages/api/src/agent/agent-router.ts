@@ -242,6 +242,35 @@ export async function agentRoutes(fastify: FastifyInstance) {
       await proxyPromptWithIntercept(
         agentUrl, session.sandboxSecret, proxyBody, reply,
         {
+          // Relay Redis pub/sub pipeline_message envelopes into the same SSE
+          // stream, so transcribe/arrange bubbles appear live without a
+          // page reload. Uses a duplicate() connection — pub/sub clients
+          // must be dedicated.
+          attachSideChannel: (write) => {
+            const sub = redis.duplicate();
+            const channel = `conversation:${projectId}`;
+            const onMessage = (_channel: string, payload: string) => {
+              try {
+                const envelope = JSON.parse(payload);
+                if (envelope?.kind !== 'pipeline_message') return;
+                write('pipeline_message', envelope);
+              } catch {
+                // ignore malformed payload
+              }
+            };
+            sub.on('message', onMessage);
+            sub.on('error', (err) => {
+              fastify.log.warn({ err, projectId }, 'pipeline_message subscriber error');
+            });
+            sub.subscribe(channel).catch((err) => {
+              fastify.log.warn({ err, projectId }, 'Failed to subscribe to conversation channel');
+            });
+            return () => {
+              sub.off('message', onMessage);
+              sub.unsubscribe(channel).catch(() => {});
+              sub.disconnect();
+            };
+          },
           onText: (text) => {
             pendingText += text;
           },

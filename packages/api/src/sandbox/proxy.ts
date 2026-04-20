@@ -180,6 +180,13 @@ export interface InterceptCallbacks {
   onActivity?: (activity: { agent: string | null; action: string | null; phase?: string; startedAt?: number }) => void;
   onPlan?: (plan: { title: string; tasks: Array<{ id: string; title: string; status: string; agent?: string; subtasks?: Array<{ id: string; title: string; status: string; tools?: string[] }> }> }) => void;
   onError?: (error: string) => void;
+  /**
+   * Invoked once the SSE passthrough stream is live, giving the caller a
+   * writer function to inject additional SSE frames (e.g. pipeline_message
+   * relays from Redis pub/sub). The returned detach function runs once the
+   * stream closes so the caller can clean up (unsubscribe, disconnect, etc).
+   */
+  attachSideChannel?: (writer: (eventType: string, data: unknown) => void) => () => void;
 }
 
 /**
@@ -315,6 +322,20 @@ export async function proxyPromptWithIntercept(
         safeAbort();
       }
     };
+
+    // Optional side channel — callers (e.g. agent router) can attach a Redis
+    // subscription here to relay `pipeline_message` frames into the same SSE
+    // stream the frontend is already consuming.
+    let detachSideChannel: (() => void) | null = null;
+    if (callbacks.attachSideChannel) {
+      try {
+        detachSideChannel = callbacks.attachSideChannel((eventType, data) => {
+          writeSSE(eventType, data);
+        });
+      } catch (err) {
+        logger.warn({ err, ...logCtx }, 'Proxy: attachSideChannel handler threw');
+      }
+    }
 
     if (res!.body) {
       reader = (res!.body as ReadableStream).getReader();
@@ -482,6 +503,12 @@ export async function proxyPromptWithIntercept(
           try { reader.cancel().catch(() => {}); } catch { /* already closed */ }
         }
 
+        // Tear down any attached side channel (Redis subscriptions, etc.)
+        if (detachSideChannel) {
+          try { detachSideChannel(); } catch { /* best effort */ }
+          detachSideChannel = null;
+        }
+
         flushTextBuffer();
 
         // If sandbox stream ended without a done event, inject a synthetic error
@@ -499,6 +526,10 @@ export async function proxyPromptWithIntercept(
       }
     } else {
       logger.warn(logCtx, 'Proxy: sandbox returned empty response body');
+      if (detachSideChannel) {
+        try { detachSideChannel(); } catch { /* best effort */ }
+        detachSideChannel = null;
+      }
       passthrough.end();
     }
   } catch (err: any) {
