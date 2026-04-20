@@ -13,7 +13,9 @@ import {
   EditorStore,
   EditorState,
   Track,
+  TrackType,
   TimelineItem,
+  TimelineItemType,
   HistoryEntry,
   DEFAULT_TRACK_HEIGHT,
   DEFAULT_ZOOM,
@@ -1250,6 +1252,83 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.project = project;
       });
+    },
+
+    /**
+     * PR-C2 Task 6: replace tracks + items from a composition-v2 response.
+     * Maps resolved asset URLs onto each item's data.src/thumbnailUrl so the
+     * editor renders without a second resolution pass.
+     *
+     * Intentionally non-destructive for orthogonal state: playback position,
+     * selection, viewport, captionPreset, and project settings are untouched.
+     */
+    applyCompositionV2: (composition) => {
+      const nextTracks: Track[] = composition.tracks.map((t) => {
+        const rawType = t.type === 'subtitle' ? 'caption' : t.type;
+        const type = rawType as TrackType;
+        return {
+          id: t.id,
+          type,
+          name: type === 'caption' ? 'Captions' : t.name,
+          position: t.position,
+          locked: false,
+          visible: true,
+          height: TRACK_HEIGHTS[type] ?? DEFAULT_TRACK_HEIGHT,
+          collapsed: false,
+        };
+      });
+      nextTracks.sort((a, b) => a.position - b.position);
+
+      const nextItems: Record<string, TimelineItem> = {};
+      const nextItemIds: string[] = [];
+
+      for (const raw of composition.timelineItems) {
+        const d = raw.data as {
+          assetId?: string;
+          src?: string;
+          thumbnailUrl?: string;
+          filename?: string;
+          mimeType?: string;
+        } & Record<string, unknown>;
+        const asset = d.assetId ? composition.assets[d.assetId] : undefined;
+
+        const mergedData: Record<string, unknown> = {
+          ...d,
+          src: asset?.url ?? d.src,
+          ...(asset?.thumbnailUrl ? { thumbnailUrl: asset.thumbnailUrl, thumbnailSrc: asset.thumbnailUrl } : {}),
+          ...(asset?.filename ? { filename: asset.filename } : {}),
+          ...(asset?.mimeType ? { mimeType: asset.mimeType } : {}),
+        };
+
+        // Normalize 'subtitle' -> 'caption' to match the editor's internal type.
+        const itemType = (raw.type === 'subtitle' ? 'caption' : raw.type) as TimelineItemType;
+
+        const item: TimelineItem = {
+          id: raw.id,
+          type: itemType,
+          trackId: raw.trackId,
+          startMs: raw.startMs,
+          endMs: raw.endMs,
+          data: mergedData as unknown as TimelineItem['data'],
+        };
+        nextItems[raw.id] = item;
+        nextItemIds.push(raw.id);
+      }
+
+      set((state) => {
+        state.tracks = nextTracks;
+        state.items = nextItems;
+        state.itemIds = nextItemIds;
+        // Clear any selection that references items no longer present.
+        state.selectedIds = state.selectedIds.filter((id) => nextItems[id]);
+        if (state.lastSelectedId && !nextItems[state.lastSelectedId]) {
+          state.lastSelectedId = null;
+        }
+      });
+
+      // Keep the workspace manifest in sync so the Remotion player reflects
+      // the composition-driven timeline.
+      syncWorkspaceManifest();
     },
 
     // ========================================

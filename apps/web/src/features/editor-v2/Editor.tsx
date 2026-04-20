@@ -30,6 +30,7 @@ const TransitionPickerModal = lazy(() => import('./components/TransitionPickerMo
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
 import { useWorkspaceWS } from './hooks/use-workspace-ws';
+import { useCompositionUpdates } from './hooks/useCompositionUpdates';
 import {
   useProject,
   useIsLoading,
@@ -204,6 +205,10 @@ export function Editor({ projectId }: EditorProps) {
   useEffect(() => {
     loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // PR-C2 Task 6: wire composition-v2 into the store (initial fetch + SSE refreshes).
+  // No-op when NEXT_PUBLIC_ASSET_SYSTEM_V2 isn't set to 'true'.
+  useCompositionUpdates(projectId);
 
   // Scope the rem root to the editor: shrinks every Tailwind utility
   // proportionally while the editor is mounted, without affecting the

@@ -4,6 +4,47 @@
  */
 
 // ============================================
+// Composition V2 Input (PR-C2 Task 6)
+// Shape expected by applyCompositionV2. Mirrors lib/api/composition.ts's
+// Composition (structural compatibility — kept here as a pure type to avoid
+// the store depending on fetch/network modules).
+// ============================================
+
+export interface CompositionV2InputAsset {
+  id: string;
+  filename: string;
+  mimeType: string;
+  durationMs: number | null;
+  width: number | null;
+  height: number | null;
+  url: string;
+  thumbnailUrl: string | null;
+}
+
+export interface CompositionV2InputTrack {
+  id: string;
+  projectId: string;
+  position: number;
+  type: string;
+  name: string;
+}
+
+export interface CompositionV2InputTimelineItem {
+  id: string;
+  trackId: string;
+  type: string;
+  startMs: number;
+  endMs: number;
+  data: Record<string, unknown>;
+}
+
+export interface CompositionV2Input {
+  tracks: CompositionV2InputTrack[];
+  timelineItems: CompositionV2InputTimelineItem[];
+  assets: Record<string, CompositionV2InputAsset>;
+}
+
+// ============================================
 // Timeline Item Types
 // ============================================
 
@@ -831,6 +872,8 @@ export interface EditorActions {
   refreshMediaUrls: (projectId: string) => Promise<void>;
   saveProject: () => Promise<void>;
   setProject: (project: Project) => void;
+  /** PR-C2 Task 6: replace tracks+items from composition-v2 (resolved composition with asset URLs). */
+  applyCompositionV2: (composition: CompositionV2Input) => void;
 
   // Video settings actions
   updateVideoSettings: (settings: Partial<VideoSettings>) => void;

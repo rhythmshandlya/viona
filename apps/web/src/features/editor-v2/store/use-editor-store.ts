@@ -608,8 +608,14 @@ export function useProjectActions() {
       saveProject: state.saveProject,
       setProject: state.setProject,
       updateVideoSettings: state.updateVideoSettings,
+      applyCompositionV2: state.applyCompositionV2,
     }))
   );
+}
+
+/** PR-C2 Task 6: selector for the composition-v2 apply action (used by useCompositionUpdates). */
+export function useApplyCompositionV2() {
+  return useEditorStore((state) => state.applyCompositionV2);
 }
 
 export function useAIActions() {
