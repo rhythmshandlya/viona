@@ -4,6 +4,8 @@ import fastify from 'fastify';
 const spies = vi.hoisted(() => ({
   compute: vi.fn(),
   selectProjectOwner: vi.fn(),
+  rateIncr: vi.fn(),
+  rateExpire: vi.fn().mockResolvedValue(1),
 }));
 
 vi.mock('../services/arrangement-orchestrator.js', () => ({
@@ -12,6 +14,12 @@ vi.mock('../services/arrangement-orchestrator.js', () => ({
 vi.mock('../middleware/auth.js', () => ({
   authMiddleware: async (req: { user: { id: string } }) => {
     req.user = { id: 'u-1' } as unknown as never;
+  },
+}));
+vi.mock('../services/redis.js', () => ({
+  redis: {
+    incr: spies.rateIncr,
+    expire: spies.rateExpire,
   },
 }));
 vi.mock('../db/index.js', () => ({
@@ -44,7 +52,12 @@ function seedProjectOwner(userId: string | null) {
   }
 }
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Default: rate limit allows the request (first call in window).
+  spies.rateIncr.mockResolvedValue(1);
+  spies.rateExpire.mockResolvedValue(1);
+});
 
 describe('POST /projects/:id/arrangement/compute', () => {
   it('returns 200 with ArrangementOutput on success', async () => {
@@ -84,5 +97,38 @@ describe('POST /projects/:id/arrangement/compute', () => {
     const app = await build();
     const res = await app.inject({ method: 'POST', url: '/projects/p-missing/arrangement/compute' });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 429 when user exceeds rate limit (arrangement compute)', async () => {
+    seedProjectOwner('u-1');
+    spies.rateIncr.mockResolvedValueOnce(3); // already over limit
+    const app = await build();
+    const res = await app.inject({ method: 'POST', url: '/projects/p-1/arrangement/compute' });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error).toBe('rate_limited');
+    expect(spies.compute).not.toHaveBeenCalled();
+    // Ownership check must be skipped — fail-fast on rate limit saves a DB query.
+    expect(spies.selectProjectOwner).not.toHaveBeenCalled();
+  });
+
+  it('allows first call and sets TTL', async () => {
+    seedProjectOwner('u-1');
+    spies.rateIncr.mockResolvedValueOnce(1);
+    spies.compute.mockResolvedValueOnce({ timelineItems: [], summary: 'ok' });
+    const app = await build();
+    const res = await app.inject({ method: 'POST', url: '/projects/p-1/arrangement/compute' });
+    expect(res.statusCode).toBe(200);
+    expect(spies.rateIncr).toHaveBeenCalledWith('rate:arrangement:u-1');
+    expect(spies.rateExpire).toHaveBeenCalledWith('rate:arrangement:u-1', 30);
+  });
+
+  it('does not set TTL on subsequent calls within the window', async () => {
+    seedProjectOwner('u-1');
+    spies.rateIncr.mockResolvedValueOnce(2); // second call within window
+    spies.compute.mockResolvedValueOnce({ timelineItems: [], summary: 'ok' });
+    const app = await build();
+    const res = await app.inject({ method: 'POST', url: '/projects/p-1/arrangement/compute' });
+    expect(res.statusCode).toBe(200);
+    expect(spies.rateExpire).not.toHaveBeenCalled();
   });
 });
