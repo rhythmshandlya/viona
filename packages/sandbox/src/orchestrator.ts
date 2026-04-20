@@ -242,7 +242,7 @@ export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, assetScoutPrompt, captionAgentPrompt, setupAgentPrompt, layoutEditorPrompt, animatorPrompt, finalEditorPrompt] =
+  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, assetScoutPrompt, captionAgentPrompt, setupAgentPrompt, layoutEditorPrompt, animatorPrompt, finalEditorPrompt, arrangementPrompt] =
     await Promise.all([
       loadPrompt('orchestrator/system'),
       assembleAgentPrompt('trim-editor', ctx),
@@ -253,6 +253,7 @@ export async function buildOrchestratorOptions(
       assembleAgentPrompt('layout-editor', ctx),
       assembleAgentPrompt('animator', ctx),
       assembleAgentPrompt('final-editor', ctx),
+      assembleAgentPrompt('arrangement', ctx),
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
@@ -451,6 +452,20 @@ export async function buildOrchestratorOptions(
           '- Scene keyframes must ONLY animate opacity — NEVER x, y, width, height, rotation.\n' +
           '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName.\n' +
           '- ALWAYS read_manifest before and after major operations to verify state.',
+      },
+
+      // ---- Arrangement (Pre-trim / first-pass timeline) ----
+      arrangement: {
+        description: 'First-pass timeline arrangement from creative brief + assets + transcripts. Uses manifest-ops to add tracks + items. Runs before trim_editor, caption_agent, planner — one-shot, returns a short summary.',
+        prompt: arrangementPrompt,
+        tools: [
+          'Read', 'Glob',
+          ...MANIFEST_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...ANALYSIS_TOOL_NAMES,
+        ],
+        model: 'opus',
+        maxTurns: 15,
       },
 
       // ---- Animator (Phase 7) ----
