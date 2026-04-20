@@ -1,0 +1,206 @@
+# syntax=docker/dockerfile:1.6
+#
+# Slim variant of Dockerfile.onnx targeting ~4-5 GB final image (vs ~7.47 GB
+# uncompressed / 2.49 GB compressed pull).
+#
+# Measured starting point (from ghcr.io/rhythmshandlya/viona-rvm:onnx amd64 manifest,
+# via OCI manifest API):
+#   - Total pull (compressed):    2546.4 MB
+#   - Top layers (compressed):
+#       1372 MB  cuda-libraries-12-6  (cuBLAS+cuFFT+cuRAND+cuSPARSE+NPP+NCCL+nvJPEG+cuSolver)
+#        549 MB  libcudnn9-cuda-12 9.5.1.17
+#        336 MB  /opt/venv (single layer — 956 MB uncompressed: onnxruntime 610 MB,
+#                           cv2 135 MB, runpod transitive deps ~100 MB, numpy 55 MB)
+#        148 MB  python3.10 + ffmpeg apt install
+#         55 MB  cuda-cudart-12-6
+#         54 MB  RVM ONNX weights
+#         28 MB  ubuntu22.04 base rootfs
+#
+# This slim build applies three optimizations, ranked by impact:
+#
+# 1. DROP `cuda-libraries-12-6` META-PACKAGE (~500-800 MB compressed savings).
+#    Switch base to nvidia/cuda:12.6.3-base-ubuntu22.04 (87 MB pull) and apt-install
+#    only the CUDA libs that libonnxruntime_providers_cuda.so actually links against
+#    (confirmed via issue microsoft/onnxruntime#22703):
+#        libcudart  libcublas  libcublasLt  libcufft  libcurand  libcudnn9
+#    Drops: cuSPARSE, cuSOLVER, NPP (~150 MB), NCCL (~100 MB), nvJPEG, nvToolsExt.
+#
+# 2. LAYERED PIP INSTALL FOR PARALLEL PULL (no total-size reduction; cold-start win).
+#    RunPod pulls layers concurrently over multiple HTTP connections. A single
+#    336 MB venv layer forces serial download; three independent layers
+#    (onnxruntime alone, cv/numpy/pil, runpod SDK) saturate bandwidth.
+#    Each `RUN pip install` directly in the final stage produces its own
+#    independent layer — we specifically do NOT use the COPY --from=builder
+#    /opt/venv pattern, because that collapses everything back into one layer.
+#
+# 3. RUNPOD SDK SLIM (~80-120 MB uncompressed, ~30-50 MB compressed savings).
+#    runpod==1.7.7 requires fastapi[all], boto3, paramiko, pynacl, uvloop, sympy,
+#    pydantic, cryptography via its requirements.txt. Handler audit:
+#      - handler_onnx.py uploads via `requests.put(presignedUrl)`, never touches
+#        `runpod.serverless.utils.rp_upload` (the only place boto3 is imported).
+#      - runpod.serverless.start() path traced: only `runpod.serverless.__init__`
+#        → worker + rp_fastapi + rp_logger + rp_progress. Never reaches paramiko
+#        (CLI-only), rp_upload (S3-only), or sympy (ORT symbolic shape infer,
+#        unused for RVM's static shapes).
+#    We therefore `rm -rf` these subtrees post-install.
+#
+# Additional minor strips: __pycache__, tests/, test/, docs/, examples/,
+# *.pyc/.pyi/.a/.so.debug, dist-info licenses/docs.
+#
+# Build context: `models/rvm/` — same as Dockerfile.onnx, no extra files needed.
+# Build command:
+#   docker buildx build \
+#     -f Dockerfile.onnx.slim \
+#     --platform linux/amd64 \
+#     --output type=image,compression=zstd,compression-level=8,push=true \
+#     -t ghcr.io/rhythmshandlya/viona-rvm:onnx-slim .
+#
+# `compression=zstd,level=8` is ~15% smaller than gzip and ~2x faster to
+# decompress on the RunPod host — GHCR supports zstd since 2024.
+#
+# Validation after build (must print a list containing 'CUDAExecutionProvider'):
+#   docker run --rm --gpus all ghcr.io/rhythmshandlya/viona-rvm:onnx-slim \
+#     python -c "import onnxruntime as o, os; \
+#       s=o.InferenceSession('/models/rvm_resnet50_fp16.onnx', \
+#         providers=['CUDAExecutionProvider','CPUExecutionProvider']); \
+#       print(s.get_providers())"
+
+############################
+# Single-stage build
+# (Multi-stage + COPY /opt/venv defeats the parallel-pull layer strategy,
+# because the final COPY collapses every pip install into one big layer.)
+############################
+FROM nvidia/cuda:12.6.3-base-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH=/opt/venv/bin:$PATH \
+    RVM_MODELS_DIR=/models
+
+# ---- System libs ----
+# Required by libonnxruntime_providers_cuda.so (hand-picked — see header):
+#   libcublas-12-6       (cuBLAS + cuBLASLt)
+#   libcufft-12-6        (cuFFT)
+#   libcurand-12-6       (cuRAND)
+#   libcudnn9-cuda-12    (cuDNN 9.x)
+# Plus runtime user-space:
+#   python3.10 + python3-pip (we pip-install further layers below)
+#   ffmpeg (subprocess decode/encode in segment_person_onnx.py)
+#   ca-certificates (requests → presigned S3/MinIO URLs)
+#   wget (for RVM weight pre-download at build time)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3.10 python3-pip python3.10-venv \
+      ffmpeg \
+      ca-certificates \
+      wget \
+      libcublas-12-6 \
+      libcufft-12-6 \
+      libcurand-12-6 \
+      libcudnn9-cuda-12 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3.10 /usr/local/bin/python \
+    # cuDNN ships with static archives we don't use. Shared .so.9 is all ORT needs.
+    && find /usr -name "libcudnn*_static*.a" -delete 2>/dev/null || true
+
+# ---- Venv (kept at same /opt/venv path as Dockerfile.onnx for parity) ----
+RUN python3.10 -m venv /opt/venv && /opt/venv/bin/pip install --upgrade pip==24.2
+
+# ---- Pip layer 1/3: onnxruntime-gpu — the 610 MB provider lib in its own layer ----
+# Isolated so the RunPod puller can fetch it on a dedicated HTTP connection.
+RUN /opt/venv/bin/pip install \
+      onnxruntime-gpu==1.19.2 \
+      numpy==1.26.4
+
+# ---- Pip layer 2/3: image I/O (OpenCV + Pillow + requests) ----
+RUN /opt/venv/bin/pip install \
+      opencv-python-headless==4.10.0.84 \
+      Pillow==10.3.0 \
+      requests==2.32.3
+
+# ---- Pip layer 3/3: runpod SDK ----
+RUN /opt/venv/bin/pip install runpod==1.7.7
+
+# ---- Strip 1: runpod transitive bloat that handler_onnx.py never imports ----
+# Audited against runpod-python 1.7.7 source:
+#   - runpod.serverless.start() loads: argparse, json, os, signal, sys, time,
+#     typing, runpod.serverless.core, worker, rp_fastapi, rp_logger, rp_progress.
+#   - rp_fastapi unconditionally imports fastapi + uvicorn (KEEP fastapi+uvicorn).
+#   - boto3 is only imported by runpod.serverless.utils.rp_upload — our handler
+#     uses requests.put(presignedUrl) instead (DROP boto3+botocore+s3transfer).
+#   - paramiko/pynacl/bcrypt are CLI-only (DROP).
+#   - sympy/mpmath are onnxruntime deps for symbolic shape inference; RVM's
+#     ONNX export has fully static shapes so they're never exercised (DROP).
+#   - uvloop is a fastapi[all] extra; stock asyncio works fine (DROP).
+#   - pygments/rich/inquirerpy/prompt_toolkit/pfzy are CLI-only (DROP).
+#   - sentry_sdk is opt-in telemetry, not used (DROP).
+#   - pip/setuptools/wheel/_distutils_hack: no runtime installs (DROP).
+#
+# Smoke test must succeed before we move on — catches any accidental over-strip.
+RUN set -eux; \
+    cd /opt/venv/lib/python3.10/site-packages && \
+    rm -rf \
+      boto3 botocore s3transfer jmespath \
+      boto3-*.dist-info botocore-*.dist-info s3transfer-*.dist-info jmespath-*.dist-info \
+      paramiko nacl bcrypt cryptography \
+      paramiko-*.dist-info pynacl-*.dist-info bcrypt-*.dist-info cryptography-*.dist-info \
+      sympy mpmath \
+      sympy-*.dist-info mpmath-*.dist-info \
+      pygments rich inquirerpy prompt_toolkit pfzy \
+      pygments-*.dist-info rich-*.dist-info inquirerpy-*.dist-info prompt_toolkit-*.dist-info pfzy-*.dist-info \
+      sentry_sdk sentry_sdk-*.dist-info \
+      uvloop uvloop-*.dist-info \
+      fastar rignore fastar-*.dist-info rignore-*.dist-info \
+      pip setuptools pkg_resources _distutils_hack wheel \
+      pip-*.dist-info setuptools-*.dist-info wheel-*.dist-info \
+    ; \
+    # Smoke test: confirm segment_person_onnx.py + handler_onnx.py imports still resolve
+    python -c "import onnxruntime, numpy, cv2, PIL, requests; print('core ok')" && \
+    python -c "import runpod; import runpod.serverless; print('runpod.serverless ok')"
+
+# ---- Strip 2: general site-packages cruft across all remaining packages ----
+RUN find /opt/venv -type d \( \
+      -name __pycache__ -o \
+      -name tests -o \
+      -name test -o \
+      -name testing -o \
+      -name examples -o \
+      -name docs -o \
+      -name doc \
+    \) -prune -exec rm -rf {} + \
+ && find /opt/venv -type f \( \
+      -name "*.pyc" -o \
+      -name "*.pyo" -o \
+      -name "*.pyi" -o \
+      -name "*.a" -o \
+      -name "*.so.debug" -o \
+      -name "*.c" -o \
+      -name "*.cpp" -o \
+      -name "*.h" -o \
+      -name "*.hpp" -o \
+      -name "README*" -o \
+      -name "CHANGELOG*" -o \
+      -name "CHANGES*" -o \
+      -name "HISTORY*" -o \
+      -name "LICENSE*" -o \
+      -name "NOTICE*" \
+    \) -delete \
+ && find /opt/venv -type d -empty -delete 2>/dev/null || true
+
+# ---- RVM ONNX weights (unchanged from Dockerfile.onnx) ----
+RUN mkdir -p /models \
+ && wget -q -O /models/rvm_resnet50_fp16.onnx \
+      https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_resnet50_fp16.onnx \
+ && wget -q -O /models/rvm_mobilenetv3_fp16.onnx \
+      https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp16.onnx
+
+# ---- App code ----
+WORKDIR /app
+# Same rename trick as Dockerfile.onnx: handler imports `segment_person`, not
+# `segment_person_onnx`, so we COPY with a rewritten path.
+COPY segment_person_onnx.py /app/segment_person.py
+COPY handler_onnx.py /app/handler.py
+
+CMD ["python", "/app/handler.py"]
