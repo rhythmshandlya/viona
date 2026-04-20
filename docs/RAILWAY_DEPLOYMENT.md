@@ -77,7 +77,7 @@ This guide covers deploying Viona to Railway with 3 static services (Web, API, W
    TRANSCRIPTION_MODE=api
    AUDIO_ENHANCEMENT_ENABLED=false
    OPENAI_API_KEY=sk-...
-   ANTHROPIC_API_KEY=sk-ant-...
+   ANTHROPIC_API_KEY=sk-ant-...   # REQUIRED — worker runs its own mirrored arrangement orchestrator; missing key = silent arrangement-job failures
    CLAUDE_AGENT_MODEL=claude-sonnet-4-20250514
    ```
 4. Link to PostgreSQL, Redis, and Storage Bucket
@@ -93,7 +93,11 @@ This guide covers deploying Viona to Railway with 3 static services (Web, API, W
    NODE_ENV=production
    NEXT_PUBLIC_API_URL=https://api-<your-project>.railway.app
    NEXT_PUBLIC_WS_URL=wss://api-<your-project>.railway.app
+   NEXT_PUBLIC_ASSET_SYSTEM_V2=true
    ```
+   > **NEXT_PUBLIC_* vars are BUILD-time.** Next.js inlines them into the client
+   > bundle at `next build`. Changing these on Railway after the image is built
+   > has no effect until you trigger a fresh build (redeploy).
 4. Generate domain: Settings → Networking → Generate Domain
 
 ### Sandbox Pipeline (Dynamic)
@@ -166,7 +170,7 @@ pnpm --filter @viona/api db:migrate
 | `DATABASE_URL` | PostgreSQL connection string | Yes (auto-injected) |
 | `REDIS_URL` | Redis connection string | Yes (auto-injected) |
 | `BUCKET_*` | S3 storage credentials | Yes (auto-injected) |
-| `ANTHROPIC_API_KEY` | Claude API key | Yes |
+| `ANTHROPIC_API_KEY` | Claude API key — used by the mirrored arrangement orchestrator that runs in-worker (separate from the API's sandbox path). Missing = silent arrangement-job failures. | Yes |
 | `OPENAI_API_KEY` | OpenAI API key (for transcription) | Yes |
 | `TRANSCRIPTION_MODE` | `api` for production | Yes |
 | `AUDIO_ENHANCEMENT_ENABLED` | `false` for production | Yes |
@@ -175,8 +179,9 @@ pnpm --filter @viona/api db:migrate
 ### Web Service
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `NEXT_PUBLIC_API_URL` | API server URL | Yes |
-| `NEXT_PUBLIC_WS_URL` | WebSocket URL | Yes |
+| `NEXT_PUBLIC_API_URL` | API server URL. **Build-time** — Next.js inlines at `next build`. | Yes |
+| `NEXT_PUBLIC_WS_URL` | WebSocket URL. **Build-time** — Next.js inlines at `next build`. | Yes |
+| `NEXT_PUBLIC_ASSET_SYSTEM_V2` | Enables Asset System V2 UI (new /projects/new flow, assets panel). **Build-time** — must rebuild web after flipping. | Yes (for V2 rollout) |
 
 ## Troubleshooting
 
