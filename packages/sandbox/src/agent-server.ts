@@ -11,7 +11,7 @@ import { type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
 import { QuerySession } from './query-session.js';
 import { renderVideo } from './tools/render-video.js';
-import { fetchAndWriteAssetsManifest } from './assets/manifest.js';
+import { fetchAndWriteAssetsManifest, fetchAndWriteProjectTranscript } from './assets/manifest.js';
 import {
   getJobState, onStateChange, failJob, updatePlan, updateWidget,
 } from './job-state.js';
@@ -125,28 +125,35 @@ export function startAgentServer(port = 8081): void {
       return;
     }
 
-    // Refresh /workspace/assets-manifest.json from the DB at the top of every
-    // turn. workspace-init writes this file ONCE at container boot — if
-    // transcribe jobs complete after boot, the on-disk manifest keeps the
-    // stale `transcriptAssetId: null` and Phase 1 of the orchestrator sees
-    // "no transcript" even though the DB now has it. Re-fetching here closes
-    // that window. Non-fatal on failure: we keep serving with whatever is on
-    // disk rather than blocking the turn.
+    // Refresh /workspace/assets-manifest.json AND /workspace/docs/transcript.json
+    // from the DB at the top of every turn. workspace-init writes these once
+    // at container boot. If transcribe jobs (or arrangement) complete after
+    // boot, the on-disk copies keep the stale `transcriptAssetId: null` /
+    // empty-transcript state, and Phase 1 or the caption agent see the old
+    // snapshot. Non-fatal on failure: we keep serving with what's on disk
+    // rather than blocking the turn.
     if (process.env.ASSET_SYSTEM_V2 === 'true') {
       const apiUrl = process.env.API_CALLBACK_URL;
       const sandboxId = process.env.SANDBOX_ID;
       const secret = process.env.SANDBOX_SECRET;
       if (apiUrl && sandboxId && secret) {
+        const workspaceRoot = process.env.WORKSPACE_DIR || '/workspace';
+        const refreshArgs = { apiUrl, sandboxId, secret, workspaceRoot };
         try {
-          await fetchAndWriteAssetsManifest({
-            apiUrl,
-            sandboxId,
-            secret,
-            workspaceRoot: process.env.WORKSPACE_DIR || '/workspace',
-          });
+          await fetchAndWriteAssetsManifest(refreshArgs);
           logger.info({ sandboxId }, 'assets-manifest refreshed before turn');
         } catch (err) {
           logger.warn({ err: (err as Error).message }, 'assets-manifest refresh before turn failed — continuing with on-disk copy');
+        }
+        try {
+          const wrote = await fetchAndWriteProjectTranscript(refreshArgs);
+          if (wrote) {
+            logger.info({ sandboxId }, 'project transcript refreshed before turn');
+          } else {
+            logger.info({ sandboxId }, 'project transcript not yet available (arrangement may not have run)');
+          }
+        } catch (err) {
+          logger.warn({ err: (err as Error).message }, 'project transcript refresh before turn failed');
         }
       }
     }

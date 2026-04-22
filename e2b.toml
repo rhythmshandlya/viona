@@ -3,7 +3,7 @@
 
 # Python SDK
 # from e2b import Sandbox, AsyncSandbox
-# sandbox = Sandbox.create("viona-sandbox") # Sync sandbox
+# sandbox = Sandbox("viona-sandbox") # Sync sandbox
 # sandbox = await AsyncSandbox.create("viona-sandbox") # Async sandbox
 
 # JS SDK

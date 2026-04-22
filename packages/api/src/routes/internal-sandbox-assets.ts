@@ -7,6 +7,7 @@ import { minioClient } from '../services/minio.js';
 import { config } from '../config.js';
 import { db } from '../db/index.js';
 import { projects } from '../db/schema.js';
+import { stitchV2ProjectTranscript } from './projects.js';
 
 function parseBearer(req: FastifyRequest): string | null {
   const h = req.headers.authorization;
@@ -57,6 +58,32 @@ const internalSandboxAssetsRoutes: FastifyPluginAsync = async (fastify) => {
         transcriptAssetId: a.transcriptAssetId ?? null,
       }));
       return reply.send({ projectId: sid, assets, generatedAt: new Date().toISOString() });
+    },
+  );
+
+  // Returns the timeline-stitched transcript for a project. The sandbox
+  // fetches this per turn to keep /workspace/docs/transcript.json current —
+  // otherwise Viona's Phase 1 + caption agent see an empty/missing transcript
+  // file even when every asset has transcript_status='ready' (common right
+  // after arrangement finishes but before the user reloads).
+  //
+  // Shape: `{ words: [...], segments: [...], text: "..." }` — matches the
+  // legacy transcripts.rawOutput schema, so downstream tooling that expects
+  // `transcript.words` / `transcript.segments` keeps working unchanged.
+  fastify.get<{ Params: { sid: string } }>(
+    '/internal/sandbox/:sid/transcript',
+    async (request, reply) => {
+      const { sid } = request.params;
+      if (!(await authGate(request, reply, sid))) return;
+
+      const stitched = await stitchV2ProjectTranscript(sid).catch((err) => {
+        request.log.warn({ err, projectId: sid }, 'v2 transcript stitch failed (internal endpoint)');
+        return null;
+      });
+      if (!stitched) {
+        return reply.code(404).send({ error: 'no_transcript' });
+      }
+      return reply.send(stitched);
     },
   );
 

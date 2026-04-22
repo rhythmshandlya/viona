@@ -1,11 +1,9 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "apps/web/Dockerfile"
-# Build from repo root to include workspace dependencies
-watchPatterns = ["apps/web/**", "packages/shared/**", "packages/renderer/**"]
+dockerfilePath = "packages/render-service/Dockerfile"
+watchPatterns = ["packages/render-service/**"]
 
 [deploy]
-healthcheckPath = "/"
-healthcheckTimeout = 30
+# Render service is a background BullMQ worker, no HTTP
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

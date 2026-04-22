@@ -53,3 +53,34 @@ export async function fetchAndWriteAssetsManifest(input: FetchManifestInput): Pr
 
   return manifest;
 }
+
+/**
+ * Fetches the stitched project transcript and writes it to
+ * `{workspaceRoot}/docs/transcript.json`. The API stitches per-asset v2
+ * transcripts in timeline order (see stitchV2ProjectTranscript). This is
+ * what Viona's Phase 1 reads and what the caption subagent consumes to
+ * write caption items. Without it, caption tracks come back empty on
+ * multi-asset projects.
+ *
+ * Returns true on success, false on 404 (no transcript available yet — e.g.
+ * arrangement hasn't run). Throws on other HTTP errors so the caller can
+ * log but doesn't need to distinguish soft-miss vs real failures.
+ */
+export async function fetchAndWriteProjectTranscript(input: FetchManifestInput): Promise<boolean> {
+  const url = `${input.apiUrl}/internal/sandbox/${input.sandboxId}/transcript`;
+  const res = await fetch(url, {
+    headers: { authorization: `Bearer ${input.secret}` },
+  });
+  if (res.status === 404) {
+    return false;
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`transcript fetch failed ${res.status}: ${body}`);
+  }
+  const body = await res.text();
+  const docsDir = pathPosix.join(input.workspaceRoot, 'docs');
+  await mkdir(docsDir, { recursive: true });
+  await writeFile(pathPosix.join(docsDir, 'transcript.json'), body, 'utf8');
+  return true;
+}
