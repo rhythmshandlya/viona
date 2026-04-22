@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import {
   getPresignedMultipartUploadUrls,
   getPresignedDownloadUrl,
+  getPresignedUploadUrl,
 } from '../services/minio.js';
 import {
   createOrDedupAsset,
@@ -64,6 +65,21 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const userId = request.user!.id;
     const stagingKey = `users/${userId}/assets/pending/${nanoid()}/${filename}`;
+
+    // Single-part shortcut: use a plain presigned PUT. Multipart uploads
+    // require a CompleteMultipartUpload call after the parts finish, which
+    // the client isn't doing (and a 1-part multipart is pointless anyway —
+    // no concurrency benefit, and parts stay uncommitted until complete).
+    if (partCount === 1) {
+      const url = await getPresignedUploadUrl('uploads', stagingKey, UPLOAD_URL_TTL_SECONDS);
+      return reply.send({
+        uploadId: '',
+        partUrls: [{ partNumber: 1, url }],
+        storageKey: stagingKey,
+        expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000).toISOString(),
+      });
+    }
+
     const presigned = await getPresignedMultipartUploadUrls({
       prefix: 'uploads',
       key: stagingKey,
@@ -164,6 +180,9 @@ const assetRoutes: FastifyPluginAsync = async (fastify) => {
           ? await getPresignedDownloadUrl('uploads', a.thumbnailKey, ASSET_URL_TTL_SECONDS)
           : null,
         url: await getPresignedDownloadUrl('uploads', a.storageKey, ASSET_URL_TTL_SECONDS),
+        proxyUrl: a.proxyKey
+          ? await getPresignedDownloadUrl('uploads', a.proxyKey, ASSET_URL_TTL_SECONDS)
+          : null,
       })),
     );
     return reply.send({ assets: assetsWithUrls });

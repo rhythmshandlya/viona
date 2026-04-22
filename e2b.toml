@@ -1,0 +1,19 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (sdtypqf4o9vh9flkni3a) or template name (viona-sandbox) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox.create("viona-sandbox") # Sync sandbox
+# sandbox = await AsyncSandbox.create("viona-sandbox") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('viona-sandbox')
+
+team_id = "6f5c5ed0-dfc9-4963-8a9a-56e8648183de"
+memory_mb = 4_096
+cpu_count = 2
+start_cmd = "/app/entrypoint.sh"
+dockerfile = "packages\\sandbox\\e2b.Dockerfile"
+template_name = "viona-sandbox"
+template_id = "sdtypqf4o9vh9flkni3a"

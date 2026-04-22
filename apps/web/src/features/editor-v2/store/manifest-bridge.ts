@@ -166,26 +166,37 @@ export async function manifestToStore(
 
   // Build asset-id → URL map. Prefer caller-supplied map; otherwise collect
   // unique `data.assetId` values and fetch them in one round-trip.
-  // Only runs when there's at least one item carrying an assetId AND a
-  // projectId is in context. Arrangement subagent items look like:
-  //   { data: { assetId: 'a-1', sourceStartMs: ..., sourceDurationMs: ... } }
+  // Arrangement-subagent items can carry the assetId in either shape:
+  //   a) `{ data: { assetId: 'a-1', sourceStartMs, sourceDurationMs } }` (spec)
+  //   b) `{ data: { src: 'a-1' } }` (the Zod `src: z.string()` requirement
+  //      on the `add_item` tool forced the LLM to stuff the asset id into
+  //      `src` instead). Both must resolve.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   let urlByAssetId: Record<string, string> = context.assetUrlById ?? {};
   if (!context.assetUrlById && context.projectId) {
-    const needsResolution = (manifest.items as any[]).some(
-      (it) => it?.data?.assetId && !it?.data?.src,
-    );
+    const needsResolution = (manifest.items as any[]).some((it) => {
+      const d = it?.data;
+      if (!d) return false;
+      if (d.assetId && !/^https?:\/\//.test(d.src ?? '') && !d.src?.startsWith('/api/')) return true;
+      if (typeof d.src === 'string' && UUID_RE.test(d.src)) return true;
+      return false;
+    });
     if (needsResolution) {
       try {
         const res = await getAssetsApi().listProjectAssets(context.projectId);
+        // Prefer proxyUrl (low-res H.264 ~480p) for preview playback; fall
+        // back to the full-quality `url` when no proxy exists (asset is
+        // audio/image-only, or proxy generation hasn't finished yet). This
+        // is the v2 equivalent of the v1 sandbox-generated `source_proxy.mp4`.
         urlByAssetId = Object.fromEntries(
           res.assets
-            .filter((a) => a.url)
-            .map((a) => [a.id, a.url as string]),
+            .filter((a) => a.url || a.proxyUrl)
+            .map((a) => [a.id, (a.proxyUrl ?? a.url) as string]),
         );
       } catch (err) {
         // Non-fatal — items will fall back to empty src and simply fail to
         // render, matching pre-PR-D behavior. Log for observability.
-        console.warn('[manifest-bridge] listProjectAssets failed; data.assetId items will not resolve', err);
+        console.warn('[manifest-bridge] listProjectAssets failed; asset-backed items will not resolve', err);
       }
     }
   }
@@ -206,13 +217,20 @@ export async function manifestToStore(
   };
 
   for (const manifestItem of manifest.items) {
-    // If the item carries data.assetId and no data.src, inject the resolved
-    // URL before running the per-type conversion. This keeps the resolvedSrc
-    // fallback logic intact (absolute URLs / sandbox-relative paths still
-    // work unchanged) and avoids duplicating knowledge in every case-branch.
+    // If the item references an asset by id (via `data.assetId`, or — for
+    // arrangement-subagent items — via a UUID-shaped `data.src`), inject the
+    // resolved presigned URL before the per-type conversion runs. This keeps
+    // the resolvedSrc fallback logic intact (absolute URLs / sandbox-relative
+    // paths still work unchanged) and avoids duplicating knowledge per case.
     const d = manifestItem?.data;
-    if (d && d.assetId && !d.src && urlByAssetId[d.assetId]) {
-      manifestItem.data = { ...d, src: urlByAssetId[d.assetId] };
+    if (d) {
+      const assetId =
+        (d.assetId as string | undefined) ??
+        (typeof d.src === 'string' && UUID_RE.test(d.src) ? d.src : undefined);
+      if (assetId && urlByAssetId[assetId]) {
+        const resolved = urlByAssetId[assetId];
+        manifestItem.data = { ...d, src: resolved, assetId };
+      }
     }
     const storeItem = convertManifestItemV2(manifestItem, context, resolvedSrc);
     items[storeItem.id] = storeItem;

@@ -160,16 +160,23 @@ async function analyzeWordStyles(
 }
 
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
-  // Use spawn with cwd and relative filenames to avoid Windows path issues
-  // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
+  // ffmpeg is run with `cwd` set to the OUTPUT directory so the relative
+  // output filename lands at the caller-requested path. The input is passed
+  // as an absolute path (modern ffmpeg handles Windows `C:\...` fine for
+  // `-i`; the historical "colon is stream specifier" concern applies to
+  // output filenames with protocol-like prefixes, not to `-i`).
+  //
+  // Earlier version set `cwd = dirname(videoPath)` (the download tmp dir)
+  // and wrote `audio.wav` there — but the caller expected it in a separate
+  // transcribe workDir, producing ENOENT when reading the wav back.
   const { dirname, basename } = await import('path');
 
-  const workDir = dirname(videoPath);
-  const inputFilename = basename(videoPath);
+  const outDir = dirname(audioPath);
   const outputFilename = basename(audioPath);
 
-  // First check if the video has an audio stream
-  const hasAudio = await checkHasAudioStream(workDir, inputFilename);
+  // First check if the video has an audio stream. Probing the source file
+  // directly works regardless of where we'll eventually spawn ffmpeg.
+  const hasAudio = await checkHasAudioStream(dirname(videoPath), basename(videoPath));
 
   if (!hasAudio) {
     // Create a silent audio file for videos without audio
@@ -186,7 +193,7 @@ async function extractAudio(videoPath: string, audioPath: string): Promise<void>
 
     return new Promise((resolve, reject) => {
       const proc = spawn('ffmpeg', args, {
-        cwd: workDir,
+        cwd: outDir,
         stdio: ['ignore', 'pipe', 'pipe']
       });
 
@@ -208,7 +215,7 @@ async function extractAudio(videoPath: string, audioPath: string): Promise<void>
   }
 
   const args = [
-    '-i', inputFilename,
+    '-i', videoPath,
     '-y',
     '-vn',           // No video
     '-acodec', 'pcm_s16le',  // 16-bit PCM
@@ -219,7 +226,7 @@ async function extractAudio(videoPath: string, audioPath: string): Promise<void>
 
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, {
-      cwd: workDir,
+      cwd: outDir,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -494,13 +501,16 @@ async function hasVideoStream(filePath: string): Promise<boolean> {
 
 // Convert audio to 16kHz mono WAV for Whisper
 async function convertToWhisperWav(inputPath: string, outputPath: string): Promise<void> {
+  // Same reasoning as `extractAudio`: run ffmpeg with `cwd` at the OUTPUT
+  // directory so the relative output filename lands where the caller expects.
+  // The input is passed as an absolute path so it works regardless of the
+  // downloader's tmp location (input and output may live in different dirs).
   const { dirname, basename } = await import('path');
-  const workDir = dirname(inputPath);
-  const inputFilename = basename(inputPath);
+  const outDir = dirname(outputPath);
   const outputFilename = basename(outputPath);
 
   const args = [
-    '-i', inputFilename,
+    '-i', inputPath,
     '-y',
     '-vn',
     '-acodec', 'pcm_s16le',
@@ -511,7 +521,7 @@ async function convertToWhisperWav(inputPath: string, outputPath: string): Promi
 
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, {
-      cwd: workDir,
+      cwd: outDir,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -743,7 +753,21 @@ async function resolveProjectConversation(
  * is inserted — the insert happens only after a successful STT run.
  */
 async function processAssetTranscribe(data: Extract<TranscribeJobData, { mode: 'asset' }>) {
-  const { assetId, userId, storageKey } = data;
+  const { assetId, userId } = data;
+
+  // Re-read the canonical `storage_key` from the DB rather than trusting the
+  // one baked into the job payload. Content-addressed dedup + re-upload flows
+  // can leave stale keys in older enqueued jobs — the DB is the source of
+  // truth for "where are this asset's bytes actually stored right now?".
+  const [row] = await db
+    .select({ storageKey: assets.storageKey })
+    .from(assets)
+    .where(eq(assets.id, assetId))
+    .limit(1);
+  if (!row) {
+    throw new Error(`asset ${assetId} not found when starting transcribe`);
+  }
+  const storageKey = row.storageKey;
 
   // Task 13: resolve the asset's project conversation ONCE so we can attach
   // transcribing/transcribed pipeline chat bubbles. Library-only assets (no

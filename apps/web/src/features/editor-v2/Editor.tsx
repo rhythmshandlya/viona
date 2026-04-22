@@ -762,42 +762,64 @@ export function Editor({ projectId }: EditorProps) {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.12, ease: 'easeOut' }}
                 >
-                  <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-                    <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
-                      {leftSidebarTab === 'captions' && 'Caption Settings'}
-                      {leftSidebarTab === 'assets' && 'Visual Assets'}
-                    </h3>
-                    <button
-                      onClick={() => setLeftSidebarOpen(false)}
-                      className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto">
-                    {leftSidebarTab === 'captions' && (
-                      <ErrorBoundary name="Caption Settings">
-                        <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-                          <StylePanel />
-                        </Suspense>
-                      </ErrorBoundary>
-                    )}
-                    {leftSidebarTab === 'assets' && (
-                      <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
-                        {isAssetSystemV2() ? (
-                          <AssetsPanelV2 projectId={project.id} />
-                        ) : (
-                          <AssetsPanel
-                            onEditWithAI={() => {
-                              setLeftSidebarTab('agent');
-                              useEditorStore.setState({ aiEditRequested: true });
-                            }}
-                            onYouTubeClipAdded={handleYouTubeClipAdded}
-                          />
-                        )}
-                      </Suspense>
-                    )}
-                  </div>
+                  {/* Captions keeps the outer header; Assets panel owns its own header
+                      (title + project/library toggle + upload + close) to avoid a
+                      redundant "two bars showing the same thing" look. */}
+                  {leftSidebarTab === 'captions' && (
+                    <>
+                      <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+                        <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
+                          Caption Settings
+                        </h3>
+                        <button
+                          onClick={() => setLeftSidebarOpen(false)}
+                          className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto">
+                        <ErrorBoundary name="Caption Settings">
+                          <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                            <StylePanel />
+                          </Suspense>
+                        </ErrorBoundary>
+                      </div>
+                    </>
+                  )}
+                  {leftSidebarTab === 'assets' && (
+                    <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                      {isAssetSystemV2() ? (
+                        <AssetsPanelV2
+                          projectId={project.id}
+                          onClose={() => setLeftSidebarOpen(false)}
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+                            <h3 className="text-xs font-normal text-[var(--editor-text-muted)] uppercase tracking-wide">
+                              Visual Assets
+                            </h3>
+                            <button
+                              onClick={() => setLeftSidebarOpen(false)}
+                              className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="flex-1 overflow-y-auto">
+                            <AssetsPanel
+                              onEditWithAI={() => {
+                                setLeftSidebarTab('agent');
+                                useEditorStore.setState({ aiEditRequested: true });
+                              }}
+                              onYouTubeClipAdded={handleYouTubeClipAdded}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </Suspense>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, Sparkles } from 'lucide-react';
 import type { WidgetBlock } from './types';
 import type { AgentPlan } from '@viona/shared/progress-types';
 import { ScenePlanCard } from '../agent-widgets/ScenePlanCard';
+import { ThemePicker } from '../agent-widgets/ThemePicker';
 
 interface WidgetRendererProps {
   block: WidgetBlock;
@@ -187,21 +188,19 @@ export const WidgetRenderer = memo(function WidgetRenderer({
       );
 
     case 'theme_picker':
+      // Delegate to the proper ThemePicker component, which owns the catalog
+      // of available themes (magazine, vox, ...). Viona's prompt sends the
+      // widget with no options, so this inline path previously rendered an
+      // empty chip row. Keep `widget.options` as an override hook for the
+      // agent to pass a custom subset if it ever wants to.
       return (
         <div className="w-full my-2 p-3 rounded-xl bg-[var(--chat-plan-bg)] border border-[var(--chat-plan-border)] backdrop-blur-xl">
           <p className="text-sm text-white/70 mb-2">Choose a visual theme:</p>
-          <div className="flex flex-wrap gap-2">
-            {((widget.options as any[]) ?? []).map((opt: any, i: number) => (
-              <button
-                key={i}
-                className="px-3 py-1.5 text-sm rounded-lg bg-[var(--chat-chip-bg)] border border-white/[0.08] text-white/80 hover:bg-white/[0.12] transition-colors disabled:opacity-40"
-                disabled={disabled || isApproved}
-                onClick={() => onWidgetResponse(widget.id, opt.value ?? opt)}
-              >
-                {opt.label ?? opt}
-              </button>
-            ))}
-          </div>
+          <ThemePicker
+            onSelect={(themeId) => onWidgetResponse(widget.id, themeId)}
+            disabled={disabled || isApproved}
+            selectedValue={typeof block.response === 'string' ? block.response : undefined}
+          />
         </div>
       );
 

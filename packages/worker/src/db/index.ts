@@ -193,8 +193,10 @@ export const assets = pgTable('assets', {
 
   thumbnailKey: varchar('thumbnail_key', { length: 500 }),
   waveformKey: varchar('waveform_key', { length: 500 }),
+  proxyKey: varchar('proxy_key', { length: 500 }),
   thumbnailStatus: varchar('thumbnail_status', { length: 20 }).notNull().default('pending'),
   waveformStatus: varchar('waveform_status', { length: 20 }).notNull().default('pending'),
+  proxyStatus: varchar('proxy_status', { length: 20 }).notNull().default('pending'),
 
   transcriptAssetId: uuid('transcript_asset_id'),
   transcriptStatus: varchar('transcript_status', { length: 20 }).notNull().default('pending'),

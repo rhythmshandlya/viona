@@ -11,6 +11,7 @@ import { type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
 import { QuerySession } from './query-session.js';
 import { renderVideo } from './tools/render-video.js';
+import { fetchAndWriteAssetsManifest } from './assets/manifest.js';
 import {
   getJobState, onStateChange, failJob, updatePlan, updateWidget,
 } from './job-state.js';
@@ -122,6 +123,32 @@ export function startAgentServer(port = 8081): void {
     if (!initialized) {
       res.status(503).json({ error: 'Workspace not initialized yet', retryAfter: 3 });
       return;
+    }
+
+    // Refresh /workspace/assets-manifest.json from the DB at the top of every
+    // turn. workspace-init writes this file ONCE at container boot — if
+    // transcribe jobs complete after boot, the on-disk manifest keeps the
+    // stale `transcriptAssetId: null` and Phase 1 of the orchestrator sees
+    // "no transcript" even though the DB now has it. Re-fetching here closes
+    // that window. Non-fatal on failure: we keep serving with whatever is on
+    // disk rather than blocking the turn.
+    if (process.env.ASSET_SYSTEM_V2 === 'true') {
+      const apiUrl = process.env.API_CALLBACK_URL;
+      const sandboxId = process.env.SANDBOX_ID;
+      const secret = process.env.SANDBOX_SECRET;
+      if (apiUrl && sandboxId && secret) {
+        try {
+          await fetchAndWriteAssetsManifest({
+            apiUrl,
+            sandboxId,
+            secret,
+            workspaceRoot: process.env.WORKSPACE_DIR || '/workspace',
+          });
+          logger.info({ sandboxId }, 'assets-manifest refreshed before turn');
+        } catch (err) {
+          logger.warn({ err: (err as Error).message }, 'assets-manifest refresh before turn failed — continuing with on-disk copy');
+        }
+      }
     }
 
     // Generate a unique turn ID for this request
@@ -294,8 +321,18 @@ export function startAgentServer(port = 8081): void {
       try {
         const retry = await readManifestRaw();
         res.json(JSON.parse(retry));
-      } catch {
-        res.status(500).json({ error: err.message });
+      } catch (err2: any) {
+        // ENOENT during sandbox init (workspace files still being staged)
+        // isn't a server error — return 404 so the client can distinguish
+        // "not ready yet, retry" from an actual crash, and so the Next.js
+        // dev overlay doesn't surface a red error for what is a normal
+        // mid-init state.
+        const msg = err2?.message || err?.message || '';
+        if (msg.includes('ENOENT') || err2?.code === 'ENOENT' || err?.code === 'ENOENT') {
+          res.status(404).json({ error: 'manifest not ready' });
+        } else {
+          res.status(500).json({ error: msg });
+        }
       }
     }
   });

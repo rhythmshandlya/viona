@@ -65,6 +65,37 @@ export async function runFfmpegThumbnail(filepath: string, isVideo: boolean): Pr
 }
 
 /**
+ * Generates a low-res H.264 MP4 proxy for editor preview playback.
+ * ~480p short-side, CRF 28, veryfast preset, faststart so the editor can seek
+ * before the whole file is downloaded. Audio is AAC 96k — keeps file small
+ * while staying usable for sync/review. Returns the MP4 bytes as a Buffer.
+ *
+ * The editor points `video` items at this proxy instead of the original to
+ * avoid streaming the full-quality source on every seek/scrub.
+ */
+export async function runFfmpegProxy(filepath: string): Promise<Buffer> {
+  const outfile = join(tmpdir(), `proxy-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
+  try {
+    await exec('ffmpeg', [
+      '-i', filepath,
+      // Scale so the SHORT side is 480, keep aspect, force even dimensions for H.264
+      '-vf', "scale='if(gt(iw,ih),-2,480)':'if(gt(iw,ih),480,-2)'",
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '28',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '96k',
+      '-movflags', '+faststart',
+      '-y', outfile,
+    ]);
+    return await readFile(outfile);
+  } finally {
+    await safeUnlink(outfile);
+  }
+}
+
+/**
  * Generates a waveform PNG (640x120, white on transparent) from the first audio stream
  * of a video or audio file. Returns the PNG bytes as a Buffer.
  */

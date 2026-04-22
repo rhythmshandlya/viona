@@ -83,6 +83,12 @@ export interface AnimatedAIChatProps {
 // File Preview Card
 // ============================================
 
+/**
+ * Compact square tile for an attached file. Renders in a grid so N files sit
+ * in a tight block instead of N full-width strips. Thumbnail fills the tile;
+ * filename is a truncated caption under it; hover reveals the remove button
+ * and full name via tooltip. Upload state is a spinner / check overlay.
+ */
 function FilePreviewCard({
   file,
   onRemove,
@@ -90,12 +96,13 @@ function FilePreviewCard({
   uploadProgress,
 }: {
   file: File;
-  onRemove: () => void;
+  onRemove: (index?: number) => void;
   isProcessing: boolean;
   uploadProgress: number;
 }) {
   const previewUrl = useMemo(() => URL.createObjectURL(file), [file]);
   const isVideo = file.type.startsWith("video/");
+  const isAudio = file.type.startsWith("audio/");
   const isUploading = isProcessing && uploadProgress < 100;
   const isDone = isProcessing && uploadProgress >= 100;
 
@@ -105,14 +112,17 @@ function FilePreviewCard({
 
   return (
     <motion.div
-      className="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
+      // `overflow-visible` so the remove (X) button — positioned with negative
+      // offsets — can sit OUTSIDE the card on the top-right corner without
+      // being clipped. Rounded corners + clipping move to the inner thumbnail.
+      className="group relative rounded-md bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.14] transition-colors w-[72px]"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.12 }}
+      title={`${file.name} · ${formatFileSize(file.size)}`}
     >
-      {/* Thumbnail */}
-      <div className="relative w-20 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-black/30">
+      <div className="relative aspect-square w-full bg-black/40 rounded-t-md overflow-hidden">
         {isVideo ? (
           <video
             src={previewUrl}
@@ -124,55 +134,59 @@ function FilePreviewCard({
               (e.target as HTMLVideoElement).currentTime = 0.5;
             }}
           />
-        ) : (
+        ) : isAudio ? (
           <div className="w-full h-full flex items-center justify-center bg-[#8B5CF6]/10">
-            <Music className="w-6 h-6 text-[#8B5CF6]/60" />
+            <Music className="w-4 h-4 text-[#8B5CF6]/70" />
+          </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-white/[0.03]">
+            <Video className="w-4 h-4 text-white/40" />
           </div>
         )}
 
-        {/* Upload overlay on thumbnail */}
+        {/* Upload state overlay */}
         {isUploading && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <Loader2 className="w-5 h-5 text-white animate-spin" />
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
           </div>
         )}
         {isDone && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
           </div>
         )}
       </div>
 
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-white/80 truncate">{file.name}</p>
-        <p className="text-xs text-white/35 mt-0.5">
-          {formatFileSize(file.size)}
-          {isUploading && ` \u00B7 Uploading ${uploadProgress}%`}
-          {isDone && " \u00B7 Uploaded"}
-        </p>
-
-        {/* Progress bar */}
-        {isUploading && (
-          <div className="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden">
-            <motion.div
-              className="h-full bg-[#8B5CF6] rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${uploadProgress}%` }}
-              transition={{ duration: 0.3 }}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Remove button — only when not processing */}
+      {/* Remove button — floats OUTSIDE the tile on the top-right corner.
+          Placed at the card (outer) level so `overflow-visible` on the card
+          lets it extend beyond the border. */}
       {!isProcessing && (
         <button
           onClick={onRemove}
-          className="p-1.5 text-white/30 hover:text-white/70 rounded-lg transition-colors flex-shrink-0"
+          aria-label={`Remove ${file.name}`}
+          className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-black/90 text-white/80 hover:text-white border border-white/20 shadow-md opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
         >
-          <X className="w-4 h-4" />
+          <X className="w-2.5 h-2.5" />
         </button>
+      )}
+
+      {/* Filename caption */}
+      <div className="px-1 py-0.5">
+        <p className="text-[9px] text-white/60 truncate leading-tight">
+          {file.name}
+        </p>
+      </div>
+
+      {/* Progress bar pinned to bottom edge during upload */}
+      {isUploading && (
+        <div className="absolute left-0 right-0 bottom-0 h-0.5 bg-white/[0.06]">
+          <motion.div
+            className="h-full bg-[#8B5CF6]"
+            initial={{ width: 0 }}
+            animate={{ width: `${uploadProgress}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
       )}
     </motion.div>
   );
@@ -214,20 +228,20 @@ export function AnimatedAIChat({
     onSend?.(value.trim(), [...attachedFiles]);
   };
 
-  const handleAttach = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      setAttachedFiles(files.slice(0, 1)); // Single file only
+      setAttachedFiles((prev) => [...prev, ...files]);
     }
     e.target.value = "";
   };
 
-  const removeFile = () => {
-    setAttachedFiles([]);
+  const removeFile = (index?: number) => {
+    if (typeof index !== 'number') {
+      setAttachedFiles([]);
+      return;
+    }
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Drag and drop handlers
@@ -251,11 +265,14 @@ export function AnimatedAIChat({
     if (isProcessing) return;
 
     const files = Array.from(e.dataTransfer.files);
-    const mediaFile = files.find(
-      (f) => f.type.startsWith("video/") || f.type.startsWith("audio/")
+    const mediaFiles = files.filter(
+      (f) =>
+        f.type.startsWith("video/") ||
+        f.type.startsWith("audio/") ||
+        f.type.startsWith("image/"),
     );
-    if (mediaFile) {
-      setAttachedFiles([mediaFile]);
+    if (mediaFiles.length > 0) {
+      setAttachedFiles((prev) => [...prev, ...mediaFiles]);
     }
   }, [isProcessing]);
 
@@ -355,7 +372,9 @@ export function AnimatedAIChat({
               />
             </div>
 
-            {/* File Preview */}
+            {/* File Preview — tiny chip-style tiles, flex-wrap so they stay
+                small regardless of count. Individual upload/error state is
+                surfaced on the asset-events stream once the project exists. */}
             <AnimatePresence>
               {attachedFiles.length > 0 && (
                 <motion.div
@@ -364,12 +383,17 @@ export function AnimatedAIChat({
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
                 >
-                  <FilePreviewCard
-                    file={attachedFiles[0]}
-                    onRemove={removeFile}
-                    isProcessing={isProcessing}
-                    uploadProgress={uploadProgress}
-                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {attachedFiles.map((file, i) => (
+                      <FilePreviewCard
+                        key={`${file.name}-${i}-${file.size}`}
+                        file={file}
+                        onRemove={() => removeFile(i)}
+                        isProcessing={isProcessing}
+                        uploadProgress={uploadProgress}
+                      />
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -377,20 +401,31 @@ export function AnimatedAIChat({
             {/* Bottom Bar */}
             <div className="px-4 py-3 border-t border-white/[0.05] flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <motion.button
-                  type="button"
-                  onClick={handleAttach}
-                  whileTap={{ scale: 0.94 }}
-                  disabled={isProcessing}
-                  className="p-2 text-white/40 hover:text-white/90 rounded-lg transition-colors disabled:opacity-50"
+                {/* The file <input> is nested INSIDE the label so clicking
+                    anywhere on the label opens the picker with a guaranteed
+                    user-activation token — this path never relies on JS
+                    `.click()`, which some Chromium/Electron builds swallow
+                    when the underlying input is display:none. */}
+                <label
+                  className={cn(
+                    "inline-flex items-center gap-1.5 p-2 text-white/40 hover:text-white/90 rounded-lg transition-colors cursor-pointer active:scale-[0.96]",
+                    isProcessing && "opacity-50 pointer-events-none",
+                  )}
                 >
                   <Paperclip className="w-4 h-4" />
-                </motion.button>
-                {attachedFiles.length === 0 && !isProcessing && (
-                  <span className="text-xs text-white/20 select-none">
-                    Attach video or audio
-                  </span>
-                )}
+                  {attachedFiles.length === 0 && !isProcessing && (
+                    <span className="text-xs text-white/40">Attach video or audio</span>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept={acceptFileTypes}
+                    className="sr-only"
+                    onChange={handleFileChange}
+                    disabled={isProcessing}
+                  />
+                </label>
                 {isProcessing && processingMessage && (attachedFiles.length === 0 || uploadProgress >= 100) && (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-3.5 h-3.5 text-[#8B5CF6] animate-spin" />
@@ -416,14 +451,9 @@ export function AnimatedAIChat({
               </motion.button>
             </div>
 
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={acceptFileTypes}
-              className="hidden"
-              onChange={handleFileChange}
-            />
+            {/* File input lives nested inside the paperclip <label> above,
+                so clicking the label opens the picker via native browser
+                wiring. Nothing to render here. */}
           </motion.div>
         </motion.div>
       </div>

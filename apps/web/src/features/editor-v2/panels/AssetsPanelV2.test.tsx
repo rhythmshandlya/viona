@@ -78,17 +78,9 @@ describe('AssetsPanelV2', () => {
     expect(spies.listProjectAssets).toHaveBeenCalledWith('p-1');
   });
 
-  it('switches to Library tab and fetches user-scoped assets', async () => {
-    spies.listProjectAssets.mockResolvedValueOnce({ assets: [] });
-    spies.listUserAssets.mockResolvedValueOnce({
-      assets: [{ id: 'a-2', filename: 'library-clip.mp4', label: 'library-clip.mp4', mimeType: 'video/mp4', status: 'ready' }],
-    });
-    render(<AssetsPanelV2 projectId="p-1" />);
-    await userEvent.click(screen.getByRole('tab', { name: /library/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/library-clip\.mp4/i)).toBeInTheDocument();
-    });
-  });
+  // The Library tab was removed (collapsed into project-only view) because
+  // it was meant for a future global-uploads surface that doesn't exist yet.
+  // When that surface ships, re-add the tab + this test.
 
   it('sets drag data in application/x-project-asset format', async () => {
     spies.listProjectAssets.mockResolvedValueOnce({

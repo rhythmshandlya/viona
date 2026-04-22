@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStytch } from "@stytch/nextjs";
 import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { VionaLogo } from "@/components/viona-logo";
 
 type AuthState = "authenticating" | "success" | "error";
 
@@ -81,10 +82,8 @@ function AuthenticateContent() {
     <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-background">
       <div className="max-w-md w-full space-y-8 text-center">
         {/* Header */}
-        <div className="space-y-2">
-          <h1 className="text-4xl font-normal tracking-tight">
-            <span className="text-primary">Viona</span> <span className="text-muted-foreground font-normal text-2xl">Studio</span>
-          </h1>
+        <div className="flex justify-center">
+          <VionaLogo size="lg" />
         </div>
 
         {/* Status */}

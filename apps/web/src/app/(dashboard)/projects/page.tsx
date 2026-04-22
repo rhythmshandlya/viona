@@ -35,6 +35,7 @@ import {
 import { AnimatedAIChat } from "@/components/ui/animated-ai-chat";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { isAssetSystemV2 } from "@/lib/feature-flags";
+import { uploadAndRegister } from "@/lib/assets/upload-client";
 
 // ============================================
 // Utility Functions
@@ -460,19 +461,58 @@ export default function ProjectsPage() {
     }
   }, [bootingProjectId, router]);
 
-  // Handle chat send — create project from attached file + brief
+  // Handle chat send — create project from brief + one OR many attached
+  // files. When ASSET_SYSTEM_V2 is active, routes through the v2 upload +
+  // register pipeline (multi-file, per-asset proxies, arrangement subagent
+  // drives the timeline) without sending the user to a separate /new page.
   const handleChatSend = useCallback(async (message: string, files: File[]) => {
-    if (isAssetSystemV2()) {
-      router.push('/projects/new');
-      return;
-    }
-
     if (files.length === 0 && !message.trim()) return;
     if (files.length === 0) return;
 
-    const file = files[0];
     setIsProcessing(true);
     setUploadProgress(0);
+
+    if (isAssetSystemV2()) {
+      try {
+        const seedFilename = files[0]?.name ?? 'project';
+        const title = (message.trim() || seedFilename.replace(/\.[^/.]+$/, "")).slice(0, 255);
+
+        setProcessingMessage("Creating project...");
+        const { projectId } = await api.createProject(seedFilename, title, message);
+        if (message.trim()) {
+          sessionStorage.setItem(`project-brief-${projectId}`, message.trim());
+        }
+
+        setProcessingMessage(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}...`);
+        let completed = 0;
+        const results = await Promise.allSettled(
+          files.map(async (file) => {
+            const res = await uploadAndRegister({ file, source: 'upload', projectId });
+            completed++;
+            setUploadProgress(Math.round((completed / files.length) * 100));
+            return res;
+          }),
+        );
+        const failed = results.filter((r) => r.status === 'rejected');
+        if (failed.length > 0) {
+          console.error('[projects] upload failures', failed);
+        }
+        setUploadProgress(100);
+
+        setProcessingMessage("Opening editor...");
+        const search = message.trim() ? `?initialPrompt=${encodeURIComponent(message)}` : '';
+        router.push(`/edit/${projectId}${search}`);
+      } catch (err) {
+        console.error("Failed to create project:", err);
+        setIsProcessing(false);
+        setProcessingMessage("");
+        setUploadProgress(0);
+      }
+      return;
+    }
+
+    // Legacy single-file flow (flag off)
+    const file = files[0];
 
     try {
       const title = (message.trim() || file.name.replace(/\.[^/.]+$/, "")).slice(0, 255);

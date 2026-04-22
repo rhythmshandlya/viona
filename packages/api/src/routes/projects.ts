@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { eq, inArray, or, and, desc } from 'drizzle-orm';
-import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets } from '../db/index.js';
+import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets, assets, assetProjectLinks } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix, deleteObject } from '../services/minio.js';
 import { queueTranscribeJob, queueEnhanceAudioJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
@@ -53,6 +53,157 @@ function checkProjectOwnership(projectUserId: string | null, userId: string | un
   // Legacy projects with no owner: deny access (admin can reassign via DB)
   if (!projectUserId) return false;
   return projectUserId === userId;
+}
+
+interface TranscriptWord {
+  text: string;
+  startMs: number;
+  endMs: number;
+}
+
+interface StitchedTranscript {
+  text: string;
+  words: TranscriptWord[];
+  segments: Array<{ text: string; startMs: number; endMs: number }>;
+}
+
+/**
+ * Build a single project-level transcript by stitching the per-asset v2
+ * transcripts (stored as derived asset JSON in MinIO) together, offsetting
+ * each clip's word timings by where that clip sits on the timeline.
+ *
+ * Returns null when the project has no v2-linked video/audio assets with
+ * ready transcripts — the caller falls back to the legacy `transcripts` row.
+ */
+export async function stitchV2ProjectTranscript(projectId: string): Promise<StitchedTranscript | null> {
+  const items = await db
+    .select({
+      startMs: timelineItems.startMs,
+      endMs: timelineItems.endMs,
+      data: timelineItems.data,
+      trackId: timelineItems.trackId,
+      trackType: tracks.type,
+    })
+    .from(timelineItems)
+    .innerJoin(tracks, eq(tracks.id, timelineItems.trackId))
+    .where(eq(tracks.projectId, projectId));
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  type Placement = { assetId: string; startMs: number; sourceStartMs: number };
+
+  // Prefer video timeline items (they drive the spine); fall back to audio
+  // items when no video is placed. Skip items whose src isn't an asset UUID.
+  const byTrackType = (type: string): Placement[] =>
+    items
+      .filter((i) => i.trackType === type)
+      .map((i) => {
+        const d = (i.data as Record<string, unknown> | null) ?? {};
+        const assetId =
+          (typeof d.assetId === 'string' && UUID_RE.test(d.assetId) ? d.assetId : null) ??
+          (typeof d.src === 'string' && UUID_RE.test(d.src) ? (d.src as string) : null);
+        if (!assetId) return null;
+        const sourceStartMs =
+          typeof d.sourceStartMs === 'number'
+            ? d.sourceStartMs
+            : typeof d.startFrom === 'number'
+              ? d.startFrom
+              : 0;
+        return { assetId, startMs: i.startMs, sourceStartMs } as Placement;
+      })
+      .filter((x): x is Placement => x !== null)
+      .sort((a, b) => a.startMs - b.startMs);
+
+  const placements: Placement[] = byTrackType('video').length > 0 ? byTrackType('video') : byTrackType('audio');
+
+  // No timeline items → no arrangement has happened yet. We intentionally do
+  // NOT fabricate an order here (earlier attempts tried `addedAt`, then
+  // natural-filename sort — both are the arrangement subagent's job, not
+  // this helper's. Stitching in an arbitrary order produces a transcript
+  // that reads out of sequence and misleads Phase 1 analysis). When the
+  // agent runs arrangement the timeline_items will carry the real order
+  // and this function will return a proper stitched transcript. Until then,
+  // return null and let callers fall back to per-asset transcripts (via
+  // `assets-manifest.json` + `read_asset(transcriptAssetId)`).
+  if (placements.length === 0) return null;
+
+  // Resolve each placement's asset → derived transcript asset → MinIO key.
+  const assetIds = Array.from(new Set(placements.map((p) => p.assetId)));
+  const parentRows = await db
+    .select({ id: assets.id, transcriptAssetId: assets.transcriptAssetId })
+    .from(assets)
+    .where(inArray(assets.id, assetIds));
+  const derivedIds = parentRows
+    .map((r) => r.transcriptAssetId)
+    .filter((id): id is string => !!id);
+  if (derivedIds.length === 0) return null;
+
+  const derivedRows = await db
+    .select({ id: assets.id, storageKey: assets.storageKey })
+    .from(assets)
+    .where(inArray(assets.id, derivedIds));
+  const derivedByParent = new Map<string, string>();
+  for (const parent of parentRows) {
+    if (!parent.transcriptAssetId) continue;
+    const derived = derivedRows.find((d) => d.id === parent.transcriptAssetId);
+    if (derived) derivedByParent.set(parent.id, derived.storageKey);
+  }
+
+  // Fetch + parse each unique derived transcript JSON once.
+  const transcriptByAsset = new Map<string, { words: TranscriptWord[]; segments: StitchedTranscript['segments'] }>();
+  for (const [assetId, derivedKey] of derivedByParent.entries()) {
+    try {
+      const stream = await getObjectStream('uploads', derivedKey);
+      const chunks: Buffer[] = [];
+      for await (const c of stream as unknown as AsyncIterable<Buffer>) chunks.push(c);
+      const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      const words: TranscriptWord[] = Array.isArray(parsed.words)
+        ? parsed.words.map((w: { text?: string; word?: string; startMs: number; endMs: number }) => ({
+            text: (w.text ?? w.word ?? '').toString(),
+            startMs: w.startMs,
+            endMs: w.endMs,
+          }))
+        : [];
+      const segments = Array.isArray(parsed.segments)
+        ? parsed.segments.map((s: { text: string; startMs: number; endMs: number }) => ({
+            text: s.text,
+            startMs: s.startMs,
+            endMs: s.endMs,
+          }))
+        : [];
+      transcriptByAsset.set(assetId, { words, segments });
+    } catch (err) {
+      logger.warn({ err, assetId, derivedKey }, 'failed to read v2 transcript, skipping in stitch');
+    }
+  }
+  if (transcriptByAsset.size === 0) return null;
+
+  // Assemble the aggregate words[] with timeline offsets.
+  const stitchedWords: TranscriptWord[] = [];
+  const stitchedSegments: StitchedTranscript['segments'] = [];
+  for (const p of placements) {
+    const t = transcriptByAsset.get(p.assetId);
+    if (!t) continue;
+    const offset = p.startMs - p.sourceStartMs;
+    for (const w of t.words) {
+      stitchedWords.push({
+        text: w.text,
+        startMs: Math.max(0, w.startMs + offset),
+        endMs: Math.max(0, w.endMs + offset),
+      });
+    }
+    for (const s of t.segments) {
+      stitchedSegments.push({
+        text: s.text,
+        startMs: Math.max(0, s.startMs + offset),
+        endMs: Math.max(0, s.endMs + offset),
+      });
+    }
+  }
+  return {
+    text: stitchedWords.map((w) => w.text).join(' ').trim(),
+    words: stitchedWords,
+    segments: stitchedSegments,
+  };
 }
 
 export async function projectRoutes(fastify: FastifyInstance) {
@@ -205,6 +356,13 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const transcript = await db.query.transcripts.findFirst({
       where: eq(transcripts.projectId, id),
     });
+    // NOTE: v2 transcripts live per-asset (see `stitchV2ProjectTranscript`).
+    // We intentionally do NOT fold them into this response anymore — the
+    // only consumer was the Transcript panel's read-only fallback, which
+    // was removed because that panel is a caption editor (split/merge/edit),
+    // not a transcript viewer. Captions populate from the caption subagent
+    // placing items on the timeline. The stitch helper stays exported for
+    // future use (e.g. exposing a dedicated `/transcripts/:projectId` API).
 
     // Generate presigned URLs for video/audio playback (valid for 8 hours).
     // These let the browser download directly from MinIO/S3, bypassing the
@@ -321,17 +479,32 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    if (!project.videoKey) {
+    // v2 projects don't populate `project.videoKey` — bytes live per-asset.
+    // Fall back to the first linked video asset's storageKey so this endpoint
+    // (and the `/media-proxy/projects/:id/video` rewrite used for thumbnails)
+    // keeps working under v2.
+    let videoKey = project.videoKey;
+    if (!videoKey) {
+      const linked = await db
+        .select({ storageKey: assets.storageKey, mimeType: assets.mimeType, addedAt: assetProjectLinks.addedAt })
+        .from(assetProjectLinks)
+        .innerJoin(assets, eq(assets.id, assetProjectLinks.assetId))
+        .where(eq(assetProjectLinks.projectId, id))
+        .orderBy(assetProjectLinks.addedAt);
+      const firstVideo = linked.find((a) => a.mimeType?.startsWith('video/'));
+      if (firstVideo) videoKey = firstVideo.storageKey;
+    }
+    if (!videoKey) {
       return reply.status(400).send({ error: 'No video uploaded' });
     }
 
     try {
       // Get object metadata for content-type and size
       // (also serves as an existence check — throws if object is missing)
-      const stat = await getObjectStat('uploads', project.videoKey);
+      const stat = await getObjectStat('uploads', videoKey);
 
       // Determine content type from file extension
-      const ext = project.videoKey.split('.').pop()?.toLowerCase();
+      const ext = videoKey.split('.').pop()?.toLowerCase();
       const contentTypes: Record<string, string> = {
         mp4: 'video/mp4',
         mov: 'video/quicktime',
@@ -355,7 +528,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
         const stream = await getPartialObjectStream(
           'uploads',
-          project.videoKey,
+          videoKey,
           start,
           chunkSize,
         );
@@ -372,7 +545,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
 
       // Full file request
-      const stream = await getObjectStream('uploads', project.videoKey);
+      const stream = await getObjectStream('uploads', videoKey);
 
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
@@ -407,14 +580,26 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    if (!project.audioKey) {
+    // v2: fall back to the first linked audio asset (same pattern as /video).
+    let audioKey = project.audioKey;
+    if (!audioKey) {
+      const linked = await db
+        .select({ storageKey: assets.storageKey, mimeType: assets.mimeType, addedAt: assetProjectLinks.addedAt })
+        .from(assetProjectLinks)
+        .innerJoin(assets, eq(assets.id, assetProjectLinks.assetId))
+        .where(eq(assetProjectLinks.projectId, id))
+        .orderBy(assetProjectLinks.addedAt);
+      const firstAudio = linked.find((a) => a.mimeType?.startsWith('audio/'));
+      if (firstAudio) audioKey = firstAudio.storageKey;
+    }
+    if (!audioKey) {
       return reply.status(400).send({ error: 'No audio uploaded' });
     }
 
     try {
       // statObject doubles as existence check — throws if missing
-      const stat = await getObjectStat('uploads', project.audioKey);
-      const ext = project.audioKey.split('.').pop()?.toLowerCase();
+      const stat = await getObjectStat('uploads', audioKey);
+      const ext = audioKey.split('.').pop()?.toLowerCase();
       const contentTypes: Record<string, string> = {
         mp3: 'audio/mpeg',
         m4a: 'audio/mp4',
@@ -433,7 +618,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
           : stat.size - 1;
         const chunkSize = end - start + 1;
 
-        const stream = await getPartialObjectStream('uploads', project.audioKey, start, chunkSize);
+        const stream = await getPartialObjectStream('uploads', audioKey, start, chunkSize);
         reply.status(206);
         reply.header('Content-Range', `bytes ${start}-${end}/${stat.size}`);
         reply.header('Accept-Ranges', 'bytes');
@@ -443,7 +628,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         return reply.send(stream);
       }
 
-      const stream = await getObjectStream('uploads', project.audioKey);
+      const stream = await getObjectStream('uploads', audioKey);
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
       reply.header('Accept-Ranges', 'bytes');

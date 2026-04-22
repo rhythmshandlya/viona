@@ -1,7 +1,21 @@
 import React from 'react';
 
+// Kept in sync with `packages/templates/themes/*.json` (the registry that
+// drives the template bundles). When a new theme lands (new json file +
+// template bundles), add it here so it shows up as an option in the chat.
 const themes = [
-  { id: 'magazine', label: 'Magazine', description: 'Clean editorial with serif typography', colors: ['#ffffff', '#e11d48', '#0f172a'] },
+  {
+    id: 'magazine',
+    label: 'Magazine',
+    description: 'Editorial serif typography, clean white paper, sharp cuts',
+    colors: ['#ffffff', '#e11d48', '#0f172a'],
+  },
+  {
+    id: 'vox',
+    label: 'Vox Explainer',
+    description: 'Documentary collage, yellow highlighter, 12 fps stutter',
+    colors: ['#F1F3F2', '#FFEB00', '#4C4E4D'],
+  },
 ];
 
 interface ThemePickerProps {

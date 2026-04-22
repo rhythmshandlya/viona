@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, FolderOpen, LayoutGrid, PanelLeftClose, PanelLeft } from "lucide-react";
+import { VionaLogo, VionaMark } from "@/components/viona-logo";
 
 export function Sidebar() {
   const router = useRouter();
@@ -47,9 +48,8 @@ export function Sidebar() {
       {/* Top: Logo + Toggle */}
       {expanded ? (
         <div className="flex items-center justify-between px-4 mb-6">
-          <Link href="/projects" className="flex items-center gap-2 min-w-0">
-            <span className="text-lg font-normal text-[#8B5CF6] flex-shrink-0">V</span>
-            <span className="text-sm font-normal text-white/80 truncate">Viona</span>
+          <Link href="/projects" className="flex items-center min-w-0">
+            <VionaLogo size="sm" />
           </Link>
           <button
             onClick={() => setExpanded(false)}
@@ -64,7 +64,7 @@ export function Sidebar() {
             onClick={() => setExpanded(true)}
             className="group w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-white/[0.06]"
           >
-            <span className="text-lg font-normal text-[#8B5CF6] group-hover:hidden">V</span>
+            <VionaMark className="w-5 h-5 text-[#8B5CF6] group-hover:hidden" />
             <PanelLeft className="w-4 h-4 text-white/50 hidden group-hover:block" />
           </button>
         </div>

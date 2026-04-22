@@ -15,6 +15,15 @@ import { config } from '../config.js';
 
 const BUCKET = config.minio.bucket;
 
+// The `assets.storage_key` column stores the bare key (e.g. `users/:uid/assets/pending/:nanoid/file.mp4`).
+// MinIO objects live under the `uploads/` prefix — the API's `getPresignedMultipartUploadUrls` /
+// `getPresignedDownloadUrl` helpers prepend it automatically. These worker helpers are called with
+// the same bare key, so we re-apply the prefix here to hit the actual object.
+const UPLOADS_PREFIX = config.minio.prefixes?.uploads ?? 'uploads/';
+function fullKey(storageKey: string): string {
+  return storageKey.startsWith(UPLOADS_PREFIX) ? storageKey : `${UPLOADS_PREFIX}${storageKey}`;
+}
+
 export interface DownloadedAsset {
   /** Absolute path to the downloaded file on local disk. */
   path: string;
@@ -30,7 +39,7 @@ export interface DownloadedAsset {
 export async function downloadToTmp(storageKey: string): Promise<DownloadedAsset> {
   const dir = await mkdtemp(join(tmpdir(), 'asset-meta-'));
   const destPath = join(dir, basename(storageKey) || 'asset.bin');
-  const stream = await minioClient.getObject(BUCKET, storageKey);
+  const stream = await minioClient.getObject(BUCKET, fullKey(storageKey));
   const writeStream = createWriteStream(destPath);
   await pipeline(stream, writeStream);
   return {
@@ -50,8 +59,11 @@ export async function uploadFile(
   body: Buffer,
   contentType: string,
 ): Promise<string> {
-  await minioClient.putObject(BUCKET, storageKey, body, body.length, {
+  await minioClient.putObject(BUCKET, fullKey(storageKey), body, body.length, {
     'Content-Type': contentType,
   });
+  // Return the bare key (without the uploads/ prefix) so it matches the shape
+  // stored on `assets.thumbnail_key` / `waveform_key` / `proxy_key`, and the
+  // API's `getPresignedDownloadUrl('uploads', key)` resolution.
   return storageKey;
 }

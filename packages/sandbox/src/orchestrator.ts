@@ -460,6 +460,7 @@ export async function buildOrchestratorOptions(
         prompt: arrangementPrompt,
         tools: [
           'Read', 'Glob',
+          'Write', // required to emit /workspace/docs/unused-assets.json (reserve pool)
           ...MANIFEST_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,

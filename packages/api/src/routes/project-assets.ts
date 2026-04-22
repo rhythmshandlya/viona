@@ -91,6 +91,9 @@ const projectAssetRoutes: FastifyPluginAsync = async (fastify) => {
           ? await getPresignedDownloadUrl('uploads', a.thumbnailKey, ASSET_URL_TTL_SECONDS)
           : null,
         url: await getPresignedDownloadUrl('uploads', a.storageKey, ASSET_URL_TTL_SECONDS),
+        proxyUrl: a.proxyKey
+          ? await getPresignedDownloadUrl('uploads', a.proxyKey, ASSET_URL_TTL_SECONDS)
+          : null,
       })),
     );
     return reply.send({ assets: assetsWithUrls });

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getSessionToken } from '../auth';
 
 export interface AssetEvent {
@@ -44,6 +44,19 @@ export interface UseAssetEventsOptions {
 export function useAssetEvents(options: UseAssetEventsOptions): void {
   const { enabled, apiBaseUrl, onEvent } = options;
 
+  // Stash the onEvent callback in a ref so the SSE effect can call the
+  // latest version without needing to re-subscribe every render. Including
+  // `onEvent` in the effect's deps caused a reconnect loop: callers that
+  // passed an inline arrow function (the common case) created a new identity
+  // each render, the effect cleanup aborted the in-flight SSE, and the
+  // effect re-ran — opening a fresh request against `/asset-events`. On a
+  // chatty editor page this showed up as a stream of ERR_ABORTED entries in
+  // the network log.
+  const onEventRef = useRef(onEvent);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -82,7 +95,7 @@ export function useAssetEvents(options: UseAssetEventsOptions): void {
                 dataLines = [];
                 try {
                   const parsed = JSON.parse(dataStr) as AssetEvent;
-                  onEvent(parsed);
+                  onEventRef.current(parsed);
                 } catch {
                   // Skip malformed payloads rather than tearing the stream down.
                 }
@@ -109,5 +122,5 @@ export function useAssetEvents(options: UseAssetEventsOptions): void {
     })();
 
     return () => controller.abort();
-  }, [enabled, apiBaseUrl, onEvent]);
+  }, [enabled, apiBaseUrl]);
 }

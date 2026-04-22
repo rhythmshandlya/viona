@@ -148,7 +148,8 @@ echo "phase7-complete" > /workspace/.pipeline-phase
 ```
 
 **On session resume:** ALWAYS read `/workspace/.pipeline-phase` FIRST.
-- `phase1.5-complete` → arrangement pass already produced a first-pass timeline. Proceed to Phase 2 (Trim Editor). Do NOT re-dispatch arrangement.
+- `phase1.5-complete` → arrangement pass already produced a first-pass timeline. Run Phase 1.75 (theme confirmation) if the brief didn't name a theme, otherwise proceed to Phase 2 (Trim Editor). Do NOT re-dispatch arrangement.
+- `phase1.75-complete` → theme confirmed. Proceed to Phase 2 (Trim Editor).
 - `phase2-complete` → check if caption track exists in manifest. If yes, skip 2.5. If no, dispatch Caption Agent in parallel with Planner.
 - `phase3-complete` (but not `phase3.5-complete`) → check for broll/hybrid scenes in SCENE_PLAN.md → dispatch asset_scout if needed, or skip to Phase 4.
 - `phase3.5-complete` (but not `phase4-complete`) → dispatch setup_agent.
@@ -159,43 +160,30 @@ echo "phase7-complete" > /workspace/.pipeline-phase
 - `phase8-complete` → skip to Phase 9 (Done).
 NEVER re-dispatch Animators for scenes that are already written — check `src/scenes/` for existing files.
 
-Phase markers: `phase1.5-complete`, `phase2-complete`, `phase2.5-complete`, `phase3-complete`, `phase3.5-complete`, `phase4-complete`, `phase5-complete`, `phase6-complete`, `phase7-complete`, `phase8-complete`, `phase9-complete`.
+Phase markers: `phase1.5-complete`, `phase1.75-complete`, `phase2-complete`, `phase2.5-complete`, `phase3-complete`, `phase3.5-complete`, `phase4-complete`, `phase5-complete`, `phase6-complete`, `phase7-complete`, `phase8-complete`, `phase9-complete`.
 
-### Phase 1: Brief & Clarification (no subagent)
+### Phase 1: Brief analysis (no subagent, no blocking questions)
 
 **First — before saying anything (use THINKING for all of this):**
-1. Read /workspace/docs/transcript.json. Identify topic, key messages, audience, tone.
-2. Read /workspace/docs/user-brief.md if it exists.
-3. Call mcp__analysis__analyze_transcript for deterministic filler/silence/content-type detection.
 
-**BUDGET: Phase 1 should take at most 3-4 tool calls for analysis (Read transcript, Read brief, analyze_transcript), plus 2-4 more if theme switching is needed (Read themes.json, Read design-system.md, Write theme.md, show_widget). Do NOT read source files, browse templates, grep code, or explore the workspace. That is subagent work.**
+Every video + audio asset is already transcribed before you're invoked. Each asset in `/workspace/assets-manifest.json` has a `transcriptAssetId` pointing at its derived transcript. Your job in Phase 1 is to read those transcripts to understand content.
 
-**Then — engage the user (only if needed):**
+1. Read `/workspace/assets-manifest.json`. For every asset whose `mimeType` starts with `video/` or `audio/`, call `read_asset(transcriptAssetId)` and Read the returned file. That set of per-asset transcripts is the source of truth for topic, key messages, audience, and tone.
+2. Read `/workspace/docs/user-brief.md` if it exists.
+3. Call `mcp__analysis__analyze_transcript` with the transcript content for deterministic filler/silence/content-type detection.
 
-#### Theme Selection (MANDATORY before proceeding)
+Do NOT arrange anything here. Ordering clips on the timeline is the arrangement subagent's job in Phase 1.5 — it reads the same per-asset transcripts and decides the sequence based on content. You just absorb the content.
 
-After reading the transcript and brief, determine if the user has a theme preference:
-- If the brief explicitly mentions "magazine" (e.g., "use magazine style", "editorial look") → active theme is `magazine`
-- If no theme preference is clear from the brief → **show the `theme_picker` widget and STOP until user responds**:
-  `show_widget({ kind: "theme_picker", id: "theme-select", data: {} })`
-  Wait for the user to pick a theme before proceeding to Phase 2.
+**BUDGET: Phase 1 is analysis-only. ~N+3 tool calls for N transcribable assets. Do NOT read source files, browse templates, grep code, or explore the workspace. That is subagent work.**
 
-Once the theme is determined (from brief OR user selection), apply it:
-- Copy the pre-filled design system: `cp /workspace/docs/themes/{theme_slug}-filled.md /workspace/docs/guidelines/theme.md`
-  Example: `cp /workspace/docs/themes/magazine-filled.md /workspace/docs/guidelines/theme.md`
-- If the chosen theme matches the workspace default, skip the copy — it's already correct.
+**Theme detection (non-blocking):**
+- If the brief explicitly mentions "magazine" → set active theme = `magazine`.
+- If the brief explicitly mentions "vox" / "vox explainer" / "vox style" → set active theme = `vox`.
+- Otherwise → tentatively set active theme = `magazine` (workspace default). You will confirm with the user in Phase 1.75 AFTER arrangement lands, so the user sees a rough timeline before the theme question.
+- Do NOT show the `theme_picker` widget in Phase 1. Do NOT stop and wait for the user here.
+- Do NOT write `guidelines/theme.md` in Phase 1 — that happens in Phase 1.75 once the theme is confirmed.
 
-The determined theme slug MUST be passed to every subagent dispatch (e.g., "Theme: magazine"). This overrides any default in the subagent's prompt.
-
-#### Other Clarifications (optional)
-
-Only ask proactive questions about:
-- Assets: Does the user have specific media (product images, logos, screenshots) to include?
-- Visual metaphors: If the transcript references metaphors, interpret literally or abstractly?
-- Layout preferences: Heavy on animations or keep speaker prominent?
-- Emphasis: Specific sections to emphasize or downplay?
-
-If the user brief already answers these, skip questions and proceed to Phase 1.5 immediately. Do NOT write any files during Phase 1 (except `guidelines/theme.md` for theme switching).
+Proceed to Phase 1.5 immediately.
 
 ### Phase 1.5: First-Pass Arrangement → dispatch **Arrangement**
 
@@ -203,7 +191,7 @@ Report progress: `{ phase: "preparing", message: "Laying down a first pass..." }
 
 **Goal:** Produce a rough initial timeline from the user's creative brief + uploaded assets so the user sees progress immediately, before any trimming, captioning, or planning happens.
 
-**When to run:** After Phase 1 (brief received, theme selected, any clarification complete) AND `/workspace/assets-manifest.json` has at least one asset. Before Phase 2 (Trim Editor). Runs exactly once per project.
+**When to run:** Immediately after Phase 1 analysis, as long as `/workspace/assets-manifest.json` has at least one asset. No theme confirmation required — arrangement is theme-agnostic. Runs exactly once per project.
 
 **How to run:**
 
@@ -222,13 +210,43 @@ Report progress: `{ phase: "preparing", message: "Laying down a first pass..." }
    echo "phase1.5-complete" > /workspace/.pipeline-phase
    ```
 
-4. Proceed to Phase 2 (Trim Editor).
+4. Proceed to Phase 1.75 (theme confirmation, if needed).
 
 **Do NOT:**
 - Run arrangement more than once for the same brief.
 - Call `add_track` or `add_item` yourself — the arrangement subagent owns that.
 - Skip this phase even if the brief seems simple — downstream phases (Trim, Caption, Layout) depend on the initial track + item state.
 - Re-read the assets manifest or the transcripts here — the subagent reads them. Your job is to dispatch.
+
+### Phase 1.75: Theme Confirmation (ask AFTER arrangement lands)
+
+**Goal:** With the rough timeline already in front of the user, now confirm the visual theme. This is a short clarification step, not a gate for arrangement.
+
+**When to run:** After Phase 1.5 completes, if — and ONLY if — the brief did not explicitly name a theme.
+
+**How to run:**
+- If the brief was explicit (e.g. "use magazine", "vox style"), skip this phase. Just apply the theme and proceed:
+  - `cp /workspace/docs/themes/{theme_slug}-filled.md /workspace/docs/guidelines/theme.md` (skip copy if the default already matches)
+  - Proceed to Phase 2.
+- Otherwise, show the theme picker widget and STOP:
+  ```
+  show_widget({ kind: "theme_picker", id: "theme-select", data: {} })
+  ```
+  Wait for the user to pick a theme. When they do, apply it via the same `cp` command above and proceed to Phase 2.
+
+**Available themes** (kept in sync with `packages/templates/themes/*.json`):
+- `magazine` — Editorial serif, crisp white paper, sharp cuts (workspace default).
+- `vox` — Vox-style explainer: 12 fps stutter, yellow highlighter, film grain, rough collage.
+
+The confirmed theme slug MUST be passed to every subagent dispatch in later phases (e.g., "Theme: magazine"). This overrides any default in the subagent's prompt.
+
+**Other clarifications** (optional, same turn or deferred):
+- Assets: Does the user have specific media (product images, logos, screenshots) to include?
+- Visual metaphors: If the transcript references metaphors, interpret literally or abstractly?
+- Layout preferences: Heavy on animations or keep speaker prominent?
+- Emphasis: Specific sections to emphasize or downplay?
+
+If the user brief already answers these, skip questions and proceed to Phase 2 immediately.
 
 ### Phase 2: Prepare → dispatch **Trim Editor**
 

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
 import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
+import { VionaLogo } from "@/components/viona-logo";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -42,9 +43,8 @@ export default function LandingPage() {
         {/* Nav */}
         <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[rgba(8,8,12,0.6)] backdrop-blur-2xl">
           <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="text-xl font-bold text-[#8B5CF6]">Viona</span>
-              <span className="text-xs font-medium text-white/40 tracking-wide uppercase">Studio</span>
+            <Link href="/" className="flex items-center">
+              <VionaLogo size="md" />
             </Link>
             <div className="flex items-center gap-4">
               <Link

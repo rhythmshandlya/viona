@@ -82,22 +82,37 @@ export default function NewProjectPage() {
         className="mt-6 rounded-lg border-2 border-dashed p-10 text-center"
       >
         {files.length === 0 ? (
-          <div className="text-sm text-muted-foreground">
-            Drop video, audio, images here
-            <label className="mt-2 block cursor-pointer text-primary underline">
-              or pick files
-              <input type="file" multiple className="hidden" onChange={onPickFiles} />
-            </label>
-          </div>
+          <div className="text-sm text-muted-foreground">Drop video, audio, images here</div>
         ) : (
           <ul className="text-left text-sm">
             {files.map((f, i) => (
-              <li key={i} className="py-0.5">
-                {f.name} <span className="text-muted-foreground">({Math.round(f.size / 1024)} KB)</span>
+              <li key={i} className="flex items-center justify-between gap-4 py-0.5">
+                <span>
+                  {f.name}{' '}
+                  <span className="text-muted-foreground">({Math.round(f.size / 1024)} KB)</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label={`remove ${f.name}`}
+                  onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  remove
+                </button>
               </li>
             ))}
           </ul>
         )}
+        <label className="mt-3 inline-block cursor-pointer text-sm text-primary underline">
+          {files.length === 0 ? 'or pick files' : 'add more files'}
+          <input
+            type="file"
+            multiple
+            accept="video/*,audio/*,image/*"
+            className="hidden"
+            onChange={onPickFiles}
+          />
+        </label>
       </div>
 
       <label className="mt-6 block">

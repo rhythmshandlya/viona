@@ -340,7 +340,16 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('[API Error]', response.status, url, JSON.stringify(error).slice(0, 500));
+      // 404 on sandbox/manifest is an expected transient during init (workspace
+      // files still being staged). Don't fire console.error for it — Next.js
+      // dev overlay treats every console.error as a red banner.
+      const isTransientManifest404 =
+        response.status === 404 && /\/sandbox\/manifest(?:\?|$)/.test(url);
+      if (isTransientManifest404) {
+        console.debug('[API] sandbox manifest not ready yet (404) — caller should retry', url);
+      } else {
+        console.error('[API Error]', response.status, url, JSON.stringify(error).slice(0, 500));
+      }
 
       // Redirect to login on 401 after retry exhausted
       if (response.status === 401 && typeof window !== 'undefined') {

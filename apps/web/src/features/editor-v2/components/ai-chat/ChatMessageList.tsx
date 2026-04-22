@@ -5,6 +5,7 @@ import type { Message, TextBlock, WidgetBlock, ActiveTask } from './types';
 import { ChatBubble } from './ChatBubble';
 import { WidgetRenderer } from './WidgetRenderer';
 import { ActiveTaskList } from './ActiveTaskList';
+import { IngestStatusList } from './IngestStatusList';
 
 interface ChatMessageListProps {
   messages: Message[];
@@ -13,6 +14,9 @@ interface ChatMessageListProps {
   isTextActive: boolean;
   activeTasks: ActiveTask[];
   busy: boolean;
+  /** Current project id — passed through to IngestStatusList so it can seed
+   *  from the project asset list on mount (not just react to SSE events). */
+  projectId?: string;
   onWidgetResponse: (widgetId: string, value: unknown) => void;
   onEditScene?: (sceneIndex: number, sceneTitle: string, planJobId: string) => void;
   onScenesUpdate?: (planJobId: string, scenes: unknown[]) => void | Promise<void>;
@@ -75,6 +79,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   isTextActive,
   activeTasks,
   busy,
+  projectId,
   onWidgetResponse,
   onEditScene,
   onScenesUpdate,
@@ -120,6 +125,12 @@ export const ChatMessageList = memo(function ChatMessageList({
 
       {/* Active task list — replaces the old ProgressIndicator */}
       <ActiveTaskList tasks={activeTasks} busy={busy} isVisible={isStreaming} />
+
+      {/* Ingest status — always visible (listens to /asset-events SSE). Shows
+          upload + metadata + transcription progress per asset, using the same
+          agent-badge visual language as ActiveTaskList. Seeds from the project
+          asset list so rows appear even when the editor mounts mid-ingest. */}
+      <IngestStatusList projectId={projectId} />
     </>
   );
 });

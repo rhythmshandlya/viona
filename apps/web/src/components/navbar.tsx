@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { VionaLogo } from "@/components/viona-logo";
 import { LogOut } from "lucide-react";
 
 export function Navbar() {
@@ -38,8 +39,8 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 border-b border-white/[0.04] bg-transparent backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 flex h-14 items-center justify-between">
         {/* Logo */}
-        <Link href="/projects" className="flex items-center space-x-2">
-          <span className="text-lg font-normal text-[#8B5CF6]">Viona</span>
+        <Link href="/projects" className="flex items-center">
+          <VionaLogo size="md" />
         </Link>
 
         {/* User Menu */}

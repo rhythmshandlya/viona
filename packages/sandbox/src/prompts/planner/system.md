@@ -170,8 +170,10 @@ Every scene in SCENE_PLAN.md must use this EXACT format. Every field is REQUIRED
 
 Replace Template, Fork reason, Visual concept, Key data, Must show, and Animation brief with:
 
+**Check reserves first.** Read `/workspace/docs/unused-assets.json` — the arrangement pass puts every uploaded clip that didn't make the spine into this reserve pool with a one-line `reason`. Match each B-roll scene against those entries by topic (look at `reason` + `filename`): user-uploaded footage beats external stock by default because it shares lighting, camera, and subject continuity. If a reserve fits, name it in the **B-roll search** field as `reserve: <assetId>` so `asset_scout` uses that asset. Only add Pexels queries for scenes where nothing in the reserves fits.
+
 ### B-roll search
-[1-3 Pexels search queries ranked by priority. Be specific and descriptive — "1990s Tokyo subway crowd" not "city people".]
+[EITHER `reserve: <assetId>` (when a user-uploaded reserve fits this scene — preferred), OR 1-3 Pexels search queries ranked by priority (specific and descriptive — "1990s Tokyo subway crowd" not "city people"). Can mix if one scene has a weak reserve but a strong stock match.]
 
 ### B-roll display
 [One of: fullscreen-cutaway | letterboxed | letterboxed-captions | rounded-float | polaroid | film-treatment | stacked-50 | stacked-70 | speaker-pip | triple-stack | grid-2x2 | greenscreen-bg]

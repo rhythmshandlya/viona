@@ -60,9 +60,11 @@ export function TranscriptPanel() {
   const { select, deleteItems } = useTimelineActions();
   const { setSelectedScene } = useAIActions();
 
-  const [transcriptPhrases, setTranscriptPhrases] = useState<
-    Array<{ text: string; startMs: number; endMs: number }>
-  >([]);
+  // This panel is a caption editor (merge, split, edit, replace-all) — it
+  // works on caption items placed on the timeline by the caption subagent.
+  // It is NOT a transcript viewer. The read-only transcript-phrase fallback
+  // that used to live here was removed because it masked the real flow:
+  // transcripts → caption agent → caption items → this panel.
 
   const activeCaptionId = useEditorStore((state) => {
     const t = state.currentTimeMs;
@@ -98,46 +100,6 @@ export function TranscriptPanel() {
     }
   }, [project?.id]);
 
-  useEffect(() => {
-    if (!project?.id) { setTranscriptPhrases([]); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/projects/${project.id}`, { credentials: 'include' });
-        if (!res.ok) return;
-        const body = await res.json();
-        const words: Array<{ text: string; startMs: number; endMs: number }> =
-          body?.transcript?.words ?? [];
-        if (!words.length || cancelled) return;
-        const phrases: Array<{ text: string; startMs: number; endMs: number }> = [];
-        let buf: typeof words = [];
-        const flush = () => {
-          if (!buf.length) return;
-          phrases.push({
-            text: buf.map(w => w.text).join(' '),
-            startMs: buf[0].startMs,
-            endMs: buf[buf.length - 1].endMs,
-          });
-          buf = [];
-        };
-        for (let i = 0; i < words.length; i++) {
-          const w = words[i];
-          if (buf.length > 0) {
-            const prev = buf[buf.length - 1];
-            const gap = w.startMs - prev.endMs;
-            const spanMs = w.endMs - buf[0].startMs;
-            if (gap > 400 || buf.length >= 8 || spanMs > 5000) flush();
-          }
-          buf.push(w);
-        }
-        flush();
-        if (!cancelled) setTranscriptPhrases(phrases);
-      } catch (err) {
-        console.warn('Failed to fetch transcript:', err);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [project?.id]);
 
   const getSceneForCaption = useCallback((startMs: number): SceneInfo | null => {
     return scenes.find(s => startMs >= s.startMs && startMs < s.endMs) || null;
@@ -405,31 +367,25 @@ export function TranscriptPanel() {
         </div>
       )}
 
-      {/* Caption list */}
+      {/* Caption list — populated from caption items placed on the timeline
+          by the caption subagent. Until those land, we show an informative
+          empty state rather than a stand-in read-only transcript view. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {filteredCaptions.length === 0 ? (
-          transcriptPhrases.length === 0 ? (
-            <div className="p-4 text-center text-xs text-[var(--editor-text-muted)]">
-              {searchQuery ? 'No matches found' : 'No transcript available yet'}
-            </div>
-          ) : (
-            (searchQuery
-              ? transcriptPhrases.filter(p => p.text.toLowerCase().includes(searchQuery.toLowerCase()))
-              : transcriptPhrases
-            ).map((phrase, idx) => (
-              <button
-                key={`transcript-${idx}`}
-                type="button"
-                onClick={() => handleSeek(phrase.startMs)}
-                className="w-full text-left px-4 py-2 text-sm text-[var(--editor-text)] hover:bg-[var(--editor-hover)] border-b border-[var(--editor-border)]/30 transition-colors"
-              >
-                <div className="text-[10px] text-[var(--editor-text-muted)] mb-0.5">
-                  {formatTime(phrase.startMs)}
+          <div className="p-6 text-center text-xs text-[var(--editor-text-muted)] flex flex-col items-center gap-2">
+            {searchQuery ? (
+              <>No matches found</>
+            ) : (
+              <>
+                <div className="text-sm text-[var(--editor-text-secondary)]">
+                  No captions on the timeline yet
                 </div>
-                <div>{phrase.text}</div>
-              </button>
-            ))
-          )
+                <div className="leading-relaxed max-w-[260px]">
+                  Captions will appear here once Viona&apos;s caption pass runs — you&apos;ll then be able to edit, split, and merge them inline.
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           filteredCaptions.map((item, index) => {
             const data = item.data as CaptionItemData;

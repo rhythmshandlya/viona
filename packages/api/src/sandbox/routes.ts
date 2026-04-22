@@ -13,6 +13,45 @@ import { sandboxSessions } from '../db/schema.js';
 import type { SandboxManager, InitData } from './manager.js';
 import { syncManifestToDb } from './sync.js';
 import { prewarmInference } from '../inference/dispatcher.js';
+import { listProjectAssets } from '../services/asset-link-service.js';
+import { stitchV2ProjectTranscript } from '../routes/projects.js';
+import { readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
+
+/**
+ * Get the most current Claude Code OAuth token for a sandbox to use.
+ *
+ * Precedence:
+ *   1. `~/.claude/.credentials.json.claudeAiOauth.accessToken` — the claude
+ *      CLI refreshes this file every ~8h, so reading it at spawn time gives
+ *      the sandbox a fresh token instead of a stale env value that was
+ *      captured when the user had a different account or before a rotate.
+ *   2. `CLAUDE_CODE_OAUTH_TOKEN` env — fallback for CI / servers where the
+ *      credentials file isn't present.
+ *
+ * Returns undefined when neither source is available.
+ */
+function getCurrentClaudeOauthToken(): string | undefined {
+  const path = join(homedir(), '.claude', '.credentials.json');
+  try {
+    const raw = readFileSync(path, 'utf8');
+    const parsed = JSON.parse(raw) as { claudeAiOauth?: { accessToken?: string } };
+    const token = parsed.claudeAiOauth?.accessToken;
+    if (token && typeof token === 'string' && token.length > 20) {
+      logger.info({ source: 'credentials.json', tokenHead: token.slice(0, 20) }, 'claude oauth token resolved');
+      return token;
+    }
+    logger.warn({ path, hasAccessToken: !!parsed.claudeAiOauth?.accessToken }, 'credentials.json read ok but accessToken missing/short');
+  } catch (err) {
+    logger.warn({ path, err: (err as Error).message }, 'credentials.json read failed, falling back to env');
+  }
+  const envToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  if (envToken) {
+    logger.info({ source: 'env', tokenHead: envToken.slice(0, 20) }, 'claude oauth token resolved');
+  }
+  return envToken || undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Factory: createSandboxRoutes(manager)
@@ -36,7 +75,11 @@ export function createSandboxRoutes(manager: SandboxManager) {
 
         const env: Record<string, string> = {};
         if (process.env.ANTHROPIC_API_KEY) env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-        if (process.env.CLAUDE_CODE_OAUTH_TOKEN) env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+        // Read the fresh token from the claude CLI credentials file when
+        // possible (falls back to the env var). The env copy can go stale
+        // when the user switches accounts or when Claude rotates the token.
+        const oauthToken = getCurrentClaudeOauthToken();
+        if (oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
         if (process.env.ASSET_SYSTEM_V2) env.ASSET_SYSTEM_V2 = process.env.ASSET_SYSTEM_V2;
         env.PROJECT_ID = projectId;
         // VIDEO_KEY: bare MinIO key (no `uploads/` prefix) used by the
@@ -520,20 +563,62 @@ async function buildInitData(projectId: string): Promise<InitData | null> {
     }
   }
 
+  // In v2, projects are created via /projects/new with assets ingested via
+  // /assets/upload-urls + /assets/register. The legacy `project.videoKey` is
+  // pre-generated at createProject time but never filled (bytes go to the
+  // per-asset `users/.../assets/pending/...` keys instead). If any v2 linked
+  // assets exist, override videoUrl/audioUrl with the first linked video/audio
+  // asset's real storageKey so the sandbox workspace-init can download it.
+  // The full asset list still gets hydrated via assets-manifest.json (PR-B).
+  let v2VideoKey: string | null = null;
+  let v2AudioKey: string | null = null;
+  if (process.env.ASSET_SYSTEM_V2 === 'true') {
+    try {
+      const linkedAssets = await listProjectAssets(projectId);
+      const firstVideo = linkedAssets.find((a) => a.mimeType?.startsWith('video/'));
+      const firstAudio = linkedAssets.find((a) => a.mimeType?.startsWith('audio/'));
+      if (firstVideo) v2VideoKey = firstVideo.storageKey;
+      if (firstAudio) v2AudioKey = firstAudio.storageKey;
+    } catch (err) {
+      logger.warn({ err, projectId }, 'v2 asset lookup failed in buildInitData, falling back to legacy keys');
+    }
+  }
+
   // Build init payload with optional transcript, brief, head-tracking, and project meta
   const initBody: InitData = {
-    videoUrl: project.videoKey ? `uploads/${project.videoKey}` : '',
-    audioUrl: project.audioKey ? `uploads/${project.audioKey}` : undefined,
+    videoUrl: v2VideoKey
+      ? `uploads/${v2VideoKey}`
+      : project.videoKey
+        ? `uploads/${project.videoKey}`
+        : '',
+    audioUrl: v2AudioKey
+      ? `uploads/${v2AudioKey}`
+      : project.audioKey
+        ? `uploads/${project.audioKey}`
+        : undefined,
     manifest,
   };
 
-  // Add transcript if available (lives in separate table)
-  // Send full rawOutput (words + segments + language) so planner has complete context
-  const [transcript] = await db.select().from(transcripts)
-    .where(eq(transcripts.projectId, projectId))
-    .limit(1);
-  if (transcript?.rawOutput) {
-    initBody.transcript = transcript.rawOutput;
+  // Add transcript so Phase 1 planning has content to read.
+  // v2 path: assets each have their own derived transcript.json in MinIO —
+  // stitch them into one timeline-offset word stream. This is what populates
+  // `/workspace/docs/transcript.json` in the sandbox. Without it Viona reads
+  // an empty file and asks the user "how should I handle the missing
+  // transcript?" even though transcripts are actually ready.
+  // Legacy path (pre-v2 projects): fall back to the `transcripts` table row.
+  const v2Transcript = await stitchV2ProjectTranscript(projectId).catch((err) => {
+    logger.warn({ err, projectId }, 'v2 transcript stitch failed in buildInitData, falling back to legacy row');
+    return null;
+  });
+  if (v2Transcript) {
+    initBody.transcript = v2Transcript;
+  } else {
+    const [legacy] = await db.select().from(transcripts)
+      .where(eq(transcripts.projectId, projectId))
+      .limit(1);
+    if (legacy?.rawOutput) {
+      initBody.transcript = legacy.rawOutput;
+    }
   }
 
   // Add user brief if available

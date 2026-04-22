@@ -2,7 +2,7 @@ import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { db, assets } from '../db/index.js';
 import { emitAssetEvent } from '../services/asset-events.js';
-import { runFfprobe, runFfmpegThumbnail, runFfmpegWaveform } from '../services/media.js';
+import { runFfprobe, runFfmpegThumbnail, runFfmpegWaveform, runFfmpegProxy } from '../services/media.js';
 import { downloadToTmp, uploadFile } from '../services/asset-storage.js';
 import { queueTranscribeJob } from '../services/queue.js';
 
@@ -43,6 +43,8 @@ export async function processAssetMetadataJob(job: Job<AssetMetadataJobData>): P
     const derivedPrefix = `users/${asset.userId}/derived/${asset.sha256}`;
     let thumbnailKey: string | null = null;
     let waveformKey: string | null = null;
+    let proxyKey: string | null = null;
+    let proxyStatus: 'ready' | 'failed' | 'not_applicable' = 'not_applicable';
 
     if (isVideo(asset.mimeType) || isImage(asset.mimeType)) {
       const thumbBuf = await runFfmpegThumbnail(download.path, isVideo(asset.mimeType));
@@ -51,6 +53,22 @@ export async function processAssetMetadataJob(job: Job<AssetMetadataJobData>): P
     if (isVideo(asset.mimeType) || isAudio(asset.mimeType)) {
       const waveBuf = await runFfmpegWaveform(download.path);
       waveformKey = await uploadFile(`${derivedPrefix}/waveform.png`, waveBuf, 'image/png');
+    }
+    // Low-res preview proxy for editor playback. Video only — audio assets
+    // play fine from the original and don't benefit from transcoding.
+    // Failures are non-fatal: the editor falls back to the original storage
+    // key via the presigned URL. We still record proxy_status='failed' so
+    // observability can distinguish "never generated" from "can't generate".
+    if (isVideo(asset.mimeType)) {
+      try {
+        const proxyBuf = await runFfmpegProxy(download.path);
+        proxyKey = await uploadFile(`${derivedPrefix}/proxy.mp4`, proxyBuf, 'video/mp4');
+        proxyStatus = 'ready';
+      } catch (err) {
+        proxyStatus = 'failed';
+        // Log but swallow — proxy is an optimization, not a correctness requirement.
+        console.warn('[asset-metadata] proxy generation failed', { assetId, err: (err as Error).message });
+      }
     }
 
     const needsTranscribe = isVideo(asset.mimeType) || isAudio(asset.mimeType);
@@ -61,8 +79,10 @@ export async function processAssetMetadataJob(job: Job<AssetMetadataJobData>): P
       height: probe.height,
       thumbnailKey,
       waveformKey,
+      proxyKey,
       thumbnailStatus: thumbnailKey ? 'ready' : 'not_applicable',
       waveformStatus: waveformKey ? 'ready' : 'not_applicable',
+      proxyStatus,
       transcriptStatus: needsTranscribe ? 'pending' : 'not_applicable',
       updatedAt: new Date(),
     }).where(eq(assets.id, assetId));
@@ -78,6 +98,7 @@ export async function processAssetMetadataJob(job: Job<AssetMetadataJobData>): P
         height: probe.height,
         thumbnailKey,
         waveformKey,
+        proxyKey,
       },
     });
 

@@ -93,4 +93,10 @@ export const AGENT_STYLES: Record<string, { color: string; icon: string }> = {
   'Final Editor':   { color: '#c084fc', icon: '✓' },
   Editor:           { color: '#94a3b8', icon: '✎' },
   Renderer:         { color: '#fb923c', icon: '▶' },
+  // Ingest pipeline — asset upload, metadata extraction (thumb, waveform, proxy),
+  // and transcript generation. Rendered as a task row in chat so the user sees
+  // per-file progress during the post-upload phase, the same way they see
+  // subagent progress (e.g. "arrangement • Adding to timeline • 21s").
+  Ingest:           { color: '#0ea5e9', icon: '⇧' },
+  Transcriber:      { color: '#2dd4bf', icon: '✎' },
 };

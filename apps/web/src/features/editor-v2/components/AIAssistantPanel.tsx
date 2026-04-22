@@ -23,7 +23,10 @@ import {
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 import { useActivity } from '../hooks/use-progress';
 import { useActiveTasks } from '../hooks/use-progress';
+import { useProjectIngestReady } from '../hooks/use-project-ingest-ready';
 import { ChatMessageList } from './ai-chat/ChatMessageList';
+import { ChatBubble } from './ai-chat/ChatBubble';
+import { IngestStatusList } from './ai-chat/IngestStatusList';
 import { ChatInput } from './ai-chat/ChatInput';
 import type { ChatInputHandle, ContextChip, AttachmentChip } from './ai-chat/ChatInput';
 import type { Message, MessageBlock, WidgetBlock, PlanBlock, ProgressState, ActiveTask, AgentPlan } from './ai-chat/types';
@@ -1165,12 +1168,38 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
   const autoGreetSent = useRef(false);
 
-  // Auto-send ?initialPrompt from URL (set by /projects/new redirect).
+  // Hold the first user message until every linked asset has a terminal
+  // transcriptStatus. Viona plans from transcripts, so sending the brief
+  // before transcription completes causes it to fall back to a theme-picker
+  // widget and skip arrangement. The IngestStatusList below shows per-asset
+  // progress while we wait, so the user sees why the chat is idle.
+  const ingest = useProjectIngestReady(projectId);
+
+  // Optimistic "pending brief" preview. When the user lands on the editor
+  // with an `?initialPrompt=...` in the URL (or the sessionStorage brief
+  // from /projects flow), we hold the actual dispatch to Viona until ingest
+  // finishes — but the chat would otherwise look empty during the wait.
+  // Showing the prompt as a user bubble right away + the IngestStatusList
+  // below it matches the intent ("I asked for X; you're processing my
+  // assets") and removes the confusing empty-chat-with-URL-param state.
+  // Auto-send ?initialPrompt from URL (set by /projects or /projects/new redirect).
   // Only fires on the first mount of a fresh conversation — skips if history already
   // contains messages (avoids replay on reload; backend persists the user message).
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialPromptSent = useRef(false);
+
+  const pendingInitialPromptFromUrl = searchParams?.get('initialPrompt');
+  const pendingInitialPromptFromStorage =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem(`project-brief-${projectId}`)
+      : null;
+  const pendingInitialPrompt = pendingInitialPromptFromUrl || pendingInitialPromptFromStorage;
+  const showPendingBrief =
+    historyLoaded &&
+    messages.length === 0 &&
+    !!pendingInitialPrompt &&
+    !initialPromptSent.current;
   useEffect(() => {
     if (initialPromptSent.current) return;
     if (!historyLoaded) return;
@@ -1178,17 +1207,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     if (!initial) return;
     // Only fire if conversation has no messages yet (backend persisted the first send already).
     if (messages.length > 0) return;
+    // Wait for transcripts — see `useProjectIngestReady`.
+    if (!ingest.ready) return;
     initialPromptSent.current = true;
     autoGreetSent.current = true; // suppress auto-greet; initialPrompt supersedes it
     sendMessage(initial).catch(() => { initialPromptSent.current = false; autoGreetSent.current = false; });
     // Clear the query param so reloads don't re-fire.
     try { router.replace(`/edit/${projectId}`); } catch { /* best effort */ }
-  }, [searchParams, historyLoaded, messages.length, projectId, router, sendMessage]);
+  }, [searchParams, historyLoaded, messages.length, projectId, router, sendMessage, ingest.ready]);
 
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
-      autoGreetSent.current = true;
       const brief = sessionStorage.getItem(`project-brief-${projectId}`);
+      // Same gate as the initialPrompt branch — hold the brief until transcripts land.
+      if (brief && !ingest.ready) return;
+      autoGreetSent.current = true;
       if (brief) {
         sessionStorage.removeItem(`project-brief-${projectId}`);
         sendMessage(brief, undefined, { hidden: false }).catch(() => { autoGreetSent.current = false; });
@@ -1197,7 +1230,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           .catch(() => { autoGreetSent.current = false; });
       }
     }
-  }, [historyLoaded, messages.length, isStreaming, sendMessage, projectId]);
+  }, [historyLoaded, messages.length, isStreaming, sendMessage, projectId, ingest.ready]);
 
   // -----------------------------------------------------------------------
   // Computed props for ChatInput
@@ -1312,6 +1345,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             <Loader2 className="w-6 h-6 text-[var(--editor-accent)] animate-spin" />
             <p className="text-xs text-[var(--editor-text-muted)] mt-2">Loading conversation...</p>
           </div>
+        ) : showPendingBrief ? (
+          // Pending-brief view: user's prompt as a bubble, ingest rows below.
+          // Replaces the empty sparkle state when initialPrompt is present but
+          // dispatch is held until transcription completes.
+          <>
+            <div className="flex justify-end">
+              <div className="max-w-[85%]">
+                <ChatBubble role="user" text={pendingInitialPrompt ?? ''} />
+              </div>
+            </div>
+            <IngestStatusList projectId={projectId} />
+          </>
         ) : messages.length === 0 && !isStreaming ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-12 h-12 rounded-full bg-[var(--editor-accent-soft)] flex items-center justify-center mb-4">
@@ -1340,6 +1385,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             isTextActive={isStreaming && !showTypingDot}
             activeTasks={activeTasksState.tasks}
             busy={activeTasksState.busy}
+            projectId={projectId}
             onWidgetResponse={handleWidgetResponse}
             onEditScene={handleEditScene}
             onScenesUpdate={handleScenesUpdate}

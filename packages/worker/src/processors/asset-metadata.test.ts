@@ -7,6 +7,7 @@ const emitEvent = vi.fn().mockResolvedValue(undefined);
 const ffprobe = vi.fn();
 const thumbnail = vi.fn();
 const waveform = vi.fn();
+const proxy = vi.fn();
 const minioGet = vi.fn();
 const minioPut = vi.fn();
 const queueTranscribe = vi.fn();
@@ -33,6 +34,7 @@ vi.mock('../services/media.js', () => ({
   runFfprobe: (...a: unknown[]) => ffprobe(...a),
   runFfmpegThumbnail: (...a: unknown[]) => thumbnail(...a),
   runFfmpegWaveform: (...a: unknown[]) => waveform(...a),
+  runFfmpegProxy: (...a: unknown[]) => proxy(...a),
 }));
 vi.mock('../services/asset-storage.js', () => ({
   downloadToTmp: (...a: unknown[]) => minioGet(...a),
@@ -60,6 +62,7 @@ describe('processAssetMetadataJob', () => {
     ffprobe.mockResolvedValueOnce({ durationMs: 12000, width: 1920, height: 1080, audioChannels: 2 });
     thumbnail.mockResolvedValueOnce(Buffer.from('thumb'));
     waveform.mockResolvedValueOnce(Buffer.from('wave'));
+    proxy.mockResolvedValueOnce(Buffer.from('proxy'));
     minioPut.mockResolvedValue('users/u/derived/abc/thumbnail.jpg');
 
     await processAssetMetadataJob({ data: { assetId: 'a-1' } } as never);
@@ -67,9 +70,10 @@ describe('processAssetMetadataJob', () => {
     expect(ffprobe).toHaveBeenCalledWith('/tmp/v.mp4');
     expect(thumbnail).toHaveBeenCalled();
     expect(waveform).toHaveBeenCalled();
+    expect(proxy).toHaveBeenCalledWith('/tmp/v.mp4');
     expect(dbUpdateSet).toHaveBeenCalledWith(expect.objectContaining({
       durationMs: 12000, width: 1920, height: 1080,
-      thumbnailStatus: 'ready', waveformStatus: 'ready', transcriptStatus: 'pending',
+      thumbnailStatus: 'ready', waveformStatus: 'ready', proxyStatus: 'ready', transcriptStatus: 'pending',
     }));
     expect(emitEvent).toHaveBeenCalledWith(expect.objectContaining({
       assetId: 'a-1', userId: 'u', type: 'metadata_ready',
@@ -88,10 +92,12 @@ describe('processAssetMetadataJob', () => {
     await processAssetMetadataJob({ data: { assetId: 'a-2' } } as never);
 
     expect(waveform).not.toHaveBeenCalled();
+    expect(proxy).not.toHaveBeenCalled();
     expect(queueTranscribe).not.toHaveBeenCalled();
     expect(dbUpdateSet).toHaveBeenCalledWith(expect.objectContaining({
       thumbnailStatus: 'ready',
       waveformStatus: 'not_applicable',
+      proxyStatus: 'not_applicable',
       transcriptStatus: 'not_applicable',
     }));
   });
@@ -108,10 +114,12 @@ describe('processAssetMetadataJob', () => {
 
     expect(thumbnail).not.toHaveBeenCalled();
     expect(waveform).toHaveBeenCalled();
+    expect(proxy).not.toHaveBeenCalled();
     expect(queueTranscribe).toHaveBeenCalled();
     expect(dbUpdateSet).toHaveBeenCalledWith(expect.objectContaining({
       thumbnailStatus: 'not_applicable',
       waveformStatus: 'ready',
+      proxyStatus: 'not_applicable',
       transcriptStatus: 'pending',
     }));
   });

@@ -23,6 +23,7 @@ export class CompositionApi {
   async getComposition(projectId: string): Promise<Composition> {
     const token = getSessionToken();
     const res = await fetch(`${this.baseUrl}/api/projects/${projectId}/composition-v2`, {
+      credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     if (!res.ok) throw new Error(`${res.status} composition: ${await res.text()}`);
