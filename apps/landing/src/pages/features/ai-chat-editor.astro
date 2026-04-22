@@ -1,0 +1,88 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="AI Chat Editor — Edit Video by Prompt"
+  description="Direct your AI co-editor with plain English. Cut, split, swap captions, generate b-roll, regenerate visuals — describe the edit and Viona performs it."
+>
+  <section class="pt-32 pb-16 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-xs font-medium text-primary mb-4">Feature</div>
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6">
+        AI Chat Editor
+      </h1>
+      <p class="text-lg text-muted-foreground leading-relaxed mb-8">
+        Viona's AI chat editor lets you direct every edit in plain English. Instead of dragging
+        clips on a timeline, you describe what you want — "cut the first 30 seconds", "make this
+        caption yellow", "add a bar chart when I mention the three metrics", "regenerate this
+        scene in a cinematic style" — and the editor performs it. It's the fastest way to turn
+        raw footage into a polished video.
+      </p>
+    </div>
+  </section>
+
+  <section class="pb-16">
+    <div class="max-w-3xl mx-auto px-6 space-y-12">
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">What you can prompt</h2>
+        <p class="text-muted-foreground leading-relaxed mb-4">
+          Viona understands both structural edits and creative direction. Structural prompts
+          handle the mechanics: cut a range, split a clip, reorder scenes, remove silence, strip
+          filler words, change the aspect ratio. Creative prompts reshape the content: swap
+          caption presets, change color palettes, regenerate a specific visual with a different
+          layout, apply a cinematic look, or ask for a tighter opening.
+        </p>
+        <p class="text-muted-foreground leading-relaxed">
+          You can chain prompts too. Ask to cut the intro, then ask for MrBeast-style captions,
+          then ask for an animated flowchart when you explain your three-step process. Each
+          prompt stacks on top of the previous edit, and Viona keeps the project consistent.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">How it works under the hood</h2>
+        <p class="text-muted-foreground leading-relaxed mb-4">
+          Viona transcribes your video at the word level, then builds a semantic model of the
+          scenes — what you're saying, what you're showing, and where the natural beats fall.
+          When you prompt an edit, the AI maps your instruction to concrete timeline operations:
+          which frames to cut, which assets to swap, which scenes to regenerate. You review the
+          change and accept or ask for something different.
+        </p>
+        <p class="text-muted-foreground leading-relaxed">
+          Nothing is one-shot. Every edit is reviewable, reversible, and refinable. The AI is
+          your co-editor, not a black box.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Who this is for</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Anyone who would rather describe an edit than perform it. Creators publishing to
+          YouTube, TikTok, Instagram, or LinkedIn. Marketers producing product and launch
+          videos at volume. Educators and consultants turning recordings into polished lessons.
+          Agencies that need to ship 30 edits a week without burning out an editor.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Related features</h2>
+        <ul class="space-y-2 text-muted-foreground">
+          <li><a href="/features/caption-templates/" class="text-primary hover:underline">Animated caption templates</a> — 20+ subtitle styles, all promptable.</li>
+          <li><a href="/features/ai-visuals/" class="text-primary hover:underline">AI visual generation</a> — auto-generated charts synced to your narration.</li>
+          <li><a href="/pricing/" class="text-primary hover:underline">Pricing</a> — free to try, no card required.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Try the AI chat editor</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>

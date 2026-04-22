@@ -1,0 +1,52 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { getCollection } from "astro:content";
+
+const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+);
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+---
+
+<BaseLayout
+  title="Blog"
+  description="Essays, playbooks, and research on AI video editing, captions, content strategy, and shipping video faster."
+>
+  <section class="pt-32 pb-20 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="mb-16">
+        <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-4">
+          Blog
+        </h1>
+        <p class="text-muted-foreground">
+          Essays, playbooks, and research on AI video editing and shipping video faster.
+        </p>
+      </div>
+
+      <div class="space-y-8">
+        {posts.map((post) => (
+          <article class="card-elevated p-6">
+            <div class="text-xs text-muted-foreground mb-2">
+              <time datetime={post.data.publishedAt.toISOString()}>
+                {dateFormatter.format(post.data.publishedAt)}
+              </time>
+              {post.data.tags.length > 0 && (
+                <span> · {post.data.tags.slice(0, 2).join(", ")}</span>
+              )}
+            </div>
+            <h2 class="text-xl sm:text-2xl font-semibold mb-3">
+              <a href={`/blog/${post.id}/`} class="hover:text-primary transition">{post.data.title}</a>
+            </h2>
+            <p class="text-muted-foreground leading-relaxed mb-4">{post.data.description}</p>
+            <a href={`/blog/${post.id}/`} class="text-sm font-medium text-primary hover:underline">Read more →</a>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

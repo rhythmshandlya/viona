@@ -5,7 +5,7 @@ import CTA from "@/components/sections/CTA.astro";
 
 <BaseLayout
   title="About"
-  description="Learn about Viona's mission to help creators make better explainer videos with AI."
+  description="Viona is the AI video editor for every kind of video. Describe the edit you want in plain English — Viona performs it."
 >
   <section class="pt-32 pb-20 lg:pt-40">
     <div class="max-w-3xl mx-auto px-6">
@@ -15,7 +15,8 @@ import CTA from "@/components/sections/CTA.astro";
           About <span class="text-brand">Viona</span>
         </h1>
         <p class="text-lg text-muted-foreground">
-          Viona transforms talking-head videos into visually-rich content that actually helps viewers understand.
+          Viona is the AI video editor for every kind of video. Describe the edit you want in
+          plain English, and Viona performs it.
         </p>
       </div>
 
@@ -24,105 +25,104 @@ import CTA from "@/components/sections/CTA.astro";
         <div>
           <h2 class="text-xl font-semibold mb-4">The Problem</h2>
           <p class="text-muted-foreground leading-relaxed">
-            Explainer videos are powerful—but creating them is painful. You spend hours editing,
-            searching for stock footage, and adding graphics that never quite match what you're
-            saying. The result? Generic videos that don't help your audience learn.
+            Video is the most effective medium online — and the most expensive one to produce.
+            Every video, whether it's a YouTube essay, a product demo, a tutorial, a vlog, or a
+            launch film, demands the same grind: rough cut, trim filler, add captions, color,
+            graphics, re-export for each platform. Most of that work isn't creative. It's
+            mechanical. And it's exactly the kind of work AI should handle.
           </p>
         </div>
 
         <div>
           <h2 class="text-xl font-semibold mb-4">Our Solution</h2>
           <p class="text-muted-foreground leading-relaxed">
-            Viona listens to your video, understands what you're explaining, and automatically
-            generates relevant visuals—flowcharts when you describe a process, charts when you
-            mention data, diagrams when you explain concepts. Not generic B-roll, but contextual
-            graphics synced perfectly to your narration.
+            Viona is an AI co-editor you direct in plain English. Cut the first 30 seconds.
+            Remove the ums. Make the captions MrBeast style. Add a bar chart when I mention the
+            three metrics. Re-export for TikTok. Each prompt maps to a concrete edit, and the
+            AI performs it in seconds. You review, refine, ship.
           </p>
         </div>
 
         <div>
           <h2 class="text-xl font-semibold mb-4">The Technology</h2>
           <p class="text-muted-foreground leading-relaxed mb-4">
-            At the core of Viona is an AI pipeline that goes beyond simple transcription. Our
-            system performs deep content analysis to understand not just what you are saying, but
-            what you mean. It identifies when you are describing a process, comparing options,
-            presenting data, or walking through a concept—and selects the right visual format
-            for each moment.
+            At the core of Viona is a pipeline that does three things most editors don't combine:
+            word-level transcription, semantic scene understanding, and an LLM agent that
+            translates natural-language instructions into timeline operations. Together they let
+            you direct edits the way you'd direct a human editor — "tighten the opening",
+            "swap the caption style", "regenerate this visual in a cleaner layout" — and have
+            the software actually do it.
           </p>
           <p class="text-muted-foreground leading-relaxed">
-            Transcription happens at the word level with precise timing, allowing us to remove
-            filler words like "um" and "uh" without disrupting the flow. Visuals are generated
-            contextually, meaning a mention of growth metrics produces a chart, not a random
-            stock image of a graph. Every graphic is timed to appear exactly when you reference
-            it, creating a seamless viewing experience that feels intentionally designed rather
-            than algorithmically assembled.
+            Because the model reads your transcript at the word level, every edit — cuts, caption
+            timing, visual placement — stays frame-accurate even after you rearrange the video.
+            When visuals help, Viona generates them: flowcharts for processes, charts for data,
+            step sequences for walk-throughs, all timed to the word they're referenced on. When
+            they don't, they stay out of the way.
           </p>
         </div>
 
         <div>
           <h2 class="text-xl font-semibold mb-4">Who We Help</h2>
           <p class="text-muted-foreground leading-relaxed mb-4">
-            Course creators, educators, consultants, and thought leaders who want to produce
-            professional explainer videos without spending hours in editing software. If you
-            can explain something on camera, Viona can help you visualize it.
+            Anyone shipping video. Short-form creators publishing to TikTok, Reels, and Shorts.
+            YouTubers editing long-form essays, vlogs, and tutorials. Educators and course
+            creators turning lectures into polished lessons. Marketing and product teams
+            producing launch videos, demos, webinar clips, and social cut-downs at volume.
+            Agencies shipping a week's worth of client work in a day.
           </p>
           <p class="text-muted-foreground leading-relaxed">
-            Online course creators use Viona to turn lecture recordings into engaging lesson
-            content that students actually watch to the end. Consultants and coaches transform
-            their frameworks and methodologies into polished videos they can share with clients
-            or publish as thought leadership. Educators at schools and universities produce
-            instructional material that meets students where they are—on video—without needing
-            a production team. Marketing teams repurpose webinar recordings and internal
-            presentations into shareable content that communicates complex ideas clearly.
+            The common thread: you'd rather describe the edit than perform it. You want the AI
+            to handle the mechanical 80% so you can spend your time on the creative 20%.
           </p>
         </div>
 
         <div>
           <h2 class="text-xl font-semibold mb-4">How It Works</h2>
           <p class="text-muted-foreground leading-relaxed">
-            Upload your video. Our AI transcribes it with word-level accuracy, removes filler
-            words like "um" and "uh", and analyzes your content to identify opportunities for
-            visuals. You review what the AI generates, make any tweaks, style your subtitles,
-            and export a polished video in any format.
+            Upload your video. Viona transcribes it at the word level and builds a scene model
+            of what's happening. You prompt the edits you want — cuts, caption style, aspect
+            ratio, visuals, color, pacing — and Viona performs them. Review each change, accept
+            or refine, and export to every platform you publish on.
           </p>
         </div>
 
         <div>
-          <h2 class="text-xl font-semibold mb-4">Our Values</h2>
+          <h2 class="text-xl font-semibold mb-4">Our Principles</h2>
           <div class="space-y-6">
             <div>
-              <h3 class="font-medium mb-2">Context Over Clips</h3>
+              <h3 class="font-medium mb-2">Prompt-first, not timeline-first</h3>
               <p class="text-muted-foreground leading-relaxed">
-                We believe visuals should serve your message, not distract from it. Every graphic
-                Viona generates is chosen because it helps the viewer understand what you are
-                explaining—not because it fills space on screen. Generic stock footage is the
-                enemy of comprehension, and we refuse to settle for it.
+                Traditional editors put a timeline in front of you and ask you to perform every
+                operation by hand. Viona puts a conversation in front of you. You describe what
+                you want, and the software handles the mechanics. The timeline is still there
+                when you want it — but it's no longer the only way to work.
               </p>
             </div>
             <div>
-              <h3 class="font-medium mb-2">Creator-First</h3>
+              <h3 class="font-medium mb-2">Creator in control</h3>
               <p class="text-muted-foreground leading-relaxed">
-                You know your subject better than any algorithm. Viona is a tool that amplifies
-                your expertise, not one that replaces your judgment. Our AI makes suggestions
-                and you stay in control of the final result. We design every feature around
-                saving you time while keeping you in the driver's seat.
+                Every edit is reviewable, reversible, and refinable. The AI is a co-editor, not a
+                black box. You can always see what it did, undo it, or ask for something
+                different. No prompt is one-shot, and no change is permanent until you ship.
               </p>
             </div>
             <div>
-              <h3 class="font-medium mb-2">Quality Over Speed</h3>
+              <h3 class="font-medium mb-2">Every kind of video</h3>
               <p class="text-muted-foreground leading-relaxed">
-                We would rather produce one excellent video than ten mediocre ones. Our rendering
-                pipeline prioritizes output quality—crisp subtitles, properly timed visuals, and
-                clean exports—because your audience deserves content that looks as good as it sounds.
+                We don't build for a single format or audience. Talking heads, vlogs, tutorials,
+                demos, interviews, podcast clips, launch films, montages — they all benefit from
+                the same core operations, and Viona ships them for all of them. The right visual
+                system for your video is the one you choose, not the one we force.
               </p>
             </div>
             <div>
-              <h3 class="font-medium mb-2">Accessible by Default</h3>
+              <h3 class="font-medium mb-2">Accessible by default</h3>
               <p class="text-muted-foreground leading-relaxed">
-                Great explainer videos should be available to everyone, regardless of technical
-                skill level. You should not need to learn After Effects or Premiere Pro to
-                communicate your ideas visually. If you can record yourself talking, you have
-                everything you need to get started.
+                You shouldn't need to learn After Effects or Premiere Pro to ship a polished
+                video. If you can record yourself and describe the edit you want, you have
+                everything you need. Captions, filler-word removal, and multi-format export ship
+                in every plan because they're the baseline, not a premium tier.
               </p>
             </div>
           </div>

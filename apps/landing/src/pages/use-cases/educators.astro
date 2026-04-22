@@ -1,0 +1,83 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="AI Video Editor for Educators & Course Creators"
+  description="Turn lecture recordings into polished lessons with auto-generated diagrams, clean captions, and chapter-ready timing — no production team required."
+>
+  <section class="pt-32 pb-16 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-xs font-medium text-primary mb-4">Use Case</div>
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6">
+        Viona for Educators & Course Creators
+      </h1>
+      <p class="text-lg text-muted-foreground leading-relaxed mb-8">
+        Recording a lesson is 20% of the work. Editing, captioning, and illustrating it is the
+        other 80%. Viona collapses that 80% into minutes: prompt the cuts, let the AI generate
+        diagrams synced to your narration, choose a caption style, and export. Professional
+        teaching videos without leaving your browser.
+      </p>
+    </div>
+  </section>
+
+  <section class="pb-16">
+    <div class="max-w-3xl mx-auto px-6 space-y-12">
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Diagrams and charts, auto-synced</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          When you explain a process, Viona generates a flowchart. When you describe a
+          comparison, you get a side-by-side. When you mention a number, a stat card appears.
+          Every visual is timed to the word you said it on, so students see the concept as you
+          describe it — the single highest-impact change you can make for comprehension.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Captions your students will actually read</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Pick a clean readable preset for long-form lectures, or a karaoke-highlight mode for
+          language learning and memorization. Custom fonts and brand colors keep your course
+          looking consistent across every lesson.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Clean audio, always</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Filler words ("um", "uh", "like"), long pauses, and false starts are removed
+          automatically — at the word level, so cuts are invisible. Your lecture sounds
+          rehearsed even when it wasn't.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Prompt-based edits</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Ask Viona to "tighten the opening", "split this into three chapters", "swap that chart
+          for a timeline", or "regenerate this visual with clearer labels". Your time goes into
+          teaching, not timelines.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Related</h2>
+        <ul class="space-y-2 text-muted-foreground">
+          <li><a href="/features/ai-visuals/" class="text-primary hover:underline">AI visual generation</a> — how the diagrams get built.</li>
+          <li><a href="/features/ai-chat-editor/" class="text-primary hover:underline">AI chat editor</a> — direct every edit in plain English.</li>
+          <li><a href="/use-cases/teams/" class="text-primary hover:underline">Teams</a> — for L&D and training content at scale.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Build your next lesson with Viona</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>

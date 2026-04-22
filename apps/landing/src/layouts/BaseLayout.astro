@@ -27,11 +27,29 @@ const { title, description, image, preloadImages } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="alternate" type="application/rss+xml" title="Viona Blog" href="/rss.xml" />
 
-    <!-- DM Sans + DM Serif Display fonts -->
+    <!-- DM Sans + DM Serif Display fonts (non-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&display=swap"
+      />
+    </noscript>
 
     {preloadImages?.map((img) => (
       <link rel="preload" as="image" href={img.href} type={img.type} />
@@ -39,6 +57,14 @@ const { title, description, image, preloadImages } = Astro.props;
     <SEO title={title} description={description} image={image} />
     <StructuredData pathname={Astro.url.pathname} />
     <ClientRouter />
+    {import.meta.env.PUBLIC_PLAUSIBLE_DOMAIN && (
+      <script
+        is:inline
+        defer
+        data-domain={import.meta.env.PUBLIC_PLAUSIBLE_DOMAIN}
+        src="https://plausible.io/js/script.js"
+      />
+    )}
   </head>
   <body class="min-h-screen landing-bg-mesh text-foreground">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-white focus:rounded-lg">Skip to content</a>

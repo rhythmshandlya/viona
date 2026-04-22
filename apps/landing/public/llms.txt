@@ -1,8 +1,8 @@
 # Viona
 
-> You Explain It. We Illustrate It.
+> The AI video editor. Just prompt it.
 
-Viona is a web-based AI video editing platform that transforms talking-head videos into visually-rich content. Upload a video, and our AI analyzes your transcript to automatically generate contextual visuals—charts, diagrams, flowcharts, and graphics—synced precisely to your explanations.
+Viona is a web-based AI video editor for every kind of video — talking heads, vlogs, tutorials, montages, podcast clips, launch videos, and more. Describe the edit you want in plain English and Viona performs it: cutting, splitting, adding captions, generating b-roll, swapping visuals, removing filler words. For content that needs them, Viona also analyzes the transcript to auto-generate contextual visuals — charts, diagrams, flowcharts, and graphics synced to what you're saying.
 
 ## Core Features
 

@@ -1,0 +1,99 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection("blog", ({ data }) => !data.draft);
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+---
+
+<BaseLayout title={post.data.title} description={post.data.description}>
+  <article class="pt-32 pb-20 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <header class="mb-12">
+        <div class="text-xs text-muted-foreground mb-4">
+          <time datetime={post.data.publishedAt.toISOString()}>
+            {dateFormatter.format(post.data.publishedAt)}
+          </time>
+          {post.data.tags.length > 0 && (
+            <span> · {post.data.tags.join(", ")}</span>
+          )}
+        </div>
+        <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6 leading-tight">
+          {post.data.title}
+        </h1>
+        <p class="text-lg text-muted-foreground leading-relaxed">
+          {post.data.description}
+        </p>
+      </header>
+
+      <div class="prose-blog text-muted-foreground">
+        <Content />
+      </div>
+
+      <div class="mt-16 pt-8 border-t border-white/[0.06]">
+        <a href="/blog/" class="text-sm font-medium text-primary hover:underline">← Back to blog</a>
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<style is:global>
+  .prose-blog h2 {
+    color: var(--foreground, #fff);
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    letter-spacing: -0.01em;
+  }
+  .prose-blog h3 {
+    color: var(--foreground, #fff);
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+  }
+  .prose-blog p {
+    line-height: 1.7;
+    margin-bottom: 1.25rem;
+  }
+  .prose-blog ul, .prose-blog ol {
+    margin: 1.25rem 0;
+    padding-left: 1.5rem;
+  }
+  .prose-blog li {
+    margin-bottom: 0.5rem;
+    line-height: 1.7;
+  }
+  .prose-blog ul li { list-style: disc; }
+  .prose-blog ol li { list-style: decimal; }
+  .prose-blog a {
+    color: var(--primary, #8b5cf6);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+  .prose-blog a:hover { text-decoration-thickness: 2px; }
+  .prose-blog strong { color: var(--foreground, #fff); font-weight: 600; }
+  .prose-blog code {
+    background: rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.9em;
+  }
+</style>

@@ -1,0 +1,84 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="AI Video Editor for Content Creators — YouTube, TikTok, Reels"
+  description="Ship more clips, faster. Viona cuts filler, adds viral captions, and exports vertical, square, and widescreen from a single timeline."
+>
+  <section class="pt-32 pb-16 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-xs font-medium text-primary mb-4">Use Case</div>
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6">
+        Viona for Content Creators
+      </h1>
+      <p class="text-lg text-muted-foreground leading-relaxed mb-8">
+        If your feed runs on short-form, the bottleneck isn't ideas — it's edit time. Viona is
+        built to ship: upload raw footage, prompt the cuts you want, let the AI handle captions
+        and auto-generated visuals, and export to YouTube, TikTok, Instagram Reels, and
+        LinkedIn from one project.
+      </p>
+    </div>
+  </section>
+
+  <section class="pb-16">
+    <div class="max-w-3xl mx-auto px-6 space-y-12">
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Cut filler, keep the best takes</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Viona automatically removes "um", "uh", awkward pauses, and dead air — at the word
+          level, so cuts stay invisible. Prompt to "keep only the three strongest sentences" or
+          "tighten the intro to 10 seconds" and the editor performs the trim while preserving
+          pacing.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Captions that match the platform</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Use the MrBeast, Hormozi, or Ali Abdaal preset for short-form. Switch to Netflix or
+          typewriter for longer-form YouTube. Karaoke-highlight the keywords you want to land.
+          Every style is one click — no After Effects, no plugin hunt.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Every aspect ratio, one timeline</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Record once, publish everywhere. Viona exports 9:16 for TikTok and Reels, 16:9 for
+          YouTube, and 1:1 for Instagram feed — with safe-zone preview for each platform so
+          faces and text don't get cropped. One project, three platforms, three times the
+          reach.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Visuals when they help</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          For tutorials, reviews, and explainer content, Viona generates charts, diagrams, and
+          stat cards synced to your narration. Not generic stock — contextual graphics that
+          match what you're saying.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Related</h2>
+        <ul class="space-y-2 text-muted-foreground">
+          <li><a href="/features/caption-templates/" class="text-primary hover:underline">Caption templates</a> — 20+ viral and cinematic styles.</li>
+          <li><a href="/features/ai-chat-editor/" class="text-primary hover:underline">AI chat editor</a> — prompt cuts, trims, and restyles.</li>
+          <li><a href="/use-cases/educators/" class="text-primary hover:underline">Educators & course creators</a> — Viona for longer-form content.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Ship your next clip with Viona</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>

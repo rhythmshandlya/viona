@@ -1,0 +1,88 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="AI Visual Generation — Auto-Generated Charts & Diagrams"
+  description="Viona analyzes your narration and generates contextual visuals — flowcharts, timelines, stat cards, comparisons — timed precisely to what you're saying."
+>
+  <section class="pt-32 pb-16 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-xs font-medium text-primary mb-4">Feature</div>
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6">
+        AI Visual Generation
+      </h1>
+      <p class="text-lg text-muted-foreground leading-relaxed mb-8">
+        When your video would benefit from visuals — charts, diagrams, flowcharts, stat cards —
+        Viona reads your transcript, picks the right format, and generates the graphic timed to
+        the exact moment you reference it. No stock searches. No custom illustration. Just a
+        synced visual that matches what you're saying.
+      </p>
+    </div>
+  </section>
+
+  <section class="pb-16">
+    <div class="max-w-3xl mx-auto px-6 space-y-12">
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">What Viona generates</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Flowcharts for processes, timelines for sequences, step sequences for walk-throughs,
+          bar charts and line graphs for data, stat cards for headline numbers, 2x2 matrices for
+          tradeoffs, Venn diagrams for overlap, side-by-side comparisons, text callouts, pull
+          quotes, and more. The AI picks the format based on how you're framing the idea —
+          "three steps" produces a step sequence; "we grew 40% year over year" produces a stat
+          card or chart.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Precise sync to your narration</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Every generated visual is timed to the word. A flowchart appears exactly when you say
+          "there are three steps", a bar chart fades in on the number, the next frame hits on
+          the next concept. Because the timing comes from word-level transcription, not manual
+          keyframing, the sync holds even after you cut, trim, or rearrange the video.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Fully editable</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Visuals aren't locked. Accept, reject, or refine any graphic with a prompt — "make
+          this chart blue", "use a pie chart instead", "simplify the flowchart to three nodes".
+          You can also edit the data or labels directly if you want precise control. Your brand
+          colors and fonts propagate to every visual, so the whole video stays on-brand.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">When you want it, where you need it</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Not every video needs visuals. The feature is opt-in per project. Turn it on for
+          explainers, educational content, data-heavy pitches, and product walk-throughs. Leave
+          it off for vlogs, B-roll montages, or dialogue-driven pieces where visuals would just
+          get in the way.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Related features</h2>
+        <ul class="space-y-2 text-muted-foreground">
+          <li><a href="/features/ai-chat-editor/" class="text-primary hover:underline">AI chat editor</a> — refine any visual with a prompt.</li>
+          <li><a href="/features/caption-templates/" class="text-primary hover:underline">Animated caption templates</a> — pair visuals with on-brand subtitles.</li>
+          <li><a href="/pricing/" class="text-primary hover:underline">Pricing</a> — visual generation in every plan.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Generate your first visual</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>

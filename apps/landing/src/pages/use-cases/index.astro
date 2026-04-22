@@ -1,0 +1,44 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { useCasePages } from "@/data/use-case-pages";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="Use Cases"
+  description="Who uses Viona: content creators shipping short-form, educators building courses, and marketing teams producing video at scale."
+>
+  <section class="pt-32 pb-20 lg:pt-40">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-4">
+          Use Cases
+        </h1>
+        <p class="text-muted-foreground max-w-2xl mx-auto">
+          Viona works for every kind of video. Here's what it looks like for the people shipping
+          the most.
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6">
+        {useCasePages.map((u) => (
+          <a href={`/use-cases/${u.slug}/`} class="card-elevated p-6 block hover:ring-1 hover:ring-primary/40 transition">
+            <div class="text-xs font-medium text-primary mb-3">{u.tagline}</div>
+            <h2 class="text-xl font-semibold mb-3">{u.name}</h2>
+            <p class="text-sm text-muted-foreground leading-relaxed">{u.summary}</p>
+            <div class="mt-4 text-sm font-medium text-primary">See how →</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Start editing free</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>

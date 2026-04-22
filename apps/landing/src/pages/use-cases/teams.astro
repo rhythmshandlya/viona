@@ -1,0 +1,84 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="AI Video Editor for Marketing & Product Teams"
+  description="Produce launch videos, demos, tutorials, and social clips at agency speed. Brand presets, team collaboration, and prompt-based editing keep output consistent."
+>
+  <section class="pt-32 pb-16 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-xs font-medium text-primary mb-4">Use Case</div>
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6">
+        Viona for Marketing & Product Teams
+      </h1>
+      <p class="text-lg text-muted-foreground leading-relaxed mb-8">
+        Product marketing, launch content, customer stories, internal enablement — the modern
+        team ships video weekly, and the editing backlog never ends. Viona is the AI video
+        editor for teams that need to move fast without sacrificing quality: one prompt replaces
+        an afternoon in the timeline, brand presets keep output consistent, and shared workspaces
+        let anyone pick up and ship.
+      </p>
+    </div>
+  </section>
+
+  <section class="pb-16">
+    <div class="max-w-3xl mx-auto px-6 space-y-12">
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Launch videos and demos</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Record a walk-through, upload, and prompt Viona to "tighten to 90 seconds", "add
+          captions in our brand style", and "generate a feature comparison when I mention the
+          three tiers". Ship the same video in YouTube, LinkedIn, Twitter, and vertical
+          social formats — one project, every aspect ratio.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Tutorials and docs-as-video</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Convert screen recordings and customer-education content into polished tutorials.
+          Viona auto-generates step sequences and callouts synced to your narration, so learners
+          see the action and the concept simultaneously. Update the source, re-render, done.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Brand presets and consistency</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Lock in your fonts, colors, caption style, and visual system once. Every team member
+          starts from the same preset, so output looks like it came from the same studio even
+          when five different people shipped this week's videos.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Collaboration built in</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Shared workspaces, commenting on specific timestamps, and review handoffs. PMs draft,
+          marketing edits, design stamps, and the final cut ships — without exporting proxies or
+          emailing files.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Related</h2>
+        <ul class="space-y-2 text-muted-foreground">
+          <li><a href="/features/ai-chat-editor/" class="text-primary hover:underline">AI chat editor</a> — the prompt-first editing flow.</li>
+          <li><a href="/pricing/" class="text-primary hover:underline">Pricing</a> — team plans and enterprise options.</li>
+          <li><a href="/use-cases/content-creators/" class="text-primary hover:underline">Content creators</a> — for individual contributors shipping short-form.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Start your team trial</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>

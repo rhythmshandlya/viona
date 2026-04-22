@@ -1,0 +1,87 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/data/site";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="Animated Caption Templates — 20+ Subtitle Styles"
+  description="Choose from 20+ animated caption presets — MrBeast, Hormozi, Ali Abdaal, Netflix, typewriter, karaoke, word-by-word — and customize fonts, colors, and positioning."
+>
+  <section class="pt-32 pb-16 lg:pt-40">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-xs font-medium text-primary mb-4">Feature</div>
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-6">
+        Animated Caption Templates
+      </h1>
+      <p class="text-lg text-muted-foreground leading-relaxed mb-8">
+        Captions sell the clip. Viona ships 20+ animated caption templates — from viral creator
+        presets to cinematic and broadcast styles — so you can match the look of any platform in
+        one click. Every template is fully customizable: fonts, colors, glow, positioning,
+        animation timing.
+      </p>
+    </div>
+  </section>
+
+  <section class="pb-16">
+    <div class="max-w-3xl mx-auto px-6 space-y-12">
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Viral creator presets</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Replicate the exact caption styles that dominate short-form feeds. The MrBeast preset
+          uses large bold type with a punchy bounce on keywords. The Hormozi preset colors
+          emphasis words with a gradient and pulses on impact. The Ali Abdaal preset keeps
+          things minimal and readable for longer explainer content. Each preset is one click,
+          not ten layers in After Effects.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Cinematic and broadcast styles</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          For longer-form or premium content, Viona includes Netflix-style bottom-aligned
+          subtitles, typewriter reveal, clean broadcast lower-thirds, and documentary-style
+          name plates. Match the feel of a documentary, a Stranger Things promo, or a PBS
+          segment without touching a motion graphics template library.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Display modes</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Beyond visual styling, Viona supports word-by-word highlighting (each word appears as
+          it's spoken), karaoke mode (words light up on pronunciation), and full-phrase display
+          (complete captions per phrase). Choose per project, or let the AI pick the mode that
+          matches your content pacing.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Customize anything</h2>
+        <p class="text-muted-foreground leading-relaxed">
+          Every preset is a starting point. Swap the font, tune the colors, adjust glow and drop
+          shadow, change the animation ease, move the safe-zone. Export burn-in captions or a
+          separate caption track. Reuse your tuned style as a team preset so everyone's output
+          looks consistent.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-2xl font-semibold mb-4">Related features</h2>
+        <ul class="space-y-2 text-muted-foreground">
+          <li><a href="/features/ai-chat-editor/" class="text-primary hover:underline">AI chat editor</a> — change caption styles with a prompt.</li>
+          <li><a href="/features/ai-visuals/" class="text-primary hover:underline">AI visual generation</a> — pair captions with auto-generated charts and diagrams.</li>
+          <li><a href="/pricing/" class="text-primary hover:underline">Pricing</a> — watermark-free captions from the Pro plan up.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <a href={siteConfig.appUrl} class="btn-primary inline-flex justify-center">Try caption templates</a>
+    </div>
+  </section>
+
+  <CTA />
+</BaseLayout>
